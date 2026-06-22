@@ -38,6 +38,12 @@ yarn-error.*
 .env.*
 !.env.example
 
+# npm lockfile is intentionally NOT committed: npm generates a Linux-specific
+# lockfile that omits macOS-only optional deps (@emnapi/* via lightningcss),
+# which breaks `npm ci` on EAS's macOS iOS builders. Without it EAS runs
+# `npm install` and resolves natively. See assets/logo + README if re-adding.
+package-lock.json
+
 # typescript
 *.tsbuildinfo
 
