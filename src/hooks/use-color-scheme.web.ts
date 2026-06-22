@@ -8,6 +8,10 @@ export function useColorScheme() {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
+    // Intentional: flip to the real scheme only after client hydration (static
+    // web render starts as 'light'). One-shot, so the cascading-render rule
+    // doesn't apply here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasHydrated(true);
   }, []);
 
