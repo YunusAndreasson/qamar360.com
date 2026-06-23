@@ -26,6 +26,14 @@ export default function TabsLayout() {
           <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="checklist" />} />
         )}
       </Trigger>
+      <Trigger name="progress">
+        <Trigger.Label>Progress</Trigger.Label>
+        {Platform.OS === 'ios' ? (
+          <Trigger.Icon sf="chart.bar.fill" />
+        ) : (
+          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="bar-chart" />} />
+        )}
+      </Trigger>
       <Trigger name="settings">
         <Trigger.Label>Settings</Trigger.Label>
         {Platform.OS === 'ios' ? (
