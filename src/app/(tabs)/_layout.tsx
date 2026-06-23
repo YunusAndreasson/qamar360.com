@@ -19,11 +19,11 @@ export default function TabsLayout() {
       indicatorColor={colors.backgroundSelected}
       labelStyle={{ selected: { color: colors.text } }}>
       <Trigger name="index">
-        <Trigger.Label>Home</Trigger.Label>
+        <Trigger.Label>Habits</Trigger.Label>
         {Platform.OS === 'ios' ? (
-          <Trigger.Icon sf="house.fill" />
+          <Trigger.Icon sf="checklist" />
         ) : (
-          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="home" />} />
+          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="checklist" />} />
         )}
       </Trigger>
       <Trigger name="settings">
