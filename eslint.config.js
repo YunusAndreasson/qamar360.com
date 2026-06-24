@@ -12,8 +12,9 @@ module.exports = defineConfig([
   expoConfig,
 
   {
-    // `supabase/functions` are Deno edge functions, not part of the RN/TS app.
-    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'supabase/**', 'expo-env.d.ts'],
+    // `supabase/functions` are Deno edge functions; `plugins/` are Node build-time
+    // config plugins — neither is part of the RN/TS app.
+    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'supabase/**', 'plugins/**', 'expo-env.d.ts'],
   },
 
   // ── Rules for all source files (no type information required) ────────────
