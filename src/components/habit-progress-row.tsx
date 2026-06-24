@@ -12,9 +12,10 @@ const DOT = 12;
 function HabitProgressRowBase({ progress }: { progress: HabitProgress }) {
   const theme = useTheme();
 
-  // done → filled accent · missed → hollow outline · inactive (didn't exist yet) → faint.
+  // done → filled accent · missed → hollow outline · inactive (didn't exist yet) → faint
+  // neutral track dot, so the seven-day trail always reads as a full timeline.
   const dotFill = (cell: DayCell) =>
-    cell === 'done' ? theme.accent : cell === 'inactive' ? theme.accentSubtle : 'transparent';
+    cell === 'done' ? theme.accent : cell === 'inactive' ? theme.backgroundSelected : 'transparent';
 
   return (
     <View

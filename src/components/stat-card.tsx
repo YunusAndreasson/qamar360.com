@@ -1,6 +1,6 @@
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -23,7 +23,7 @@ export function StatCard({ style, ...rest }: ViewProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: Radius.card,
     padding: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
   },

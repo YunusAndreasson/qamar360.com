@@ -5,10 +5,19 @@
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePreferences } from '@/hooks/use-preferences';
+
+/**
+ * The effective `'light' | 'dark'` scheme after applying the user's appearance preference:
+ * an explicit choice wins, otherwise we follow the OS (null/undefined → light).
+ */
+export function useEffectiveScheme(): 'light' | 'dark' {
+  const scheme = useColorScheme();
+  const { themePreference } = usePreferences();
+  if (themePreference === 'system') return scheme === 'dark' ? 'dark' : 'light';
+  return themePreference;
+}
 
 export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
-
-  return Colors[theme];
+  return Colors[useEffectiveScheme()];
 }

@@ -68,6 +68,16 @@ export async function configureNotifications(): Promise<void> {
   }
 }
 
+/**
+ * Current notification permission, *without* prompting — for reflecting state on mount.
+ * `true`/`false` when known; `null` when notifications aren't available at all.
+ */
+export async function permissionGranted(): Promise<boolean | null> {
+  if (!N) return null;
+  const { status } = await N.getPermissionsAsync();
+  return status === 'granted';
+}
+
 /** Request notification permission if needed. Returns true when granted (false when unavailable). */
 export async function ensurePermission(): Promise<boolean> {
   if (!N) return false;

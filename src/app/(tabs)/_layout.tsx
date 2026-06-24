@@ -1,24 +1,27 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 const { Trigger } = NativeTabs;
 
-// Default tab when entering the group at "/". `anchor` matches the route file
-// name ("index" → Home).
-export const unstable_settings = { anchor: 'index' };
+// Default tab when entering the group at "/". `anchor` matches the route folder
+// name ("habits" → the Habits stack).
+export const unstable_settings = { anchor: 'habits' };
 
 export default function TabsLayout() {
-  const colors = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  // `useTheme()` (not the bare OS scheme) so the native tab bar follows the in-app
+  // appearance override too — otherwise it stays on the system theme.
+  const colors = useTheme();
 
   return (
     <NativeTabs
       backgroundColor={colors.background}
-      indicatorColor={colors.backgroundSelected}
-      labelStyle={{ selected: { color: colors.accent } }}>
-      <Trigger name="index">
+      tintColor={colors.text}
+      iconColor={colors.text}
+      indicatorColor={colors.backgroundSelected}>
+      <Trigger name="habits">
         <Trigger.Label>Habits</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="checklist" />

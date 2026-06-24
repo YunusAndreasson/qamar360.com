@@ -1,11 +1,14 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { PreferencesProvider, usePreferences } from '@/hooks/use-preferences';
+import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications } from '@/lib/notifications';
 
 void SplashScreen.preventAutoHideAsync();
@@ -19,25 +22,44 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </AuthProvider>
+        <PreferencesProvider>
+          <AuthProvider>
+            <RootNavigator />
+            <ThemedChrome />
+          </AuthProvider>
+        </PreferencesProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
-function RootNavigator() {
-  const { session, initialized } = useAuth();
+/** Status-bar contrast + native window background that track the *effective* theme (incl. the
+ *  in-app override), so a forced Light/Dark choice doesn't leave the bar or flashes mismatched. */
+function ThemedChrome() {
+  const scheme = useEffectiveScheme();
+  const theme = useTheme();
 
   useEffect(() => {
-    if (initialized) void SplashScreen.hideAsync();
-  }, [initialized]);
+    // Match the native window background so theme switches don't flash white behind RN views.
+    void SystemUI.setBackgroundColorAsync(theme.background);
+  }, [theme.background]);
 
-  // Keep the splash up until the persisted session has resolved — avoids a flash
-  // of the sign-in screen on a warm start where the user is already signed in.
-  if (!initialized) return null;
+  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />;
+}
+
+function RootNavigator() {
+  const { session, initialized } = useAuth();
+  const { hydrated } = usePreferences();
+
+  const ready = initialized && hydrated;
+
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+
+  // Hold the splash until BOTH the persisted session and the stored theme have resolved — avoids
+  // a sign-in flash on warm start and a light→dark flash when a non-system theme is stored.
+  if (!ready) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

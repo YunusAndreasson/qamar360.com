@@ -12,11 +12,14 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, DAILY_SCHEDULE, todayLocalISO } from '@/lib/dates';
+import { addDaysISO, scheduledOn, todayLocalISO } from '@/lib/dates';
+import { haptics } from '@/lib/haptics';
 import { rescheduleAll } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
 export type Habit = Tables<'habits'>;
+/** A named, ordered group of habits — presentation grouping only (see `stack_id`). */
+export type HabitStack = Tables<'habit_stacks'>;
 
 /** Editable fields of a habit. */
 export type HabitPatch = {
@@ -25,12 +28,36 @@ export type HabitPatch = {
   reminder_time?: string | null;
 };
 
+/** Everything needed to create a habit (name + schedule + optional reminder). */
+export type HabitCreate = {
+  name: string;
+  schedule_days: number[];
+  reminder_time: string | null;
+};
+
 /** How far back the day-stepper lets you backfill a missed completion. */
 const BACKFILL_DAYS = 30;
+
+/**
+ * Rewrite the full habit id order so `orderedMemberIds` sit contiguously (in the given
+ * order) at the slot of the earliest current member, preserving the order of the rest.
+ * Keeps a stack's members adjacent in the single `position` space.
+ */
+function groupedOrder(habits: Habit[], orderedMemberIds: string[]): string[] {
+  const order = [...habits].sort((a, b) => a.position - b.position).map((h) => h.id);
+  const memberSet = new Set(orderedMemberIds);
+  const rest = order.filter((id) => !memberSet.has(id));
+  const firstIdx = order.findIndex((id) => memberSet.has(id));
+  const anchor = firstIdx === -1 ? rest.length : firstIdx;
+  const members = orderedMemberIds.filter((id) => order.includes(id));
+  return [...rest.slice(0, anchor), ...members, ...rest.slice(anchor)];
+}
 
 type HabitsContextValue = {
   /** Habits for the current user, ordered by `position`. */
   habits: Habit[];
+  /** The user's habit stacks (named groups). Membership lives on `habit.stack_id`. */
+  stacks: HabitStack[];
   /** Ids of habits ticked off for `viewDate`. */
   completed: Set<string>;
   /** True only during the first load. */
@@ -41,6 +68,8 @@ type HabitsContextValue = {
   today: string;
   /** The day currently shown/edited — `today`, or up to `BACKFILL_DAYS` earlier. */
   viewDate: string;
+  /** The earliest day the picker/stepper may reach (`today − BACKFILL_DAYS`). */
+  minViewDate: string;
   /** Whether `viewDate` is today. */
   isToday: boolean;
   /** Whether the stepper can go further back. */
@@ -50,11 +79,19 @@ type HabitsContextValue = {
   setViewDate: (iso: string) => void;
   /** Step the viewed day by `delta` days (clamped). */
   stepDay: (delta: number) => void;
-  addHabit: (name: string) => Promise<void>;
+  createHabit: (input: HabitCreate) => Promise<void>;
+  /** Create several habits at once (Discover "starter set" / routines); returns the new rows. */
+  createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
   toggleHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
   deleteHabit: (habitId: string) => Promise<void>;
   reorderHabits: (orderedIds: string[]) => Promise<void>;
+  /** Create a stack from existing habits (in order). Returns the new stack id, or null. */
+  createStack: (name: string, orderedMemberIds: string[]) => Promise<string | null>;
+  /** Rename a stack and/or set its full ordered membership. Empty membership deletes it. */
+  updateStack: (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => Promise<void>;
+  /** Delete a stack; its members survive as standalone habits. */
+  deleteStack: (stackId: string) => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
@@ -67,6 +104,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const userId = user?.id ?? null;
 
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [stacks, setStacks] = useState<HabitStack[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +113,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
   // Refs mirror state so async handlers read the latest values without stale closures.
   const habitsRef = useRef(habits);
+  const stacksRef = useRef(stacks);
   const completedRef = useRef(completed);
   const todayRef = useRef(today);
   const viewDateRef = useRef(viewDate);
@@ -84,6 +123,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     habitsRef.current = habits;
   }, [habits]);
+  useEffect(() => {
+    stacksRef.current = stacks;
+  }, [stacks]);
   useEffect(() => {
     completedRef.current = completed;
   }, [completed]);
@@ -108,6 +150,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     setHabits(data ?? []);
   }, [userId]);
 
+  const fetchStacks = useCallback(async () => {
+    if (!userId) return;
+    const { data, error: stacksError } = await supabase
+      .from('habit_stacks')
+      .select('*')
+      .eq('user_id', userId);
+    if (stacksError) {
+      setError('Could not load your habits. Reopen the app to retry.');
+      return;
+    }
+    setStacks(data ?? []);
+  }, [userId]);
+
   const fetchCompletions = useCallback(
     async (day: string) => {
       if (!userId) return;
@@ -130,13 +185,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     void (async () => {
-      await Promise.all([fetchHabits(), fetchCompletions(viewDateRef.current)]);
+      await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
       if (active) setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [fetchHabits, fetchCompletions]);
+  }, [fetchHabits, fetchStacks, fetchCompletions]);
 
   // Refetch completions when the viewed day changes (the mount load covers the first day).
   const didMount = useRef(false);
@@ -159,6 +214,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const wasOnToday = viewDateRef.current === todayRef.current;
       setToday(now);
       void fetchHabits();
+      void fetchStacks();
       if (wasOnToday) {
         setViewDateState(now); // the viewDate effect will refetch its completions
       } else {
@@ -166,7 +222,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => sub.remove();
-  }, [userId, fetchHabits, fetchCompletions]);
+  }, [userId, fetchHabits, fetchStacks, fetchCompletions]);
 
   // Keep OS reminders in sync with the habits. Keyed on the reminder-relevant fields
   // only, so reorders/ticks (which don't change them) don't churn the schedule.
@@ -224,6 +280,20 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
+      // Tactile feedback, matched to the optimistic flip: a light "undo" tap when
+      // clearing, otherwise a solid tap — upgraded to a celebratory buzz when this
+      // tick completes every habit scheduled for the viewed day.
+      if (wasDone) {
+        haptics.uncompleted();
+      } else {
+        const scheduledIds = habitsRef.current.filter((h) => scheduledOn(h, day)).map((h) => h.id);
+        const dayComplete =
+          scheduledIds.length > 0 &&
+          scheduledIds.every((id) => id === habitId || completedRef.current.has(id));
+        if (dayComplete) haptics.celebrate();
+        else haptics.completed();
+      }
+
       try {
         if (wasDone) {
           const { error: delError } = await supabase
@@ -257,8 +327,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
-  const addHabit = useCallback(
-    async (rawName: string) => {
+  const createHabit = useCallback(
+    async ({ name: rawName, schedule_days, reminder_time }: HabitCreate) => {
       if (!userId) return;
       const name = rawName.trim();
       if (!name) return;
@@ -280,15 +350,16 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         position,
         created_at: null,
         updated_at: null,
-        schedule_days: DAILY_SCHEDULE,
-        reminder_time: null,
+        schedule_days,
+        reminder_time,
+        stack_id: null,
       };
       setHabits((prev) => [...prev, optimistic]);
 
       try {
         const { data, error: insError } = await supabase
           .from('habits')
-          .insert({ user_id: userId, name, position })
+          .insert({ user_id: userId, name, position, schedule_days, reminder_time })
           .select()
           .single();
         if (insError) throw insError;
@@ -297,6 +368,74 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } catch {
         setHabits((prev) => prev.filter((h) => h.id !== tempId));
         setError('Could not add that habit. Check your connection.');
+      }
+    },
+    [userId, ensureUserRow],
+  );
+
+  const createHabits = useCallback(
+    async (inputs: HabitCreate[]): Promise<Habit[]> => {
+      if (!userId) return [];
+      const clean = inputs
+        .map((input) => ({ ...input, name: input.name.trim() }))
+        .filter((input) => input.name.length > 0);
+      if (clean.length === 0) return [];
+
+      try {
+        await ensureUserRow();
+      } catch {
+        setError('Could not set up your account. Try again.');
+        return [];
+      }
+
+      // One contiguous block of positions, computed once — looping `createHabit`
+      // would re-read `habitsRef` before the prior optimistic insert committed and
+      // could collide positions (and surface one error banner per habit).
+      const base = habitsRef.current.reduce((max, h) => Math.max(max, h.position), -1) + 1;
+      const stamp = Date.now();
+      const optimistic: Habit[] = clean.map((input, k) => ({
+        id: `temp-${stamp}-${k}`,
+        user_id: userId,
+        name: input.name,
+        position: base + k,
+        created_at: null,
+        updated_at: null,
+        schedule_days: input.schedule_days,
+        reminder_time: input.reminder_time,
+        stack_id: null,
+      }));
+      const tempIds = new Set(optimistic.map((o) => o.id));
+      setHabits((prev) => [...prev, ...optimistic]);
+
+      try {
+        const { data, error: insError } = await supabase
+          .from('habits')
+          .insert(
+            clean.map((input, k) => ({
+              user_id: userId,
+              name: input.name,
+              position: base + k,
+              schedule_days: input.schedule_days,
+              reminder_time: input.reminder_time,
+            })),
+          )
+          .select();
+        if (insError) throw insError;
+        const persisted = data ?? [];
+        // Swap the temp rows for the persisted ones (real ids), keeping position order.
+        setHabits((prev) =>
+          [...prev.filter((h) => !tempIds.has(h.id)), ...persisted].sort((a, b) => a.position - b.position),
+        );
+        // Keep the ref authoritative immediately, so an op chained right after (e.g.
+        // `createStack` when adding a routine) sees the new rows before the sync effect runs.
+        habitsRef.current = [...habitsRef.current.filter((h) => !tempIds.has(h.id)), ...persisted].sort(
+          (a, b) => a.position - b.position,
+        );
+        return persisted;
+      } catch {
+        setHabits((prev) => prev.filter((h) => !tempIds.has(h.id)));
+        setError('Could not add those habits. Check your connection.');
+        return [];
       }
     },
     [userId, ensureUserRow],
@@ -345,6 +484,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         const { error: delError } = await supabase.from('habits').delete().eq('id', habitId);
         if (delError) throw delError;
         // Completions cascade-delete via the FK — no manual cleanup needed.
+        // If that was a stack's last member, drop the now-empty stack (best-effort).
+        if (removed.stack_id && !habitsRef.current.some((h) => h.stack_id === removed.stack_id)) {
+          const emptyStackId = removed.stack_id;
+          setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
+          void supabase.from('habit_stacks').delete().eq('id', emptyStackId);
+        }
       } catch {
         // Restore on failure, keeping position order.
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
@@ -392,30 +537,197 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  // Persist new positions + stack_id for the given habits (optimistic state already set).
+  // Mirrors `reorderHabits`' per-row update; also carries the membership change.
+  const persistGrouping = useCallback(async (rows: Habit[], prevHabits: Habit[]): Promise<boolean> => {
+    const persistable = rows.filter((h) => !h.id.startsWith('temp-'));
+    try {
+      const results = await Promise.all(
+        persistable.map((h) =>
+          supabase.from('habits').update({ position: h.position, stack_id: h.stack_id }).eq('id', h.id),
+        ),
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+      return true;
+    } catch {
+      setHabits(prevHabits);
+      return false;
+    }
+  }, []);
+
+  const createStack = useCallback(
+    async (name: string, orderedMemberIds: string[]): Promise<string | null> => {
+      if (!userId) return null;
+      const cleanName = name.trim();
+      const memberIds = orderedMemberIds.filter((id) => !id.startsWith('temp-'));
+      if (!cleanName || memberIds.length === 0) return null;
+
+      try {
+        await ensureUserRow();
+      } catch {
+        setError('Could not set up your account. Try again.');
+        return null;
+      }
+
+      const prevHabits = habitsRef.current;
+      const prevStacks = stacksRef.current;
+
+      // Insert the stack row first — we need its id to stamp members.
+      let stack: HabitStack;
+      try {
+        const { data, error: insErr } = await supabase
+          .from('habit_stacks')
+          .insert({ user_id: userId, name: cleanName })
+          .select()
+          .single();
+        if (insErr) throw insErr;
+        stack = data;
+      } catch {
+        setError('Could not create that stack. Check your connection.');
+        return null;
+      }
+
+      // Pull members together (in order) and stamp their stack_id, optimistically.
+      const orderIds = groupedOrder(prevHabits, memberIds);
+      const memberSet = new Set(memberIds);
+      const byId = new Map(prevHabits.map((h) => [h.id, h]));
+      const next = orderIds
+        .map((id, index) => {
+          const h = byId.get(id);
+          return h ? { ...h, position: index, stack_id: memberSet.has(id) ? stack.id : h.stack_id } : null;
+        })
+        .filter((h): h is Habit => h !== null);
+      setStacks((prev) => [...prev, stack]);
+      setHabits(next);
+
+      const ok = await persistGrouping(next, prevHabits);
+      if (!ok) {
+        setStacks(prevStacks);
+        void supabase.from('habit_stacks').delete().eq('id', stack.id);
+        setError('Could not create that stack. Check your connection.');
+        return null;
+      }
+      return stack.id;
+    },
+    [userId, ensureUserRow, persistGrouping],
+  );
+
+  const deleteStack = useCallback(
+    async (stackId: string) => {
+      if (!userId) return;
+      const prevHabits = habitsRef.current;
+      const prevStacks = stacksRef.current;
+      if (!prevStacks.some((s) => s.id === stackId)) return;
+
+      // Optimistic: drop the stack; members revert to standalone.
+      setStacks((prev) => prev.filter((s) => s.id !== stackId));
+      setHabits((prev) => prev.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h)));
+
+      try {
+        const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', stackId);
+        if (delErr) throw delErr;
+        // Members' stack_id is cleared by the FK (on delete set null).
+      } catch {
+        setHabits(prevHabits);
+        setStacks(prevStacks);
+        setError('Could not delete that stack. Check your connection.');
+      }
+    },
+    [userId],
+  );
+
+  const updateStack = useCallback(
+    async (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => {
+      if (!userId) return;
+      const prevHabits = habitsRef.current;
+      const prevStacks = stacksRef.current;
+      if (!prevStacks.some((s) => s.id === stackId)) return;
+
+      const newName = patch.name?.trim();
+      const memberIds = patch.orderedMemberIds?.filter((id) => !id.startsWith('temp-'));
+
+      // No members left → the stack is meaningless; delete it.
+      if (memberIds && memberIds.length === 0) {
+        await deleteStack(stackId);
+        return;
+      }
+
+      if (newName) {
+        setStacks((prev) => prev.map((s) => (s.id === stackId ? { ...s, name: newName } : s)));
+      }
+
+      let next = prevHabits;
+      if (memberIds) {
+        const memberSet = new Set(memberIds);
+        // Stamp new members, clear ex-members of *this* stack, leave others alone.
+        const withMembership = prevHabits.map((h) =>
+          memberSet.has(h.id)
+            ? { ...h, stack_id: stackId }
+            : h.stack_id === stackId
+              ? { ...h, stack_id: null }
+              : h,
+        );
+        const orderIds = groupedOrder(withMembership, memberIds);
+        const byId = new Map(withMembership.map((h) => [h.id, h]));
+        next = orderIds
+          .map((id, index) => {
+            const h = byId.get(id);
+            return h ? { ...h, position: index } : null;
+          })
+          .filter((h): h is Habit => h !== null);
+        setHabits(next);
+      }
+
+      try {
+        if (newName) {
+          const { error: nameErr } = await supabase.from('habit_stacks').update({ name: newName }).eq('id', stackId);
+          if (nameErr) throw nameErr;
+        }
+        if (memberIds && !(await persistGrouping(next, prevHabits))) {
+          setStacks(prevStacks);
+          setError('Could not save the stack. Check your connection.');
+        }
+      } catch {
+        setHabits(prevHabits);
+        setStacks(prevStacks);
+        setError('Could not save the stack. Check your connection.');
+      }
+    },
+    [userId, deleteStack, persistGrouping],
+  );
+
   const dismissError = useCallback(() => setError(null), []);
 
   const value = useMemo<HabitsContextValue>(() => {
     const min = addDaysISO(today, -BACKFILL_DAYS);
     return {
       habits,
+      stacks,
       completed,
       loading,
       error,
       today,
       viewDate,
+      minViewDate: min,
       isToday: viewDate === today,
       canGoBack: viewDate > min,
       dismissError,
       setViewDate,
       stepDay,
-      addHabit,
+      createHabit,
+      createHabits,
       toggleHabit,
       updateHabit,
       deleteHabit,
       reorderHabits,
+      createStack,
+      updateStack,
+      deleteStack,
     };
   }, [
     habits,
+    stacks,
     completed,
     loading,
     error,
@@ -424,11 +736,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     dismissError,
     setViewDate,
     stepDay,
-    addHabit,
+    createHabit,
+    createHabits,
     toggleHabit,
     updateHabit,
     deleteHabit,
     reorderHabits,
+    createStack,
+    updateStack,
+    deleteStack,
   ]);
 
   return <HabitsContext.Provider value={value}>{children}</HabitsContext.Provider>;

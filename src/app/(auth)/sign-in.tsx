@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -34,6 +35,10 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Refs for keyboard "next" focus-chaining so the form is submittable without
+  // reaching the button (which can sit behind the keyboard).
+  const passwordRef = useRef<TextInput>(null);
+  const newPasswordRef = useRef<TextInput>(null);
 
   function goTo(next: Mode) {
     setError(null);
@@ -86,8 +91,12 @@ export default function SignInScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="subtitle">qamar360</ThemedText>
+        <View style={styles.brand}>
+          <MaterialIcons name="dark-mode" size={40} color={theme.accent} />
+          <ThemedText type="subtitle">qamar360</ThemedText>
+        </View>
         <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
           {SUBTITLES[mode]}
         </ThemedText>
@@ -104,6 +113,12 @@ export default function SignInScreen() {
             autoCorrect={false}
             keyboardType="email-address"
             textContentType="emailAddress"
+            autoComplete="email"
+            returnKeyType={showPassword ? 'next' : 'go'}
+            onSubmitEditing={() => {
+              if (showPassword) passwordRef.current?.focus();
+              else void onSubmit();
+            }}
             value={email}
             onChangeText={setEmail}
           />
@@ -121,6 +136,9 @@ export default function SignInScreen() {
             autoCorrect={false}
             keyboardType="number-pad"
             textContentType="oneTimeCode"
+            autoComplete="one-time-code"
+            returnKeyType="next"
+            onSubmitEditing={() => newPasswordRef.current?.focus()}
             value={code}
             onChangeText={setCode}
           />
@@ -135,8 +153,12 @@ export default function SignInScreen() {
             placeholder="Password"
             placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
+            ref={passwordRef}
             secureTextEntry
             textContentType="password"
+            autoComplete={mode === 'sign-up' ? 'new-password' : 'password'}
+            returnKeyType="go"
+            onSubmitEditing={() => void onSubmit()}
             value={password}
             onChangeText={setPassword}
           />
@@ -151,8 +173,12 @@ export default function SignInScreen() {
             placeholder="New password"
             placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
+            ref={newPasswordRef}
             secureTextEntry
             textContentType="newPassword"
+            autoComplete="new-password"
+            returnKeyType="go"
+            onSubmitEditing={() => void onSubmit()}
             value={password}
             onChangeText={setPassword}
           />
@@ -204,21 +230,24 @@ export default function SignInScreen() {
           </Pressable>
         )}
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  flex: { flex: 1 },
   safeArea: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
   },
+  brand: { gap: Spacing.one },
   subtitle: { marginBottom: Spacing.two },
   input: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
@@ -226,7 +255,7 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.control,
     paddingVertical: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',

@@ -73,5 +73,18 @@ export const Spacing = {
   six: 64,
 } as const;
 
+/** Corner-radius scale — keep surfaces consistent instead of hand-picking per component. */
+export const Radius = {
+  /** Inputs, chips, buttons, small pills. */
+  control: 8,
+  /** Inline notices / banners. */
+  banner: 12,
+  /** Cards and grouped-list surfaces. */
+  card: 16,
+} as const;
+
+/** Press-state opacity. `dim` for filled rows/cards/buttons; `glyph` for bare icon buttons. */
+export const Pressed = { dim: 0.6, glyph: 0.4 } as const;
+
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;

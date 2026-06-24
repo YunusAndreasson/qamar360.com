@@ -78,6 +78,38 @@ export type Database = {
           },
         ]
       }
+      habit_stacks: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_stacks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habits: {
         Row: {
           created_at: string | null
@@ -86,6 +118,7 @@ export type Database = {
           position: number
           reminder_time: string | null
           schedule_days: number[]
+          stack_id: string | null
           updated_at: string | null
           user_id: string
         }
@@ -96,6 +129,7 @@ export type Database = {
           position: number
           reminder_time?: string | null
           schedule_days?: number[]
+          stack_id?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -106,10 +140,18 @@ export type Database = {
           position?: number
           reminder_time?: string | null
           schedule_days?: number[]
+          stack_id?: string | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "habits_stack_id_fkey"
+            columns: ["stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "habits_user_id_fkey"
             columns: ["user_id"]
