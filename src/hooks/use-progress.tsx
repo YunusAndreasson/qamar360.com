@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, lastNDaysISO, todayLocalISO } from '@/lib/dates';
+import { addDaysISO, lastNDaysISO, scheduledOn, todayLocalISO } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
 
 /** How far back we pull completions — covers the weekly view and the streak walk. */
@@ -34,7 +34,7 @@ export type HabitProgress = {
   cells: DayCell[];
   /** Days completed within the window. */
   doneCount: number;
-  /** Days the habit existed within the window (1–7) — the denominator for `doneCount`. */
+  /** Days the habit was scheduled within the window — the denominator for `doneCount`. */
   activeDays: number;
 };
 
@@ -56,21 +56,6 @@ export type ProgressData = {
 
 type CompletionRow = Pick<Tables<'habit_completions'>, 'habit_id' | 'completed_at'>;
 
-/** A habit's creation day as a local `YYYY-MM-DD`, or null when unknown (treated as always-active). */
-function createdLocalISO(habit: Habit): string | null {
-  return habit.created_at ? todayLocalISO(new Date(habit.created_at)) : null;
-}
-
-/**
- * A habit is "active" on day `D` once it has been created (or if its creation
- * date is unknown). Keeping past days out before a habit existed is what stops a
- * newly-added habit from retroactively breaking streaks and percentages.
- * `YYYY-MM-DD` strings compare correctly with `<=`.
- */
-function activeOn(created: string | null, dayISO: string): boolean {
-  return created == null || created <= dayISO;
-}
-
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
 function computeProgress(
   habits: Habit[],
@@ -88,7 +73,6 @@ function computeProgress(
     set.add(row.habit_id);
   }
 
-  const created = habits.map(createdLocalISO);
   const weekDays = lastNDaysISO(WEEK_DAYS);
 
   // Weekly bars + this-week totals.
@@ -98,8 +82,8 @@ function computeProgress(
     const done = byDate.get(iso);
     let completed = 0;
     let possible = 0;
-    habits.forEach((h, i) => {
-      if (!activeOn(created[i], iso)) return;
+    habits.forEach((h) => {
+      if (!scheduledOn(h, iso)) return;
       possible += 1;
       if (done?.has(h.id)) completed += 1;
     });
@@ -114,9 +98,9 @@ function computeProgress(
   };
 
   // Per-habit consistency dots.
-  const perHabit: HabitProgress[] = habits.map((h, i) => {
+  const perHabit: HabitProgress[] = habits.map((h) => {
     const cells = weekDays.map<DayCell>((iso) => {
-      if (!activeOn(created[i], iso)) return 'inactive';
+      if (!scheduledOn(h, iso)) return 'inactive';
       return byDate.get(iso)?.has(h.id) ? 'done' : 'missed';
     });
     let doneCount = 0;
@@ -128,23 +112,30 @@ function computeProgress(
     return { id: h.id, name: h.name, cells, doneCount, activeDays };
   });
 
-  // Perfect-day streak: a day is "perfect" when at least one habit was active and
-  // every active habit was completed. Walk back from today (or yesterday, so a
-  // not-yet-finished today doesn't read as broken) until a day isn't perfect.
+  // Perfect-day streak: a day is "perfect" when at least one habit was scheduled and
+  // every scheduled habit was completed. Days with nothing scheduled are rest days —
+  // skipped so they neither break nor extend the streak. Walk back from today (or
+  // yesterday, so a not-yet-finished today doesn't read as broken).
   const isPerfect = (iso: string): boolean => {
     const done = byDate.get(iso);
-    let anyActive = false;
-    for (let i = 0; i < habits.length; i++) {
-      if (!activeOn(created[i], iso)) continue;
-      anyActive = true;
-      if (!done?.has(habits[i].id)) return false;
+    let anyScheduled = false;
+    for (const h of habits) {
+      if (!scheduledOn(h, iso)) continue;
+      anyScheduled = true;
+      if (!done?.has(h.id)) return false;
     }
-    return anyActive;
+    return anyScheduled;
   };
+  const isRestDay = (iso: string): boolean => !habits.some((h) => scheduledOn(h, iso));
   const earliest = addDaysISO(today, -(WINDOW_DAYS - 1));
   let cursor = isPerfect(today) ? today : addDaysISO(today, -1);
   let streak = 0;
-  while (cursor >= earliest && isPerfect(cursor)) {
+  while (cursor >= earliest) {
+    if (isRestDay(cursor)) {
+      cursor = addDaysISO(cursor, -1); // rest day — skip without breaking
+      continue;
+    }
+    if (!isPerfect(cursor)) break;
     streak += 1;
     cursor = addDaysISO(cursor, -1);
   }

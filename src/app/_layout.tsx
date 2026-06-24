@@ -6,10 +6,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { configureNotifications } from '@/lib/notifications';
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  // Set up the foreground handler + Android channel once, before any reminder fires.
+  useEffect(() => {
+    void configureNotifications();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

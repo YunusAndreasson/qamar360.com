@@ -9,12 +9,22 @@ import { useTheme } from '@/hooks/use-theme';
  */
 export function StatCard({ style, ...rest }: ViewProps) {
   const theme = useTheme();
-  return <View style={[styles.card, { backgroundColor: theme.backgroundElement }, style]} {...rest} />;
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+        style,
+      ]}
+      {...rest}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

@@ -45,8 +45,8 @@ export default function ProgressScreen() {
             onPress={dismissError}
             accessibilityRole="button"
             accessibilityLabel={`${error} Tap to dismiss.`}
-            style={styles.banner}>
-            <ThemedText type="small" style={styles.bannerText}>
+            style={[styles.banner, { backgroundColor: theme.dangerSubtle, borderColor: theme.danger }]}>
+            <ThemedText type="small" style={{ color: theme.danger }}>
               {error}
             </ThemedText>
           </Pressable>
@@ -132,14 +132,13 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   banner: {
-    backgroundColor: '#e5484d',
     marginHorizontal: Spacing.three,
     marginBottom: Spacing.two,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  bannerText: { color: '#ffffff' },
   content: {
     paddingHorizontal: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.four,

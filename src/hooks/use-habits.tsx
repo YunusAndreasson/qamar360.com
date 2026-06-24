@@ -12,26 +12,49 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/lib/database.types';
-import { todayLocalISO } from '@/lib/dates';
+import { addDaysISO, DAILY_SCHEDULE, todayLocalISO } from '@/lib/dates';
+import { rescheduleAll } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
 export type Habit = Tables<'habits'>;
 
+/** Editable fields of a habit. */
+export type HabitPatch = {
+  name?: string;
+  schedule_days?: number[];
+  reminder_time?: string | null;
+};
+
+/** How far back the day-stepper lets you backfill a missed completion. */
+const BACKFILL_DAYS = 30;
+
 type HabitsContextValue = {
   /** Habits for the current user, ordered by `position`. */
   habits: Habit[];
-  /** Ids of habits ticked off for `today`. */
-  completedToday: Set<string>;
+  /** Ids of habits ticked off for `viewDate`. */
+  completed: Set<string>;
   /** True only during the first load. */
   loading: boolean;
   /** Plain-language message for the last failed action, or null. */
   error: string | null;
-  /** Local `YYYY-MM-DD` the screen is currently showing. */
+  /** The real local `YYYY-MM-DD` today (upper bound of the stepper). */
   today: string;
+  /** The day currently shown/edited — `today`, or up to `BACKFILL_DAYS` earlier. */
+  viewDate: string;
+  /** Whether `viewDate` is today. */
+  isToday: boolean;
+  /** Whether the stepper can go further back. */
+  canGoBack: boolean;
   dismissError: () => void;
+  /** Jump to a specific day (clamped to the allowed range). */
+  setViewDate: (iso: string) => void;
+  /** Step the viewed day by `delta` days (clamped). */
+  stepDay: (delta: number) => void;
   addHabit: (name: string) => Promise<void>;
   toggleHabit: (habitId: string) => Promise<void>;
+  updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
   deleteHabit: (habitId: string) => Promise<void>;
+  reorderHabits: (orderedIds: string[]) => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
@@ -44,15 +67,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const userId = user?.id ?? null;
 
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [completedToday, setCompletedToday] = useState<Set<string>>(new Set());
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
+  const [viewDate, setViewDateState] = useState<string>(() => todayLocalISO());
 
   // Refs mirror state so async handlers read the latest values without stale closures.
   const habitsRef = useRef(habits);
-  const completedRef = useRef(completedToday);
+  const completedRef = useRef(completed);
   const todayRef = useRef(today);
+  const viewDateRef = useRef(viewDate);
   const ensuredUserRow = useRef(false);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
 
@@ -60,65 +85,102 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     habitsRef.current = habits;
   }, [habits]);
   useEffect(() => {
-    completedRef.current = completedToday;
-  }, [completedToday]);
+    completedRef.current = completed;
+  }, [completed]);
   useEffect(() => {
     todayRef.current = today;
   }, [today]);
+  useEffect(() => {
+    viewDateRef.current = viewDate;
+  }, [viewDate]);
 
-  const fetchData = useCallback(async () => {
+  const fetchHabits = useCallback(async () => {
     if (!userId) return;
-    const day = todayLocalISO();
-    try {
-      const [habitsRes, completionsRes] = await Promise.all([
-        supabase
-          .from('habits')
-          .select('*')
-          .eq('user_id', userId)
-          .order('position', { ascending: true }),
-        supabase
-          .from('habit_completions')
-          .select('habit_id')
-          .eq('user_id', userId)
-          .eq('completed_at', day),
-      ]);
-      if (habitsRes.error) throw habitsRes.error;
-      if (completionsRes.error) throw completionsRes.error;
-      setToday(day);
-      setHabits(habitsRes.data ?? []);
-      setCompletedToday(new Set((completionsRes.data ?? []).map((row) => row.habit_id)));
-      setError(null);
-    } catch {
+    const { data, error: habitsError } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', userId)
+      .order('position', { ascending: true });
+    if (habitsError) {
       setError('Could not load your habits. Reopen the app to retry.');
+      return;
     }
+    setHabits(data ?? []);
   }, [userId]);
 
-  // Initial load. This provider is mounted inside the authed (tabs) screen and
-  // remounts on each entry, so the signed-in user is fixed for its lifetime —
-  // no cross-user reset needed. setState runs only after the await (no cascade).
+  const fetchCompletions = useCallback(
+    async (day: string) => {
+      if (!userId) return;
+      const { data, error: completionsError } = await supabase
+        .from('habit_completions')
+        .select('habit_id')
+        .eq('user_id', userId)
+        .eq('completed_at', day);
+      if (completionsError) {
+        setError('Could not load your habits. Reopen the app to retry.');
+        return;
+      }
+      setCompleted(new Set((data ?? []).map((row) => row.habit_id)));
+    },
+    [userId],
+  );
+
+  // Initial load — habits plus today's completions. This provider mounts inside the
+  // authed (tabs) screen and remounts on each entry, so the user is fixed for its life.
   useEffect(() => {
     let active = true;
     void (async () => {
-      await fetchData();
+      await Promise.all([fetchHabits(), fetchCompletions(viewDateRef.current)]);
       if (active) setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [fetchData]);
+  }, [fetchHabits, fetchCompletions]);
 
-  // Day rollover: when the app returns to the foreground after midnight, drop
-  // yesterday's ticks and refetch today's completions.
+  // Refetch completions when the viewed day changes (the mount load covers the first day).
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    setCompleted(new Set()); // don't show the previous day's ticks while the new day loads
+    void fetchCompletions(viewDate);
+  }, [viewDate, fetchCompletions]);
+
+  // Day rollover: when the app returns to the foreground after midnight, advance today
+  // (and follow into the new day if we were showing "today"), then refetch.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active' || !userId) return;
-      if (todayLocalISO() !== todayRef.current) {
-        setCompletedToday(new Set());
-        void fetchData();
+      const now = todayLocalISO();
+      if (now === todayRef.current) return;
+      const wasOnToday = viewDateRef.current === todayRef.current;
+      setToday(now);
+      void fetchHabits();
+      if (wasOnToday) {
+        setViewDateState(now); // the viewDate effect will refetch its completions
+      } else {
+        void fetchCompletions(viewDateRef.current);
       }
     });
     return () => sub.remove();
-  }, [userId, fetchData]);
+  }, [userId, fetchHabits, fetchCompletions]);
+
+  // Keep OS reminders in sync with the habits. Keyed on the reminder-relevant fields
+  // only, so reorders/ticks (which don't change them) don't churn the schedule.
+  const reminders = useMemo(
+    () => habits.map((h) => ({ name: h.name, reminder_time: h.reminder_time, schedule_days: h.schedule_days })),
+    [habits],
+  );
+  const reminderSignature = JSON.stringify(reminders);
+  useEffect(() => {
+    void rescheduleAll(reminders);
+    // `reminders` is captured for the render whose signature changed; listing it would
+    // re-run every render (new array identity). The signature is the real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reminderSignature]);
 
   // The `users` row backing `habits.user_id` is not auto-created on signup, so
   // self-provision it (idempotently) before the first write.
@@ -131,6 +193,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     ensuredUserRow.current = true;
   }, [user]);
 
+  const setViewDate = useCallback((iso: string) => {
+    const max = todayRef.current;
+    const min = addDaysISO(max, -BACKFILL_DAYS);
+    setViewDateState(iso > max ? max : iso < min ? min : iso);
+  }, []);
+
+  const stepDay = useCallback(
+    (delta: number) => {
+      setViewDate(addDaysISO(viewDateRef.current, delta));
+    },
+    [setViewDate],
+  );
+
   const toggleHabit = useCallback(
     async (habitId: string) => {
       if (!userId) return;
@@ -138,11 +213,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (pending.current.has(habitId)) return; // ignore double-taps
       pending.current.add(habitId);
 
-      const day = todayRef.current;
+      const day = viewDateRef.current;
       const wasDone = completedRef.current.has(habitId);
 
       // Optimistic flip — feedback is immediate, before the network returns.
-      setCompletedToday((prev) => {
+      setCompleted((prev) => {
         const next = new Set(prev);
         if (wasDone) next.delete(habitId);
         else next.add(habitId);
@@ -165,13 +240,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           if (insError && insError.code !== UNIQUE_VIOLATION) throw insError;
         }
       } catch {
-        // Reversible: roll back to the prior state and surface the failure.
-        setCompletedToday((prev) => {
-          const next = new Set(prev);
-          if (wasDone) next.add(habitId);
-          else next.delete(habitId);
-          return next;
-        });
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          setCompleted((prev) => {
+            const next = new Set(prev);
+            if (wasDone) next.add(habitId);
+            else next.delete(habitId);
+            return next;
+          });
+        }
         setError('Could not update that habit. Check your connection.');
       } finally {
         pending.current.delete(habitId);
@@ -203,33 +280,47 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         position,
         created_at: null,
         updated_at: null,
+        schedule_days: DAILY_SCHEDULE,
+        reminder_time: null,
       };
       setHabits((prev) => [...prev, optimistic]);
 
-      const insertOnce = (pos: number) =>
-        supabase.from('habits').insert({ user_id: userId, name, position: pos }).select().single();
-
       try {
-        let res = await insertOnce(position);
-        if (res.error?.code === UNIQUE_VIOLATION) {
-          // Position taken (e.g. a second device). Recompute from the server and retry once.
-          const { data: rows } = await supabase
-            .from('habits')
-            .select('position')
-            .eq('user_id', userId)
-            .order('position', { ascending: false })
-            .limit(1);
-          res = await insertOnce((rows?.[0]?.position ?? -1) + 1);
-        }
-        if (res.error) throw res.error;
+        const { data, error: insError } = await supabase
+          .from('habits')
+          .insert({ user_id: userId, name, position })
+          .select()
+          .single();
+        if (insError) throw insError;
         // Swap the temp row for the persisted one (real id).
-        setHabits((prev) => prev.map((h) => (h.id === tempId ? (res.data as Habit) : h)));
+        setHabits((prev) => prev.map((h) => (h.id === tempId ? data : h)));
       } catch {
         setHabits((prev) => prev.filter((h) => h.id !== tempId));
         setError('Could not add that habit. Check your connection.');
       }
     },
     [userId, ensureUserRow],
+  );
+
+  const updateHabit = useCallback(
+    async (habitId: string, patch: HabitPatch) => {
+      if (!userId) return;
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      const prev = habitsRef.current.find((h) => h.id === habitId);
+      if (!prev) return;
+
+      // Optimistic patch.
+      setHabits((list) => list.map((h) => (h.id === habitId ? { ...h, ...patch } : h)));
+
+      try {
+        const { error: updError } = await supabase.from('habits').update(patch).eq('id', habitId);
+        if (updError) throw updError;
+      } catch {
+        setHabits((list) => list.map((h) => (h.id === habitId ? prev : h)));
+        setError('Could not save your changes. Check your connection.');
+      }
+    },
+    [userId],
   );
 
   const deleteHabit = useCallback(
@@ -241,7 +332,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       // Optimistic removal.
       setHabits((prev) => prev.filter((h) => h.id !== habitId));
-      setCompletedToday((prev) => {
+      setCompleted((prev) => {
         if (!prev.has(habitId)) return prev;
         const next = new Set(prev);
         next.delete(habitId);
@@ -258,7 +349,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         // Restore on failure, keeping position order.
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
         if (wasDone) {
-          setCompletedToday((prev) => {
+          setCompleted((prev) => {
             const next = new Set(prev);
             next.add(habitId);
             return next;
@@ -270,22 +361,75 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  const reorderHabits = useCallback(
+    async (orderedIds: string[]) => {
+      if (!userId) return;
+      const prev = habitsRef.current;
+      const byId = new Map(prev.map((h) => [h.id, h]));
+      const reordered = orderedIds
+        .map((id, index) => {
+          const h = byId.get(id);
+          return h ? { ...h, position: index } : null;
+        })
+        .filter((h): h is Habit => h !== null);
+      if (reordered.length !== prev.length) return; // unknown id — bail rather than corrupt order
+
+      // Optimistic reorder.
+      setHabits(reordered);
+
+      const persistable = reordered.filter((h) => !h.id.startsWith('temp-'));
+      try {
+        const results = await Promise.all(
+          persistable.map((h) => supabase.from('habits').update({ position: h.position }).eq('id', h.id)),
+        );
+        const failed = results.find((r) => r.error);
+        if (failed?.error) throw failed.error;
+      } catch {
+        setHabits(prev);
+        setError('Could not save the new order. Check your connection.');
+      }
+    },
+    [userId],
+  );
+
   const dismissError = useCallback(() => setError(null), []);
 
-  const value = useMemo<HabitsContextValue>(
-    () => ({
+  const value = useMemo<HabitsContextValue>(() => {
+    const min = addDaysISO(today, -BACKFILL_DAYS);
+    return {
       habits,
-      completedToday,
+      completed,
       loading,
       error,
       today,
+      viewDate,
+      isToday: viewDate === today,
+      canGoBack: viewDate > min,
       dismissError,
+      setViewDate,
+      stepDay,
       addHabit,
       toggleHabit,
+      updateHabit,
       deleteHabit,
-    }),
-    [habits, completedToday, loading, error, today, dismissError, addHabit, toggleHabit, deleteHabit],
-  );
+      reorderHabits,
+    };
+  }, [
+    habits,
+    completed,
+    loading,
+    error,
+    today,
+    viewDate,
+    dismissError,
+    setViewDate,
+    stepDay,
+    addHabit,
+    toggleHabit,
+    updateHabit,
+    deleteHabit,
+    reorderHabits,
+  ]);
 
   return <HabitsContext.Provider value={value}>{children}</HabitsContext.Provider>;
 }

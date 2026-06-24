@@ -9,20 +9,30 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-    accent: '#3c87f7',
+    text: '#14162A', // deep indigo-charcoal (not pure black)
+    textSecondary: '#5B6275', // cool slate, AA on white + cards
+    background: '#FCFCFD', // clean near-white, faint cool tint
+    backgroundElement: '#F1F2F7', // card / input surface
+    backgroundSelected: '#E5E7F0', // pressed / divider / hairline fills
+    border: '#E3E5EF', // subtle hairline borders
+    accent: '#4C5BD4', // lunar indigo (AA as link/UI on white)
+    accentText: '#FFFFFF', // text/icon on an accent fill
+    accentSubtle: '#ECEDFB', // faint indigo tint (chart track, inactive dots)
+    danger: '#C8323A', // error text + tinted-banner text
+    dangerSubtle: '#FBE9E9', // tinted error-banner background
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-    accent: '#3c87f7',
+    text: '#ECEEF6', // moonlight off-white (cool)
+    textSecondary: '#969EB6',
+    background: '#0B0E1A', // deep night-sky (indigo-black, not pure black)
+    backgroundElement: '#141A2C', // lifted night-navy card
+    backgroundSelected: '#1E2540',
+    border: '#232B44',
+    accent: '#7C84FF', // luminous periwinkle — glows on dark
+    accentText: '#0B0E1A', // dark text on the light accent
+    accentSubtle: '#1C2142',
+    danger: '#FF767B',
+    dangerSubtle: '#2A1417',
   },
 } as const;
 

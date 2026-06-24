@@ -1,17 +1,14 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Transparent mark: white crescent + 360 ring, for use on dark surfaces (splash, adaptive foreground). -->
   <defs>
-    <linearGradient id="moon" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
-      <stop offset="0" stop-color="#FDFBF3"/>
-      <stop offset="1" stop-color="#E4E9F6"/>
-    </linearGradient>
     <mask id="crescent">
       <rect width="1024" height="1024" fill="black"/>
-      <circle cx="536" cy="512" r="250" fill="white"/>
-      <circle cx="646" cy="452" r="250" fill="black"/>
+      <circle cx="575" cy="480" r="250" fill="white"/>
+      <circle cx="687" cy="424" r="250" fill="black"/>
     </mask>
   </defs>
-  <circle cx="512" cy="512" r="384" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-opacity="0.85"/>
+  <circle cx="512" cy="512" r="384" fill="none" stroke="#FFFFFF" stroke-width="20"/>
   <g mask="url(#crescent)">
-    <rect width="1024" height="1024" fill="url(#moon)"/>
+    <rect width="1024" height="1024" fill="#FFFFFF"/>
   </g>
 </svg>

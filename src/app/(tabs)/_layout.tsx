@@ -17,7 +17,7 @@ export default function TabsLayout() {
     <NativeTabs
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundSelected}
-      labelStyle={{ selected: { color: colors.text } }}>
+      labelStyle={{ selected: { color: colors.accent } }}>
       <Trigger name="index">
         <Trigger.Label>Habits</Trigger.Label>
         {Platform.OS === 'ios' ? (

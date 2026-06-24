@@ -29,7 +29,7 @@ export function WeekBars({ days }: { days: WeekDay[] }) {
             style={styles.column}
             accessible
             accessibilityLabel={`${formatDayHeader(day.iso)}: ${day.completed} of ${day.possible} habits done`}>
-            <View style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
+            <View style={[styles.track, { backgroundColor: theme.accentSubtle }]}>
               <View
                 style={[
                   styles.fill,

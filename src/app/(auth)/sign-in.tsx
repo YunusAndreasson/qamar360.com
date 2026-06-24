@@ -8,17 +8,40 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 
-type Mode = 'sign-in' | 'sign-up';
+type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
+
+const SUBTITLES: Record<Mode, string> = {
+  'sign-in': 'Sign in to continue',
+  'sign-up': 'Create an account',
+  forgot: 'Reset your password',
+  reset: 'Enter the code we emailed you',
+};
+
+const SUBMIT_LABELS: Record<Mode, string> = {
+  'sign-in': 'Sign in',
+  'sign-up': 'Sign up',
+  forgot: 'Send reset code',
+  reset: 'Update password',
+};
 
 export default function SignInScreen() {
   const theme = useTheme();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword, verifyRecovery, updatePassword } = useAuth();
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(''); // also the new password in 'reset' mode
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  function goTo(next: Mode) {
+    setError(null);
+    setNotice(null);
+    setCode('');
+    if (next === 'sign-in' || next === 'sign-up') setPassword('');
+    setMode(next);
+  }
 
   async function onSubmit() {
     setError(null);
@@ -28,10 +51,27 @@ export default function SignInScreen() {
       if (mode === 'sign-in') {
         // On success, onAuthStateChange flips the root gate to (tabs).
         await signIn(email.trim(), password);
-      } else {
+      } else if (mode === 'sign-up') {
         await signUp(email.trim(), password);
         // With email confirmation on, no session is returned yet.
         setNotice('Account created. If a session does not start, confirm your email, then sign in.');
+        setPassword('');
+        setMode('sign-in');
+      } else if (mode === 'forgot') {
+        await resetPassword(email.trim());
+        setNotice('We emailed you a 6-digit code. Enter it below with your new password.');
+        setMode('reset');
+      } else {
+        // reset
+        if (!code.trim() || !password) {
+          setError('Enter the code and a new password.');
+          return;
+        }
+        await verifyRecovery(email.trim(), code.trim());
+        await updatePassword(password);
+        setNotice('Password updated. Sign in with your new password.');
+        setCode('');
+        setPassword('');
         setMode('sign-in');
       }
     } catch (e) {
@@ -41,38 +81,85 @@ export default function SignInScreen() {
     }
   }
 
+  const showEmail = mode !== 'reset';
+  const showPassword = mode === 'sign-in' || mode === 'sign-up';
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ThemedText type="subtitle">qamar360</ThemedText>
         <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-          {mode === 'sign-in' ? 'Sign in to continue' : 'Create an account'}
+          {SUBTITLES[mode]}
         </ThemedText>
 
-        <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
-          placeholder="Email"
-          placeholderTextColor={theme.textSecondary}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
-          placeholder="Password"
-          placeholderTextColor={theme.textSecondary}
-          autoCapitalize="none"
-          secureTextEntry
-          textContentType="password"
-          value={password}
-          onChangeText={setPassword}
-        />
+        {showEmail ? (
+          <TextInput
+            style={[
+              styles.input,
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+            placeholder="Email"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            value={email}
+            onChangeText={setEmail}
+          />
+        ) : null}
+
+        {mode === 'reset' ? (
+          <TextInput
+            style={[
+              styles.input,
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+            placeholder="6-digit code"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            value={code}
+            onChangeText={setCode}
+          />
+        ) : null}
+
+        {showPassword ? (
+          <TextInput
+            style={[
+              styles.input,
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+            placeholder="Password"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            secureTextEntry
+            textContentType="password"
+            value={password}
+            onChangeText={setPassword}
+          />
+        ) : null}
+
+        {mode === 'reset' ? (
+          <TextInput
+            style={[
+              styles.input,
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+            placeholder="New password"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            secureTextEntry
+            textContentType="newPassword"
+            value={password}
+            onChangeText={setPassword}
+          />
+        ) : null}
 
         {error ? (
-          <ThemedText type="small" style={styles.error}>
+          <ThemedText type="small" style={{ color: theme.danger }}>
             {error}
           </ThemedText>
         ) : null}
@@ -86,28 +173,36 @@ export default function SignInScreen() {
           accessibilityRole="button"
           disabled={busy}
           onPress={onSubmit}
-          style={[styles.button, { backgroundColor: theme.text, opacity: busy ? 0.6 : 1 }]}>
+          style={[styles.button, { backgroundColor: theme.accent, opacity: busy ? 0.6 : 1 }]}>
           {busy ? (
-            <ActivityIndicator color={theme.background} />
+            <ActivityIndicator color={theme.accentText} />
           ) : (
-            <ThemedText type="smallBold" style={{ color: theme.background }}>
-              {mode === 'sign-in' ? 'Sign in' : 'Sign up'}
+            <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+              {SUBMIT_LABELS[mode]}
             </ThemedText>
           )}
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setError(null);
-            setNotice(null);
-            setMode((m) => (m === 'sign-in' ? 'sign-up' : 'sign-in'));
-          }}
-          style={styles.switchMode}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {mode === 'sign-in' ? 'Need an account? Sign up' : 'Have an account? Sign in'}
-          </ThemedText>
-        </Pressable>
+        {mode === 'sign-in' ? (
+          <>
+            <Pressable accessibilityRole="button" onPress={() => goTo('sign-up')} style={styles.switchMode}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Need an account? Sign up
+              </ThemedText>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => goTo('forgot')} style={styles.switchMode}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Forgot password?
+              </ThemedText>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable accessibilityRole="button" onPress={() => goTo('sign-in')} style={styles.switchMode}>
+            <ThemedText type="small" themeColor="textSecondary">
+              {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
+            </ThemedText>
+          </Pressable>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -124,11 +219,11 @@ const styles = StyleSheet.create({
   subtitle: { marginBottom: Spacing.two },
   input: {
     borderRadius: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     fontSize: 16,
   },
-  error: { color: '#e5484d' },
   button: {
     marginTop: Spacing.two,
     borderRadius: Spacing.two,
@@ -136,5 +231,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  switchMode: { alignItems: 'center', paddingVertical: Spacing.two },
+  switchMode: { alignItems: 'center', paddingVertical: Spacing.one },
 });

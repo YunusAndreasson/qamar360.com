@@ -14,7 +14,7 @@ function HabitProgressRowBase({ progress }: { progress: HabitProgress }) {
 
   // done → filled accent · missed → hollow outline · inactive (didn't exist yet) → faint.
   const dotFill = (cell: DayCell) =>
-    cell === 'done' ? theme.accent : cell === 'inactive' ? theme.backgroundSelected : 'transparent';
+    cell === 'done' ? theme.accent : cell === 'inactive' ? theme.accentSubtle : 'transparent';
 
   return (
     <View
