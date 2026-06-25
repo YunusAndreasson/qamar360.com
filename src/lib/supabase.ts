@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import 'expo-sqlite/localStorage/install';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 
@@ -15,20 +15,13 @@ if (!supabaseUrl || !supabasePublishableKey) {
   );
 }
 
-// `expo-sqlite/localStorage/install` installs a Web Storage-compatible global
-// `localStorage` backed by SQLite (a no-op on web, stripped from prod web
-// bundles). Reach it through globalThis with a typed shim so this compiles
-// without pulling the DOM lib into the React Native type environment.
-type WebStorageLike = {
-  getItem: (key: string) => string | null | Promise<string | null>;
-  setItem: (key: string, value: string) => void | Promise<void>;
-  removeItem: (key: string) => void | Promise<void>;
-};
-const storage = (globalThis as unknown as { localStorage: WebStorageLike }).localStorage;
-
+// AsyncStorage is the storage Supabase's Expo guide prescribes for session
+// persistence. (The previous SQLite-backed `localStorage` shim is a no-op on
+// web — leaving `storage.getItem` undefined during static web render — and is a
+// non-standard layer in the auth-restore path that gates app startup.)
 export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
   auth: {
-    storage,
+    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

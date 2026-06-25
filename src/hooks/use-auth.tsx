@@ -30,10 +30,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Seed from the persisted session, then keep it in sync for the app lifetime.
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitialized(true);
-    });
+    //
+    // getSession() is NOT a pure cache read: when the stored access token is near/
+    // after expiry it blocks on a network token refresh, and that chain can reject
+    // (storage read error, invalid refresh token after a reseed, an unknown error
+    // re-thrown from the refresh). The splash is gated on `initialized`, so if we
+    // only flipped it inside .then(), a rejection would leave the app stuck on the
+    // launch logo forever. Mirror PreferencesProvider: always finalise, treating a
+    // failed restore as "signed out" so the app falls through to sign-in.
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(() => setSession(null))
+      .finally(() => setInitialized(true));
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
