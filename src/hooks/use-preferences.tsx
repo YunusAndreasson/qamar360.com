@@ -1,5 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import 'expo-sqlite/localStorage/install';
+
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -8,48 +9,57 @@ const THEME_KEY = 'prefs.themePreference';
 type PreferencesContextValue = {
   /** The user's chosen appearance. `'system'` follows the OS scheme. */
   themePreference: ThemePreference;
-  /** Flips true once persisted prefs have loaded, so the splash can wait out a theme flash. */
-  hydrated: boolean;
   setThemePreference: (preference: ThemePreference) => void;
 };
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
-function isThemePreference(value: string | null): value is ThemePreference {
+// `globalThis.localStorage` is the synchronous SQLite-backed Web Storage shim
+// installed by `expo-sqlite/localStorage/install` — read back on first render so
+// there's no theme flash and no async dependency gating startup. Matches the
+// edenmind-v2 pattern. (The previous `@react-native-async-storage/async-storage`
+// version deadlocked app launch in release/new-architecture builds.)
+type WebStorageLike = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+};
+const storage = (globalThis as unknown as { localStorage?: WebStorageLike }).localStorage;
+
+function isThemePreference(value: string | null | undefined): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system';
 }
 
+function readStoredPreference(): ThemePreference {
+  try {
+    const value = storage?.getItem(THEME_KEY);
+    if (isThemePreference(value)) return value;
+  } catch {
+    // Storage unavailable — fall back to the default.
+  }
+  return 'system';
+}
+
 /**
- * Locally-persisted app preferences (the appearance override); modelled on {@link AuthProvider}
- * so the rest of the app reads it through a hook. Backed by AsyncStorage (bundled in Expo Go),
- * so the choice survives a relaunch.
+ * Locally-persisted app preferences (the appearance override). Backed by the
+ * synchronous SQLite localStorage shim, so the stored choice is available on the
+ * very first render and never blocks the launch.
  */
 export function PreferencesProvider({ children }: { children: ReactNode }) {
-  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    // Load the persisted preference once; fall back to the default if unset or unreadable.
-    void AsyncStorage.getItem(THEME_KEY)
-      .then((value) => {
-        if (isThemePreference(value)) setThemePreferenceState(value);
-      })
-      .catch(() => {
-        // Storage unavailable — fall back to the default.
-      })
-      .finally(() => setHydrated(true));
-  }, []);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(readStoredPreference);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
       themePreference,
-      hydrated,
       setThemePreference(preference) {
         setThemePreferenceState(preference);
-        void AsyncStorage.setItem(THEME_KEY, preference);
+        try {
+          storage?.setItem(THEME_KEY, preference);
+        } catch {
+          // Best-effort persistence; ignore storage failures.
+        }
       },
     }),
-    [themePreference, hydrated],
+    [themePreference],
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

@@ -29,27 +29,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Seed from the persisted session, then keep it in sync for the app lifetime.
-    //
-    // getSession() is NOT a pure cache read: when the stored access token is near/
-    // after expiry it blocks on a network token refresh, and that chain can reject
-    // (storage read error, invalid refresh token after a reseed, an unknown error
-    // re-thrown from the refresh). The splash is gated on `initialized`, so if we
-    // only flipped it inside .then(), a rejection would leave the app stuck on the
-    // launch logo forever. Mirror PreferencesProvider: always finalise, treating a
-    // failed restore as "signed out" so the app falls through to sign-in.
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => setSession(data.session))
-      .catch(() => setSession(null))
-      .finally(() => setInitialized(true));
+    let settled = false;
+    const finish = (next: Session | null) => {
+      if (settled) return;
+      settled = true;
+      setSession(next);
+      setInitialized(true);
+    };
+
+    // Seed from the persisted session. getSession() reads the SQLite-backed storage
+    // and may run a token refresh; on the new architecture that path can intermittently
+    // HANG (never resolving or rejecting), which would freeze the launch on the gate
+    // since `.finally()` would never run. So drive `initialized` through `finish()`,
+    // guarded by a safety-net timeout: if the session hasn't resolved shortly, proceed
+    // as signed-out (a real session still arrives later via onAuthStateChange).
+    void supabase.auth.getSession().then(({ data }) => finish(data.session)).catch(() => finish(null));
+    const timeout = setTimeout(() => finish(null), 2500);
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      settled = true;
       setSession(nextSession);
       setInitialized(true);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(
