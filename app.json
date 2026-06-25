@@ -41,7 +41,14 @@
       ],
       "expo-sqlite",
       "@react-native-community/datetimepicker",
-      "./plugins/strip-aps-environment.js"
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

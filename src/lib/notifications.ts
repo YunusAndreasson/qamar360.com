@@ -11,7 +11,6 @@
  * No local state is kept: {@link rescheduleAll} cancels everything and rebuilds from the
  * current habits, so the OS schedule always mirrors the database.
  */
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { parseReminderTime } from '@/lib/dates';
@@ -23,20 +22,15 @@ type RemindableHabit = {
   schedule_days: number[];
 };
 
-// We need the module's *type* without a runtime import — a static `import` would evaluate
-// expo-notifications and crash Expo Go (its native module is absent there).
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-type NotificationsModule = typeof import('expo-notifications');
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type NotificationsModule = any;
 
 function loadModule(): NotificationsModule | null {
-  // Expo Go strips the native module — requiring it there throws and crashes the app.
-  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('expo-notifications') as NotificationsModule;
-  } catch {
-    return null; // a build that predates the dependency (e.g. an OTA onto an older binary)
-  }
+  // TEMP (iOS launch-hang isolation build): expo-notifications is removed from the
+  // build entirely to rule out its native module / entitlement as the launch blocker.
+  // Always report unavailable so reminders degrade gracefully and Metro never tries
+  // to resolve the (now absent) `expo-notifications` module.
+  return null;
 }
 
 const N = loadModule();
