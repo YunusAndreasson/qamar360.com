@@ -22,7 +22,6 @@ type RemindableHabit = {
   schedule_days: number[];
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type NotificationsModule = any;
 
 function loadModule(): NotificationsModule | null {
