@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
-import { PreferencesProvider, usePreferences } from '@/hooks/use-preferences';
+import { PreferencesProvider } from '@/hooks/use-preferences';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications } from '@/lib/notifications';
 
@@ -49,17 +49,17 @@ function ThemedChrome() {
 
 function RootNavigator() {
   const { session, initialized } = useAuth();
-  const { hydrated } = usePreferences();
 
-  const ready = initialized && hydrated;
-
+  // Reveal the app once the auth session is known. Gate ONLY on `initialized` — never on the
+  // async theme-preference load. Blocking the splash on a second async dependency (AsyncStorage
+  // hydration) means any stall there freezes the launch logo with no recovery; a brief theme
+  // flash on cold start is the right trade. (PreferencesProvider still hydrates the theme; it
+  // just no longer holds the splash hostage.)
   useEffect(() => {
-    if (ready) void SplashScreen.hideAsync();
-  }, [ready]);
+    if (initialized) void SplashScreen.hideAsync();
+  }, [initialized]);
 
-  // Hold the splash until BOTH the persisted session and the stored theme have resolved — avoids
-  // a sign-in flash on warm start and a light→dark flash when a non-system theme is stored.
-  if (!ready) return null;
+  if (!initialized) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
