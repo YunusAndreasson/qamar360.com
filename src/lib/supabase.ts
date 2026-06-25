@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'expo-sqlite/localStorage/install';
 import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 
@@ -15,13 +15,20 @@ if (!supabaseUrl || !supabasePublishableKey) {
   );
 }
 
-// AsyncStorage is the storage Supabase's Expo guide prescribes for session
-// persistence. (The previous SQLite-backed `localStorage` shim is a no-op on
-// web — leaving `storage.getItem` undefined during static web render — and is a
-// non-standard layer in the auth-restore path that gates app startup.)
+// `expo-sqlite/localStorage/install` installs a synchronous Web Storage-compatible
+// global `localStorage` backed by SQLite (a no-op on web). This matches the proven
+// edenmind-v2 setup exactly — a synchronous storage read so Supabase session
+// recovery never depends on an async native bridge resolving at launch.
+type WebStorageLike = {
+  getItem: (key: string) => string | null | Promise<string | null>;
+  setItem: (key: string, value: string) => void | Promise<void>;
+  removeItem: (key: string) => void | Promise<void>;
+};
+const storage = (globalThis as unknown as { localStorage: WebStorageLike }).localStorage;
+
 export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
   auth: {
-    storage: AsyncStorage,
+    storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
