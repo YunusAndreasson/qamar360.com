@@ -66,8 +66,7 @@
     "owner": "edenmind",
     "updates": {
       "url": "https://u.expo.dev/75607752-4279-4042-86f4-d37b495d81a8",
-      "fallbackToCacheTimeout": 10000,
-      "enabled": false
+      "fallbackToCacheTimeout": 10000
     }
   }
 }

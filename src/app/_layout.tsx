@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -43,6 +43,8 @@ function ThemedChrome() {
 
 function RootNavigator() {
   const { session, initialized } = useAuth();
+  const scheme = useEffectiveScheme();
+  const theme = useTheme();
 
   // Splash stays up (it covers this branch) until the session is known, then hides.
   // `initialized` is guaranteed to flip within ~2.5s by AuthProvider's safety-net
@@ -53,15 +55,34 @@ function RootNavigator() {
 
   if (!initialized) return null;
 
+  // Feed the theme into React Navigation so the navigator container + screen
+  // backgrounds are the app's background — otherwise the default theme paints
+  // white behind screens during transitions.
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: theme.background,
+      card: theme.background,
+      text: theme.text,
+      border: theme.border,
+      primary: theme.accent,
+      notification: theme.danger,
+    },
+  };
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" />
-      </Stack.Protected>
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-    </Stack>
+    <ThemeProvider value={navTheme}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }}>
+        <Stack.Screen name="index" />
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="(tabs)" />
+        </Stack.Protected>
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+      </Stack>
+    </ThemeProvider>
   );
 }

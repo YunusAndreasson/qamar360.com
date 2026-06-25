@@ -12,6 +12,9 @@ import { Platform } from 'react-native';
 export function stackHeaderOptions(theme: { background: string; text: string }) {
   return {
     headerShadowVisible: false,
+    // Theme the screen background so push/modal transitions never flash the
+    // navigator's default (white) behind the app.
+    contentStyle: { backgroundColor: theme.background },
     ...(Platform.OS === 'android'
       ? {
           headerStyle: { backgroundColor: theme.background },

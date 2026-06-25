@@ -46,7 +46,9 @@ export function HeaderIconButton({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  button: { padding: Spacing.half },
+  // `gap` spaces the glyphs from each other; `paddingRight` insets the cluster from
+  // the screen edge so the calendar/＋ icons aren't cramped against it.
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingRight: Spacing.two },
+  button: { paddingVertical: Spacing.half, paddingHorizontal: Spacing.two },
   pressed: { opacity: Pressed.glyph },
 });
