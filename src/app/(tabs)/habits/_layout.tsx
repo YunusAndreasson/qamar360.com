@@ -22,10 +22,18 @@ export default function HabitsStackLayout() {
         {/* The single "add a habit" entry: create your own, or add from the curated
             Sunnah library — a pushed sub-screen (native back). */}
         <Stack.Screen name="discover" options={{ title: 'New Habit', headerLargeTitle: true }} />
-        {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
-        <Stack.Screen name="editor" options={{ presentation: 'modal' }} />
+        {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar.
+            Theme the modal's nav bar explicitly: iOS modals don't get the glass
+            large-title treatment, so without this the bar renders white in dark mode. */}
+        <Stack.Screen
+          name="editor"
+          options={{ presentation: 'modal', headerStyle: { backgroundColor: theme.background }, headerTintColor: theme.text }}
+        />
         {/* New / edit a stack (a named group of habits) — also a native modal sheet. */}
-        <Stack.Screen name="stack-editor" options={{ presentation: 'modal' }} />
+        <Stack.Screen
+          name="stack-editor"
+          options={{ presentation: 'modal', headerStyle: { backgroundColor: theme.background }, headerTintColor: theme.text }}
+        />
       </Stack>
     </HabitsProvider>
   );
