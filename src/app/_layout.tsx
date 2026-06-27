@@ -77,7 +77,10 @@ function RootNavigator() {
 
   return (
     <ThemeProvider value={navTheme}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }}>
+      {/* These are auth-gate transitions (open → tabs, sign in/out), not content
+          navigation — cross-fade so the app *materialises* instead of sliding in from
+          the right. Nested stacks (editor, discover, settings) keep their own push slide. */}
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background }, animation: 'fade' }}>
         <Stack.Screen name="index" />
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(tabs)" />
