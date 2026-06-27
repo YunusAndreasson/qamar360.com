@@ -2,16 +2,18 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 
+import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { Links } from '@/constants/links';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
 
@@ -20,6 +22,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut, deleteAccount } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
 
   // Reflect the real OS permission on mount (without prompting), so the row shows
@@ -55,6 +58,31 @@ export default function SettingsScreen() {
       ],
     );
 
+  const runReset = async () => {
+    if (!user) return;
+    setClearing(true);
+    try {
+      await clearCompletionHistory(user.id);
+      setClearing(false);
+      // Habits, stacks, and reminders are untouched; the Habits/Progress tabs refetch on focus,
+      // so they show a clean slate on return.
+      Alert.alert('Progress reset', 'Your completion history was cleared. Your habits and stacks are untouched.');
+    } catch {
+      setClearing(false);
+      Alert.alert('Could not reset progress', 'Please check your connection and try again.');
+    }
+  };
+
+  const confirmReset = () =>
+    Alert.alert(
+      'Reset progress',
+      'This permanently deletes all your completion history — every check-off — for a fresh start. Your habits and stacks stay. This can’t be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset', style: 'destructive', onPress: () => void runReset() },
+      ],
+    );
+
   const enableNotifications = async () => {
     const granted = await ensurePermission();
     setNotifGranted(granted);
@@ -75,14 +103,11 @@ export default function SettingsScreen() {
   const notifSublabel = notifGranted === true ? 'On' : notifGranted === false ? 'Off' : undefined;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}>
+    <AppScreen contentStyle={styles.content}>
       {/* Identity */}
       <View style={styles.identity}>
         <View style={[styles.monogram, { backgroundColor: theme.accentSubtle }]}>
-          <ThemedText type="subtitle" style={{ color: theme.accent }}>
+          <ThemedText type="subtitle" themeColor="accent">
             {monogram}
           </ThemedText>
         </View>
@@ -131,7 +156,7 @@ export default function SettingsScreen() {
       <SettingsSection title="Account">
         <SettingsRow
           icon="lock-outline"
-          label="Change password"
+          label="Change Password"
           onPress={() => router.push('/settings/change-password')}
           showChevron
         />
@@ -164,6 +189,14 @@ export default function SettingsScreen() {
       {/* Danger zone */}
       <SettingsSection title="Danger zone">
         <SettingsRow
+          icon="restart-alt"
+          label="Reset progress"
+          sublabel="Clear all completion history for a fresh start — keeps your habits & stacks"
+          destructive
+          busy={clearing}
+          onPress={confirmReset}
+        />
+        <SettingsRow
           icon="delete-outline"
           label="Delete account"
           destructive
@@ -171,26 +204,18 @@ export default function SettingsScreen() {
           onPress={confirmDelete}
         />
       </SettingsSection>
-    </ScrollView>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.four,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
   },
   identity: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    paddingHorizontal: Spacing.one,
     paddingVertical: Spacing.two,
   },
   monogram: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },

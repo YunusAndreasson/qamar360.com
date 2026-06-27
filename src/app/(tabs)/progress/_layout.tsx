@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { useTheme } from '@/hooks/use-theme';
 import { stackHeaderOptions } from '@/lib/header-options';
 
-/** The Progress tab's native Stack — large title that collapses on scroll. */
+/** The Month tab's native Stack — large title that collapses on scroll. */
 export default function ProgressStackLayout() {
   const theme = useTheme();
   return (

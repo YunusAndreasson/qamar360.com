@@ -1,36 +1,52 @@
 /**
- * Thin, fire-and-forget wrapper over `expo-haptics`.
+ * The app's haptic vocabulary — named by *intent*, never by a raw feedback style, so each
+ * physical sensation maps to exactly one meaning and is tuned in a single place. (Apple HIG:
+ * build a clear, causal link between a haptic and its action, and don't reuse a pattern to
+ * mean two different things.)
  *
- * Callers don't `await` taps — feedback should be immediate and a failed buzz
- * must never surface as an error or an unhandled rejection. Each helper is a
- * named *intent* (not a raw feedback style) so the tactile vocabulary stays
- * consistent across the app and is tuned in one place.
+ * Haptics here are deliberately sparse — they confirm a real state change or mark the day's
+ * milestone, and nothing else. We never buzz for routine navigation, for disclosure
+ * (expand/collapse), or for a native control (e.g. a `Switch`) that the OS already
+ * vibrates for itself.
  *
- * Haptics are a no-op on web (the browser Vibration API is unreliable and adds
- * console noise); on Android they're simulated via the system vibrator, so they
- * may be imperceptible on an emulator but are safe to call.
+ * Per platform: iOS drives the Taptic Engine generators (selection / impact / notification);
+ * Android uses the action-oriented `HapticFeedbackConstants` via `performAndroidHapticsAsync`
+ * — Expo's recommended path, because it renders authentic per-device effects, honours the
+ * user's system touch-feedback setting, and needs no `VIBRATE` permission. Calls are
+ * fire-and-forget and a no-op on web (no reliable browser haptics).
  */
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
-const enabled = Platform.OS === 'ios' || Platform.OS === 'android';
+const isIOS = Platform.OS === 'ios';
+const isAndroid = Platform.OS === 'android';
 
-/** Run a haptic without awaiting it and swallow any failure. */
-function fire(run: () => Promise<void>) {
-  if (!enabled) return;
-  void run().catch(() => {
-    // A device without a haptic engine (or a denied vibrate permission) is fine —
-    // the feedback is purely additive.
-  });
+/** Run a haptic without awaiting it, swallowing any failure. The engine being silenced
+ *  (Low Power Mode, the camera active, the system setting off, an unsupported actuator)
+ *  is expected — the feedback is purely additive. */
+function run(fn: () => Promise<void>) {
+  if (!isIOS && !isAndroid) return; // web: no reliable haptics
+  void fn().catch(() => {});
+}
+
+/** One semantic intent → the right native call on each platform (see file header). */
+function intent(ios: () => Promise<void>, android: Haptics.AndroidHaptics) {
+  return () => run(isAndroid ? () => Haptics.performAndroidHapticsAsync(android) : ios);
 }
 
 export const haptics = {
-  /** A habit was ticked off — a solid, satisfying single tap. */
-  completed: () => fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
-  /** A habit was un-ticked — a lighter, "undo" tap. */
-  uncompleted: () => fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
-  /** The day's last open habit was completed — a celebratory success buzz. */
-  celebrate: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
-  /** A discrete selection changed (weekday, appearance segment, drag pickup). */
-  selection: () => fire(() => Haptics.selectionAsync()),
+  /** A discrete value changed within a series — a weekday, the appearance segment, a stack's members. */
+  selection: intent(() => Haptics.selectionAsync(), Haptics.AndroidHaptics.Segment_Tick),
+  /** A row was picked up to be dragged into a new order. */
+  pickup: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Drag_Start),
+  /** A habit was ticked off — a solid, satisfying confirmation. */
+  completed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Toggle_On),
+  /** A habit was un-ticked — a lighter "undo" counterpart. */
+  uncompleted: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Toggle_Off),
+  /** A curated habit or stack was added to the user's own list. */
+  added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Confirm),
+  /** The day's last open habit was completed — the ring closes. The single celebratory
+   *  moment, kept as the richer "success" notification on both platforms so it stands
+   *  distinctly apart from an ordinary tick. */
+  celebrate: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
 };

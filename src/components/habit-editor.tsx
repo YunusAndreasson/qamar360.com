@@ -1,21 +1,45 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
+import { FieldLabel } from '@/components/field-label';
+import { FormField } from '@/components/form-field';
+import { formHeaderActions } from '@/components/form-header-actions';
+import { PressableScale } from '@/components/pressable-scale';
+import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import type { Habit, HabitCreate, HabitPatch } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { DAILY_SCHEDULE, formatReminderTime, parseReminderTime, WEEKDAY_LABELS } from '@/lib/dates';
+import {
+  DAILY_SCHEDULE,
+  formatReminderTime,
+  type HijriSchedule,
+  parseReminderTime,
+  WEEKDAY_LABELS,
+} from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { ensurePermission, remindersAvailable } from '@/lib/notifications';
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-/** Quick-add suggestions for a new habit — common Islamic practices. Tapping one prefills the name. */
-const HABIT_SUGGESTIONS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Quran', 'Dhikr', 'Istighfar', 'Duha', 'Sadaqah'];
+/** The White Days of every Hijri month (Ayyām al-Bīḍ) — the one-tap monthly fill. */
+const WHITE_DAYS = [13, 14, 15];
+
+/** Named Hijri occasions offered as one-tap toggles (each contributes months and/or dates). */
+const HIJRI_OCCASIONS: { key: string; label: string; months: number[]; dates: { month: number; day: number }[] }[] = [
+  { key: 'ramadan', label: 'Ramadan', months: [9], dates: [] },
+  { key: 'arafah', label: 'Day of ʿArafah', months: [], dates: [{ month: 12, day: 9 }] },
+  { key: 'ashura', label: 'ʿĀshūrāʾ (9–10 Muḥarram)', months: [], dates: [{ month: 1, day: 9 }, { month: 1, day: 10 }] },
+];
+
+const dateKey = (d: { month: number; day: number }) => `${d.month}-${d.day}`;
 
 type Props = {
   /** The habit being edited, or `null` to create a new one. */
@@ -60,8 +84,18 @@ export function HabitEditorForm({
   const isNew = !habit;
   const initialTime = parseReminderTime(habit?.reminder_time);
 
+  const initialHijri = habit?.hijri_schedule ?? null;
+
   const [name, setName] = useState(habit?.name ?? '');
+  const [scheduleMode, setScheduleMode] = useState<'weekly' | 'hijri'>(initialHijri ? 'hijri' : 'weekly');
   const [days, setDays] = useState<Set<number>>(() => new Set(habit?.schedule_days ?? DAILY_SCHEDULE));
+  // Hijri schedule, split into its three independent pieces for easy toggling. `dates` keys are
+  // "month-day" strings so they live in a Set; rebuilt into a HijriSchedule on save.
+  const [monthDays, setMonthDays] = useState<Set<number>>(() => new Set(initialHijri?.monthDays ?? []));
+  const [months, setMonths] = useState<Set<number>>(() => new Set(initialHijri?.months ?? []));
+  const [hijriDates, setHijriDates] = useState<Set<string>>(
+    () => new Set((initialHijri?.dates ?? []).map(dateKey)),
+  );
   const [reminderOn, setReminderOn] = useState(!!initialTime);
   const [hour, setHour] = useState(initialTime?.hour ?? 8);
   const [minute, setMinute] = useState(initialTime?.minute ?? 0);
@@ -82,7 +116,9 @@ export function HabitEditorForm({
     () => trimmedName.length > 0 && existingNames.includes(trimmedName.toLowerCase()),
     [trimmedName, existingNames],
   );
-  const canSave = trimmedName.length > 0 && days.size > 0 && !isDuplicate;
+  const hijriValid = monthDays.size > 0 || months.size > 0 || hijriDates.size > 0;
+  const canSave =
+    trimmedName.length > 0 && !isDuplicate && (scheduleMode === 'weekly' ? days.size > 0 : hijriValid);
 
   const toggleDay = (d: number) => {
     haptics.selection();
@@ -92,6 +128,65 @@ export function HabitEditorForm({
       else next.add(d);
       return next;
     });
+  };
+
+  const toggleMonthDay = (d: number) => {
+    haptics.selection();
+    setMonthDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+  };
+
+  // White Days (13–15) as a single quick-fill chip — on only when all three are selected.
+  const whiteDaysOn = WHITE_DAYS.every((d) => monthDays.has(d));
+  const toggleWhiteDays = () => {
+    haptics.selection();
+    setMonthDays((prev) => {
+      const next = new Set(prev);
+      WHITE_DAYS.forEach((d) => (whiteDaysOn ? next.delete(d) : next.add(d)));
+      return next;
+    });
+  };
+
+  // A named occasion is "on" when all its months and dates are present; toggling flips them.
+  const occasionOn = (occ: (typeof HIJRI_OCCASIONS)[number]) =>
+    occ.months.every((m) => months.has(m)) && occ.dates.every((d) => hijriDates.has(dateKey(d)));
+  const toggleOccasion = (occ: (typeof HIJRI_OCCASIONS)[number]) => {
+    haptics.selection();
+    const on = occasionOn(occ);
+    if (occ.months.length) {
+      setMonths((prev) => {
+        const next = new Set(prev);
+        occ.months.forEach((m) => (on ? next.delete(m) : next.add(m)));
+        return next;
+      });
+    }
+    if (occ.dates.length) {
+      setHijriDates((prev) => {
+        const next = new Set(prev);
+        occ.dates.forEach((d) => (on ? next.delete(dateKey(d)) : next.add(dateKey(d))));
+        return next;
+      });
+    }
+  };
+
+  // Reassemble the three pieces into the stored HijriSchedule (null when nothing is picked).
+  const buildHijriSchedule = (): HijriSchedule | null => {
+    const hs: HijriSchedule = {};
+    if (monthDays.size) hs.monthDays = [...monthDays].sort((a, b) => a - b);
+    if (months.size) hs.months = [...months].sort((a, b) => a - b);
+    if (hijriDates.size) {
+      hs.dates = [...hijriDates]
+        .map((k) => {
+          const [m, d] = k.split('-').map(Number);
+          return { month: m, day: d };
+        })
+        .sort((a, b) => a.month - b.month || a.day - b.day);
+    }
+    return hs.monthDays || hs.months || hs.dates ? hs : null;
   };
 
   const onToggleReminder = async (value: boolean) => {
@@ -105,16 +200,40 @@ export function HabitEditorForm({
     } else {
       setPickerVisible(false);
     }
-    haptics.selection();
+    // No manual haptic: this is a native `Switch`, which already provides the platform's
+    // own toggle feedback (a double-buzz otherwise on iOS).
     setReminderOn(value);
+  };
+
+  // Apply a picked time. Fired continuously by the iOS spinner and once by the Android dialog.
+  const onChangeTime = (event: DateTimePickerEvent, date?: Date) => {
+    if (event.type === 'set' && date) {
+      setHour(date.getHours());
+      setMinute(date.getMinutes());
+    }
+  };
+
+  // iOS renders the spinner inline (toggled here); Android uses the library's imperative
+  // dialog — the recommended pattern for `@react-native-community/datetimepicker` v9.
+  const openTimePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({ value: timeAsDate, mode: 'time', onChange: onChangeTime });
+    } else {
+      setPickerVisible((v) => !v);
+    }
   };
 
   const save = () => {
     if (!canSave) return;
     const reminder_time = reminderOn ? formatReminderTime(hour, minute) : null;
-    const schedule_days = [...days].sort((a, b) => a - b);
-    if (habit) onSave(habit.id, { name: trimmedName, schedule_days, reminder_time });
-    else onCreate({ name: trimmedName, schedule_days, reminder_time });
+    // A habit is weekly OR Hijri — the unused side is cleared so switching modes can't leave
+    // stale data (empty schedule_days for Hijri, null hijri_schedule for weekly).
+    const fields =
+      scheduleMode === 'hijri'
+        ? { schedule_days: [], hijri_schedule: buildHijriSchedule() }
+        : { schedule_days: [...days].sort((a, b) => a - b), hijri_schedule: null };
+    if (habit) onSave(habit.id, { name: trimmedName, reminder_time, ...fields });
+    else onCreate({ name: trimmedName, reminder_time, ...fields });
     onClose();
   };
 
@@ -141,187 +260,180 @@ export function HabitEditorForm({
       keyboardShouldPersistTaps="handled">
       <Stack.Screen
         options={{
-          title: isNew ? 'New habit' : 'Edit habit',
+          title: isNew ? 'New Habit' : 'Edit Habit',
           // Center the title so it doesn't crowd the "Cancel" button on Android's
           // left-aligned header (iOS centers it already).
           headerTitleAlign: 'center',
-          headerLeft: () => (
-            <Pressable onPress={onClose} accessibilityRole="button" hitSlop={8}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Cancel
-              </ThemedText>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} accessibilityRole="button" hitSlop={8}>
-              <ThemedText type="smallBold" style={{ color: canSave ? theme.accent : theme.textSecondary }}>
-                Save
-              </ThemedText>
-            </Pressable>
-          ),
+          ...formHeaderActions({ onCancel: onClose, onSave: save, canSave }),
         }}
       />
 
       {/* Name */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-        NAME
-      </ThemedText>
-      <TextInput
+      <FormField
+        label="NAME"
         value={name}
         onChangeText={setName}
         placeholder="Habit name"
-        placeholderTextColor={theme.textSecondary}
         autoCapitalize="sentences"
         autoFocus={isNew}
-        style={[
-          styles.input,
-          { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
-        ]}
         accessibilityLabel="Habit name"
+        error={isDuplicate ? 'You already have a habit with this name.' : undefined}
       />
-      {isDuplicate ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
-          You already have a habit with this name.
-        </ThemedText>
-      ) : null}
-
-      {/* Quick-add suggestions (new habits only) — tap to prefill the name. */}
-      {isNew ? (
-        <View style={styles.suggestions}>
-          {HABIT_SUGGESTIONS.map((suggestion) => {
-            const on = name.trim() === suggestion;
-            return (
-              <Pressable
-                key={suggestion}
-                onPress={() => {
-                  haptics.selection();
-                  setName(suggestion);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`Use ${suggestion}`}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: on ? theme.accent : theme.backgroundElement,
-                    borderColor: on ? theme.accent : theme.border,
-                  },
-                ]}>
-                <ThemedText type="small" style={{ color: on ? theme.accentText : theme.text }}>
-                  {suggestion}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
 
       {/* Schedule */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-        REPEAT
-      </ThemedText>
-      <View style={styles.days}>
-        {WEEKDAY_LABELS.map((label, d) => {
-          const on = days.has(d);
-          return (
-            <Pressable
-              key={d}
-              onPress={() => toggleDay(d)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
-              accessibilityLabel={WEEKDAY_NAMES[d]}
-              style={[
-                styles.day,
-                {
-                  backgroundColor: on ? theme.accent : theme.backgroundElement,
-                  borderColor: on ? theme.accent : theme.border,
-                },
-              ]}>
-              <ThemedText type="smallBold" style={{ color: on ? theme.accentText : theme.textSecondary }}>
-                {label}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
+      <FieldLabel>REPEAT</FieldLabel>
+      {/* Weekly (weekdays) vs Hijri (lunar dates) — the two schedule kinds. */}
+      <View style={styles.modeRow}>
+        {(['weekly', 'hijri'] as const).map((mode) => (
+          <SelectablePill
+            key={mode}
+            selected={scheduleMode === mode}
+            label={mode === 'weekly' ? 'Weekly' : 'Hijri'}
+            onPress={() => {
+              haptics.selection();
+              setScheduleMode(mode);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: scheduleMode === mode }}
+            accessibilityLabel={mode === 'weekly' ? 'Weekly schedule' : 'Hijri schedule'}
+            style={styles.modePill}
+          />
+        ))}
       </View>
-      {days.size === 0 ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
-          Pick at least one day.
-        </ThemedText>
-      ) : null}
 
-      {/* Reminder */}
+      {scheduleMode === 'weekly' ? (
+        <>
+          <View style={styles.days}>
+            {WEEKDAY_LABELS.map((label, d) => (
+              <SelectablePill
+                key={d}
+                selected={days.has(d)}
+                label={label}
+                onPress={() => toggleDay(d)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: days.has(d) }}
+                accessibilityLabel={WEEKDAY_NAMES[d]}
+                hitSlop={{ top: 6, bottom: 6 }}
+                style={styles.day}
+              />
+            ))}
+          </View>
+          {days.size === 0 ? (
+            <ThemedText type="small" themeColor="danger" style={styles.hint}>
+              Pick at least one day.
+            </ThemedText>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {/* Days of every Hijri month — with a one-tap White Days (13–15) fill. */}
+          <FieldLabel style={styles.subLabel}>EACH HIJRI MONTH</FieldLabel>
+          <SelectablePill
+            selected={whiteDaysOn}
+            label="White Days (13–15)"
+            onPress={toggleWhiteDays}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: whiteDaysOn }}
+            accessibilityLabel="White Days, 13 to 15"
+            style={styles.occasionPill}
+          />
+          <View style={styles.monthDayGrid}>
+            {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+              <SelectablePill
+                key={d}
+                selected={monthDays.has(d)}
+                label={String(d)}
+                textType="small"
+                onPress={() => toggleMonthDay(d)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: monthDays.has(d) }}
+                accessibilityLabel={`Day ${d}`}
+                hitSlop={{ top: 6, bottom: 6 }}
+                style={styles.monthDay}
+              />
+            ))}
+          </View>
+
+          {/* Annual occasions — Ramadan, ʿArafah, ʿĀshūrāʾ. */}
+          <FieldLabel style={styles.subLabel}>OCCASIONS</FieldLabel>
+          <View style={styles.occasions}>
+            {HIJRI_OCCASIONS.map((occ) => (
+              <SelectablePill
+                key={occ.key}
+                selected={occasionOn(occ)}
+                label={occ.label}
+                onPress={() => toggleOccasion(occ)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: occasionOn(occ) }}
+                accessibilityLabel={occ.label}
+                style={styles.occasionPill}
+              />
+            ))}
+          </View>
+          {!hijriValid ? (
+            <ThemedText type="small" themeColor="danger" style={styles.hint}>
+              Pick at least one Hijri day or occasion.
+            </ThemedText>
+          ) : null}
+        </>
+      )}
+
+      {/* Reminder — opt-in. Off by default; a habit carries no reminder until set here. */}
       <View style={styles.reminderRow}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-          REMINDER
-        </ThemedText>
+        <FieldLabel>REMINDER</FieldLabel>
         {remindersAvailable ? (
           <Switch
             value={reminderOn}
             onValueChange={onToggleReminder}
-            trackColor={{ true: theme.accent }}
+            trackColor={{ true: theme.accent, false: theme.backgroundSelected }}
+            ios_backgroundColor={theme.backgroundSelected}
             accessibilityLabel="Reminder"
           />
         ) : null}
       </View>
       {!remindersAvailable ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.textSecondary }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           Reminders need a development build (not available in Expo Go).
         </ThemedText>
       ) : null}
       {remindersAvailable && reminderOn ? (
-        <Pressable
-          onPress={() => setPickerVisible((v) => !v)}
+        <PressableScale
+          onPress={openTimePicker}
           accessibilityRole="button"
+          accessibilityLabel="Reminder time"
           style={[styles.timeChip, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
           <ThemedText type="smallBold">
             {timeAsDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
           </ThemedText>
-        </Pressable>
+        </PressableScale>
       ) : null}
       {permissionDenied ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.textSecondary }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           Allow notifications in system settings to get reminders.
         </ThemedText>
       ) : null}
-      {remindersAvailable && pickerVisible ? (
+      {/* iOS shows the spinner inline; Android opens the native dialog imperatively. */}
+      {remindersAvailable && pickerVisible && Platform.OS === 'ios' ? (
         <View>
-          <DateTimePicker
-            value={timeAsDate}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              if (Platform.OS !== 'ios') setPickerVisible(false);
-              if (event.type === 'set' && date) {
-                setHour(date.getHours());
-                setMinute(date.getMinutes());
-              } else if (event.type === 'dismissed') {
-                setPickerVisible(false);
-              }
-            }}
-          />
-          {Platform.OS === 'ios' ? (
-            <Pressable onPress={() => setPickerVisible(false)} style={styles.pickerDone} accessibilityRole="button">
-              <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                Done
-              </ThemedText>
-            </Pressable>
-          ) : null}
+          <DateTimePicker value={timeAsDate} mode="time" display="spinner" onChange={onChangeTime} />
+          <PressableScale onPress={() => setPickerVisible(false)} style={styles.pickerDone} accessibilityRole="button">
+            <ThemedText type="smallBold" themeColor="accent">
+              Done
+            </ThemedText>
+          </PressableScale>
         </View>
       ) : null}
 
       {/* Stack (editing only) — group this habit into a sequence with others. */}
       {onNewStack ? (
         <>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-            STACK
-          </ThemedText>
+          <FieldLabel>STACK</FieldLabel>
           {stackName ? (
             // Already grouped — show the stack and a shortcut to edit it.
             <Pressable
               onPress={onEditStack}
               accessibilityRole="button"
-              accessibilityLabel={`In stack ${stackName}. Edit stack.`}
+              accessibilityLabel={`In stack ${stackName}. Edit Stack.`}
               style={({ pressed }) => [
                 styles.stackRow,
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
@@ -331,7 +443,7 @@ export function HabitEditorForm({
               <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                 {stackName}
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.accent }}>
+              <ThemedText type="small" themeColor="accent">
                 Edit
               </ThemedText>
             </Pressable>
@@ -339,10 +451,8 @@ export function HabitEditorForm({
             // Not grouped — a tappable picker: join an existing stack, or start a new one.
             <View style={[styles.stackGroup, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
               <Pressable
-                onPress={() => {
-                  haptics.selection();
-                  setStackPickerOpen((v) => !v);
-                }}
+                // Disclosure of the stack picker — clear visual feedback, no haptic.
+                onPress={() => setStackPickerOpen((v) => !v)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: stackPickerOpen }}
                 accessibilityLabel="Add to a stack"
@@ -351,7 +461,7 @@ export function HabitEditorForm({
                 <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                   Not in a stack
                 </ThemedText>
-                <ThemedText type="small" style={{ color: theme.accent }}>
+                <ThemedText type="small" themeColor="accent">
                   {stackPickerOpen ? 'Close' : 'Add to a stack'}
                 </ThemedText>
               </Pressable>
@@ -386,8 +496,8 @@ export function HabitEditorForm({
                       pressed && styles.stackRowPressed,
                     ]}>
                     <MaterialIcons name="add-link" size={20} color={theme.accent} />
-                    <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                      New stack…
+                    <ThemedText type="smallBold" themeColor="accent">
+                      New Stack…
                     </ThemedText>
                   </Pressable>
                 </>
@@ -399,14 +509,12 @@ export function HabitEditorForm({
 
       {/* Delete (editing only) */}
       {habit ? (
-        <Pressable
+        <AppButton
+          variant="destructive"
           onPress={confirmDelete}
-          accessibilityRole="button"
-          style={[styles.delete, { backgroundColor: theme.dangerSubtle }]}>
-          <ThemedText type="smallBold" style={{ color: theme.danger }}>
-            Delete habit
-          </ThemedText>
-        </Pressable>
+          style={styles.delete}>
+          Delete habit
+        </AppButton>
       ) : null}
     </ScrollView>
   );
@@ -420,31 +528,17 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.five,
     gap: Spacing.two,
   },
-  fieldLabel: { letterSpacing: 0.5, marginTop: Spacing.two },
-  input: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    fontSize: 16,
-  },
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.one },
-  chip: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
+  // Pill shape/size overrides; SelectablePill owns the border, radius, centring and colour.
   days: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.one },
-  day: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  day: { width: 40, height: 40, borderRadius: 20, paddingHorizontal: 0, paddingVertical: 0 },
   hint: { marginTop: Spacing.one },
+  modeRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.one },
+  modePill: { flex: 1, minHeight: 44 },
+  subLabel: { marginTop: Spacing.three },
+  monthDayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
+  monthDay: { width: 40, height: 36, paddingHorizontal: 0, paddingVertical: 0 },
+  occasions: { marginTop: Spacing.one },
+  occasionPill: { alignSelf: 'flex-start', minHeight: 44, marginTop: Spacing.two },
   reminderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -492,8 +586,5 @@ const styles = StyleSheet.create({
   stackName: { flex: 1 },
   delete: {
     marginTop: Spacing.four,
-    borderRadius: Radius.control,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
   },
 });

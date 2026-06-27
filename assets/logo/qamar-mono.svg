@@ -1,15 +1,6 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- Single-color silhouette (white on transparent). Alpha defines the shape; the
-       Android themed-icon system tints it. Same geometry as the mark/icon. -->
-  <defs>
-    <mask id="crescent">
-      <rect width="1024" height="1024" fill="black"/>
-      <circle cx="575" cy="480" r="250" fill="white"/>
-      <circle cx="687" cy="424" r="250" fill="black"/>
-    </mask>
-  </defs>
-  <circle cx="512" cy="512" r="384" fill="none" stroke="#FFFFFF" stroke-width="20"/>
-  <g mask="url(#crescent)">
-    <rect width="1024" height="1024" fill="#FFFFFF"/>
-  </g>
+  <!-- Single-color silhouette (white on transparent) for Android themed icons. Alpha
+       defines the shape; the system tints it. Same geometry as the icon/mark. -->
+  <circle cx="512" cy="512" r="312" fill="none" stroke="#FFFFFF" stroke-width="40"/>
+  <line x1="703" y1="703" x2="789" y2="789" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round"/>
 </svg>

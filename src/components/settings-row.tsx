@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Pressed, Spacing } from '@/constants/theme';
+import { Disabled, Pressed, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
@@ -84,7 +84,7 @@ export function SettingsRow({
       disabled={disabled || busy}
       android_ripple={{ color: theme.backgroundSelected }}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityLabel={accessibilityLabel ?? (value ? `${label}, ${value}` : label)}
       accessibilityState={{ disabled: !!(disabled || busy) }}
       style={({ pressed }) => [styles.row, pressed && styles.pressed, (disabled || busy) && styles.faded]}>
       {content}
@@ -103,5 +103,5 @@ const styles = StyleSheet.create({
   },
   labels: { flex: 1, gap: Spacing.half },
   pressed: { opacity: Pressed.dim },
-  faded: { opacity: 0.5 },
+  faded: { opacity: Disabled },
 });

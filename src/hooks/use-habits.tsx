@@ -12,12 +12,17 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, scheduledOn, todayLocalISO } from '@/lib/dates';
+import { addDaysISO, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { rescheduleAll } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
-export type Habit = Tables<'habits'>;
+/**
+ * A habit row, with `hijri_schedule` narrowed from the DB's raw `Json` to the
+ * structured {@link HijriSchedule}. Rows fetched from Supabase are cast to this at
+ * the query boundary (the column is only ever written as a `HijriSchedule`).
+ */
+export type Habit = Omit<Tables<'habits'>, 'hijri_schedule'> & { hijri_schedule: HijriSchedule | null };
 /** A named, ordered group of habits — presentation grouping only (see `stack_id`). */
 export type HabitStack = Tables<'habit_stacks'>;
 
@@ -26,6 +31,8 @@ export type HabitPatch = {
   name?: string;
   schedule_days?: number[];
   reminder_time?: string | null;
+  /** Set to a {@link HijriSchedule} to make the habit Hijri-scheduled, or `null` for weekly. */
+  hijri_schedule?: HijriSchedule | null;
 };
 
 /** Everything needed to create a habit (name + schedule + optional reminder). */
@@ -33,6 +40,8 @@ export type HabitCreate = {
   name: string;
   schedule_days: number[];
   reminder_time: string | null;
+  /** A Hijri recurrence instead of weekdays; omit/null for a weekly habit. */
+  hijri_schedule?: HijriSchedule | null;
 };
 
 /** How far back the day-stepper lets you backfill a missed completion. */
@@ -60,6 +69,8 @@ type HabitsContextValue = {
   stacks: HabitStack[];
   /** Ids of habits ticked off for `viewDate`. */
   completed: Set<string>;
+  /** Ids of habits skipped (legitimately excused) for `viewDate` — excluded from the rate. */
+  skipped: Set<string>;
   /** True only during the first load. */
   loading: boolean;
   /** Plain-language message for the last failed action, or null. */
@@ -75,6 +86,8 @@ type HabitsContextValue = {
   /** Whether the stepper can go further back. */
   canGoBack: boolean;
   dismissError: () => void;
+  /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus). */
+  refresh: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
   /** Step the viewed day by `delta` days (clamped). */
@@ -83,6 +96,8 @@ type HabitsContextValue = {
   /** Create several habits at once (Discover "starter set" / routines); returns the new rows. */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
   toggleHabit: (habitId: string) => Promise<void>;
+  /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
+  skipHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
   deleteHabit: (habitId: string) => Promise<void>;
   reorderHabits: (orderedIds: string[]) => Promise<void>;
@@ -96,8 +111,15 @@ type HabitsContextValue = {
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
 
-/** Postgres unique-violation error code. */
-const UNIQUE_VIOLATION = '23505';
+/**
+ * Delete a user's entire completion history — every check-off — for a "fresh start", while
+ * leaving their habits and stacks (and reminders) intact. Standalone (not a hook) so the
+ * Settings tab, which lives outside {@link HabitsProvider}, can call it directly. Throws on failure.
+ */
+export async function clearCompletionHistory(userId: string): Promise<void> {
+  const { error } = await supabase.from('habit_completions').delete().eq('user_id', userId);
+  if (error) throw error;
+}
 
 export function HabitsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -106,6 +128,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [stacks, setStacks] = useState<HabitStack[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
@@ -115,6 +138,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const habitsRef = useRef(habits);
   const stacksRef = useRef(stacks);
   const completedRef = useRef(completed);
+  const skippedRef = useRef(skipped);
   const todayRef = useRef(today);
   const viewDateRef = useRef(viewDate);
   const ensuredUserRow = useRef(false);
@@ -129,6 +153,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     completedRef.current = completed;
   }, [completed]);
+  useEffect(() => {
+    skippedRef.current = skipped;
+  }, [skipped]);
   useEffect(() => {
     todayRef.current = today;
   }, [today]);
@@ -147,7 +174,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setError('Could not load your habits. Reopen the app to retry.');
       return;
     }
-    setHabits(data ?? []);
+    setHabits((data ?? []) as Habit[]);
   }, [userId]);
 
   const fetchStacks = useCallback(async () => {
@@ -168,17 +195,26 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return;
       const { data, error: completionsError } = await supabase
         .from('habit_completions')
-        .select('habit_id')
+        .select('habit_id, status')
         .eq('user_id', userId)
         .eq('completed_at', day);
       if (completionsError) {
         setError('Could not load your habits. Reopen the app to retry.');
         return;
       }
-      setCompleted(new Set((data ?? []).map((row) => row.habit_id)));
+      const rows = data ?? [];
+      setCompleted(new Set(rows.filter((row) => row.status !== 'skipped').map((row) => row.habit_id)));
+      setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
     },
     [userId],
   );
+
+  // Re-pull habits, stacks, and the viewed day's completions. Called on Habits-tab focus so
+  // changes made outside this provider (e.g. a progress reset in Settings) appear on return —
+  // the same focus-refetch the Progress tab uses.
+  const refresh = useCallback(async () => {
+    await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
+  }, [fetchHabits, fetchStacks, fetchCompletions]);
 
   // Initial load — habits plus today's completions. This provider mounts inside the
   // authed (tabs) screen and remounts on each entry, so the user is fixed for its life.
@@ -200,7 +236,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       didMount.current = true;
       return;
     }
-    setCompleted(new Set()); // don't show the previous day's ticks while the new day loads
+    // don't show the previous day's ticks/skips while the new day loads
+    setCompleted(new Set());
+    setSkipped(new Set());
     void fetchCompletions(viewDate);
   }, [viewDate, fetchCompletions]);
 
@@ -227,7 +265,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // Keep OS reminders in sync with the habits. Keyed on the reminder-relevant fields
   // only, so reorders/ticks (which don't change them) don't churn the schedule.
   const reminders = useMemo(
-    () => habits.map((h) => ({ name: h.name, reminder_time: h.reminder_time, schedule_days: h.schedule_days })),
+    () =>
+      habits.map((h) => ({
+        name: h.name,
+        reminder_time: h.reminder_time,
+        schedule_days: h.schedule_days,
+        hijri_schedule: h.hijri_schedule,
+        created_at: h.created_at,
+      })),
     [habits],
   );
   const reminderSignature = JSON.stringify(reminders);
@@ -271,25 +316,38 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       const day = viewDateRef.current;
       const wasDone = completedRef.current.has(habitId);
+      // Marking done overrides a prior "skipped" state for the day (one row per
+      // habit-day), so remember it to restore on failure.
+      const wasSkipped = skippedRef.current.has(habitId);
 
-      // Optimistic flip — feedback is immediate, before the network returns.
+      // Optimistic flip — feedback is immediate, before the network returns. Marking
+      // done also clears any skip (the two states are mutually exclusive).
       setCompleted((prev) => {
         const next = new Set(prev);
         if (wasDone) next.delete(habitId);
         else next.add(habitId);
         return next;
       });
+      if (wasSkipped && !wasDone) {
+        setSkipped((prev) => {
+          const next = new Set(prev);
+          next.delete(habitId);
+          return next;
+        });
+      }
 
       // Tactile feedback, matched to the optimistic flip: a light "undo" tap when
       // clearing, otherwise a solid tap — upgraded to a celebratory buzz when this
-      // tick completes every habit scheduled for the viewed day.
+      // tick completes every habit scheduled for the viewed day. Skipped acts aren't
+      // "open", so they don't hold the day back from completing.
       if (wasDone) {
         haptics.uncompleted();
       } else {
-        const scheduledIds = habitsRef.current.filter((h) => scheduledOn(h, day)).map((h) => h.id);
+        const openIds = habitsRef.current
+          .filter((h) => scheduledOn(h, day) && !skippedRef.current.has(h.id))
+          .map((h) => h.id);
         const dayComplete =
-          scheduledIds.length > 0 &&
-          scheduledIds.every((id) => id === habitId || completedRef.current.has(id));
+          openIds.length > 0 && openIds.every((id) => id === habitId || completedRef.current.has(id));
         if (dayComplete) haptics.celebrate();
         else haptics.completed();
       }
@@ -303,11 +361,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             .eq('completed_at', day);
           if (delError) throw delError;
         } else {
-          const { error: insError } = await supabase
+          // Upsert (not insert) so an existing row — a prior skip, or an idempotent
+          // re-tick — is flipped to 'done' rather than colliding on the unique key.
+          const { error: upError } = await supabase
             .from('habit_completions')
-            .insert({ habit_id: habitId, user_id: userId, completed_at: day });
-          // A duplicate means it is already done — idempotent, treat as success.
-          if (insError && insError.code !== UNIQUE_VIOLATION) throw insError;
+            .upsert(
+              { habit_id: habitId, user_id: userId, completed_at: day, status: 'done' },
+              { onConflict: 'habit_id,completed_at' },
+            );
+          if (upError) throw upError;
         }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -318,6 +380,92 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             else next.delete(habitId);
             return next;
           });
+          if (wasSkipped && !wasDone) {
+            setSkipped((prev) => {
+              const next = new Set(prev);
+              next.add(habitId);
+              return next;
+            });
+          }
+        }
+        setError('Could not update that habit. Check your connection.');
+      } finally {
+        pending.current.delete(habitId);
+      }
+    },
+    [userId],
+  );
+
+  // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
+  // (travel, menstruation, …) that shouldn't count against the rate. Mirrors
+  // `toggleHabit`: optimistic, single in-flight per habit, rolls back on failure.
+  // A skip and a completion are mutually exclusive on the same habit-day (one row),
+  // so skipping also clears a prior "done".
+  const skipHabit = useCallback(
+    async (habitId: string) => {
+      if (!userId) return;
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      if (pending.current.has(habitId)) return; // ignore double-taps
+      pending.current.add(habitId);
+
+      const day = viewDateRef.current;
+      const wasSkipped = skippedRef.current.has(habitId);
+      const wasDone = completedRef.current.has(habitId);
+
+      // Optimistic flip: skipped → open, or open/done → skipped.
+      setSkipped((prev) => {
+        const next = new Set(prev);
+        if (wasSkipped) next.delete(habitId);
+        else next.add(habitId);
+        return next;
+      });
+      if (!wasSkipped && wasDone) {
+        setCompleted((prev) => {
+          const next = new Set(prev);
+          next.delete(habitId);
+          return next;
+        });
+      }
+
+      // A skip is a quiet, neutral state change (not a win) — a light selection tick;
+      // un-skipping reuses the "undo" tap.
+      if (wasSkipped) haptics.uncompleted();
+      else haptics.selection();
+
+      try {
+        if (wasSkipped) {
+          const { error: delError } = await supabase
+            .from('habit_completions')
+            .delete()
+            .eq('habit_id', habitId)
+            .eq('completed_at', day);
+          if (delError) throw delError;
+        } else {
+          // Upsert so a prior 'done' row for the day is converted to 'skipped'.
+          const { error: upError } = await supabase
+            .from('habit_completions')
+            .upsert(
+              { habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped' },
+              { onConflict: 'habit_id,completed_at' },
+            );
+          if (upError) throw upError;
+        }
+      } catch {
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          setSkipped((prev) => {
+            const next = new Set(prev);
+            if (wasSkipped) next.add(habitId);
+            else next.delete(habitId);
+            return next;
+          });
+          if (!wasSkipped && wasDone) {
+            setCompleted((prev) => {
+              const next = new Set(prev);
+              next.add(habitId);
+              return next;
+            });
+          }
         }
         setError('Could not update that habit. Check your connection.');
       } finally {
@@ -328,7 +476,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const createHabit = useCallback(
-    async ({ name: rawName, schedule_days, reminder_time }: HabitCreate) => {
+    async ({ name: rawName, schedule_days, reminder_time, hijri_schedule = null }: HabitCreate) => {
       if (!userId) return;
       const name = rawName.trim();
       if (!name) return;
@@ -352,6 +500,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         updated_at: null,
         schedule_days,
         reminder_time,
+        hijri_schedule,
         stack_id: null,
       };
       setHabits((prev) => [...prev, optimistic]);
@@ -359,12 +508,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error: insError } = await supabase
           .from('habits')
-          .insert({ user_id: userId, name, position, schedule_days, reminder_time })
+          .insert({ user_id: userId, name, position, schedule_days, reminder_time, hijri_schedule })
           .select()
           .single();
         if (insError) throw insError;
         // Swap the temp row for the persisted one (real id).
-        setHabits((prev) => prev.map((h) => (h.id === tempId ? data : h)));
+        setHabits((prev) => prev.map((h) => (h.id === tempId ? (data as Habit) : h)));
       } catch {
         setHabits((prev) => prev.filter((h) => h.id !== tempId));
         setError('Could not add that habit. Check your connection.');
@@ -402,6 +551,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         updated_at: null,
         schedule_days: input.schedule_days,
         reminder_time: input.reminder_time,
+        hijri_schedule: input.hijri_schedule ?? null,
         stack_id: null,
       }));
       const tempIds = new Set(optimistic.map((o) => o.id));
@@ -417,11 +567,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
               position: base + k,
               schedule_days: input.schedule_days,
               reminder_time: input.reminder_time,
+              hijri_schedule: input.hijri_schedule ?? null,
             })),
           )
           .select();
         if (insError) throw insError;
-        const persisted = data ?? [];
+        const persisted = (data ?? []) as Habit[];
         // Swap the temp rows for the persisted ones (real ids), keeping position order.
         setHabits((prev) =>
           [...prev.filter((h) => !tempIds.has(h.id)), ...persisted].sort((a, b) => a.position - b.position),
@@ -468,10 +619,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const removed = habitsRef.current.find((h) => h.id === habitId);
       if (!removed) return;
       const wasDone = completedRef.current.has(habitId);
+      const wasSkipped = skippedRef.current.has(habitId);
 
       // Optimistic removal.
       setHabits((prev) => prev.filter((h) => h.id !== habitId));
       setCompleted((prev) => {
+        if (!prev.has(habitId)) return prev;
+        const next = new Set(prev);
+        next.delete(habitId);
+        return next;
+      });
+      setSkipped((prev) => {
         if (!prev.has(habitId)) return prev;
         const next = new Set(prev);
         next.delete(habitId);
@@ -495,6 +653,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
         if (wasDone) {
           setCompleted((prev) => {
+            const next = new Set(prev);
+            next.add(habitId);
+            return next;
+          });
+        }
+        if (wasSkipped) {
+          setSkipped((prev) => {
             const next = new Set(prev);
             next.add(habitId);
             return next;
@@ -705,6 +870,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       habits,
       stacks,
       completed,
+      skipped,
       loading,
       error,
       today,
@@ -713,11 +879,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       isToday: viewDate === today,
       canGoBack: viewDate > min,
       dismissError,
+      refresh,
       setViewDate,
       stepDay,
       createHabit,
       createHabits,
       toggleHabit,
+      skipHabit,
       updateHabit,
       deleteHabit,
       reorderHabits,
@@ -729,16 +897,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     habits,
     stacks,
     completed,
+    skipped,
     loading,
     error,
     today,
     viewDate,
     dismissError,
+    refresh,
     setViewDate,
     stepDay,
     createHabit,
     createHabits,
     toggleHabit,
+    skipHabit,
     updateHabit,
     deleteHabit,
     reorderHabits,

@@ -1,42 +1,82 @@
-import { SegmentedControl } from '@expo/ui/community/segmented-control';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { StyleSheet, View } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
+import { ThemedText } from '@/components/themed-text';
+import { Radius, Spacing } from '@/constants/theme';
 import { usePreferences, type ThemePreference } from '@/hooks/use-preferences';
-import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
-const OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+import type { ComponentProps } from 'react';
+
+type Option = {
+  value: ThemePreference;
+  label: string;
+  icon: ComponentProps<typeof MaterialIcons>['name'];
+};
+
+// Sun / moon / auto carry the meaning at a glance and tie the control to the app's
+// lunar theme, so it reads as ours rather than a stock platform widget.
+const OPTIONS: Option[] = [
+  { value: 'system', label: 'System', icon: 'brightness-auto' },
+  { value: 'light', label: 'Light', icon: 'light-mode' },
+  { value: 'dark', label: 'Dark', icon: 'dark-mode' },
 ];
 
 /**
- * Light / Dark / System appearance switch, wired to the persisted preference.
- *
- * A native segmented control (`UISegmentedControl` on iOS, Material on Android,
- * vendored on web) via `@expo/ui` — no hand-rolled track/segment styling. `appearance`
- * forces its light/dark look to the *effective* scheme so a forced theme override still
- * matches; `tintColor` carries the accent on the platforms that honor it (iOS uses the
- * system selected-segment style).
+ * Appearance selector — a custom three-segment control themed to match the app's
+ * cards and accent. Replaces the platform `SegmentedControl`, which looked like a
+ * foreign widget dropped into the settings list.
  */
 export function ThemeSegmented() {
   const theme = useTheme();
-  const scheme = useEffectiveScheme();
   const { themePreference, setThemePreference } = usePreferences();
-  const selectedIndex = Math.max(0, OPTIONS.findIndex((o) => o.value === themePreference));
 
   return (
-    <SegmentedControl
-      values={OPTIONS.map((o) => o.label)}
-      selectedIndex={selectedIndex}
-      onChange={({ nativeEvent: { selectedSegmentIndex } }) => {
-        const next = OPTIONS[selectedSegmentIndex];
-        if (!next || next.value === themePreference) return;
-        haptics.selection();
-        setThemePreference(next.value);
-      }}
-      tintColor={theme.accent}
-      appearance={scheme}
-    />
+    <View style={[styles.track, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+      {OPTIONS.map((option) => {
+        const selected = option.value === themePreference;
+        return (
+          <PressableScale
+            key={option.value}
+            onPress={() => {
+              if (option.value === themePreference) return;
+              haptics.selection();
+              setThemePreference(option.value);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${option.label} appearance`}
+            android_ripple={{ color: theme.backgroundSelected }}
+            style={[styles.segment, selected && { backgroundColor: theme.accent }]}>
+            <MaterialIcons name={option.icon} size={16} color={selected ? theme.accentText : theme.textSecondary} />
+            <ThemedText type="smallBold" style={{ color: selected ? theme.accentText : theme.textSecondary }}>
+              {option.label}
+            </ThemedText>
+          </PressableScale>
+        );
+      })}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  track: {
+    flexDirection: 'row',
+    padding: Spacing.half,
+    gap: Spacing.half,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+    minHeight: 44,
+    paddingVertical: Spacing.two + Spacing.half,
+    borderRadius: Radius.control + Spacing.half,
+  },
+});

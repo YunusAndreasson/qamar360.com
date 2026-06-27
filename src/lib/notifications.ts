@@ -1,5 +1,6 @@
 /**
- * Local weekly habit reminders.
+ * Local habit reminders — weekly recurring triggers, plus one-shot dated triggers for
+ * Hijri-scheduled habits (which have no weekly equivalent).
  *
  * `expo-notifications` (and the date picker it pairs with) are native modules that are
  * NOT in Expo Go (SDK 53+), and an OTA update can't add native code to an existing
@@ -11,25 +12,47 @@
  * No local state is kept: {@link rescheduleAll} cancels everything and rebuilds from the
  * current habits, so the OS schedule always mirrors the database.
  */
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
-import { parseReminderTime } from '@/lib/dates';
+import { addDaysISO, type HijriSchedule, parseReminderTime, scheduledOn, todayLocalISO } from '@/lib/dates';
 
 /** The fields a reminder needs from a habit. `Habit` satisfies this structurally. */
 type RemindableHabit = {
   name: string;
   reminder_time: string | null;
   schedule_days: number[];
+  hijri_schedule?: HijriSchedule | null;
+  created_at: string | null;
 };
 
-type NotificationsModule = any;
+/**
+ * A Hijri habit has no weekly trigger, so we arm its next few occurrences as one-shot DATE
+ * triggers — scanning this far ahead, capped to this many (re-armed whenever habits change).
+ */
+const HIJRI_HORIZON_DAYS = 120;
+const HIJRI_MAX_OCCURRENCES = 6;
+
+/** A Date at `hour:minute` local time on the given `YYYY-MM-DD` day. */
+function atLocalTime(iso: string, hour: number, minute: number): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, hour, minute, 0, 0);
+}
+
+// We need the module's *type* without a runtime import — a static `import` would evaluate
+// expo-notifications and crash Expo Go (its native module is absent there).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+type NotificationsModule = typeof import('expo-notifications');
 
 function loadModule(): NotificationsModule | null {
-  // TEMP (iOS launch-hang isolation build): expo-notifications is removed from the
-  // build entirely to rule out its native module / entitlement as the launch blocker.
-  // Always report unavailable so reminders degrade gracefully and Metro never tries
-  // to resolve the (now absent) `expo-notifications` module.
-  return null;
+  // Expo Go strips the native module — requiring it there throws and crashes the app.
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-notifications') as NotificationsModule;
+  } catch {
+    return null; // a build that predates the dependency (e.g. an OTA onto an older binary)
+  }
 }
 
 const N = loadModule();
@@ -88,9 +111,30 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
   if (!N) return;
   try {
     await N.cancelAllScheduledNotificationsAsync();
+    const now = new Date();
+    const todayISO = todayLocalISO(now);
     for (const habit of habits) {
       const time = parseReminderTime(habit.reminder_time);
       if (!time) continue;
+
+      // Hijri habits: arm the next few dated occurrences (there is no weekly equivalent).
+      if (habit.hijri_schedule) {
+        let armed = 0;
+        for (let i = 0; i <= HIJRI_HORIZON_DAYS && armed < HIJRI_MAX_OCCURRENCES; i += 1) {
+          const dayISO = addDaysISO(todayISO, i);
+          if (!scheduledOn(habit, dayISO)) continue;
+          const when = atLocalTime(dayISO, time.hour, time.minute);
+          if (when.getTime() <= now.getTime()) continue; // today's slot already passed
+          await N.scheduleNotificationAsync({
+            content: { title: habit.name, body: `Time for ${habit.name}` },
+            trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when },
+          });
+          armed += 1;
+        }
+        continue;
+      }
+
+      // Weekly habits: one recurring trigger per scheduled weekday.
       for (const day of habit.schedule_days) {
         await N.scheduleNotificationAsync({
           content: { title: habit.name, body: `Time for ${habit.name}` },

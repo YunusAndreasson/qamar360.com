@@ -1,22 +1,37 @@
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { DateJumpPicker } from '@/components/date-jump-picker';
-import { DayProgress } from '@/components/day-progress';
+import { AppButton } from '@/components/app-button';
+import { AppScreen } from '@/components/app-screen';
+import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { HabitRow } from '@/components/habit-row';
-import { HeaderActions, HeaderIconButton, type HeaderIcon } from '@/components/header-icon-button';
+import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
+import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
+import { WeekProgress } from '@/components/week-progress';
+import { HeaderIcons } from '@/constants/icons';
+import { Duration } from '@/constants/motion';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { formatDayHeader, formatHijriDate, isoToLocalDate, scheduledOn, todayLocalISO } from '@/lib/dates';
+import { addDaysISO, scheduledOn } from '@/lib/dates';
 
-const CALENDAR_ICON: HeaderIcon = { sf: 'calendar', material: 'calendar-today' };
-const ADD_ICON: HeaderIcon = { sf: 'plus', material: 'add' };
+function viewDateTitle(viewDate: string, today: string): string {
+  if (viewDate === today) return 'Today';
+  if (viewDate === addDaysISO(today, -1)) return 'Yesterday';
+  const date = new Date(viewDate + 'T12:00:00');
+  // Within the last week a bare weekday is unambiguous; older than that it repeats
+  // (the stepper reaches 30 days back), so carry the date to keep the title exact.
+  return viewDate > addDaysISO(today, -7)
+    ? date.toLocaleDateString('en-US', { weekday: 'long' })
+    : date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
 /** A top-level row of the day's checklist: a lone habit, or a stack of habits. */
 type Entry =
@@ -30,6 +45,7 @@ export default function HabitsScreen() {
     habits,
     stacks,
     completed,
+    skipped,
     loading,
     error,
     today,
@@ -38,14 +54,30 @@ export default function HabitsScreen() {
     isToday,
     setViewDate,
     toggleHabit,
+    skipHabit,
     reorderHabits,
     deleteHabit,
     dismissError,
+    refresh,
   } = useHabits();
-  const [pickerOpen, setPickerOpen] = useState(false);
-
+  // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
+  // progress from Settings) are reflected on return — mirrors the Progress tab.
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
   // Only the habits scheduled for the viewed day appear in the day's checklist.
   const visibleHabits = useMemo(() => habits.filter((h) => scheduledOn(h, viewDate)), [habits, viewDate]);
+
+  // A quiet heads-up the day before a Hijri-only act (e.g. the White Days fast): such habits
+  // otherwise surface for the first time on the day itself — too late to prepare (suhūr, intention).
+  // Only acts that are new tomorrow (not already scheduled today) are flagged.
+  const tomorrow = addDaysISO(today, 1);
+  const upcomingTomorrow = useMemo(
+    () => habits.filter((h) => h.hijri_schedule && scheduledOn(h, tomorrow) && !scheduledOn(h, today)),
+    [habits, tomorrow, today],
+  );
 
   // Fold the day's habits into top-level entries: stacks render as one grouped card,
   // sitting where their earliest member sits; lone habits keep their own slot.
@@ -70,14 +102,16 @@ export default function HabitsScreen() {
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, stacks]);
 
-  // The viewed day's completion, for the progress summary above the list.
-  const doneCount = useMemo(
-    () => visibleHabits.reduce((n, h) => n + (completed.has(h.id) ? 1 : 0), 0),
-    [visibleHabits, completed],
-  );
+  const canGoBack = viewDate > minViewDate;
+  const canGoForward = viewDate < today;
 
-  // The viewed day's Hijri date — a quiet lunar-calendar line under the title.
-  const hijri = useMemo(() => formatHijriDate(viewDate), [viewDate]);
+  const stepViewDate = useCallback(
+    (delta: number) => {
+      if ((delta < 0 && !canGoBack) || (delta > 0 && !canGoForward)) return;
+      setViewDate(addDaysISO(viewDate, delta));
+    },
+    [canGoBack, canGoForward, setViewDate, viewDate],
+  );
 
   const openEditor = useCallback(
     (habit: Habit) => router.push({ pathname: '/habits/editor', params: { id: habit.id } }),
@@ -90,31 +124,45 @@ export default function HabitsScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<Entry>) =>
-      item.type === 'stack' ? (
-        <StackCard
-          stack={item.stack}
-          members={item.members}
-          completed={completed}
-          onToggle={toggleHabit}
-          onEdit={openEditor}
-          onDelete={deleteHabit}
-          onEditStack={openStackEditor}
-          drag={drag}
-          isActive={isActive}
-        />
-      ) : (
-        <HabitRow
-          habit={item.habit}
-          done={completed.has(item.habit.id)}
-          onToggle={toggleHabit}
-          onEdit={openEditor}
-          onDelete={deleteHabit}
-          drag={drag}
-          isActive={isActive}
-        />
-      ),
-    [completed, toggleHabit, openEditor, deleteHabit, openStackEditor],
+    ({ item, drag, isActive }: RenderItemParams<Entry>) => (
+      // Items fade in on appear and reflow smoothly on add/remove/reorder. `layout`
+      // is skipped while this item is the one being dragged, so it doesn't fight the
+      // drag's own cell transform.
+      <Animated.View
+        entering={FadeIn.duration(Duration.base)}
+        exiting={FadeOut.duration(Duration.fast)}
+        layout={isActive ? undefined : LinearTransition.duration(Duration.base)}>
+        {item.type === 'stack' ? (
+          <StackCard
+            stack={item.stack}
+            members={item.members}
+            completed={completed}
+            skipped={skipped}
+            onToggle={toggleHabit}
+            onSkip={skipHabit}
+            onEdit={openEditor}
+            onDelete={deleteHabit}
+            onEditStack={openStackEditor}
+            drag={drag}
+            isActive={isActive}
+          />
+        ) : (
+          <HabitRow
+            habit={item.habit}
+            done={completed.has(item.habit.id)}
+            skipped={skipped.has(item.habit.id)}
+            onToggle={toggleHabit}
+            onSkip={skipHabit}
+            onEdit={openEditor}
+            onDelete={deleteHabit}
+            drag={drag}
+            isActive={isActive}
+            standalone
+          />
+        )}
+      </Animated.View>
+    ),
+    [completed, skipped, toggleHabit, skipHabit, openEditor, deleteHabit, openStackEditor],
   );
 
   // The list shows only the scheduled subset; flatten the reordered entries (stack members
@@ -130,28 +178,29 @@ export default function HabitsScreen() {
     [habits, reorderHabits],
   );
 
-  const title = isToday ? 'Today' : formatDayHeader(viewDate);
-
   return (
     <>
       <Stack.Screen
         options={{
-          title,
+          title: viewDateTitle(viewDate, today),
           headerLargeTitle: true,
+          headerLeft: () =>
+            Platform.OS === 'ios' ? (
+              <HeaderActions>
+                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
+              </HeaderActions>
+            ) : null,
           headerRight: () => (
             <HeaderActions>
-              <HeaderIconButton
-                icon={CALENDAR_ICON}
-                color={theme.accent}
-                accessibilityLabel="Jump to a date"
-                onPress={() => setPickerOpen(true)}
-              />
-              {/* One door to "add a habit": the New Habit screen leads with "create your
+              {Platform.OS !== 'ios' ? (
+                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
+              ) : null}
+              {/* One door to add: the Add screen leads with "create your
                   own" and the curated Sunnah library below it. */}
               <HeaderIconButton
-                icon={ADD_ICON}
+                icon={HeaderIcons.add}
                 color={theme.accent}
-                accessibilityLabel="Add a habit"
+                accessibilityLabel="Add habit or stack"
                 onPress={() => router.push('/habits/discover')}
               />
             </HeaderActions>
@@ -160,60 +209,105 @@ export default function HabitsScreen() {
       />
 
       {loading ? (
-        <View style={[styles.center, { backgroundColor: theme.background }]}>
-          <ActivityIndicator color={theme.textSecondary} />
-        </View>
+        <AppScreen loading />
       ) : (
-        <DraggableFlatList
-          data={entries}
-          keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
-          renderItem={renderItem}
-          onDragEnd={onDragEnd}
-          activationDistance={12}
-          contentInsetAdjustmentBehavior="automatic"
-          // DraggableFlatList applies `style` to the inner FlatList but its outer
-          // wrapper takes only `containerStyle` (no default flex) — so the flex+bg
-          // must go there or the list collapses to zero height as the route's
-          // direct child (no parent flex wrapper now, for native large-title).
-          containerStyle={[styles.list, { backgroundColor: theme.background }]}
-          style={styles.list}
-          ListHeaderComponent={
-            <>
-              <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
-              {hijri ? (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.hijri}>
-                  {hijri}
-                </ThemedText>
-              ) : null}
-              {visibleHabits.length > 0 ? <DayProgress done={doneCount} total={visibleHabits.length} /> : null}
-            </>
-          }
-          ListEmptyComponent={
-            <EmptyState
-              hasHabits={habits.length > 0}
-              isToday={isToday}
-              onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
-              onBrowse={() => router.push('/habits/discover')}
-            />
-          }
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-        />
+        <View style={[styles.list, { backgroundColor: theme.background }]}>
+          <GeometricBackdrop variant="screen" />
+          <DraggableFlatList
+            data={entries}
+            keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
+            renderItem={renderItem}
+            onDragEnd={onDragEnd}
+            activationDistance={12}
+            contentInsetAdjustmentBehavior="automatic"
+            // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper
+            // takes `containerStyle`. Both flex into the backdrop-bearing parent (which owns
+            // the background), so the list itself stays transparent over the sky texture.
+            containerStyle={styles.list}
+            style={styles.list}
+            ListHeaderComponent={
+              <>
+                <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
+                <WeekProgress
+                  habits={habits}
+                  completed={completed}
+                  skipped={skipped}
+                  today={today}
+                  viewDate={viewDate}
+                  style={styles.weekCard}
+                />
+                {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+              </>
+            }
+            ListEmptyComponent={
+              <HabitsEmptyState
+                hasHabits={habits.length > 0}
+                isToday={isToday}
+                onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
+                onBrowse={() => router.push('/habits/discover')}
+              />
+            }
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+          />
+        </View>
       )}
-
-      <DateJumpPicker
-        visible={pickerOpen}
-        value={isoToLocalDate(viewDate)}
-        minimumDate={isoToLocalDate(minViewDate)}
-        maximumDate={isoToLocalDate(today)}
-        onPick={(date) => setViewDate(todayLocalISO(date))}
-        onClose={() => setPickerOpen(false)}
-      />
     </>
   );
 }
 
-function EmptyState({
+/** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
+function DateStepperButtons({
+  canGoBack,
+  canGoForward,
+  onStep,
+}: {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onStep: (delta: number) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <>
+      <HeaderIconButton
+        icon={HeaderIcons.stepBack}
+        color={canGoBack ? theme.accent : theme.textSecondary}
+        accessibilityLabel="Previous day"
+        disabled={!canGoBack}
+        onPress={() => onStep(-1)}
+        style={styles.dateStepButton}
+      />
+      {canGoForward ? (
+        <HeaderIconButton
+          icon={HeaderIcons.stepForward}
+          color={theme.accent}
+          accessibilityLabel="Next day"
+          onPress={() => onStep(1)}
+          style={styles.dateStepButton}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** A quiet "the night before" pill listing Hijri acts that begin tomorrow. */
+function UpcomingHint({ habits }: { habits: Habit[] }) {
+  const theme = useTheme();
+  const label = habits.length === 1 ? habits[0].name : `${habits.length} Sunnah acts`;
+  return (
+    <View
+      accessibilityRole="text"
+      accessibilityLabel={`Tomorrow: ${label}`}
+      style={[styles.upcoming, { backgroundColor: theme.accentSubtle }]}>
+      <MaterialIcons name="nightlight" size={16} color={theme.accent} />
+      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.upcomingText}>
+        Tomorrow · {label}
+      </ThemedText>
+    </View>
+  );
+}
+
+function HabitsEmptyState({
   hasHabits,
   isToday,
   onAdd,
@@ -224,75 +318,59 @@ function EmptyState({
   onAdd: () => void;
   onBrowse: () => void;
 }) {
-  const theme = useTheme();
   const [line1, line2] = hasHabits
     ? ['Nothing scheduled.', isToday ? 'Enjoy your rest day.' : 'No habits were scheduled for this day.']
     : ['No habits yet.', 'Start with a Sunnah habit, or add your own.'];
   return (
-    <View style={styles.empty}>
-      <ThemedText type="default" style={[styles.emptyText, { color: theme.textSecondary }]}>
-        {line1}
-      </ThemedText>
-      <ThemedText type="small" style={[styles.emptyText, { color: theme.textSecondary }]}>
-        {line2}
-      </ThemedText>
-      {/* First-run call-to-action — lead the new user to the curated library (knowledge in
-          the world), with manual entry as a quieter secondary path. */}
+    // First-run call-to-action — lead the new user to the curated library (knowledge in the
+    // world), with manual entry as a quieter secondary path.
+    <EmptyState icon={hasHabits ? 'bedtime' : 'playlist-add'} title={line1} body={line2}>
       {!hasHabits ? (
         <>
-          <Pressable
-            onPress={onBrowse}
-            accessibilityRole="button"
-            accessibilityLabel="Browse Sunnah habits"
-            style={({ pressed }) => [
-              styles.emptyButton,
-              { backgroundColor: theme.accent },
-              pressed && styles.pressedButton,
-            ]}>
-            <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-              Browse Sunnah habits
-            </ThemedText>
-          </Pressable>
-          <Pressable
+          <AppButton onPress={onBrowse} accessibilityLabel="Browse Sunnah habits">
+            Browse Sunnah habits
+          </AppButton>
+          <AppButton
+            variant="secondary"
             onPress={onAdd}
-            accessibilityRole="button"
             accessibilityLabel="Add your own habit"
-            hitSlop={8}
-            style={styles.secondaryLink}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Add your own
-            </ThemedText>
-          </Pressable>
+            hitSlop={8}>
+            Add your own
+          </AppButton>
         </>
       ) : null}
-    </View>
+    </EmptyState>
   );
 }
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  dateStepButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16, // = width / 2, a circular tap target
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
-  hijri: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, letterSpacing: 0.3 },
+  weekCard: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
+  upcoming: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginHorizontal: Spacing.three,
+    marginBottom: Spacing.one,
+    borderRadius: Radius.control,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  upcomingText: { flex: 1 },
   listContent: {
     paddingBottom: BottomTabInset + Spacing.four,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  empty: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    gap: Spacing.one,
-  },
-  emptyText: { textAlign: 'center' },
-  emptyButton: {
-    alignSelf: 'center',
-    marginTop: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.control,
-  },
-  secondaryLink: { alignSelf: 'center', marginTop: Spacing.two, padding: Spacing.one },
-  pressedButton: { opacity: Pressed.dim },
 });

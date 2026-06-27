@@ -22,20 +22,6 @@ function parseLocalISO(iso: string): Date {
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
-/** Public: a `YYYY-MM-DD` string as a local-midnight `Date` — for native date pickers. */
-export function isoToLocalDate(iso: string): Date {
-  return parseLocalISO(iso);
-}
-
-/** Human header for a `YYYY-MM-DD` day, e.g. "Monday, 23 June". */
-export function formatDayHeader(iso: string): string {
-  return parseLocalISO(iso).toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-}
-
 /** `iso` shifted by `n` calendar days (`n` may be negative), as `YYYY-MM-DD`. */
 export function addDaysISO(iso: string, n: number): string {
   const date = parseLocalISO(iso);
@@ -43,80 +29,37 @@ export function addDaysISO(iso: string, n: number): string {
   return todayLocalISO(date);
 }
 
-/** The last `n` local dates ending today, oldest first — n=7 → [today-6 … today]. */
-export function lastNDaysISO(n: number): string[] {
-  const today = todayLocalISO();
-  return Array.from({ length: n }, (_, i) => addDaysISO(today, i - (n - 1)));
-}
-
-/** Locale-aware one-letter weekday for a `YYYY-MM-DD` day, e.g. "M". */
-export function weekdayInitial(iso: string): string {
-  return parseLocalISO(iso).toLocaleDateString(undefined, { weekday: 'narrow' });
-}
-
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */
 export function weekdayIndex(iso: string): number {
   return parseLocalISO(iso).getDay();
 }
 
-/** Full local weekday name for a `YYYY-MM-DD` day, e.g. "Monday". */
-export function weekdayLong(iso: string): string {
-  return parseLocalISO(iso).toLocaleDateString(undefined, { weekday: 'long' });
-}
-
-/** Day-and-month for a `YYYY-MM-DD` day, e.g. "21 June". */
-export function formatMonthDay(iso: string): string {
-  return parseLocalISO(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
-}
-
 /**
- * Compact inclusive day range, e.g. "18–24 Jun" (same month) or "28 May – 3 Jun"
- * (across months). Day order is fixed (only the month name is locale-formatted),
- * so it never renders as the US "Jun 24".
+ * Umm al-Qura month names, 1-based (index 0 is Muharram). We name the month from
+ * its *numeric* value ourselves rather than trust `Intl`'s long month name:
+ * Hermes/iOS routinely returns an empty string for `islamic-umalqura`
+ * `month: 'long'` (the number still resolves), which left the Progress hero
+ * showing just the year. Mapping from the number renders the name identically on
+ * every engine.
  */
-export function formatDayRange(startISO: string, endISO: string): string {
-  const start = parseLocalISO(startISO);
-  const end = parseLocalISO(endISO);
-  const endMonth = end.toLocaleDateString(undefined, { month: 'short' });
-  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-    return `${start.getDate()}–${end.getDate()} ${endMonth}`;
-  }
-  const startMonth = start.toLocaleDateString(undefined, { month: 'short' });
-  return `${start.getDate()} ${startMonth} – ${end.getDate()} ${endMonth}`;
-}
+const HIJRI_MONTHS = [
+  'Muharram',
+  'Safar',
+  'Rabi al-Awwal',
+  'Rabi al-Thani',
+  'Jumada al-Awwal',
+  'Jumada al-Thani',
+  'Rajab',
+  'Shaban',
+  'Ramadan',
+  'Shawwal',
+  'Dhu al-Qadah',
+  'Dhu al-Hijjah',
+] as const;
 
 /**
- * The Islamic (Hijri) date for a `YYYY-MM-DD` day, e.g. "9 Muharram 1448 AH" —
- * a fitting touch for a moon-named tracker. Uses the Umm al-Qura calendar via
- * the platform's `Intl`/ICU (no conversion math of our own, so it stays
- * accurate). Returns `null` on a runtime whose `Intl` lacks the Islamic
- * calendar (it silently resolves to `gregory`), so callers can simply hide the
- * line rather than ever show a wrong date. Day/month/year are reassembled from
- * parts so the order is stable regardless of locale.
- */
-export function formatHijriDate(iso: string): string | null {
-  try {
-    const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-    if (!fmt.resolvedOptions().calendar.startsWith('islamic')) return null;
-    const parts = fmt.formatToParts(parseLocalISO(iso));
-    const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
-    const day = pick('day');
-    const month = pick('month');
-    const year = pick('year');
-    if (!day || !month || !year) return null;
-    return `${day} ${month} ${year} AH`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Numeric Umm al-Qura (Hijri) parts for a `YYYY-MM-DD` day, plus the long month
- * name — the structured counterpart to {@link formatHijriDate}, for month math.
+ * Numeric Umm al-Qura (Hijri) parts for a `YYYY-MM-DD` day, plus the month name,
+ * for month math.
  * `month` is the 1-based Hijri month number; `day` is the 1-based day of that
  * month. Returns `null` on a runtime whose `Intl` lacks the Islamic calendar
  * (it silently resolves to `gregory`), so callers can hide the feature rather
@@ -139,10 +82,7 @@ export function hijriParts(
     const month = Number(pick('month'));
     const year = Number(pick('year'));
     if (!day || !month || !year) return null;
-    const monthName =
-      new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { month: 'long' })
-        .formatToParts(date)
-        .find((p) => p.type === 'month')?.value ?? '';
+    const monthName = HIJRI_MONTHS[month - 1] ?? '';
     return { day, month, year, monthName };
   } catch {
     return null;
@@ -197,18 +137,78 @@ export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 /** A new habit's default schedule: every day. */
 export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
 
+/**
+ * A Hijri-calendar recurrence, the alternative to `schedule_days`. A habit is
+ * Hijri-scheduled iff it carries one of these (stored in `habits.hijri_schedule`);
+ * otherwise it uses the weekday `schedule_days`. All keys optional — a day counts
+ * if it matches any of them. Lets us express the Sunnah practices a weekday schedule
+ * can't: the White Days, ʿĀshūrāʾ, ʿArafah, Ramadan.
+ */
+export type HijriSchedule = {
+  /** Days of the Hijri month (1–30) that recur EVERY month, e.g. [13, 14, 15] = the White Days. */
+  monthDays?: number[];
+  /** Specific annual dates, e.g. [{ month: 1, day: 10 }] = 10 Muḥarram (ʿĀshūrāʾ). */
+  dates?: { month: number; day: number }[];
+  /** Whole Hijri months (1–12), e.g. [9] = Ramadan. */
+  months?: number[];
+};
+
+/** True if a Hijri schedule places a habit on the day with Hijri parts `p`. */
+function hijriScheduleMatches(hs: HijriSchedule, p: { day: number; month: number }): boolean {
+  return (
+    (hs.monthDays?.includes(p.day) ?? false) ||
+    (hs.months?.includes(p.month) ?? false) ||
+    (hs.dates?.some((d) => d.month === p.month && d.day === p.day) ?? false)
+  );
+}
+
 /** The minimal habit shape {@link scheduledOn} needs — `Habit` satisfies it structurally. */
-type Schedulable = { created_at: string | null; schedule_days: number[] };
+type Schedulable = { created_at: string | null; schedule_days: number[]; hijri_schedule?: HijriSchedule | null };
 
 /**
  * Whether a habit "counts" on day `D`: it must already have existed (created on or
- * before `D`, or creation unknown) *and* `D`'s weekday must be in its schedule.
+ * before `D`, or creation unknown) *and* `D` must fall on its schedule — its Hijri
+ * recurrence when it has one, otherwise `D`'s weekday must be in `schedule_days`.
  * Single source of truth for the Habits-screen filter, progress math, and reminders.
  */
 export function scheduledOn(habit: Schedulable, dayISO: string): boolean {
   const created = habit.created_at ? todayLocalISO(new Date(habit.created_at)) : null;
   if (created != null && created > dayISO) return false; // didn't exist yet
+  if (habit.hijri_schedule) {
+    const parts = hijriParts(dayISO);
+    if (!parts) return false; // no Islamic calendar on this runtime — can't place a Hijri habit
+    return hijriScheduleMatches(habit.hijri_schedule, parts);
+  }
   return habit.schedule_days.includes(weekdayIndex(dayISO));
+}
+
+/** Join a list of numbers as a range when contiguous ("13–15"), else a comma list ("1, 14"). */
+function numberList(values: number[]): string {
+  const sorted = [...values].sort((a, b) => a - b);
+  const contiguous = sorted.length > 1 && sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
+  return contiguous ? `${sorted[0]}–${sorted[sorted.length - 1]}` : sorted.join(', ');
+}
+
+/**
+ * A human one-line summary of a {@link HijriSchedule}, e.g. "White Days (13–15)",
+ * "Ramadan", "9–10 Muḥarram". Used wherever a Hijri habit's schedule is shown.
+ */
+export function describeHijriSchedule(hs: HijriSchedule): string {
+  const parts: string[] = [];
+  if (hs.monthDays?.length) {
+    const sorted = [...hs.monthDays].sort((a, b) => a - b);
+    const isWhiteDays = sorted.length === 3 && sorted[0] === 13 && sorted[1] === 14 && sorted[2] === 15;
+    parts.push(isWhiteDays ? 'White Days (13–15)' : `Day ${numberList(sorted)} each Hijri month`);
+  }
+  if (hs.months?.length) {
+    parts.push(hs.months.map((m) => HIJRI_MONTHS[m - 1] ?? `month ${m}`).join(', '));
+  }
+  if (hs.dates?.length) {
+    parts.push(
+      hs.dates.map((d) => `${d.day} ${HIJRI_MONTHS[d.month - 1] ?? `month ${d.month}`}`).join(', '),
+    );
+  }
+  return parts.join(' · ') || 'No Hijri days';
 }
 
 /** Parse a stored `'HH:MM'` reminder into numeric parts, or null when unset/invalid. */

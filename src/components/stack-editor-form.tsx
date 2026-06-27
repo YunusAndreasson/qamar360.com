@@ -1,10 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
+import { FieldLabel } from '@/components/field-label';
+import { FormField } from '@/components/form-field';
+import { formHeaderActions } from '@/components/form-header-actions';
+import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { Pressed, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
@@ -109,55 +114,35 @@ export function StackEditorForm({
       keyboardShouldPersistTaps="handled">
       <Stack.Screen
         options={{
-          title: isNew ? 'New stack' : 'Edit stack',
+          title: isNew ? 'New Stack' : 'Edit Stack',
           headerTitleAlign: 'center',
-          headerLeft: () => (
-            <Pressable onPress={onClose} accessibilityRole="button" hitSlop={8}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Cancel
-              </ThemedText>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} accessibilityRole="button" hitSlop={8}>
-              <ThemedText type="smallBold" style={{ color: canSave ? theme.accent : theme.textSecondary }}>
-                Save
-              </ThemedText>
-            </Pressable>
-          ),
+          ...formHeaderActions({ onCancel: onClose, onSave: save, canSave }),
         }}
       />
 
       {/* Name */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-        NAME
-      </ThemedText>
-      <TextInput
+      <FormField
+        label="NAME"
         value={name}
         onChangeText={setName}
         placeholder="e.g. Fajr routine"
-        placeholderTextColor={theme.textSecondary}
         autoCapitalize="sentences"
         autoFocus={isNew}
-        style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
         accessibilityLabel="Stack name"
+        error={isDuplicate ? 'You already have a stack with this name.' : undefined}
       />
-      {isDuplicate ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.danger }]}>
-          You already have a stack with this name.
-        </ThemedText>
-      ) : null}
 
       {/* Sequence — the ordered members */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-        SEQUENCE
+      <FieldLabel style={styles.fieldLabel}>SEQUENCE</FieldLabel>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+        Put these in the order you will do them, starting from one real moment in your day.
       </ThemedText>
       {selected.length === 0 ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.textSecondary }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           Add habits below to build the sequence.
         </ThemedText>
       ) : (
-        <View style={[styles.group, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+        <Surface compact>
           {selected.map((id, index) => {
             const habit = byId.get(id);
             if (!habit) return null;
@@ -174,47 +159,47 @@ export function StackEditorForm({
                 <Pressable
                   onPress={() => move(index, -1)}
                   disabled={index === 0}
-                  hitSlop={6}
+                  hitSlop={11}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: index === 0 }}
                   accessibilityLabel={`Move ${habit.name} up`}>
-                  <MaterialIcons name="arrow-upward" size={20} color={index === 0 ? theme.border : theme.textSecondary} />
+                  <MaterialIcons name="arrow-upward" size={20} color={index === 0 ? theme.textDisabled : theme.textSecondary} />
                 </Pressable>
                 <Pressable
                   onPress={() => move(index, 1)}
                   disabled={index === selected.length - 1}
-                  hitSlop={6}
+                  hitSlop={11}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: index === selected.length - 1 }}
                   accessibilityLabel={`Move ${habit.name} down`}>
                   <MaterialIcons
                     name="arrow-downward"
                     size={20}
-                    color={index === selected.length - 1 ? theme.border : theme.textSecondary}
+                    color={index === selected.length - 1 ? theme.textDisabled : theme.textSecondary}
                   />
                 </Pressable>
-                <Pressable onPress={() => remove(id)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Remove ${habit.name}`}>
+                <Pressable onPress={() => remove(id)} hitSlop={11} accessibilityRole="button" accessibilityLabel={`Remove ${habit.name}`}>
                   <MaterialIcons name="close" size={20} color={theme.textSecondary} />
                 </Pressable>
               </View>
             );
           })}
-        </View>
+        </Surface>
       )}
       {selected.length === 1 ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.textSecondary }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           Add one more habit — a stack groups at least two.
         </ThemedText>
       ) : null}
 
       {/* Available habits to add */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.fieldLabel}>
-        ADD A HABIT
-      </ThemedText>
+      <FieldLabel style={styles.fieldLabel}>ADD A HABIT</FieldLabel>
       {available.length === 0 ? (
-        <ThemedText type="small" style={[styles.hint, { color: theme.textSecondary }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           {habits.length === 0 ? 'Add some habits first.' : 'No more standalone habits to add.'}
         </ThemedText>
       ) : (
-        <View style={[styles.group, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+        <Surface compact>
           {available.map((habit, index) => (
             <Pressable
               key={habit.id}
@@ -233,19 +218,17 @@ export function StackEditorForm({
               </ThemedText>
             </Pressable>
           ))}
-        </View>
+        </Surface>
       )}
 
       {/* Delete (editing only) */}
       {stack ? (
-        <Pressable
+        <AppButton
+          variant="destructive"
           onPress={confirmDelete}
-          accessibilityRole="button"
-          style={[styles.delete, { backgroundColor: theme.dangerSubtle }]}>
-          <ThemedText type="smallBold" style={{ color: theme.danger }}>
-            Delete stack
-          </ThemedText>
-        </Pressable>
+          style={styles.delete}>
+          Delete stack
+        </AppButton>
       ) : null}
     </ScrollView>
   );
@@ -254,20 +237,8 @@ export function StackEditorForm({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: Spacing.five, gap: Spacing.two },
-  fieldLabel: { letterSpacing: 0.5, marginTop: Spacing.three },
-  input: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    fontSize: 16,
-  },
+  fieldLabel: { marginTop: Spacing.three },
   hint: { marginTop: Spacing.one },
-  group: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -289,8 +260,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: Pressed.dim },
   delete: {
     marginTop: Spacing.four,
-    borderRadius: Radius.control,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
   },
 });

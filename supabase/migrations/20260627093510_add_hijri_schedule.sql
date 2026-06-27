@@ -1,0 +1,13 @@
+-- Hijri-date scheduling for habits.
+--
+-- Adds an optional JSONB recurrence spec alongside the existing weekday-based
+-- `schedule_days`. A habit is Hijri-scheduled iff `hijri_schedule` is non-null;
+-- otherwise it falls back to the weekly `schedule_days`. Shape (all keys optional):
+--   {
+--     "monthDays": [13,14,15],                  -- days 1..30, every Hijri month (White Days)
+--     "dates": [{"month":1,"day":10}],          -- specific annual dates (e.g. 10 Muharram)
+--     "months": [9]                             -- whole Hijri months (e.g. Ramadan)
+--   }
+-- Additive + nullable, so existing rows are unaffected. RLS is row-level on
+-- user_id and already covers the new column.
+alter table public.habits add column if not exists hijri_schedule jsonb;

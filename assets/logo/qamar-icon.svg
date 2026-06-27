@@ -1,15 +1,7 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- App icon: clean black & white. White crescent + 360 ring on solid black. -->
-  <defs>
-    <mask id="crescent">
-      <rect width="1024" height="1024" fill="black"/>
-      <circle cx="575" cy="480" r="250" fill="white"/>
-      <circle cx="687" cy="424" r="250" fill="black"/>
-    </mask>
-  </defs>
-  <rect width="1024" height="1024" fill="#000000"/>
-  <circle cx="512" cy="512" r="384" fill="none" stroke="#FFFFFF" stroke-width="20"/>
-  <g mask="url(#crescent)">
-    <rect width="1024" height="1024" fill="#FFFFFF"/>
-  </g>
+  <!-- App icon: a pure geometric "Q" monogram — the perfect 360 circle with the letter's
+       tail crossing it at the lower right. White on the brand night-sky black. -->
+  <rect width="1024" height="1024" fill="#10131B"/>
+  <circle cx="512" cy="512" r="312" fill="none" stroke="#FFFFFF" stroke-width="40"/>
+  <line x1="703" y1="703" x2="789" y2="789" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round"/>
 </svg>

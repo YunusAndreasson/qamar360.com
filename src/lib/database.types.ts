@@ -45,6 +45,7 @@ export type Database = {
           created_at: string | null
           habit_id: string
           id: string
+          status: string
           user_id: string
         }
         Insert: {
@@ -52,6 +53,7 @@ export type Database = {
           created_at?: string | null
           habit_id: string
           id?: string
+          status?: string
           user_id: string
         }
         Update: {
@@ -59,6 +61,7 @@ export type Database = {
           created_at?: string | null
           habit_id?: string
           id?: string
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -113,6 +116,7 @@ export type Database = {
       habits: {
         Row: {
           created_at: string | null
+          hijri_schedule: Json | null
           id: string
           name: string
           position: number
@@ -124,6 +128,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          hijri_schedule?: Json | null
           id?: string
           name: string
           position: number
@@ -135,6 +140,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          hijri_schedule?: Json | null
           id?: string
           name?: string
           position?: number

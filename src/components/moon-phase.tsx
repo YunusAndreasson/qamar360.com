@@ -24,6 +24,10 @@ export function MoonPhase({
   const r = size / 2;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {/* Solid base so the moon is an opaque object — it occludes the halo behind it, rather
+          than the unlit limb letting the geometry shine through. Matches the card surface, so
+          the shadowed side looks exactly as it did before the halo existed. */}
+      <Circle cx={r} cy={r} r={r} fill={theme.backgroundElement} />
       <Circle cx={r} cy={r} r={r} fill={theme.accent} fillOpacity={FAINT} />
       {illumination > 0.005 ? <Path d={moonPhasePath(r, r, r, illumination, waxing)} fill={theme.accent} /> : null}
     </Svg>

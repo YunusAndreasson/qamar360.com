@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -34,15 +35,16 @@ export function ErrorBanner({ message, onDismiss, style }: Props) {
   if (!message) return null;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onDismiss}
       accessibilityRole="button"
+      accessibilityLiveRegion="polite"
       accessibilityLabel={`${message} Tap to dismiss.`}
       style={[styles.banner, { backgroundColor: theme.dangerSubtle, borderColor: theme.danger }, style]}>
-      <ThemedText type="small" style={{ color: theme.danger }}>
+      <ThemedText type="small" themeColor="danger">
         {message}
       </ThemedText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

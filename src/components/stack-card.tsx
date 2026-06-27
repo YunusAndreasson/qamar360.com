@@ -1,20 +1,22 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { memo } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { HabitRow } from '@/components/habit-row';
+import { PressableScale } from '@/components/pressable-scale';
+import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
 /** A faint connector runs down the member check-circles so the stack reads as an ordered
- *  sequence (a timeline), not just a pile. `RAIL_LEFT` centres it on the circles (row
- *  padding + ~half the 28px icon); `ROW_HALF` is half a 56px row, so the rail starts at the
- *  first circle and ends at the last. */
-const RAIL_LEFT = Spacing.three + 13;
+ *  sequence (a timeline), not just a pile. `RAIL_LEFT` centres it on the icon shell
+ *  (row padding + half the 32px shell); `ROW_HALF` is half a 56px row, so the rail starts
+ *  at the first circle and ends at the last. */
+const RAIL_LEFT = Spacing.three + Spacing.three;
 const ROW_HALF = 28;
 
 type Props = {
@@ -22,7 +24,10 @@ type Props = {
   /** The stack's members scheduled for the viewed day, in sequence order. */
   members: Habit[];
   completed: Set<string>;
+  /** Ids of members skipped (excused) for the viewed day. */
+  skipped: Set<string>;
   onToggle: (id: string) => void;
+  onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
   onEditStack: (stackId: string) => void;
@@ -38,24 +43,19 @@ type Props = {
  * each member is still ticked individually. The header is the drag handle and opens the
  * stack editor.
  */
-function StackCardBase({ stack, members, completed, onToggle, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
+function StackCardBase({ stack, members, completed, skipped, onToggle, onSkip, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
   const theme = useTheme();
 
   const onHeaderLongPress = drag
     ? () => {
-        haptics.selection();
+        haptics.pickup();
         drag();
       }
     : undefined;
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-        isActive && styles.active,
-      ]}>
-      <Pressable
+    <Surface style={[styles.card, isActive && styles.active]}>
+      <PressableScale
         onPress={() => onEditStack(stack.id)}
         onLongPress={onHeaderLongPress}
         disabled={isActive}
@@ -63,20 +63,17 @@ function StackCardBase({ stack, members, completed, onToggle, onEdit, onDelete, 
         accessibilityRole="button"
         accessibilityLabel={`${stack.name} stack`}
         accessibilityHint={drag ? 'Activates to edit the stack. Long press to reorder.' : 'Activates to edit the stack.'}
-        style={({ pressed }) => [styles.header, pressed && styles.pressed]}>
+        style={styles.header}>
         {Platform.OS === 'ios' ? (
           <SymbolView name="link" size={16} tintColor={theme.accent} type="monochrome" />
         ) : (
           <MaterialIcons name="link" size={18} color={theme.accent} />
         )}
-        <ThemedText type="smallBold" style={[styles.title, { color: theme.accent }]} numberOfLines={1}>
+        <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
           {stack.name}
         </ThemedText>
-        {/* A disclosure chevron — the honest cue that tapping the header opens the
-            stack editor (where rename / regroup / delete live), replacing the old
-            ambiguous "…". */}
-        <MaterialIcons name="chevron-right" size={22} color={theme.textSecondary} />
-      </Pressable>
+        <MaterialIcons name="chevron-right" size={16} color={theme.textSecondary} style={{ opacity: 0.4 }} />
+      </PressableScale>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
@@ -84,28 +81,31 @@ function StackCardBase({ stack, members, completed, onToggle, onEdit, onDelete, 
         {members.length > 1 ? (
           <View pointerEvents="none" style={[styles.rail, { backgroundColor: theme.border }]} />
         ) : null}
-        {members.map((habit) => (
-          <HabitRow
+        {members.map((habit, index) => (
+          <View
             key={habit.id}
-            habit={habit}
-            done={completed.has(habit.id)}
-            onToggle={onToggle}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
+            style={index > 0 ? [styles.habitDivider, { borderTopColor: theme.border }] : undefined}>
+            <HabitRow
+              habit={habit}
+              done={completed.has(habit.id)}
+              skipped={skipped.has(habit.id)}
+              onToggle={onToggle}
+              onSkip={onSkip}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          </View>
         ))}
       </View>
-    </View>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
+  // A `Surface` card; only the list margins live here (radius/border/bg come from Surface).
   card: {
     marginHorizontal: Spacing.three,
     marginVertical: Spacing.one,
-    borderRadius: Radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
   },
   active: { opacity: 0.85 },
   header: {
@@ -115,11 +115,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  title: { flex: 1, letterSpacing: 0.3 },
+  title: { flex: 1 },
   divider: { height: StyleSheet.hairlineWidth },
   members: { position: 'relative' },
+  habitDivider: { borderTopWidth: StyleSheet.hairlineWidth },
   rail: { position: 'absolute', left: RAIL_LEFT, top: ROW_HALF, bottom: ROW_HALF, width: 2, borderRadius: 1 },
-  pressed: { opacity: Pressed.dim },
 });
 
 // Memoized: a card re-renders only when its members' done-state or identity changes.

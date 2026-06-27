@@ -24,3 +24,16 @@ export function stackHeaderOptions(theme: { background: string; text: string }) 
       : null),
   };
 }
+
+/**
+ * Native-Stack options for a modal sheet. iOS modals don't get the glass large-title
+ * treatment, so their nav bar renders white in dark mode unless explicitly tinted — so we
+ * theme it here. Shared by every modal route (the habit & stack editors).
+ */
+export function modalHeaderOptions(theme: { background: string; text: string }) {
+  return {
+    presentation: 'modal' as const,
+    headerStyle: { backgroundColor: theme.background },
+    headerTintColor: theme.text,
+  };
+}

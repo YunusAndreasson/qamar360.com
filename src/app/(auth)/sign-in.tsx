@@ -1,13 +1,18 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppButton } from '@/components/app-button';
+import { FormField } from '@/components/form-field';
+import { MoonHalo } from '@/components/ornament/moon-halo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+
+import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
 
@@ -92,8 +97,14 @@ export default function SignInScreen() {
   return (
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.brand}>
+          <MoonHalo size={300} strokeOpacity={0.16} />
           <MaterialIcons name="dark-mode" size={40} color={theme.accent} />
           <ThemedText type="subtitle">qamar360</ThemedText>
         </View>
@@ -102,13 +113,8 @@ export default function SignInScreen() {
         </ThemedText>
 
         {showEmail ? (
-          <TextInput
-            style={[
-              styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}
+          <FormField
             placeholder="Email"
-            placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
@@ -125,13 +131,8 @@ export default function SignInScreen() {
         ) : null}
 
         {mode === 'reset' ? (
-          <TextInput
-            style={[
-              styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}
+          <FormField
             placeholder="6-digit code"
-            placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="number-pad"
@@ -145,13 +146,8 @@ export default function SignInScreen() {
         ) : null}
 
         {showPassword ? (
-          <TextInput
-            style={[
-              styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}
+          <FormField
             placeholder="Password"
-            placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
             ref={passwordRef}
             secureTextEntry
@@ -165,13 +161,8 @@ export default function SignInScreen() {
         ) : null}
 
         {mode === 'reset' ? (
-          <TextInput
-            style={[
-              styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}
+          <FormField
             placeholder="New password"
-            placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
             ref={newPasswordRef}
             secureTextEntry
@@ -185,51 +176,36 @@ export default function SignInScreen() {
         ) : null}
 
         {error ? (
-          <ThemedText type="small" style={{ color: theme.danger }}>
+          <ThemedText type="small" themeColor="danger" role="alert" accessibilityLiveRegion="polite">
             {error}
           </ThemedText>
         ) : null}
         {notice ? (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite">
             {notice}
           </ThemedText>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={onSubmit}
-          style={[styles.button, { backgroundColor: theme.accent, opacity: busy ? 0.6 : 1 }]}>
-          {busy ? (
-            <ActivityIndicator color={theme.accentText} />
-          ) : (
-            <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-              {SUBMIT_LABELS[mode]}
-            </ThemedText>
-          )}
-        </Pressable>
+        <AppButton busy={busy} onPress={onSubmit} style={styles.submitButton}>
+          {SUBMIT_LABELS[mode]}
+        </AppButton>
 
         {mode === 'sign-in' ? (
           <>
-            <Pressable accessibilityRole="button" onPress={() => goTo('sign-up')} style={styles.switchMode}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Need an account? Sign up
-              </ThemedText>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => goTo('forgot')} style={styles.switchMode}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Forgot password?
-              </ThemedText>
-            </Pressable>
+            <AppButton variant="secondary" onPress={() => goTo('sign-up')}>
+              Need an account? Sign up
+            </AppButton>
+            <AppButton variant="secondary" onPress={() => goTo('forgot')}>
+              Forgot password?
+            </AppButton>
           </>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => goTo('sign-in')} style={styles.switchMode}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
-            </ThemedText>
-          </Pressable>
+          <AppButton variant="secondary" onPress={() => goTo('sign-in')}>
+            {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
+          </AppButton>
         )}
       </SafeAreaView>
+      </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
   );
@@ -238,27 +214,18 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
+  // Center the form when it fits; let it scroll (keyboard-safe) when it doesn't.
+  scrollContent: { flexGrow: 1, justifyContent: 'center' },
   safeArea: {
-    flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
   },
   brand: { gap: Spacing.one },
   subtitle: { marginBottom: Spacing.two },
-  input: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    fontSize: 16,
-  },
-  button: {
+  submitButton: {
     marginTop: Spacing.two,
-    borderRadius: Radius.control,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  switchMode: { alignItems: 'center', paddingVertical: Spacing.one },
 });

@@ -2,8 +2,9 @@ import { Children, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SectionLabel } from '@/components/section-label';
+import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -26,14 +27,14 @@ export function SettingsSection({ title, footer, children }: Props) {
   return (
     <View style={styles.wrap}>
       {title ? <SectionLabel>{title.toUpperCase()}</SectionLabel> : null}
-      <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+      <Surface>
         {rows.map((row, i) => (
           <View key={i}>
             {i > 0 ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
             {row}
           </View>
         ))}
-      </View>
+      </Surface>
       {footer ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
           {footer}
@@ -46,11 +47,6 @@ export function SettingsSection({ title, footer, children }: Props) {
 const styles = StyleSheet.create({
   wrap: { gap: Spacing.two },
   footer: { marginLeft: Spacing.three, marginRight: Spacing.three },
-  card: {
-    borderRadius: Radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden', // clip row ripple/press to the rounded corners
-  },
   // Inset hairline between rows (aligned past the horizontal padding), iOS-style.
   divider: { height: StyleSheet.hairlineWidth, marginLeft: Spacing.three },
 });
