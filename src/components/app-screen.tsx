@@ -28,28 +28,25 @@ export function AppScreen({
 }: Props) {
   const theme = useTheme();
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.textSecondary} />
-      </View>
-    );
-  }
-
-  // The ScrollView must be the screen's first subview: react-native-screens finds the
-  // large-title scroll view by walking the `subviews[0]` chain
-  // (RNSScrollViewFinder.findScrollViewInFirstDescendantChainFrom), so a sibling rendered
-  // before it (e.g. the backdrop) would stop the search and the iOS large title would never
-  // collapse on scroll. The backdrop therefore lives inside the ScrollView, behind the
-  // (padded, max-width) content but full-bleed across the un-padded scroll container.
+  // The ScrollView is returned as the screen's direct child — never wrapped in another
+  // container at the route root. iOS large-title auto-inset and collapse-on-scroll only
+  // engage for a top-level scrollable (it must be the screen view-controller's first
+  // subview); a wrapping View (or a sibling rendered before it, like the backdrop) breaks
+  // it. The backdrop therefore lives *inside* the ScrollView, behind the (padded,
+  // max-width) content but full-bleed across the un-padded scroll container. Loading is
+  // rendered inside too, so the root view is always the ScrollView.
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <ScrollView
-        style={[styles.container, style]}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.scrollContent}
-        {...props}>
-        {backdrop ? <GeometricBackdrop variant="screen" /> : null}
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }, style]}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={styles.scrollContent}
+      {...props}>
+      {backdrop ? <GeometricBackdrop variant="screen" /> : null}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.textSecondary} />
+        </View>
+      ) : (
         <View
           style={[
             styles.content,
@@ -59,15 +56,14 @@ export function AppScreen({
           ]}>
           {children}
         </View>
-      </ScrollView>
-    </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  container: { flex: 1, backgroundColor: 'transparent' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1 },
+  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   // flexGrow so the inner content can fill the viewport when `centered`, and so short
   // screens still scroll-track the large title.
   scrollContent: { flexGrow: 1 },

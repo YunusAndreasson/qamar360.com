@@ -215,50 +215,47 @@ export default function HabitsScreen() {
       {loading ? (
         <AppScreen loading />
       ) : (
-        <View style={[styles.list, { backgroundColor: theme.background }]}>
-          {/* No backdrop sibling here: the FlatList must be this View's first subview so
-              react-native-screens can find it (it walks the `subviews[0]` chain) and collapse
-              the iOS large title on scroll. The backdrop instead lives behind the list header. */}
-          <DraggableFlatList
-            data={entries}
-            keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
-            renderItem={renderItem}
-            onDragEnd={onDragEnd}
-            activationDistance={12}
-            contentInsetAdjustmentBehavior="automatic"
-            // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper
-            // takes `containerStyle`. Both flex into the parent (which owns the background),
-            // so the list itself stays transparent over the sky texture.
-            containerStyle={styles.list}
-            style={styles.list}
-            ListHeaderComponent={
-              <View style={styles.listHeader}>
-                {/* Top-anchored sky behind the header content; scrolls away with the list. */}
-                <GeometricBackdrop variant="screen" />
-                <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
-                <WeekProgress
-                  habits={habits}
-                  completed={completed}
-                  skipped={skipped}
-                  today={today}
-                  viewDate={viewDate}
-                  style={styles.weekCard}
-                />
-                {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
-              </View>
-            }
-            ListEmptyComponent={
-              <HabitsEmptyState
-                hasHabits={habits.length > 0}
-                isToday={isToday}
-                onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
-                onBrowse={() => router.push('/habits/discover')}
+        // The DraggableFlatList is returned as the screen's direct child (not wrapped in a
+        // View): iOS large-title collapse-on-scroll only engages for a top-level scrollable.
+        // The backdrop lives behind the list header instead of as a sibling before the list.
+        <DraggableFlatList
+          data={entries}
+          keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
+          renderItem={renderItem}
+          onDragEnd={onDragEnd}
+          activationDistance={12}
+          contentInsetAdjustmentBehavior="automatic"
+          // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper takes
+          // `containerStyle`, which owns the screen background.
+          containerStyle={[styles.list, { backgroundColor: theme.background }]}
+          style={styles.list}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              {/* Top-anchored sky behind the header content; scrolls away with the list. */}
+              <GeometricBackdrop variant="screen" />
+              <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
+              <WeekProgress
+                habits={habits}
+                completed={completed}
+                skipped={skipped}
+                today={today}
+                viewDate={viewDate}
+                style={styles.weekCard}
               />
-            }
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
+              {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+            </View>
+          }
+          ListEmptyComponent={
+            <HabitsEmptyState
+              hasHabits={habits.length > 0}
+              isToday={isToday}
+              onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
+              onBrowse={() => router.push('/habits/discover')}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+        />
       )}
     </>
   );
