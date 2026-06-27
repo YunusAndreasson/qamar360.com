@@ -87,6 +87,8 @@ type ProgressData = {
   loading: boolean;
   error: string | null;
   dismissError: () => void;
+  /** Re-pull the window (pull-to-refresh). Silent — owns no spinner of its own. */
+  refresh: () => Promise<void>;
   habitsCount: number;
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
@@ -101,7 +103,7 @@ function computeProgress(
   habits: Habit[],
   completions: CompletionRow[],
   today: string,
-): Omit<ProgressData, 'loading' | 'error' | 'dismissError'> {
+): Omit<ProgressData, 'loading' | 'error' | 'dismissError' | 'refresh'> {
   // date → set of habit ids done that day, and date → set skipped (excused) that day.
   // A skipped act is excluded from the rate entirely (numerator AND denominator), so it
   // never counts as a miss — travel/period days can still read 100%.
@@ -254,7 +256,7 @@ export function useProgress(): ProgressData {
       setCompletions(completionsRes.data ?? []);
       setError(null);
     } catch {
-      setError('Could not load your progress. Reopen the tab to retry.');
+      setError('Could not load your progress. Pull down to try again.');
     }
   }, [userId]);
 
@@ -286,5 +288,5 @@ export function useProgress(): ProgressData {
 
   const derived = useMemo(() => computeProgress(habits, completions, today), [habits, completions, today]);
 
-  return { loading, error, dismissError, ...derived };
+  return { loading, error, dismissError, refresh: fetchData, ...derived };
 }

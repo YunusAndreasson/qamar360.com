@@ -47,6 +47,10 @@ export type HabitCreate = {
 /** How far back the day-stepper lets you backfill a missed completion. */
 const BACKFILL_DAYS = 30;
 
+/** Safety cap on the first load: if the network (or a stale session) hangs, we flip to a
+ *  retryable error instead of spinning forever. Mirrors AuthProvider's `initialized` net. */
+const LOAD_TIMEOUT_MS = 12000;
+
 /**
  * Rewrite the full habit id order so `orderedMemberIds` sit contiguously (in the given
  * order) at the slot of the earliest current member, preserving the order of the rest.
@@ -88,6 +92,8 @@ type HabitsContextValue = {
   dismissError: () => void;
   /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus). */
   refresh: () => Promise<void>;
+  /** Re-run the first load, showing the loading state again — the Today error state's "Try again". */
+  reload: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
   /** Step the viewed day by `delta` days (clamped). */
@@ -171,7 +177,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .eq('user_id', userId)
       .order('position', { ascending: true });
     if (habitsError) {
-      setError('Could not load your habits. Reopen the app to retry.');
+      setError('Could not load your habits. Check your connection and try again.');
       return;
     }
     setHabits((data ?? []) as Habit[]);
@@ -184,7 +190,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('user_id', userId);
     if (stacksError) {
-      setError('Could not load your habits. Reopen the app to retry.');
+      setError('Could not load your habits. Check your connection and try again.');
       return;
     }
     setStacks(data ?? []);
@@ -199,7 +205,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .eq('completed_at', day);
       if (completionsError) {
-        setError('Could not load your habits. Reopen the app to retry.');
+        setError('Could not load your habits. Check your connection and try again.');
         return;
       }
       const rows = data ?? [];
@@ -216,18 +222,37 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
   }, [fetchHabits, fetchStacks, fetchCompletions]);
 
+  // One full load, raced against a timeout so a hung client (a stale session, a dropped
+  // socket) surfaces a retryable error instead of an endless spinner. A late-settling query
+  // just refreshes the data harmlessly. Clears any prior error so a retry starts clean.
+  const load = useCallback(async () => {
+    setError(null);
+    const work = refresh().then(() => 'ok' as const);
+    const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), LOAD_TIMEOUT_MS));
+    if ((await Promise.race([work, timeout])) === 'timeout') {
+      setError('Could not load your habits. Check your connection and try again.');
+    }
+  }, [refresh]);
+
+  // Re-run the first load on demand (the Today error state's "Try again").
+  const reload = useCallback(async () => {
+    setLoading(true);
+    await load();
+    setLoading(false);
+  }, [load]);
+
   // Initial load — habits plus today's completions. This provider mounts inside the
   // authed (tabs) screen and remounts on each entry, so the user is fixed for its life.
   useEffect(() => {
     let active = true;
     void (async () => {
-      await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
+      await load();
       if (active) setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [fetchHabits, fetchStacks, fetchCompletions]);
+  }, [load]);
 
   // Refetch completions when the viewed day changes (the mount load covers the first day).
   const didMount = useRef(false);
@@ -880,6 +905,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       canGoBack: viewDate > min,
       dismissError,
       refresh,
+      reload,
       setViewDate,
       stepDay,
       createHabit,
@@ -904,6 +930,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     viewDate,
     dismissError,
     refresh,
+    reload,
     setViewDate,
     stepDay,
     createHabit,

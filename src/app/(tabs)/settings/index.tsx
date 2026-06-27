@@ -10,6 +10,7 @@ import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
+import { useToast } from '@/components/toast';
 import { Links } from '@/constants/links';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
@@ -20,6 +21,7 @@ import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/n
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const toast = useToast();
   const { user, signOut, deleteAccount } = useAuth();
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -65,11 +67,11 @@ export default function SettingsScreen() {
       await clearCompletionHistory(user.id);
       setClearing(false);
       // Habits, stacks, and reminders are untouched; the Habits/Progress tabs refetch on focus,
-      // so they show a clean slate on return.
-      Alert.alert('Progress reset', 'Your completion history was cleared. Your habits and stacks are untouched.');
+      // so they show a clean slate on return. A quiet toast confirms — no blocking dialog needed.
+      toast.show('Progress reset — your habits and stacks are untouched.', 'success');
     } catch {
       setClearing(false);
-      Alert.alert('Could not reset progress', 'Please check your connection and try again.');
+      toast.show('Could not reset progress. Check your connection.', 'danger');
     }
   };
 

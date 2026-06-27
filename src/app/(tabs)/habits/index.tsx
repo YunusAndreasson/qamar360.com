@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
@@ -10,6 +10,7 @@ import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { HabitRow } from '@/components/habit-row';
+import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { StackCard } from '@/components/stack-card';
@@ -59,6 +60,7 @@ export default function HabitsScreen() {
     deleteHabit,
     dismissError,
     refresh,
+    reload,
   } = useHabits();
   // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
   // progress from Settings) are reflected on return — mirrors the Progress tab.
@@ -67,6 +69,20 @@ export default function HabitsScreen() {
       void refresh();
     }, [refresh]),
   );
+
+  // Pull-to-refresh. `refresh` is silent (no spinner); the RefreshControl owns the indicator.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
+
+  // The first load failed with nothing to show — offer a retry rather than a stuck screen.
+  const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
   // Only the habits scheduled for the viewed day appear in the day's checklist.
   const visibleHabits = useMemo(() => habits.filter((h) => scheduledOn(h, viewDate)), [habits, viewDate]);
 
@@ -213,7 +229,20 @@ export default function HabitsScreen() {
       />
 
       {loading ? (
-        <AppScreen loading />
+        <AppScreen>
+          <HabitsSkeleton />
+        </AppScreen>
+      ) : loadFailed ? (
+        <AppScreen centered>
+          <EmptyState
+            icon="cloud-off"
+            title="Couldn't load your habits"
+            body={error ?? 'Check your connection and try again.'}>
+            <AppButton onPress={() => void reload()} accessibilityLabel="Try loading again">
+              Try again
+            </AppButton>
+          </EmptyState>
+        </AppScreen>
       ) : (
         // The DraggableFlatList is returned as the screen's direct child (not wrapped in a
         // View): iOS large-title collapse-on-scroll only engages for a top-level scrollable.
@@ -225,6 +254,15 @@ export default function HabitsScreen() {
           onDragEnd={onDragEnd}
           activationDistance={12}
           contentInsetAdjustmentBehavior="automatic"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.textSecondary}
+              colors={[theme.accent]}
+              progressBackgroundColor={theme.backgroundElement}
+            />
+          }
           // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper takes
           // `containerStyle`, which owns the screen background.
           containerStyle={[styles.list, { backgroundColor: theme.background }]}

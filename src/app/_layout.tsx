@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ToastProvider } from '@/components/toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { PreferencesProvider } from '@/hooks/use-preferences';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
@@ -22,10 +23,12 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PreferencesProvider>
-          <AuthProvider>
-            <RootNavigator />
-            <ThemedChrome />
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <RootNavigator />
+              <ThemedChrome />
+            </AuthProvider>
+          </ToastProvider>
         </PreferencesProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
