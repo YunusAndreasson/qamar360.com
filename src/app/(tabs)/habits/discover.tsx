@@ -142,11 +142,10 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Standard header (the custom two-line title lives in-body, below) with a persistent +
-          that keeps "create your own" one tap away from anywhere on the screen. */}
+      {/* Standard header — the centered "Add Habit" title (set on the route) is enough, with a
+          persistent + that keeps "create your own" one tap away from anywhere on the screen. */}
       <Stack.Screen
         options={{
-          headerTitle: () => null,
           headerRight: () => (
             <HeaderActions>
               <HeaderIconButton
@@ -160,11 +159,9 @@ export default function DiscoverScreen() {
         }}
       />
 
-      {/* Pinned controls — title + search + chips stay put so findability never scrolls away. */}
+      {/* Pinned controls — search + chips stay put so findability never scrolls away. The
+          screen title now lives in the nav bar (centered "Add Habit"), not in-body. */}
       <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        <ThemedText type="subtitleBold" style={styles.title} accessibilityRole="header">
-          Add a habit{'\n'}or routine
-        </ThemedText>
         <View style={styles.searchWrap}>
           <DiscoverSearchBar value={query} onChangeText={setQuery} onClear={() => setQuery('')} />
         </View>
@@ -306,7 +303,6 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: { paddingHorizontal: Spacing.three },
   searchWrap: { paddingHorizontal: Spacing.three },
   starter: { gap: Spacing.two },
   starterButton: { marginTop: Spacing.one, alignSelf: 'flex-start' },

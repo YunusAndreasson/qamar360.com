@@ -20,10 +20,9 @@ export default function HabitsStackLayout() {
       <Stack screenOptions={stackHeaderOptions(theme)}>
         <Stack.Screen name="index" />
         {/* The single add entry: search/filter the curated Sunnah library or create your
-            own — a pushed sub-screen (native back). Uses a standard header so its own
-            two-line title + pinned search/chips sit in-body (a native large title can't
-            host them, nor take forced line breaks); discover.tsx hides the centre title. */}
-        <Stack.Screen name="discover" options={{ title: 'Add' }} />
+            own — a pushed sub-screen (native back). Uses a standard header with a centered
+            "Add Habit" title; the pinned search/chips sit in-body below it. */}
+        <Stack.Screen name="discover" options={{ title: 'Add Habit' }} />
         {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
         <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
         {/* New / edit a stack (a named group of habits) — also a native modal sheet. */}

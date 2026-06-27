@@ -36,20 +36,29 @@ export function AppScreen({
     );
   }
 
+  // The ScrollView must be the screen's first subview: react-native-screens finds the
+  // large-title scroll view by walking the `subviews[0]` chain
+  // (RNSScrollViewFinder.findScrollViewInFirstDescendantChainFrom), so a sibling rendered
+  // before it (e.g. the backdrop) would stop the search and the iOS large title would never
+  // collapse on scroll. The backdrop therefore lives inside the ScrollView, behind the
+  // (padded, max-width) content but full-bleed across the un-padded scroll container.
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      {backdrop ? <GeometricBackdrop variant="screen" /> : null}
       <ScrollView
         style={[styles.container, style]}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[
-          styles.content,
-          bottomInset && styles.bottomInset,
-          centered && styles.centered,
-          contentStyle,
-        ]}
+        contentContainerStyle={styles.scrollContent}
         {...props}>
-        {children}
+        {backdrop ? <GeometricBackdrop variant="screen" /> : null}
+        <View
+          style={[
+            styles.content,
+            bottomInset && styles.bottomInset,
+            centered && styles.centered,
+            contentStyle,
+          ]}>
+          {children}
+        </View>
       </ScrollView>
     </View>
   );
@@ -59,6 +68,9 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // flexGrow so the inner content can fill the viewport when `centered`, and so short
+  // screens still scroll-track the large title.
+  scrollContent: { flexGrow: 1 },
   content: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,

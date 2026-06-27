@@ -216,7 +216,9 @@ export default function HabitsScreen() {
         <AppScreen loading />
       ) : (
         <View style={[styles.list, { backgroundColor: theme.background }]}>
-          <GeometricBackdrop variant="screen" />
+          {/* No backdrop sibling here: the FlatList must be this View's first subview so
+              react-native-screens can find it (it walks the `subviews[0]` chain) and collapse
+              the iOS large title on scroll. The backdrop instead lives behind the list header. */}
           <DraggableFlatList
             data={entries}
             keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
@@ -225,12 +227,14 @@ export default function HabitsScreen() {
             activationDistance={12}
             contentInsetAdjustmentBehavior="automatic"
             // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper
-            // takes `containerStyle`. Both flex into the backdrop-bearing parent (which owns
-            // the background), so the list itself stays transparent over the sky texture.
+            // takes `containerStyle`. Both flex into the parent (which owns the background),
+            // so the list itself stays transparent over the sky texture.
             containerStyle={styles.list}
             style={styles.list}
             ListHeaderComponent={
-              <>
+              <View style={styles.listHeader}>
+                {/* Top-anchored sky behind the header content; scrolls away with the list. */}
+                <GeometricBackdrop variant="screen" />
                 <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
                 <WeekProgress
                   habits={habits}
@@ -241,7 +245,7 @@ export default function HabitsScreen() {
                   style={styles.weekCard}
                 />
                 {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
-              </>
+              </View>
             }
             ListEmptyComponent={
               <HabitsEmptyState
@@ -349,6 +353,8 @@ function HabitsEmptyState({
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
+  // Positioning context for the absolutely-filled backdrop behind the list header.
+  listHeader: { position: 'relative' },
   dateStepButton: {
     width: 32,
     height: 32,
