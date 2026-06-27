@@ -1,6 +1,14 @@
 import { Platform } from 'react-native';
 
 /**
+ * Options for a tab's root screen so the stack's fixed sky (painted by `TabStack`) shows
+ * through it: a transparent content background. The screen's scroll view must also be
+ * transparent (AppScreen `transparent`, or a transparent list) — and stays the screen's first
+ * descendant, so the native large title still collapses on scroll.
+ */
+export const transparentScreen = { contentStyle: { backgroundColor: 'transparent' } };
+
+/**
  * Native-Stack header options, themed per platform.
  *
  * iOS keeps the system's translucent (glass) large-title bar, which auto-adapts

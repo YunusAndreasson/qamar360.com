@@ -1,16 +1,16 @@
 import { Stack } from 'expo-router';
 
-import { useTheme } from '@/hooks/use-theme';
-import { stackHeaderOptions } from '@/lib/header-options';
+import { TabStack } from '@/components/tab-stack';
+import { transparentScreen } from '@/lib/header-options';
 
-/** The Settings tab's native Stack — large title that collapses on scroll. */
+/** The Settings tab's native Stack over the shared fixed sky — large title that collapses on scroll. */
 export default function SettingsStackLayout() {
-  const theme = useTheme();
   return (
-    <Stack screenOptions={stackHeaderOptions(theme)}>
-      <Stack.Screen name="index" options={{ title: 'Settings', headerLargeTitle: true }} />
-      {/* Pushed sub-screen; title + Save live in the screen's own <Stack.Screen>. */}
+    <TabStack>
+      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Settings', headerLargeTitle: true }} />
+      {/* Pushed sub-screen; title + Save live in the screen's own <Stack.Screen>. Stays opaque
+          (no transparentScreen) — a plain form over the themed background. */}
       <Stack.Screen name="change-password" options={{ title: 'Change Password' }} />
-    </Stack>
+    </TabStack>
   );
 }

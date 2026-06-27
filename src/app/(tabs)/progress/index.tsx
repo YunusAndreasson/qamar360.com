@@ -28,7 +28,7 @@ export default function ProgressScreen() {
 
   if (loading) {
     return (
-      <AppScreen contentStyle={styles.content}>
+      <AppScreen transparent contentStyle={styles.content}>
         <ProgressSkeleton />
       </AppScreen>
     );
@@ -36,7 +36,7 @@ export default function ProgressScreen() {
 
   if (habitsCount === 0) {
     return (
-      <AppScreen centered>
+      <AppScreen transparent centered>
         <EmptyState
           title="No habits yet."
           body="Add a habit from Today to start tracking your progress."
@@ -47,6 +47,7 @@ export default function ProgressScreen() {
 
   return (
     <AppScreen
+      transparent
       contentStyle={styles.content}
       refreshControl={
         <RefreshControl

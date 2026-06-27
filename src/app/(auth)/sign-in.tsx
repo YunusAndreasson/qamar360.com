@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
 import { FormField } from '@/components/form-field';
+import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -96,6 +97,8 @@ export default function SignInScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Same lunar-sky backdrop every other screen carries — the auth screen is no exception. */}
+      <GeometricBackdrop variant="screen" />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}

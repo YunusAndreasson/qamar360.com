@@ -120,7 +120,8 @@ const HabitsContext = createContext<HabitsContextValue | null>(null);
 /**
  * Delete a user's entire completion history — every check-off — for a "fresh start", while
  * leaving their habits and stacks (and reminders) intact. Standalone (not a hook) so the
- * Settings tab, which lives outside {@link HabitsProvider}, can call it directly. Throws on failure.
+ * Settings tab can call it directly without consuming the habits context; the Habits tab
+ * picks the change up via its focus-refetch on return. Throws on failure.
  */
 export async function clearCompletionHistory(userId: string): Promise<void> {
   const { error } = await supabase.from('habit_completions').delete().eq('user_id', userId);
@@ -241,8 +242,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [load]);
 
-  // Initial load — habits plus today's completions. This provider mounts inside the
-  // authed (tabs) screen and remounts on each entry, so the user is fixed for its life.
+  // Initial load — habits plus today's completions. This provider mounts at the authed
+  // (tabs) root and remounts on each entry, so the user is fixed for its life.
   useEffect(() => {
     let active = true;
     void (async () => {

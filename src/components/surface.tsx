@@ -8,10 +8,10 @@ type Props = ViewProps & {
   padded?: boolean;
   compact?: boolean;
   /**
-   * Faint flower-of-life watermark behind the content (clipped by the card radius). On by
-   * default so *every* card carries the same brand texture — the app's one consistency rule
-   * for the motif. Pass `pattern={false}` only to opt a card out (e.g. behind a busy
-   * visualization that would compete with it).
+   * Faint flower-of-life watermark behind the content (clipped by the card radius). Off by
+   * default: the ambient texture lives on the screen backdrop, so plain cards stay clean and
+   * legible. Opt in only where the motif is a deliberate accent — accent-coloured cards (the
+   * Discover "essentials" card) and the Progress moon hero.
    */
   pattern?: boolean;
   /** `'card'` (default) is the fine small-circle texture; `'hero'` is the large seed-of-life
@@ -19,7 +19,7 @@ type Props = ViewProps & {
   patternVariant?: 'card' | 'hero';
 };
 
-export function Surface({ style, padded, compact, pattern = true, patternVariant = 'card', children, ...props }: Props) {
+export function Surface({ style, padded, compact, pattern = false, patternVariant = 'card', children, ...props }: Props) {
   const theme = useTheme();
   return (
     <View

@@ -6,7 +6,6 @@ import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'r
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { DiscoverFilterChips, type Filter } from '@/components/discover-filter-chips';
-import { DiscoverSearchBar } from '@/components/discover-search-bar';
 import { EmptyState } from '@/components/empty-state';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { SettingsRow } from '@/components/settings-row';
@@ -159,12 +158,24 @@ export default function DiscoverScreen() {
         }}
       />
 
-      {/* Pinned controls — search + chips stay put so findability never scrolls away. The
-          screen title now lives in the nav bar (centered "Add Habit"), not in-body. */}
+      {/* The search field is the native nav-bar search (UISearchController on iOS / the
+          SearchView on Android), not an in-body input — a true platform search experience.
+          `hideWhenScrolling` is off so findability stays pinned for this ~60-item library;
+          its own clear (✕) and Cancel replace the custom ones. */}
+      <Stack.SearchBar
+        placeholder="Search Sunnah habits"
+        autoCapitalize="none"
+        hideWhenScrolling={false}
+        onChangeText={(e) => setQuery(e.nativeEvent.text)}
+        tintColor={theme.accent}
+        textColor={theme.text}
+        hintTextColor={theme.textSecondary}
+        headerIconColor={theme.textSecondary}
+      />
+
+      {/* Pinned filter chips sit just under the native search bar so findability never scrolls
+          away. The title is the route's centered "Add Habit". */}
       <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        <View style={styles.searchWrap}>
-          <DiscoverSearchBar value={query} onChangeText={setQuery} onClear={() => setQuery('')} />
-        </View>
         <DiscoverFilterChips filters={FILTERS} active={filter} onChange={setFilter} />
       </View>
 
@@ -303,7 +314,6 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  searchWrap: { paddingHorizontal: Spacing.three },
   starter: { gap: Spacing.two },
   starterButton: { marginTop: Spacing.one, alignSelf: 'flex-start' },
 });

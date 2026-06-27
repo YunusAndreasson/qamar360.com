@@ -12,7 +12,6 @@ import { ErrorBanner } from '@/components/error-banner';
 import { HabitRow } from '@/components/habit-row';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
-import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
 import { WeekProgress } from '@/components/week-progress';
@@ -229,11 +228,11 @@ export default function HabitsScreen() {
       />
 
       {loading ? (
-        <AppScreen>
+        <AppScreen transparent>
           <HabitsSkeleton />
         </AppScreen>
       ) : loadFailed ? (
-        <AppScreen centered>
+        <AppScreen transparent centered>
           <EmptyState
             icon="cloud-off"
             title="Couldn't load your habits"
@@ -244,9 +243,10 @@ export default function HabitsScreen() {
           </EmptyState>
         </AppScreen>
       ) : (
-        // The DraggableFlatList is returned as the screen's direct child (not wrapped in a
-        // View): iOS large-title collapse-on-scroll only engages for a top-level scrollable.
-        // The backdrop lives behind the list header instead of as a sibling before the list.
+        // The transparent list is the screen's sole content, so its scroll view is the screen's
+        // first descendant — which is what the native large title tracks to collapse on scroll
+        // (react-native-screens walks the first-subview chain). The fixed lunar sky lives behind
+        // the whole stack (in the habits layout) and shows through this transparent list.
         <DraggableFlatList
           data={entries}
           keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
@@ -265,12 +265,10 @@ export default function HabitsScreen() {
           }
           // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper takes
           // `containerStyle`, which owns the screen background.
-          containerStyle={[styles.list, { backgroundColor: theme.background }]}
+          containerStyle={[styles.list, styles.transparent]}
           style={styles.list}
           ListHeaderComponent={
-            <View style={styles.listHeader}>
-              {/* Top-anchored sky behind the header content; scrolls away with the list. */}
-              <GeometricBackdrop variant="screen" />
+            <View>
               <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
               <WeekProgress
                 habits={habits}
@@ -388,8 +386,8 @@ function HabitsEmptyState({
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  // Positioning context for the absolutely-filled backdrop behind the list header.
-  listHeader: { position: 'relative' },
+  // The list is transparent so the fixed sky (rendered behind the stack) shows through it.
+  transparent: { backgroundColor: 'transparent' },
   dateStepButton: {
     width: 32,
     height: 32,

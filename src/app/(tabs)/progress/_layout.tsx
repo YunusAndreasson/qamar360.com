@@ -1,14 +1,13 @@
 import { Stack } from 'expo-router';
 
-import { useTheme } from '@/hooks/use-theme';
-import { stackHeaderOptions } from '@/lib/header-options';
+import { TabStack } from '@/components/tab-stack';
+import { transparentScreen } from '@/lib/header-options';
 
-/** The Month tab's native Stack — large title that collapses on scroll. */
+/** The Month tab's native Stack over the shared fixed sky — large title that collapses on scroll. */
 export default function ProgressStackLayout() {
-  const theme = useTheme();
   return (
-    <Stack screenOptions={stackHeaderOptions(theme)}>
-      <Stack.Screen name="index" options={{ title: 'Progress', headerLargeTitle: true }} />
-    </Stack>
+    <TabStack>
+      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Progress', headerLargeTitle: true }} />
+    </TabStack>
   );
 }

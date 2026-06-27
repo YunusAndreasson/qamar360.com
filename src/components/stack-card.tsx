@@ -54,7 +54,7 @@ function StackCardBase({ stack, members, completed, skipped, onToggle, onSkip, o
     : undefined;
 
   return (
-    <Surface pattern style={[styles.card, isActive && styles.active]}>
+    <Surface style={[styles.card, isActive && styles.active]}>
       <PressableScale
         onPress={() => onEditStack(stack.id)}
         onLongPress={onHeaderLongPress}

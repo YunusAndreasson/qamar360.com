@@ -105,7 +105,7 @@ export default function SettingsScreen() {
   const notifSublabel = notifGranted === true ? 'On' : notifGranted === false ? 'Off' : undefined;
 
   return (
-    <AppScreen contentStyle={styles.content}>
+    <AppScreen transparent contentStyle={styles.content}>
       {/* Identity */}
       <View style={styles.identity}>
         <View style={[styles.monogram, { backgroundColor: theme.accentSubtle }]}>

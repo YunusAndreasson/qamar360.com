@@ -14,6 +14,13 @@ type Props = Omit<ScrollViewProps, 'contentContainerStyle'> & {
   bottomInset?: boolean;
   /** Faint flower-of-life sky anchored to the top of the screen, behind the content. */
   backdrop?: boolean;
+  /**
+   * Render over a *fixed* backdrop supplied by the parent stack rather than painting an
+   * opaque background: makes the scroll view see-through and (by default) drops the in-scroll
+   * backdrop, so the parent's fixed sky shows through and stays put as content scrolls. The
+   * scroll view is still the screen's first descendant, so the large title keeps collapsing.
+   */
+  transparent?: boolean;
 };
 
 export function AppScreen({
@@ -22,7 +29,8 @@ export function AppScreen({
   centered,
   loading,
   bottomInset = true,
-  backdrop = true,
+  transparent = false,
+  backdrop = !transparent,
   style,
   ...props
 }: Props) {
@@ -32,12 +40,14 @@ export function AppScreen({
   // container at the route root. iOS large-title auto-inset and collapse-on-scroll only
   // engage for a top-level scrollable (it must be the screen view-controller's first
   // subview); a wrapping View (or a sibling rendered before it, like the backdrop) breaks
-  // it. The backdrop therefore lives *inside* the ScrollView, behind the (padded,
-  // max-width) content but full-bleed across the un-padded scroll container. Loading is
-  // rendered inside too, so the root view is always the ScrollView.
+  // it. So in the default (opaque) mode the backdrop lives *inside* the ScrollView, behind
+  // the (padded, max-width) content but full-bleed across the un-padded scroll container.
+  // In `transparent` mode the parent stack paints a fixed sky behind the screen, and this
+  // ScrollView is see-through over it. Loading is rendered inside too, so the root view is
+  // always the ScrollView.
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }, style]}
+      style={[styles.container, transparent ? styles.transparent : { backgroundColor: theme.background }, style]}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.scrollContent}
       {...props}>
@@ -63,6 +73,7 @@ export function AppScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  transparent: { backgroundColor: 'transparent' },
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   // flexGrow so the inner content can fill the viewport when `centered`, and so short
   // screens still scroll-track the large title.

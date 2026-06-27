@@ -7,13 +7,13 @@ import type { ViewProps } from 'react-native';
 
 /**
  * Rounded surface card (Apple Health style) used to group a stat and its label.
- * Wraps the app's `backgroundElement` so cards read consistently in light/dark. These are the
- * app's hero/grouping cards, so they carry the faint flower-of-life watermark by default
- * (pass `pattern={false}` to opt out).
+ * Wraps the app's `backgroundElement` so cards read consistently in light/dark. Plain stat
+ * cards stay clean (the sky shows behind them); only the Progress moon hero opts in via
+ * `pattern patternVariant="hero"` for the seed-of-life that blends with the moon.
  */
 export function StatCard({
   style,
-  pattern = true,
+  pattern = false,
   patternVariant,
   ...rest
 }: ViewProps & { pattern?: boolean; patternVariant?: 'card' | 'hero' }) {
