@@ -3,18 +3,14 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
-    "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/datetimepicker": "9.1.0",
     "@supabase/supabase-js": "^2.108.2",
     "expo": "~56.0.12",
     "expo-build-properties": "~56.0.19",
     "expo-constants": "~56.0.18",
-    "expo-device": "~56.0.4",
     "expo-font": "~56.0.7",
-    "expo-glass-effect": "~56.0.4",
     "expo-haptics": "~56.0.3",
-    "expo-image": "~56.0.11",
     "expo-linking": "~56.0.14",
     "expo-location": "~56.0.18",
     "expo-notifications": "~56.0.18",
@@ -40,9 +36,13 @@
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~56.0.4",
+    "jest": "^29.7.0",
+    "jest-expo": "~56.0.5",
+    "knip": "^6.22.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -52,7 +52,23 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "lint:fix": "expo lint --fix"
+    "lint:fix": "expo lint --fix",
+    "lint:ci": "expo lint -- --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "deadcode": "knip",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "validate": "npm run typecheck && npm run lint:ci && npm run deadcode && npm run test"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/src/**/*.test.ts"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    }
   },
   "private": true
 }

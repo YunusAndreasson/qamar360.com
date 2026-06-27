@@ -17,9 +17,9 @@ export function todayLocalISO(date = new Date()): string {
 
 /** Parse a `YYYY-MM-DD` string into a Date at *local* midnight. */
 function parseLocalISO(iso: string): Date {
-  const [year, month, day] = iso.split('-').map(Number);
+  const [year = 1970, month = 1, day = 1] = iso.split('-').map(Number);
   // Construct at local midnight so the weekday/day match the local date.
-  return new Date(year, (month ?? 1) - 1, day ?? 1);
+  return new Date(year, month - 1, day);
 }
 
 /** `iso` shifted by `n` calendar days (`n` may be negative), as `YYYY-MM-DD`. */
@@ -185,7 +185,7 @@ export function scheduledOn(habit: Schedulable, dayISO: string): boolean {
 /** Join a list of numbers as a range when contiguous ("13–15"), else a comma list ("1, 14"). */
 function numberList(values: number[]): string {
   const sorted = [...values].sort((a, b) => a - b);
-  const contiguous = sorted.length > 1 && sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
+  const contiguous = sorted.length > 1 && sorted.every((v, i) => i === 0 || v === sorted[i - 1]! + 1);
   return contiguous ? `${sorted[0]}–${sorted[sorted.length - 1]}` : sorted.join(', ');
 }
 
@@ -214,21 +214,16 @@ export function describeHijriSchedule(hs: HijriSchedule): string {
 /** Parse a stored `'HH:MM'` reminder into numeric parts, or null when unset/invalid. */
 export function parseReminderTime(value: string | null | undefined): { hour: number; minute: number } | null {
   if (!value) return null;
-  const [hour, minute] = value.split(':').map(Number);
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  const [hourPart, minutePart] = value.split(':');
+  const hour = Number(hourPart);
+  const minute = Number(minutePart);
+  // A bare "8" (no colon) leaves minutePart undefined → Number(undefined) is NaN;
+  // Number.isInteger rejects that, so we never return a half-parsed time.
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
   return { hour, minute };
 }
 
 /** Format hour/minute into the stored `'HH:MM'` 24-hour string. */
 export function formatReminderTime(hour: number, minute: number): string {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
-/** Human reminder label for an `'HH:MM'` string, e.g. "8:30 AM" — locale-aware. */
-export function formatReminderLabel(value: string): string {
-  const time = parseReminderTime(value);
-  if (!time) return '';
-  const date = new Date();
-  date.setHours(time.hour, time.minute, 0, 0);
-  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }

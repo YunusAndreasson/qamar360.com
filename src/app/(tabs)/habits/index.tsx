@@ -97,7 +97,9 @@ export default function HabitsScreen() {
     }
     for (const [stackId, members] of membersByStack) {
       const sorted = [...members].sort((a, b) => a.position - b.position);
-      out.push({ type: 'stack', stack: stackById.get(stackId)!, members: sorted, sortKey: sorted[0].position });
+      const first = sorted[0];
+      if (!first) continue; // a stack always has ≥1 member, but keep the index access honest
+      out.push({ type: 'stack', stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
     }
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, stacks]);
@@ -172,7 +174,9 @@ export default function HabitsScreen() {
       const reordered = data.flatMap((e) => (e.type === 'stack' ? e.members.map((m) => m.id) : [e.habit.id]));
       const visibleIds = new Set(reordered);
       let vi = 0;
-      const fullIds = habits.map((h) => (visibleIds.has(h.id) ? reordered[vi++] : h.id));
+      // visibleIds is built from `reordered`, so the counts match and the `?? h.id` never fires —
+      // it just keeps the result a clean string[] for reorderHabits.
+      const fullIds = habits.map((h) => (visibleIds.has(h.id) ? reordered[vi++] ?? h.id : h.id));
       void reorderHabits(fullIds);
     },
     [habits, reorderHabits],
@@ -293,7 +297,7 @@ function DateStepperButtons({
 /** A quiet "the night before" pill listing Hijri acts that begin tomorrow. */
 function UpcomingHint({ habits }: { habits: Habit[] }) {
   const theme = useTheme();
-  const label = habits.length === 1 ? habits[0].name : `${habits.length} Sunnah acts`;
+  const label = habits.length === 1 && habits[0] ? habits[0].name : `${habits.length} Sunnah acts`;
   return (
     <View
       accessibilityRole="text"

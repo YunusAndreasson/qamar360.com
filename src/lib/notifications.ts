@@ -35,8 +35,8 @@ const HIJRI_MAX_OCCURRENCES = 6;
 
 /** A Date at `hour:minute` local time on the given `YYYY-MM-DD` day. */
 function atLocalTime(iso: string, hour: number, minute: number): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1, hour, minute, 0, 0);
+  const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d, hour, minute, 0, 0);
 }
 
 // We need the module's *type* without a runtime import — a static `import` would evaluate

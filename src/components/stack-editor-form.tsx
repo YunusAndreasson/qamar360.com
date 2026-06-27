@@ -85,7 +85,11 @@ export function StackEditorForm({
     haptics.selection();
     setSelected((prev) => {
       const next = [...prev];
-      [next[index], next[j]] = [next[j], next[index]];
+      const a = next[index];
+      const b = next[j];
+      if (a === undefined || b === undefined) return prev;
+      next[index] = b;
+      next[j] = a;
       return next;
     });
   };

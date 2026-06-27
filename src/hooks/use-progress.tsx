@@ -60,7 +60,7 @@ export type MonthProgress = {
 };
 
 /** One Hijri month of the current year, for the "This year" bars. */
-export type YearMonth = {
+type YearMonth = {
   /** 1-based Hijri month number (1 = Muharram … 12 = Dhul-Hijjah). */
   month: number;
   /** Hijri month name, e.g. "Rajab". */
@@ -82,7 +82,7 @@ export type YearProgress = {
   months: YearMonth[];
 };
 
-export type ProgressData = {
+type ProgressData = {
   /** True only during the first load. */
   loading: boolean;
   error: string | null;

@@ -12,7 +12,7 @@ type Props = {
   cancelLabel?: string;
 };
 
-export function headerCancelAction(onCancel?: () => void, label = 'Cancel') {
+function headerCancelAction(onCancel?: () => void, label = 'Cancel') {
   if (!onCancel) return undefined;
   return function HeaderCancel() {
     return <HeaderCancelButton onCancel={onCancel} label={label} />;

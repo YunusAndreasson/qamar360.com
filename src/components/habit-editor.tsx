@@ -181,7 +181,7 @@ export function HabitEditorForm({
     if (hijriDates.size) {
       hs.dates = [...hijriDates]
         .map((k) => {
-          const [m, d] = k.split('-').map(Number);
+          const [m = 0, d = 0] = k.split('-').map(Number);
           return { month: m, day: d };
         })
         .sort((a, b) => a.month - b.month || a.day - b.day);

@@ -5,7 +5,7 @@
  */
 
 /** A full orbit — 100% completion. */
-export const FULL_CIRCLE_DEGREES = 360;
+const FULL_CIRCLE_DEGREES = 360;
 
 /** Clamp a value into the 0–1 completion range. */
 export function clamp01(value: number): number {

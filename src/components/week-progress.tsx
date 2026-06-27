@@ -15,7 +15,7 @@ const WEEK_DAYS = 7;
 const DAY_ABBREVS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 function dayAbbrev(iso: string): string {
-  return DAY_ABBREVS[new Date(iso + 'T12:00:00').getDay()];
+  return DAY_ABBREVS[new Date(iso + 'T12:00:00').getDay()] ?? '';
 }
 
 type Props = ViewProps & {
@@ -101,7 +101,8 @@ export function WeekProgress({ habits, completed, skipped, today, viewDate, styl
   useEffect(() => {
     if (!user?.id || habits.length === 0) return;
     // Fetch the elapsed part of the shown week (cap at today — future days have no data).
-    const end = days[WEEK_DAYS - 1] < today ? days[WEEK_DAYS - 1] : today;
+    const lastDay = days[WEEK_DAYS - 1];
+    const end = lastDay && lastDay < today ? lastDay : today;
     void supabase
       .from('habit_completions')
       .select('habit_id, completed_at, status')

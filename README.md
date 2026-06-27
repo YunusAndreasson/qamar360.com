@@ -25,6 +25,18 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Quality checks
+
+One gate runs everything: type-check, lint (zero-warning), dead-code scan, and unit tests.
+
+```bash
+npm run validate
+```
+
+Individual steps: `npm run typecheck` · `npm run lint` (`lint:ci` fails on any warning) ·
+`npm run deadcode` (knip — unused files/exports) · `npm run test` (`test:watch` while developing).
+Pure logic in `src/lib` is unit-tested under `src/lib/__tests__`.
+
 ## Get a fresh project
 
 When you're ready, run:
