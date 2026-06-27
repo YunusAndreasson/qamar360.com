@@ -11,6 +11,7 @@ import { AppButton } from '@/components/app-button';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
+import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { PressableScale } from '@/components/pressable-scale';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
@@ -258,6 +259,9 @@ export function HabitEditorForm({
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
+      {/* Same lunar-sky backdrop every other screen carries, so the editors aren't the
+          odd ones out. */}
+      <GeometricBackdrop variant="screen" />
       <Stack.Screen
         options={{
           title: isNew ? 'New Habit' : 'Edit Habit',

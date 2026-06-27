@@ -11,8 +11,13 @@ import type { ViewProps } from 'react-native';
  * app's hero/grouping cards, so they carry the faint flower-of-life watermark by default
  * (pass `pattern={false}` to opt out).
  */
-export function StatCard({ style, pattern = true, ...rest }: ViewProps & { pattern?: boolean }) {
-  return <Surface padded pattern={pattern} style={style} {...rest} />;
+export function StatCard({
+  style,
+  pattern = true,
+  patternVariant,
+  ...rest
+}: ViewProps & { pattern?: boolean; patternVariant?: 'card' | 'hero' }) {
+  return <Surface padded pattern={pattern} patternVariant={patternVariant} style={style} {...rest} />;
 }
 
 /**

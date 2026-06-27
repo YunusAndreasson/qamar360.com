@@ -7,6 +7,7 @@ import { AppButton } from '@/components/app-button';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
+import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Spacing } from '@/constants/theme';
@@ -116,6 +117,9 @@ export function StackEditorForm({
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
+      {/* Same lunar-sky backdrop every other screen carries, so the editors aren't the
+          odd ones out. */}
+      <GeometricBackdrop variant="screen" />
       <Stack.Screen
         options={{
           title: isNew ? 'New Stack' : 'Edit Stack',

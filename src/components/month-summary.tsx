@@ -57,7 +57,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
     : `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is ${thisDegrees} degrees complete.`;
 
   return (
-    <StatCard style={styles.card} pattern={false} accessible accessibilityLabel={a11y}>
+    <StatCard style={styles.card} patternVariant="hero" accessible accessibilityLabel={a11y}>
       <StatCardHeader title={`${monthName} ${year}`} trailing={`Day ${dayOfMonth} of ${monthLength}`} />
 
       <View style={styles.hero}>

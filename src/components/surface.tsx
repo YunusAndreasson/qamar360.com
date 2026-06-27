@@ -7,11 +7,19 @@ import { useTheme } from '@/hooks/use-theme';
 type Props = ViewProps & {
   padded?: boolean;
   compact?: boolean;
-  /** Lay a faint flower-of-life watermark behind the content (clipped by the card radius). */
+  /**
+   * Faint flower-of-life watermark behind the content (clipped by the card radius). On by
+   * default so *every* card carries the same brand texture — the app's one consistency rule
+   * for the motif. Pass `pattern={false}` only to opt a card out (e.g. behind a busy
+   * visualization that would compete with it).
+   */
   pattern?: boolean;
+  /** `'card'` (default) is the fine small-circle texture; `'hero'` is the large seed-of-life
+   *  reserved for the Progress moon card, where it blends with the moon disc. */
+  patternVariant?: 'card' | 'hero';
 };
 
-export function Surface({ style, padded, compact, pattern, children, ...props }: Props) {
+export function Surface({ style, padded, compact, pattern = true, patternVariant = 'card', children, ...props }: Props) {
   const theme = useTheme();
   return (
     <View
@@ -23,7 +31,7 @@ export function Surface({ style, padded, compact, pattern, children, ...props }:
         style,
       ]}
       {...props}>
-      {pattern ? <GeometricBackdrop variant="card" /> : null}
+      {pattern ? <GeometricBackdrop variant={patternVariant} /> : null}
       {children}
     </View>
   );

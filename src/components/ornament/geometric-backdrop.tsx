@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, G, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
 import { flowerOfLife, type GCircle } from '@/lib/geometry';
@@ -11,39 +11,71 @@ import { flowerOfLife, type GCircle } from '@/lib/geometry';
  * sits behind content (render it first). The parent clips it: cards already use
  * `overflow: 'hidden'`, and the screen variant lives behind a transparent ScrollView.
  *
- *  - `screen` — a large rosette anchored to the top, bleeding off-edge and fading down, so
- *    each screen reads as a calm lunar sky that content floats over.
- *  - `card`   — the 7-circle seed of life, centred and fading to the card's edges.
+ * The whole field is lit as if by one moon high in the upper-right of the sky: every surface
+ * blooms toward that source and falls away from it, so the app reads as one lit room.
  *
- * A radial mask dissolves the field toward its edges so it never meets a hard clip line.
+ *  - `screen` — a fine rosette field whose glow gathers in the upper-right and falls across the
+ *    screen, so each screen reads as a calm lunar sky that content floats over.
+ *  - `card`   — a fine, small-circle field. Its bloom + fade lean to the (upper-)right toward the
+ *    same light, so the texture is strongest on the right and dissolves to the left, clearing the
+ *    edge where a card's title/label sits. Kept small on purpose: large circles read as UI elements.
+ *  - `hero`   — the large 7-circle seed of life, centred. Reserved for the Progress moon card,
+ *    where the rosette blends with the moon disc sitting at its heart — the light source seen up close.
+ *
+ * A mask dissolves the field toward its edges so it never meets a hard clip line — a centred
+ * `radial` fade for screen/hero, or a directional `linear` fade (right → left) for the card.
  */
-type Variant = 'screen' | 'card';
+type Variant = 'screen' | 'card' | 'hero';
+
+/** Centred radial dissolve, or a directional linear one (transparent at the start, solid for
+ *  the last `solid` fraction toward the end). */
+type Fade =
+  | { kind: 'radial'; cx: string; cy: string; r: string; solid: number }
+  | { kind: 'linear'; x1: string; y1: string; x2: string; y2: string; solid: number };
 
 type FieldConfig = {
   vb: number;
   circles: GCircle[];
   strokeOpacity: number;
   preserveAspectRatio: string;
-  fade: { cx: string; cy: string; r: string; solid: number };
+  fade: Fade;
 };
 
 const SCREEN_VB = 440;
 const CARD_VB = 300;
 
+// One *core* opacity for both variants so the screen "sky" and the card watermark read as a
+// single, consistent texture (the two used to differ, 0.05 vs 0.06). Each circle's actual
+// opacity is this × its luminosity weight, so the field blooms at the heart and recedes —
+// the heart sits a touch brighter than the old flat field, the rim far fainter.
+const STROKE_OPACITY = 0.075;
+
 const CONFIG: Record<Variant, FieldConfig> = {
+  // Finer than the hero: smaller circles + more rings cover the screen as quiet texture, with
+  // the glow gathered in the upper-right (the moon) and falling away across the screen.
   screen: {
     vb: SCREEN_VB,
-    circles: flowerOfLife(SCREEN_VB / 2, 88, 72, 2),
-    strokeOpacity: 0.05,
+    circles: flowerOfLife(SCREEN_VB / 2, 88, 44, 3, { x: SCREEN_VB * 0.8, y: 36 }),
+    strokeOpacity: STROKE_OPACITY,
     preserveAspectRatio: 'xMidYMin slice',
-    fade: { cx: '50%', cy: '16%', r: '80%', solid: 0.3 },
+    fade: { kind: 'radial', cx: '80%', cy: '8%', r: '98%', solid: 0.22 },
   },
+  // Tiny-circle texture, bloom focal in the upper-right (toward the same light) with a right→left
+  // linear fade, so the field is strongest on the right and clears the left where text sits.
   card: {
     vb: CARD_VB,
-    circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 56, 1),
-    strokeOpacity: 0.06,
+    circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 22, 4, { x: CARD_VB * 0.78, y: CARD_VB * 0.4 }),
+    strokeOpacity: STROKE_OPACITY,
     preserveAspectRatio: 'xMidYMid slice',
-    fade: { cx: '50%', cy: '50%', r: '60%', solid: 0.2 },
+    fade: { kind: 'linear', x1: '0%', y1: '0%', x2: '100%', y2: '0%', solid: 0.45 },
+  },
+  // The big seed-of-life that reads beautifully behind the Progress moon — left untouched.
+  hero: {
+    vb: CARD_VB,
+    circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 56, 1),
+    strokeOpacity: STROKE_OPACITY,
+    preserveAspectRatio: 'xMidYMid slice',
+    fade: { kind: 'radial', cx: '50%', cy: '50%', r: '60%', solid: 0.2 },
   },
 };
 
@@ -58,18 +90,30 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width="100%" height="100%" viewBox={`0 0 ${cfg.vb} ${cfg.vb}`} preserveAspectRatio={cfg.preserveAspectRatio}>
         <Defs>
-          <RadialGradient id={gradId} cx={cfg.fade.cx} cy={cfg.fade.cy} r={cfg.fade.r}>
-            <Stop offset="0" stopColor="#fff" stopOpacity="1" />
-            <Stop offset={String(cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
-            <Stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </RadialGradient>
+          {cfg.fade.kind === 'linear' ? (
+            // Directional dissolve: transparent at the start (left), ramping to solid for the
+            // last `solid` fraction toward the end (right).
+            <LinearGradient id={gradId} x1={cfg.fade.x1} y1={cfg.fade.y1} x2={cfg.fade.x2} y2={cfg.fade.y2}>
+              <Stop offset="0" stopColor="#fff" stopOpacity="0" />
+              <Stop offset={String(1 - cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
+              <Stop offset="1" stopColor="#fff" stopOpacity="1" />
+            </LinearGradient>
+          ) : (
+            <RadialGradient id={gradId} cx={cfg.fade.cx} cy={cfg.fade.cy} r={cfg.fade.r}>
+              <Stop offset="0" stopColor="#fff" stopOpacity="1" />
+              <Stop offset={String(cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
+              <Stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </RadialGradient>
+          )}
           <Mask id={maskId}>
             <Rect x="0" y="0" width={cfg.vb} height={cfg.vb} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
-        <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} strokeOpacity={cfg.strokeOpacity} fill="none">
+        <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
           {cfg.circles.map((c, i) => (
-            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} />
+            // Per-circle opacity = base × luminosity weight: the lattice blooms at its heart
+            // (the seed-of-life rosette) and dissolves outward, instead of a flat field.
+            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={cfg.strokeOpacity * c.w} />
           ))}
         </G>
       </Svg>
