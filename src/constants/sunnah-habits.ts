@@ -186,8 +186,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'tahiyyat-al-masjid',
     categoryId: 'sunnah-prayers',
-    name: 'Greet the masjid (taḥiyyat al-masjid)',
-    detail: 'On entering the masjid, pray two rakʿah before you sit down.',
+    name: 'Greet the masjid',
+    detail: 'On entering the masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down.',
     evidence: 'When one of you enters the masjid, let him pray two rakʿah before sitting (Bukhari 444, Muslim 714).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'meeting-room',
@@ -216,7 +216,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'surah-al-mulk',
     categoryId: 'quran',
-    name: 'Recite Surah al-Mulk at night',
+    name: 'Recite al-Mulk at night',
     detail: 'Recite Surah al-Mulk (chapter 67) before sleeping.',
     evidence: 'A sūrah of thirty verses interceded for its companion until he was forgiven — al-Mulk (Tirmidhi 2891, ḥasan).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -225,7 +225,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'surah-al-kahf-friday',
     categoryId: 'quran',
-    name: 'Recite Surah al-Kahf on Friday',
+    name: 'Recite al-Kahf on Friday',
     detail: 'Recite Surah al-Kahf (chapter 18) sometime on Friday (from Maghrib Thursday through Maghrib Friday).',
     evidence: 'Whoever reads Surah al-Kahf on Friday has light between the two Fridays (al-Ḥākim/al-Bayhaqī, ṣaḥīḥ).',
     defaultSchedule: [5],
@@ -357,8 +357,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'kaffarat-al-majlis',
     categoryId: 'dhikr',
-    name: 'Seal a gathering (kaffārat al-majlis)',
-    detail: 'Before leaving a sitting, say: Subḥānaka-llāhumma wa biḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk.',
+    name: 'Seal a gathering',
+    detail: 'Before leaving a sitting, say the expiation of the gathering (kaffārat al-majlis): Subḥānaka-llāhumma wa biḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk.',
     evidence: 'Whoever says it when leaving a gathering, what occurred in it is forgiven (Tirmidhi 3433, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'forum',
@@ -565,8 +565,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'gratitude',
     categoryId: 'wellbeing',
-    name: 'Count a blessing (shukr)',
-    detail: 'Pause once today to name one specific blessing and thank Allah for it (Alḥamdulillāh).',
+    name: 'Count a blessing',
+    detail: 'Pause once today to name one specific blessing and give thanks (shukr) to Allah for it (Alḥamdulillāh).',
     evidence: '"If you are grateful, I will surely increase you" (Qurʾān 14:7); whoever thanks not people thanks not Allah (Tirmidhi 1954, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'sentiment-satisfied',
@@ -576,8 +576,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'black-seed-daily',
     categoryId: 'wellbeing',
-    name: 'Take black seed (ḥabbat al-barakah)',
-    detail: 'Take a small daily amount of black seed (Nigella sativa) — about half a teaspoon of the seeds or oil, often taken with honey.',
+    name: 'Take black seed',
+    detail: 'Take a small daily amount of black seed (ḥabbat al-barakah / Nigella sativa) — about half a teaspoon of the seeds or oil, often taken with honey.',
     evidence: 'In the black seed is a remedy for every disease except death (Bukhari 5688, Muslim 2215).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'spa',

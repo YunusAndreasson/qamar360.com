@@ -1,11 +1,10 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
-import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** The "already added" confirmation copy — one source of truth for every add control. */
+/** The "already added" confirmation copy — used by the expanded full-width add button. */
 export const ADDED_LABEL = 'Added ✓';
 
 /**
@@ -28,10 +27,12 @@ type Props = {
 };
 
 /**
- * The always-visible trailing add control of a Discover row. Keeping "add" on its own target
- * — separate from the row body's tap-to-expand — means adding is a single tap and never
- * requires reading the details first, so one control no longer carries two meanings. A stable
- * `minWidth` holds the size across the Add → Added flip so the row doesn't jiggle.
+ * The always-visible trailing add control of a Discover row — a compact circular icon button
+ * (a "+" that becomes a "✓" once added). Keeping "add" on its own target, separate from the
+ * row body's tap-to-expand, means adding is a single tap and never requires reading the
+ * details first; the expanded body still carries the full-text add button. Its fixed circle
+ * size holds steady across the add → added flip so the row never jiggles, and the icon leaves
+ * the title more room than the old labelled pill did.
  */
 export function AddPill({ added, onPress, label }: Props) {
   const theme = useTheme();
@@ -40,27 +41,24 @@ export function AddPill({ added, onPress, label }: Props) {
     <PressableScale
       onPress={added ? undefined : onPress}
       disabled={added}
-      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      hitSlop={8}
       android_ripple={added ? undefined : { color: theme.rippleOnFill }}
       accessibilityRole="button"
       accessibilityState={{ disabled: added }}
       accessibilityLabel={added ? `${label} already added` : `Add ${label}`}
       style={[styles.pill, { backgroundColor }]}>
-      <ThemedText type="smallBold" style={{ color }}>
-        {added ? ADDED_LABEL : 'Add'}
-      </ThemedText>
+      <MaterialIcons name={added ? 'check' : 'add'} size={20} color={color} />
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   pill: {
-    minWidth: 72,
-    minHeight: 32,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.control,
+    borderRadius: 16, // = width / 2, a circular tap target
+    overflow: 'hidden', // clip the Android ripple to the circle
   },
 });
