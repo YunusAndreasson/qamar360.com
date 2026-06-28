@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
-import { AddPill, ADDED_LABEL } from '@/components/add-pill';
+import { addControlColors, AddPill, ADDED_LABEL } from '@/components/add-pill';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
@@ -64,6 +64,8 @@ export function ExpandableAddRow({
     onAdd();
   };
 
+  const addColors = addControlColors(theme, added);
+
   return (
     <View>
       <View style={styles.row}>
@@ -102,8 +104,8 @@ export function ExpandableAddRow({
             accessibilityRole="button"
             accessibilityState={{ disabled: added }}
             accessibilityLabel={added ? `${itemLabel} added` : addAccessibilityLabel}
-            style={[styles.button, { backgroundColor: added ? theme.successSubtle : theme.accent }]}>
-            <ThemedText type="smallBold" numberOfLines={1} style={{ color: added ? theme.success : theme.accentText }}>
+            style={[styles.button, { backgroundColor: addColors.backgroundColor }]}>
+            <ThemedText type="smallBold" numberOfLines={1} style={{ color: addColors.color }}>
               {added ? ADDED_LABEL : addLabel}
             </ThemedText>
           </PressableScale>

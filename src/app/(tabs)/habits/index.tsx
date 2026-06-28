@@ -14,7 +14,6 @@ import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
-import { WeekProgress } from '@/components/week-progress';
 import { HeaderIcons } from '@/constants/icons';
 import { Duration } from '@/constants/motion';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -270,14 +269,6 @@ export default function HabitsScreen() {
           ListHeaderComponent={
             <View>
               <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
-              <WeekProgress
-                habits={habits}
-                completed={completed}
-                skipped={skipped}
-                today={today}
-                viewDate={viewDate}
-                style={styles.weekCard}
-              />
               {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
             </View>
           }
@@ -398,7 +389,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
-  weekCard: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
   upcoming: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5,13 +5,13 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
-import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
+import { FormScreen } from '@/components/form-screen';
 import { PressableScale } from '@/components/pressable-scale';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
@@ -255,13 +255,7 @@ export function HabitEditorForm({
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled">
-      {/* Same lunar-sky backdrop every other screen carries, so the editors aren't the
-          odd ones out. */}
-      <GeometricBackdrop variant="screen" />
+    <FormScreen>
       <Stack.Screen
         options={{
           title: isNew ? 'New Habit' : 'Edit Habit',
@@ -443,7 +437,7 @@ export function HabitEditorForm({
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
                 pressed && styles.stackRowPressed,
               ]}>
-              <MaterialIcons name="link" size={20} color={theme.accent} />
+              <MaterialIcons name="link" size={22} color={theme.accent} />
               <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                 {stackName}
               </ThemedText>
@@ -461,7 +455,7 @@ export function HabitEditorForm({
                 accessibilityState={{ expanded: stackPickerOpen }}
                 accessibilityLabel="Add to a stack"
                 style={({ pressed }) => [styles.stackHeaderRow, pressed && styles.stackRowPressed]}>
-                <MaterialIcons name="link" size={20} color={theme.accent} />
+                <MaterialIcons name="link" size={22} color={theme.accent} />
                 <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                   Not in a stack
                 </ThemedText>
@@ -483,7 +477,7 @@ export function HabitEditorForm({
                         { borderTopColor: theme.border },
                         pressed && styles.stackRowPressed,
                       ]}>
-                      <MaterialIcons name="add" size={20} color={theme.accent} />
+                      <MaterialIcons name="add" size={22} color={theme.accent} />
                       <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                         {s.name}
                       </ThemedText>
@@ -499,7 +493,7 @@ export function HabitEditorForm({
                       { borderTopColor: theme.border },
                       pressed && styles.stackRowPressed,
                     ]}>
-                    <MaterialIcons name="add-link" size={20} color={theme.accent} />
+                    <MaterialIcons name="add-link" size={22} color={theme.accent} />
                     <ThemedText type="smallBold" themeColor="accent">
                       New Stack…
                     </ThemedText>
@@ -520,18 +514,11 @@ export function HabitEditorForm({
           Delete habit
         </AppButton>
       ) : null}
-    </ScrollView>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.five,
-    gap: Spacing.two,
-  },
   // Pill shape/size overrides; SelectablePill owns the border, radius, centring and colour.
   days: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.one },
   day: { width: 40, height: 40, borderRadius: 20, paddingHorizontal: 0, paddingVertical: 0 },

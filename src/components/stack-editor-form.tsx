@@ -1,13 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
-import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
+import { FormScreen } from '@/components/form-screen';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Spacing } from '@/constants/theme';
@@ -113,13 +113,7 @@ export function StackEditorForm({
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled">
-      {/* Same lunar-sky backdrop every other screen carries, so the editors aren't the
-          odd ones out. */}
-      <GeometricBackdrop variant="screen" />
+    <FormScreen>
       <Stack.Screen
         options={{
           title: isNew ? 'New Stack' : 'Edit Stack',
@@ -238,13 +232,11 @@ export function StackEditorForm({
           Delete stack
         </AppButton>
       ) : null}
-    </ScrollView>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: Spacing.five, gap: Spacing.two },
   fieldLabel: { marginTop: Spacing.three },
   hint: { marginTop: Spacing.one },
   memberRow: {

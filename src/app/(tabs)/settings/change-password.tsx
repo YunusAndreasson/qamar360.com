@@ -1,11 +1,11 @@
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, StyleSheet, type TextInput } from 'react-native';
+import { Alert, type TextInput } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { FormField } from '@/components/form-field';
 import { headerSaveAction } from '@/components/form-header-actions';
-import { Spacing } from '@/constants/theme';
+import { formContentStyle } from '@/components/form-screen';
 import { useAuth } from '@/hooks/use-auth';
 
 const MIN_LENGTH = 6;
@@ -52,7 +52,7 @@ export default function ChangePasswordScreen() {
 
   return (
     <AppScreen
-      contentStyle={styles.content}
+      contentStyle={formContentStyle}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
       bottomInset={false}>
@@ -97,12 +97,3 @@ export default function ChangePasswordScreen() {
     </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.five,
-    gap: Spacing.two,
-  },
-});

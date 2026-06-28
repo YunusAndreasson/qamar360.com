@@ -1,14 +1,13 @@
 import { useCallback, useState } from 'react';
-import { RefreshControl, StyleSheet } from 'react-native';
+import { RefreshControl } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
-import { MonthBars } from '@/components/month-bars';
+import { MonthMoons } from '@/components/month-moons';
 import { MonthSummary } from '@/components/month-summary';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
-import { YearBars } from '@/components/year-bars';
-import { Spacing } from '@/constants/theme';
+import { YearTrend } from '@/components/year-trend';
 import { useProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -28,7 +27,7 @@ export default function ProgressScreen() {
 
   if (loading) {
     return (
-      <AppScreen transparent contentStyle={styles.content}>
+      <AppScreen transparent>
         <ProgressSkeleton />
       </AppScreen>
     );
@@ -48,7 +47,6 @@ export default function ProgressScreen() {
   return (
     <AppScreen
       transparent
-      contentStyle={styles.content}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -62,15 +60,9 @@ export default function ProgressScreen() {
 
       <MonthSummary month={month} />
 
-      <MonthBars month={month} />
+      <MonthMoons month={month} />
 
-      <YearBars year={year} />
+      <YearTrend year={year} />
     </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    gap: Spacing.three,
-  },
-});

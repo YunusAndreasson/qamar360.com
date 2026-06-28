@@ -109,7 +109,9 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   const reduceMotion = useReducedMotion();
   const currentRate = clamp01(current);
   const previousRate = clamp01(previous);
-  const currentColor = currentRate >= 1 ? theme.complete : theme.accent;
+  // Progress is always purple (gold is reserved for the moon itself); a full bright ring = the
+  // month complete.
+  const currentColor = theme.accent;
 
   // The orbit sweeps from empty to the month's completion on appear (and re-animates
   // when the rate changes) — the screen's signature motion. Reduce Motion lands it
@@ -192,7 +194,9 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
 }
 
 const styles = StyleSheet.create({
-  card: { gap: Spacing.four },
+  // One card gap across all three Progress stat cards (this hero, MonthMoons, YearTrend) so
+  // their header→content rhythm reads identically down the screen.
+  card: { gap: Spacing.three },
   hero: { alignItems: 'center', gap: Spacing.three },
   orbit: {
     width: ORBIT_SIZE,

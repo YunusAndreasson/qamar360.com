@@ -8,6 +8,18 @@ import { useTheme } from '@/hooks/use-theme';
 /** The "already added" confirmation copy — one source of truth for every add control. */
 export const ADDED_LABEL = 'Added ✓';
 
+/**
+ * The fill + label colours every add control wears — success-tinted once added, accent before.
+ * One recipe so the row's {@link AddPill} and the expanded full-width add button
+ * ({@link ExpandableAddRow}) can never drift in colour.
+ */
+export function addControlColors(theme: ReturnType<typeof useTheme>, added: boolean) {
+  return {
+    backgroundColor: added ? theme.successSubtle : theme.accent,
+    color: added ? theme.success : theme.accentText,
+  };
+}
+
 type Props = {
   added: boolean;
   onPress: () => void;
@@ -23,6 +35,7 @@ type Props = {
  */
 export function AddPill({ added, onPress, label }: Props) {
   const theme = useTheme();
+  const { backgroundColor, color } = addControlColors(theme, added);
   return (
     <PressableScale
       onPress={added ? undefined : onPress}
@@ -32,8 +45,8 @@ export function AddPill({ added, onPress, label }: Props) {
       accessibilityRole="button"
       accessibilityState={{ disabled: added }}
       accessibilityLabel={added ? `${label} already added` : `Add ${label}`}
-      style={[styles.pill, { backgroundColor: added ? theme.successSubtle : theme.accent }]}>
-      <ThemedText type="smallBold" style={{ color: added ? theme.success : theme.accentText }}>
+      style={[styles.pill, { backgroundColor }]}>
+      <ThemedText type="smallBold" style={{ color }}>
         {added ? ADDED_LABEL : 'Add'}
       </ThemedText>
     </PressableScale>

@@ -3,7 +3,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '@/hooks/use-theme';
 import { moonPhasePath } from '@/lib/moon';
 
-/** The unlit disc — the rest of the moon in shadow, in the shared "potential" tone. */
+/** The unlit disc — the rest of the moon in shadow, a faint wash of the moon's own gold. */
 const FAINT = 0.14;
 
 /**
@@ -28,8 +28,8 @@ export function MoonPhase({
           than the unlit limb letting the geometry shine through. Matches the card surface, so
           the shadowed side looks exactly as it did before the halo existed. */}
       <Circle cx={r} cy={r} r={r} fill={theme.backgroundElement} />
-      <Circle cx={r} cy={r} r={r} fill={theme.accent} fillOpacity={FAINT} />
-      {illumination > 0.005 ? <Path d={moonPhasePath(r, r, r, illumination, waxing)} fill={theme.accent} /> : null}
+      <Circle cx={r} cy={r} r={r} fill={theme.complete} fillOpacity={FAINT} />
+      {illumination > 0.005 ? <Path d={moonPhasePath(r, r, r, illumination, waxing)} fill={theme.complete} /> : null}
     </Svg>
   );
 }

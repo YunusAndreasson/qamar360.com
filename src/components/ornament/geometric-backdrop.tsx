@@ -1,9 +1,11 @@
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
+import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { flowerOfLife, type GCircle } from '@/lib/geometry';
+import { moonIllumination, moonPhasePath } from '@/lib/moon';
 
 /**
  * A faint flower-of-life field — the app's "ground" texture, built from the same compass
@@ -79,10 +81,38 @@ const CONFIG: Record<Variant, FieldConfig> = {
   },
 };
 
+/**
+ * The screen sky, lit by tonight's real moon. The corner glow is kept exactly where it sits —
+ * only its *life* tracks the lunar phase: a faint ember tucked in the corner at the new moon,
+ * waxing brighter and reaching a little further across the sky toward the full (laylat al-badr),
+ * then hushing back. An average day lands at the field's tuned baseline, so the look stays the
+ * one we like; the swing is gentle — felt over the Hijri month, not from one day to the next.
+ */
+function lunarScreenConfig(illumination: number): FieldConfig {
+  const base = CONFIG.screen;
+  const intensity = 0.75 + 0.45 * illumination; // ~baseline at half-moon; dimmer → brighter
+  const reach = 88 + 22 * illumination; // % the glow reaches out of its corner
+  return {
+    ...base,
+    strokeOpacity: STROKE_OPACITY * intensity,
+    fade: base.fade.kind === 'radial' ? { ...base.fade, r: `${Math.round(reach)}%` } : base.fade,
+  };
+}
+
 export function GeometricBackdrop({ variant }: { variant: Variant }) {
   const theme = useTheme();
   const uid = useId();
-  const cfg = CONFIG[variant];
+  // The whole-screen sky carries tonight's real moon: a faint phase-lit disc in the upper-right,
+  // plus a gentle wax/wane of the field's reach. Cards/hero keep their fixed motif.
+  const phase = useMemo(() => {
+    if (variant !== 'screen') return null;
+    const iso = todayLocalISO();
+    const parts = hijriParts(iso);
+    const range = hijriMonthRange(iso);
+    if (!parts || !range) return null; // no Islamic calendar on this runtime — keep the static sky
+    return moonIllumination(parts.day, range.length);
+  }, [variant]);
+  const cfg = phase ? lunarScreenConfig(phase.illumination) : CONFIG[variant];
   const gradId = `bd-grad-${uid}`;
   const maskId = `bd-mask-${uid}`;
 
@@ -117,6 +147,35 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
           ))}
         </G>
       </Svg>
+      {phase ? <SkyMoon illumination={phase.illumination} waxing={phase.waxing} /> : null}
     </View>
   );
 }
+
+/** The moon as the sky's ornament, not as the literal UI moon (that lives on Progress). It's hung
+ *  faintly in the upper-right and drawn in the field's own compass-line language: a construction
+ *  circle for the body with a thin terminator arc for tonight's phase — so the corner geometry
+ *  quietly takes the moon's shape, waxing and waning across the Hijri month. An art representation. */
+const MOON_SIZE = 116;
+
+function SkyMoon({ illumination, waxing }: { illumination: number; waxing: boolean }) {
+  const theme = useTheme();
+  const r = MOON_SIZE / 2;
+  return (
+    <View style={styles.skyMoon} pointerEvents="none">
+      <Svg width={MOON_SIZE} height={MOON_SIZE} viewBox={`0 0 ${MOON_SIZE} ${MOON_SIZE}`}>
+        {/* The body — one clean compass circle, in the sky's own line weight (never a filled disc). */}
+        <Circle cx={r} cy={r} r={r - 1} stroke={theme.pattern} strokeWidth={1} strokeOpacity={0.16} fill="none" />
+        {/* The terminator — a thin arc across the body that gives the corner tonight's phase. */}
+        {illumination > 0.03 && illumination < 0.97 ? (
+          <Path d={moonPhasePath(r, r, r - 1, illumination, waxing)} stroke={theme.pattern} strokeWidth={1} strokeOpacity={0.16} fill="none" />
+        ) : null}
+      </Svg>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  // High in the top-right band — mostly clear of the content below, a moon in the sky.
+  skyMoon: { position: 'absolute', top: 6, right: 12 },
+});

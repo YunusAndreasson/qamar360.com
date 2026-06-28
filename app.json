@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "qamar360",
     "userInterfaceStyle": "automatic",
+    "platforms": ["ios", "android"],
     "ios": {
       "bundleIdentifier": "com.qamar360.app",
       "supportsTablet": true,
@@ -23,10 +24,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
