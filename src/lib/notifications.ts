@@ -32,11 +32,20 @@ type RemindableHabit = {
  */
 const HIJRI_HORIZON_DAYS = 120;
 const HIJRI_MAX_OCCURRENCES = 6;
+const IOS_BADGE_PERMISSION = { ios: { allowAlert: true, allowBadge: true, allowSound: true } };
 
 /** A Date at `hour:minute` local time on the given `YYYY-MM-DD` day. */
 function atLocalTime(iso: string, hour: number, minute: number): Date {
   const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number);
   return new Date(y, m - 1, d, hour, minute, 0, 0);
+}
+
+function weeklyDueCount(habits: RemindableHabit[], weekday: number): number {
+  return habits.filter((habit) => !habit.hijri_schedule && habit.schedule_days.includes(weekday)).length;
+}
+
+function dailyDueCount(habits: RemindableHabit[], iso: string): number {
+  return habits.filter((habit) => scheduledOn(habit, iso)).length;
 }
 
 // We need the module's *type* without a runtime import — a static `import` would evaluate
@@ -72,7 +81,7 @@ export async function configureNotifications(): Promise<void> {
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
     }),
   });
 
@@ -97,10 +106,20 @@ export async function permissionGranted(): Promise<boolean | null> {
 /** Request notification permission if needed. Returns true when granted (false when unavailable). */
 export async function ensurePermission(): Promise<boolean> {
   if (!N) return false;
-  const { status } = await N.getPermissionsAsync();
-  if (status === 'granted') return true;
-  const { status: next } = await N.requestPermissionsAsync();
+  const current = await N.getPermissionsAsync();
+  if (current.status === 'granted' && (Platform.OS !== 'ios' || current.ios?.allowsBadge !== false)) return true;
+  const { status: next } = await N.requestPermissionsAsync(IOS_BADGE_PERMISSION);
   return next === 'granted';
+}
+
+/** Set the home-screen app icon badge. Best-effort: unsupported launchers simply ignore it. */
+export async function setAppBadgeCount(count: number): Promise<void> {
+  if (!N) return;
+  try {
+    await N.setBadgeCountAsync(Math.max(0, count));
+  } catch {
+    // Some Android launchers do not support badges, and permission can be denied on iOS.
+  }
 }
 
 /**
@@ -126,7 +145,7 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
           const when = atLocalTime(dayISO, time.hour, time.minute);
           if (when.getTime() <= now.getTime()) continue; // today's slot already passed
           await N.scheduleNotificationAsync({
-            content: { title: habit.name, body: `Time for ${habit.name}` },
+            content: { title: habit.name, body: `Time for ${habit.name}`, badge: dailyDueCount(habits, dayISO) },
             trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when },
           });
           armed += 1;
@@ -137,7 +156,7 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
       // Weekly habits: one recurring trigger per scheduled weekday.
       for (const day of habit.schedule_days) {
         await N.scheduleNotificationAsync({
-          content: { title: habit.name, body: `Time for ${habit.name}` },
+          content: { title: habit.name, body: `Time for ${habit.name}`, badge: weeklyDueCount(habits, day) },
           trigger: {
             type: N.SchedulableTriggerInputTypes.WEEKLY,
             // expo weekday is 1=Sunday…7=Saturday; our schedule_days is 0=Sunday…6=Saturday.

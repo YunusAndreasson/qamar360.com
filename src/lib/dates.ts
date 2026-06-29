@@ -58,6 +58,29 @@ const HIJRI_MONTHS = [
 ] as const;
 
 /**
+ * The Umm al-Qura formatter, built once and reused: constructing an `Intl.DateTimeFormat` is
+ * relatively expensive and {@link hijriParts} runs across a whole year of days per Progress
+ * render. `null` = this runtime's `Intl` lacks the Islamic calendar (it silently resolves to
+ * `gregory`); `undefined` = not yet probed. The formatter is stateless across dates, so reusing
+ * it for many `formatToParts` calls is safe (and the recommended pattern).
+ */
+let hijriFormatter: Intl.DateTimeFormat | null | undefined;
+function getHijriFormatter(): Intl.DateTimeFormat | null {
+  if (hijriFormatter !== undefined) return hijriFormatter;
+  try {
+    const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    });
+    hijriFormatter = fmt.resolvedOptions().calendar.startsWith('islamic') ? fmt : null;
+  } catch {
+    hijriFormatter = null;
+  }
+  return hijriFormatter;
+}
+
+/**
  * Numeric Umm al-Qura (Hijri) parts for a `YYYY-MM-DD` day, plus the month name,
  * for month math.
  * `month` is the 1-based Hijri month number; `day` is the 1-based day of that
@@ -68,13 +91,9 @@ const HIJRI_MONTHS = [
 export function hijriParts(
   iso: string,
 ): { day: number; month: number; year: number; monthName: string } | null {
+  const fmt = getHijriFormatter();
+  if (!fmt) return null;
   try {
-    const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
-      day: 'numeric',
-      month: 'numeric',
-      year: 'numeric',
-    });
-    if (!fmt.resolvedOptions().calendar.startsWith('islamic')) return null;
     const date = parseLocalISO(iso);
     const parts = fmt.formatToParts(date);
     const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
@@ -87,6 +106,20 @@ export function hijriParts(
   } catch {
     return null;
   }
+}
+
+/**
+ * Render a Hijri-CalVer version string — the app's release scheme, where the version *is* the
+ * Umm al-Qura date it shipped on (`YYYY.MM.DD`, e.g. `1448.1.15`) — as a human date like
+ * "15 Muḥarram 1448 AH". The triple doubles as valid SemVer, so tooling reads it as a version
+ * while people read it as a date. Returns the raw string unchanged if it isn't that three-part
+ * shape (e.g. a legacy `1.0.0`), so it's always safe on whatever `expoConfig.version` holds.
+ */
+export function formatHijriVersion(version: string): string {
+  const [year, month, day] = version.split('.').map((n) => Number(n));
+  if (!year || !month || !day || month > 12 || day > 30) return version;
+  const name = HIJRI_MONTHS[month - 1];
+  return name ? `${day} ${name} ${year} AH` : version;
 }
 
 /**

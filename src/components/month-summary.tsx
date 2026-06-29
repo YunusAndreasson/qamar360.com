@@ -21,10 +21,14 @@ import { moonIllumination } from '@/lib/moon';
 import { clamp01, toDegrees } from '@/lib/progress';
 
 const ORBIT_SIZE = 232;
-const MOON_SIZE = 154;
+const RING_STROKE = 12;
+// The moon fills the orbit's interior exactly as a day-grid cell fills its ring
+// (ProgressCircle: disc = box − 3×stroke, leaving a stroke/2 gap to the ring), so the hero and
+// the "Day by day" moons read as one object at two scales — not a snug disc beside a floating
+// one. 232 − 3×12 = 196.
+const MOON_SIZE = ORBIT_SIZE - RING_STROKE * 3;
 // The halo radiates past the orbit into the card; sized to stay within the card's width.
 const HALO_SIZE = 330;
-const RING_STROKE = 12;
 const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
 // The Q's tail — last month's pace marker — sits just outside the rim (like the tail on
 // the app's "Q"), so the canvas is a touch larger than the ring footprint to give that
@@ -40,10 +44,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const theme = useTheme();
   if (!month) return null;
 
-  const { monthName, year, dayOfMonth, monthLength } = month;
-  const thisRate = month.thisPossible > 0 ? month.thisDone / month.thisPossible : 0;
-  const previousRate = month.previousPossible > 0 ? month.previousDone / month.previousPossible : 0;
-  const hasPrevious = month.previousPossible > 0;
+  const { monthName, year, dayOfMonth, monthLength, thisRate, previousRate, hasPrevious } = month;
   const thisDegrees = toDegrees(thisRate);
   // Last month's pace by this same day, on the *same* absolute orbit scale as the headline —
   // so the two read as comparable positions (188° vs 360°), and last month's number is exactly

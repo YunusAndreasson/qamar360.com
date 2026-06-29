@@ -10,6 +10,12 @@ import type { ReactNode } from 'react';
 type Props = {
   /** Optional calm glyph above the copy. */
   icon?: keyof typeof MaterialIcons.glyphMap;
+  /**
+   * A branded emblem rendered above the copy in place of {@link icon} — e.g. `<MoonEmblem/>`.
+   * Use it for the warm first-run / no-data moments; keep `icon` for contextual states (a
+   * `search-off` no-result, a `cloud-off` load failure).
+   */
+  art?: ReactNode;
   title: string;
   body?: string;
   /** Action(s) — typically an `AppButton` — rendered below the copy. */
@@ -17,21 +23,21 @@ type Props = {
 };
 
 /**
- * One centred empty-state treatment for the whole app: an optional muted glyph, a title,
- * a supporting line, and optional actions. Keeps every "nothing here yet" surface (Today,
+ * One centred empty-state treatment for the whole app: a branded emblem or a muted glyph, a
+ * title, a supporting line, and optional actions. Keeps every "nothing here yet" surface (Today,
  * Discover, Progress) consistent in spacing, colour and weight instead of each screen
  * hand-rolling its own.
  */
-export function EmptyState({ icon, title, body, children }: Props) {
+export function EmptyState({ icon, art, title, body, children }: Props) {
   const theme = useTheme();
   return (
     <View style={styles.root}>
-      {icon ? <MaterialIcons name={icon} size={36} color={theme.textSecondary} /> : null}
-      <ThemedText type="default" themeColor="textSecondary" style={styles.text}>
+      {art ?? (icon ? <MaterialIcons name={icon} size={40} color={theme.textSecondary} /> : null)}
+      <ThemedText type="defaultSemiBold" style={styles.text}>
         {title}
       </ThemedText>
       {body ? (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.text}>
+        <ThemedText type="small" themeColor="textSecondary" style={[styles.text, styles.body]}>
           {body}
         </ThemedText>
       ) : null}
@@ -48,5 +54,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
   },
   text: { textAlign: 'center' },
-  actions: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.three },
+  body: { maxWidth: 320 },
+  actions: {
+    width: '100%',
+    maxWidth: 360,
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
 });

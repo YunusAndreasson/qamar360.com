@@ -1,12 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { DiscoverFilterChips, type Filter } from '@/components/discover-filter-chips';
 import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
@@ -62,7 +63,7 @@ export default function DiscoverScreen() {
   const theme = useTheme();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
-  const { habits, stacks, createHabit, createHabits, createStack } = useHabits();
+  const { habits, stacks, createHabit, createHabits, createStack, deleteHabit, error, dismissError } = useHabits();
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
@@ -73,9 +74,19 @@ export default function DiscoverScreen() {
   const searching = q.length > 0;
   const isDefault = filter === 'all' && !searching;
 
-  // Normalized names already in the user's list → O(1) "already added?" checks.
-  const existing = useMemo(() => new Set(habits.map((h) => norm(h.name))), [habits]);
+  // Normalized name → habit, so a row can both answer "already added?" and undo its own add
+  // by deleting the exact habit it created (the ✓ becomes tap-to-remove).
+  const habitByName = useMemo(() => new Map(habits.map((h) => [norm(h.name), h])), [habits]);
+  const existing = useMemo(() => new Set(habitByName.keys()), [habitByName]);
   const existingStacks = useMemo(() => new Set(stacks.map((s) => norm(s.name))), [stacks]);
+
+  const removePreset = useCallback(
+    (preset: SunnahPreset) => {
+      const habit = habitByName.get(norm(preset.name));
+      if (habit) void deleteHabit(habit.id);
+    },
+    [habitByName, deleteHabit],
+  );
 
   // The starter set, minus anything already added.
   const starterRemaining = useMemo(
@@ -134,10 +145,23 @@ export default function DiscoverScreen() {
   const goCreateHabit = () => router.push({ pathname: '/habits/editor', params: { id: 'new' } });
   const goCreateStack = () => router.push({ pathname: '/habits/stack-editor', params: { id: 'new' } });
 
-  // Section-level enter/exit + reflow as chips/search change (reduced-motion drops the reflow).
-  const layout = reduceMotion ? undefined : LinearTransition.duration(Duration.base);
-  const enter = FadeIn.duration(Duration.base);
-  const exit = FadeOut.duration(Duration.fast);
+  // Section-level enter + reflow as chips/search change (reduced-motion drops the reflow). No
+  // per-section *exit*: the native stack already animates this whole screen out on a back-pop,
+  // and a Reanimated `exiting` on these children reparents them into an overlay mid-transition,
+  // so they "fly" over the header as the screen slides away (the violet add-pills most visibly).
+  //
+  // The same reparenting bites on the way *in*: an `entering`/`layout` that runs while this
+  // screen is being pushed gets hoisted into the stack's transition overlay, so a section card
+  // (most visibly the violet "essentials" starter) flies over the header. So arm the animations
+  // only AFTER the push settles — the initially-visible sections then mount un-animated (the
+  // native slide is their entrance), while later chip/search reflows still fade and shift.
+  const [entryReady, setEntryReady] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntryReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const layout = entryReady && !reduceMotion ? LinearTransition.duration(Duration.base) : undefined;
+  const enter = entryReady ? FadeIn.duration(Duration.base) : undefined;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -182,9 +206,12 @@ export default function DiscoverScreen() {
       <AppScreen
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled">
+        {/* Add failures (network) surface here, at the point of action — otherwise the optimistic
+            ✓ pill just reverts and the only message would appear back on the Habits list. */}
+        <ErrorBanner message={error} onDismiss={dismissError} />
         {searching ? (
           resultCount === 0 ? (
-            <Animated.View key="empty" entering={enter} exiting={exit}>
+            <Animated.View key="empty" entering={enter}>
               <EmptyState
                 icon="search-off"
                 title={`No matches for “${query.trim()}”`}
@@ -198,7 +225,7 @@ export default function DiscoverScreen() {
               </EmptyState>
             </Animated.View>
           ) : (
-            <Animated.View key="results" entering={enter} exiting={exit} layout={layout}>
+            <Animated.View key="results" entering={enter} layout={layout}>
               <SettingsSection title={`${resultCount} result${resultCount === 1 ? '' : 's'}`}>
                 {visibleRoutines.map((routine) => (
                   <SunnahRoutineRow
@@ -214,6 +241,7 @@ export default function DiscoverScreen() {
                     preset={preset}
                     added={existing.has(norm(preset.name))}
                     onAdd={() => void createHabit(toCreate(preset))}
+                    onRemove={() => removePreset(preset)}
                   />
                 ))}
               </SettingsSection>
@@ -223,7 +251,7 @@ export default function DiscoverScreen() {
           <>
             {/* One-tap starter set for a new user — only in the default browse view. */}
             {isDefault && starterRemaining.length > 0 ? (
-              <Animated.View key="starter" entering={enter} exiting={exit} layout={layout}>
+              <Animated.View key="starter" entering={enter} layout={layout}>
                 <Surface padded pattern style={[styles.starter, { backgroundColor: theme.accentSubtle }]}>
                   <ThemedText type="smallBold" themeColor="accent">
                     New here? Start with the essentials
@@ -244,7 +272,7 @@ export default function DiscoverScreen() {
 
             {/* Routines — ready-made stacks of habits that belong together as a sequence. */}
             {visibleRoutines.length > 0 ? (
-              <Animated.View key="routines" entering={enter} exiting={exit} layout={layout}>
+              <Animated.View key="routines" entering={enter} layout={layout}>
                 <SettingsSection title="Routines" footer="You still complete each habit on its own.">
                   {visibleRoutines.map((routine) => (
                     <SunnahRoutineRow
@@ -259,7 +287,7 @@ export default function DiscoverScreen() {
             ) : null}
 
             {categorySections.map(({ category, presets }) => (
-              <Animated.View key={category.id} entering={enter} exiting={exit} layout={layout}>
+              <Animated.View key={category.id} entering={enter} layout={layout}>
                 <SettingsSection title={category.title} footer={category.footer}>
                   {presets.map((preset) => (
                     <SunnahPresetRow
@@ -267,6 +295,7 @@ export default function DiscoverScreen() {
                       preset={preset}
                       added={existing.has(norm(preset.name))}
                       onAdd={() => void createHabit(toCreate(preset))}
+                      onRemove={() => removePreset(preset)}
                     />
                   ))}
                 </SettingsSection>
@@ -276,7 +305,7 @@ export default function DiscoverScreen() {
             {/* Manual entry, surfaced as a fallback once the curated library has had its say
                 (flexibility-after-failure); the header + offers it persistently too. */}
             {isDefault ? (
-              <Animated.View key="create" entering={enter} exiting={exit} layout={layout}>
+              <Animated.View key="create" entering={enter} layout={layout}>
                 <SettingsSection title="Can't find it?">
                   <SettingsRow
                     icon="add"

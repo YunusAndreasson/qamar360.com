@@ -21,6 +21,10 @@ import type MaterialIcons from '@expo/vector-icons/MaterialIcons';
  * instead of weekdays: `scheduledOn` places them by the Umm al-Qura date, and they are stored
  * with empty `schedule_days`. "N days within a window" fasts (e.g. the six of Shawwāl) can't yet
  * be expressed and remain omitted.
+ *
+ * The "Health & wellbeing" category additionally carries a few non-Sunnah, modern-evidence health
+ * habits (supplements, protein, daylight, …); for those, `evidence` cites the scientific source
+ * (trial / meta-analysis / guideline) rather than a hadith, kept equally honest about strength.
  */
 
 export type SunnahCategory = {
@@ -40,7 +44,7 @@ export type SunnahPreset = {
   name: string;
   /** What counts as "done" today — the unambiguous, measurable bar. One or two sentences. */
   detail: string;
-  /** The Sunnah source, kept honest about grading (ṣaḥīḥ / ḥasan). */
+  /** The Sunnah source (kept honest about grading — ṣaḥīḥ / ḥasan), or, for the modern health habits, the scientific basis (a trial / meta-analysis / guideline, kept honest about strength). */
   evidence: string;
   /** Default weekday schedule (0=Sun … 6=Sat). Use `DAILY_SCHEDULE` for every day; `[]` for a Hijri preset. */
   defaultSchedule: number[];
@@ -62,7 +66,7 @@ export const SUNNAH_CATEGORIES: SunnahCategory[] = [
   {
     id: 'wellbeing',
     title: 'Health & wellbeing',
-    footer: 'Prophetic guidance for the body and mind — each also backed by strong modern evidence.',
+    footer: 'For the body and mind — Prophetic guidance alongside simple, evidence-based health habits, each backed by strong modern research.',
   },
 ];
 
@@ -141,7 +145,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'rawatib-12',
     categoryId: 'sunnah-prayers',
-    name: 'The 12 rawātib rakʿah',
+    name: 'Pray the 12 rawātib rakʿah',
     detail: 'Pray the twelve confirmed Sunnah rakʿahs across the day: 2 before Fajr, 4 before & 2 after Dhuhr, 2 after Maghrib, 2 after ʿIshāʾ.',
     evidence: 'Whoever prays twelve rakʿahs in a day and night, a house is built for him in Paradise (Muslim 728).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -186,8 +190,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'tahiyyat-al-masjid',
     categoryId: 'sunnah-prayers',
-    name: 'Greet the masjid',
-    detail: 'On entering the masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down.',
+    name: 'Two rakʿah on entering the masjid',
+    detail: 'On entering the masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down — each time you enter, not a fixed daily count.',
     evidence: 'When one of you enters the masjid, let him pray two rakʿah before sitting (Bukhari 444, Muslim 714).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'meeting-room',
@@ -464,9 +468,9 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'sleep-on-wudu',
     categoryId: 'character',
-    name: 'Sleep upon wudūʾ',
-    detail: 'Make wudūʾ before getting into bed, then lie down on your right side.',
-    evidence: 'When you go to bed, perform wudūʾ as for prayer, then lie on your right side (Bukhari 247).',
+    name: 'Sleep upon wuḍūʾ',
+    detail: 'Make wuḍūʾ before getting into bed, then lie down on your right side.',
+    evidence: 'When you go to bed, perform wuḍūʾ as for prayer, then lie on your right side (Bukhari 247).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'bedtime',
   },
@@ -556,7 +560,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'hydrate-water',
     categoryId: 'wellbeing',
-    name: 'Drink water through the day',
+    name: 'Drink 6–8 cups of water',
     detail: 'Stay hydrated — aim for 6–8 cups across the day, drinking seated and in a few breaths rather than one gulp.',
     evidence: 'The Prophet ﷺ would drink in three breaths and forbade gulping in one (Muslim 2028).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -594,7 +598,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'honey-daily',
     categoryId: 'wellbeing',
-    name: 'A spoon of honey',
+    name: 'Take a spoon of honey',
     detail: 'Take a spoon of honey today — on its own or stirred into warm water.',
     evidence: 'In it is healing for people (Qurʾān 16:69); the Prophet ﷺ recommended honey for a stomach ailment (Bukhari 5684, Muslim 2217).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -608,6 +612,89 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     evidence: 'Eat olive oil and anoint yourselves with it, for it is from a blessed tree (Tirmidhi 1851, Ibn Mājah 3319, ḥasan).',
     defaultSchedule: DAILY_SCHEDULE,
     icon: 'water-drop',
+  },
+
+  // ── Daily health (non-Sunnah, easy wins with strong modern evidence) ───────
+  {
+    id: 'vitamin-d',
+    categoryId: 'wellbeing',
+    name: 'Take vitamin D3',
+    detail: 'Take a vitamin D3 supplement with a meal — about 1000–2000 IU daily (confirm your own level with your doctor).',
+    evidence: 'Deficiency is common with limited sun exposure or covered skin; daily D3 reliably restores healthy blood levels, though it adds no extra heart or cancer protection once you’re replete (VITAL trial, Manson et al., NEJM 2019).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'wb-sunny',
+  },
+  {
+    id: 'omega-3',
+    categoryId: 'wellbeing',
+    name: 'Take omega-3',
+    detail: 'Take an omega-3 (EPA/DHA) supplement with a meal — aim for about 1g combined EPA+DHA, or eat oily fish instead.',
+    evidence: 'EPA/DHA omega-3s robustly lower triglycerides (AHA Science Advisory, Circulation 2019); broad heart-disease prevention from supplements is small (Cochrane review, 2020) — most worthwhile if you rarely eat oily fish.',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'set-meal',
+  },
+  {
+    id: 'creatine',
+    categoryId: 'wellbeing',
+    name: 'Take creatine',
+    detail: 'Take 3–5g of creatine monohydrate, mixed into water or a drink — any time of day, every day.',
+    evidence: 'Among the most-studied supplements: 3–5g a day improves strength, lean mass and exercise performance with a strong safety record (ISSN Position Stand, Kreider et al., 2017).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'fitness-center',
+  },
+  {
+    id: 'magnesium',
+    categoryId: 'wellbeing',
+    name: 'Take magnesium',
+    detail: 'Take about 200–400mg of magnesium (glycinate or citrate) in the evening.',
+    evidence: 'Low magnesium intake is widespread; supplements modestly shorten the time to fall asleep, though overall sleep-quality evidence is still limited (systematic review in older adults, 2021).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'medication',
+  },
+  {
+    id: 'protein-morning',
+    categoryId: 'wellbeing',
+    name: 'Eat 30g protein after waking',
+    detail: 'Within an hour or two of waking, eat a meal with at least 30g of protein — eggs, yoghurt, a shake, or similar.',
+    evidence: 'About 30g of protein per meal maximally stimulates muscle protein synthesis, and a protein-rich first meal curbs morning hunger (Mamerow et al., J. Nutr. 2014).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'egg',
+  },
+  {
+    id: 'multivitamin',
+    categoryId: 'wellbeing',
+    name: 'Take a multivitamin',
+    detail: 'Take a daily multivitamin with breakfast as a simple nutritional safety-net.',
+    evidence: 'A daily multivitamin fills common dietary gaps; it modestly aided cognition in older adults (COSMOS, Alzheimer’s & Dementia 2023) and lowered total cancer ~8% in older men (Physicians’ Health Study II, JAMA 2012) — real but modest benefits.',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'local-pharmacy',
+  },
+  {
+    id: 'morning-daylight',
+    categoryId: 'wellbeing',
+    name: 'Get morning daylight',
+    detail: 'Get 5–15 minutes of outdoor daylight within an hour of waking — step outside, even on a cloudy day.',
+    evidence: 'Morning light is the strongest signal that sets your body clock, improving daytime alertness, mood and night-time sleep (Blume et al., Somnologie 2019).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'light-mode',
+  },
+  {
+    id: 'vegetables',
+    categoryId: 'wellbeing',
+    name: 'Eat 2 servings of vegetables',
+    detail: 'Eat at least two servings of vegetables today — add them to meals or have them as snacks.',
+    evidence: 'Higher vegetable intake tracks with much lower risk of heart disease and early death — up to ~31% lower all-cause mortality near 800g a day of fruit and veg (Aune et al., Int. J. Epidemiol. 2017).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'grass',
+  },
+  {
+    id: 'walk-after-meal',
+    categoryId: 'wellbeing',
+    name: 'Walk after a meal',
+    detail: 'Take a 10-minute walk soon after one of your main meals.',
+    evidence: 'A short walk soon after eating meaningfully blunts the post-meal blood-sugar spike (meta-analysis, Sports Medicine 2022).',
+    defaultSchedule: DAILY_SCHEDULE,
+    icon: 'directions-walk',
   },
 ];
 

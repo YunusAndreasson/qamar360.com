@@ -40,6 +40,7 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
+      android_ripple={{ color: variant === 'primary' ? theme.rippleOnFill : theme.backgroundSelected }}
       style={[
         styles.button,
         variant === 'secondary' && styles.secondary,
@@ -61,13 +62,16 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
 const styles = StyleSheet.create({
   button: {
     borderRadius: Radius.control,
+    minHeight: 48,
+    minWidth: 160,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondary: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.one,
+    minHeight: 44,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
   },
 });

@@ -224,7 +224,10 @@ function HabitRowBase({ habit, done, skipped, onToggle, onSkip, onEdit, onDelete
             <MaterialIcons
               name={done ? 'check-circle' : skipped ? 'do-not-disturb-on' : 'radio-button-unchecked'}
               size={28}
-              color={done ? theme.success : theme.textSecondary}
+              // Done wears `accent` (the same indigo that fills the Progress orbit), not a
+              // standalone green — so "a habit completed" and "the orbit it fills" read as one
+              // colour. The filled glyph + struck-through label still carry "done" on their own.
+              color={done ? theme.accent : theme.textSecondary}
             />
           </Animated.View>
         </View>

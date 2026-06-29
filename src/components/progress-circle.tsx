@@ -39,6 +39,10 @@ export function ProgressCircle({
   // a fuller arc = more done, a full bright ring = the day complete. (Gold = moon, purple = pace.)
   const trackColor = muted ? theme.accentTrackMuted : theme.accentTrack;
   const arcColor = muted ? theme.accentTrackMuted : active || isComplete ? theme.accent : theme.accentTrackStrong;
+  // Elapsed days wear the moon's gold; days still to come are greyed — so how far the gold has
+  // spread across the grid reads at a glance as how much of the month has passed. (The ring arc
+  // still carries that day's completion; disc hue = elapsed, ring = done.)
+  const moonColor = muted ? theme.textDisabled : theme.complete;
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -46,9 +50,9 @@ export function ProgressCircle({
         // The moon as the interior: opaque shadow disc, a faint lit-side tint, then the true lit region.
         <G opacity={muted ? MUTED_MOON_OPACITY : 1}>
           <Circle cx={radius} cy={radius} r={moonR} fill={theme.backgroundElement} />
-          <Circle cx={radius} cy={radius} r={moonR} fill={theme.complete} fillOpacity={MOON_FAINT} />
+          <Circle cx={radius} cy={radius} r={moonR} fill={moonColor} fillOpacity={MOON_FAINT} />
           {phase.illumination > 0.005 ? (
-            <Path d={moonPhasePath(radius, radius, moonR, phase.illumination, phase.waxing)} fill={theme.complete} />
+            <Path d={moonPhasePath(radius, radius, moonR, phase.illumination, phase.waxing)} fill={moonColor} />
           ) : null}
         </G>
       ) : (

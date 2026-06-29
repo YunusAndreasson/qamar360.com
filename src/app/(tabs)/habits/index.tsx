@@ -12,6 +12,7 @@ import { ErrorBanner } from '@/components/error-banner';
 import { HabitRow } from '@/components/habit-row';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
+import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
 import { HeaderIcons } from '@/constants/icons';
@@ -350,27 +351,30 @@ function HabitsEmptyState({
   onAdd: () => void;
   onBrowse: () => void;
 }) {
-  const [line1, line2] = hasHabits
-    ? ['Nothing scheduled.', isToday ? 'Enjoy your rest day.' : 'No habits were scheduled for this day.']
-    : ['No habits yet.', 'Start with a Sunnah habit, or add your own.'];
+  // A rest day (you have habits, none fall today) is a calm, action-free "bedtime" note. The
+  // brand-new user instead gets the warm moon emblem and a clear, inviting way in.
+  if (hasHabits) {
+    return (
+      <EmptyState
+        icon="bedtime"
+        title="Nothing scheduled"
+        body={isToday ? 'Enjoy your rest day.' : 'No habits were scheduled for this day.'}
+      />
+    );
+  }
   return (
     // First-run call-to-action — lead the new user to the curated library (knowledge in the
     // world), with manual entry as a quieter secondary path.
-    <EmptyState icon={hasHabits ? 'bedtime' : 'playlist-add'} title={line1} body={line2}>
-      {!hasHabits ? (
-        <>
-          <AppButton onPress={onBrowse} accessibilityLabel="Browse Sunnah habits">
-            Browse Sunnah habits
-          </AppButton>
-          <AppButton
-            variant="secondary"
-            onPress={onAdd}
-            accessibilityLabel="Add your own habit"
-            hitSlop={8}>
-            Add your own
-          </AppButton>
-        </>
-      ) : null}
+    <EmptyState
+      art={<MoonEmblem />}
+      title="Start your first habit"
+      body="Pick one from the Sunnah library, or create your own.">
+      <AppButton onPress={onBrowse} accessibilityLabel="Browse Sunnah habits">
+        Browse Sunnah habits
+      </AppButton>
+      <AppButton variant="secondary" onPress={onAdd} accessibilityLabel="Add your own habit" hitSlop={8}>
+        Add your own
+      </AppButton>
     </EmptyState>
   );
 }

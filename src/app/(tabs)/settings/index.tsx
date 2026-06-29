@@ -16,6 +16,7 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { formatHijriVersion } from '@/lib/dates';
 import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
 
 export default function SettingsScreen() {
@@ -33,7 +34,11 @@ export default function SettingsScreen() {
     void permissionGranted().then(setNotifGranted);
   }, []);
 
+  // The app is versioned by the moon: `expoConfig.version` is the Umm al-Qura date it shipped on
+  // (`YYYY.MM.DD`, a Hijri date that also happens to be valid SemVer). Show the human date, with
+  // the raw triple kept on the right for anyone who needs the literal version.
   const version = Constants.expoConfig?.version ?? '—';
+  const hijriVersion = formatHijriVersion(version);
   const email = user?.email ?? '';
   const handle = email.split('@')[0] ?? '';
   const displayName = handle ? handle.charAt(0).toUpperCase() + handle.slice(1) : 'Your account';
@@ -167,7 +172,7 @@ export default function SettingsScreen() {
 
       {/* About */}
       <SettingsSection title="About">
-        <SettingsRow icon="info-outline" label="Version" value={version} />
+        <SettingsRow icon="info-outline" label="Version" sublabel={hijriVersion} value={version} />
         <SettingsRow
           icon="privacy-tip"
           label="Privacy Policy"

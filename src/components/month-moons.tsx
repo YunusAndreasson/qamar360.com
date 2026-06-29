@@ -31,8 +31,7 @@ const STAGGER_MS = 14;
 export function MonthMoons({ month }: { month: MonthProgress | null }) {
   if (!month) return null;
 
-  const rate = month.thisPossible > 0 ? month.thisDone / month.thisPossible : 0;
-  const a11y = `This month: ${toDegrees(rate)} degrees complete, day ${month.dayOfMonth} of ${month.monthLength}.`;
+  const a11y = `This month: ${toDegrees(month.thisRate)} degrees complete, day ${month.dayOfMonth} of ${month.monthLength}.`;
 
   return (
     <StatCard style={styles.card} accessible accessibilityLabel={a11y}>

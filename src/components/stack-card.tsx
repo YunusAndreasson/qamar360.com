@@ -12,13 +12,6 @@ import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
-/** A faint connector runs down the member check-circles so the stack reads as an ordered
- *  sequence (a timeline), not just a pile. `RAIL_LEFT` centres it on the icon shell
- *  (row padding + half the 32px shell); `ROW_HALF` is half a 56px row, so the rail starts
- *  at the first circle and ends at the last. */
-const RAIL_LEFT = Spacing.three + Spacing.three;
-const ROW_HALF = 28;
-
 type Props = {
   stack: HabitStack;
   /** The stack's members scheduled for the viewed day, in sequence order. */
@@ -77,10 +70,7 @@ function StackCardBase({ stack, members, completed, skipped, onToggle, onSkip, o
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-      <View style={styles.members}>
-        {members.length > 1 ? (
-          <View pointerEvents="none" style={[styles.rail, { backgroundColor: theme.border }]} />
-        ) : null}
+      <View>
         {members.map((habit, index) => (
           <View
             key={habit.id}
@@ -117,9 +107,7 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1 },
   divider: { height: StyleSheet.hairlineWidth },
-  members: { position: 'relative' },
   habitDivider: { borderTopWidth: StyleSheet.hairlineWidth },
-  rail: { position: 'absolute', left: RAIL_LEFT, top: ROW_HALF, bottom: ROW_HALF, width: 2, borderRadius: 1 },
 });
 
 // Memoized: a card re-renders only when its members' done-state or identity changes.

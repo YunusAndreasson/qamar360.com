@@ -38,6 +38,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabasePublishableK
 // Supabase's React Native guidance: drive token auto-refresh by app foreground
 // state (on top of `autoRefreshToken`). Stop refreshing in the background,
 // resume on return to foreground.
+if (AppState.currentState === 'active') {
+  void supabase.auth.startAutoRefresh();
+}
+
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {
     void supabase.auth.startAutoRefresh();

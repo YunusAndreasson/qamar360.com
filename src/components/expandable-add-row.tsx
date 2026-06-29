@@ -18,6 +18,8 @@ type Props = {
   subtitle: string;
   added: boolean;
   onAdd: () => void;
+  /** When added, makes the trailing ✓ tappable to undo the add. Omit to keep ✓ a confirmation. */
+  onRemove?: () => void;
   /** Habit/routine name, for the accessible labels of both add controls. */
   itemLabel: string;
   /** Visible label of the full-width add button in the expanded body. */
@@ -44,6 +46,7 @@ export function ExpandableAddRow({
   subtitle,
   added,
   onAdd,
+  onRemove,
   itemLabel,
   addLabel,
   addAccessibilityLabel,
@@ -64,6 +67,14 @@ export function ExpandableAddRow({
     onAdd();
   };
 
+  // Undo a mis-tapped add in place (only when the host wired a remover).
+  const remove = onRemove
+    ? () => {
+        haptics.removed();
+        onRemove();
+      }
+    : undefined;
+
   const addColors = addControlColors(theme, added);
 
   return (
@@ -79,7 +90,7 @@ export function ExpandableAddRow({
           accessibilityHint={expanded ? collapseHint : expandHint}
           style={({ pressed }) => [styles.expand, pressed && styles.pressed]}>
           <View style={styles.labels}>
-            <ThemedText type="default" numberOfLines={1}>
+            <ThemedText type="default" numberOfLines={2} style={styles.title}>
               {title}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
@@ -88,7 +99,7 @@ export function ExpandableAddRow({
           </View>
           <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={22} color={theme.textSecondary} />
         </Pressable>
-        <AddPill added={added} onPress={add} label={itemLabel} />
+        <AddPill added={added} onPress={add} onRemove={remove} label={itemLabel} />
       </View>
 
       {expanded ? (
@@ -133,6 +144,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   labels: { flex: 1, gap: Spacing.half },
+  title: { flexShrink: 1 },
   pressed: { opacity: Pressed.dim },
   detail: {
     paddingHorizontal: Spacing.three,

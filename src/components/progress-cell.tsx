@@ -50,7 +50,7 @@ export function ProgressCell({
         type={active ? 'smallCompactBold' : 'smallCompact'}
         numberOfLines={1}
         maxFontSizeMultiplier={DenseLabelScale}
-        style={[styles.label, { color: active ? theme.accent : theme.textSecondary }]}>
+        style={[styles.label, { color: active ? theme.accent : muted ? theme.textDisabled : theme.textSecondary }]}>
         {label}
       </ThemedText>
     </View>

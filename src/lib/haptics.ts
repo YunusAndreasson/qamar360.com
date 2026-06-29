@@ -45,6 +45,8 @@ export const haptics = {
   uncompleted: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Toggle_Off),
   /** A curated habit or stack was added to the user's own list. */
   added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Confirm),
+  /** A just-added curated habit was removed again — the lighter "undo" counterpart to {@link added}. */
+  removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Reject),
   /** The day's last open habit was completed — the ring closes. The single celebratory
    *  moment, kept as the richer "success" notification on both platforms so it stands
    *  distinctly apart from an ordinary tick. */

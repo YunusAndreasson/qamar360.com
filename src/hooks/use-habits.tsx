@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/lib/database.types';
 import { addDaysISO, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { rescheduleAll } from '@/lib/notifications';
+import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -308,6 +308,24 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     // re-run every render (new array identity). The signature is the real dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reminderSignature]);
+
+  const remainingToday = useMemo(
+    () => habits.filter((h) => scheduledOn(h, today) && !completed.has(h.id) && !skipped.has(h.id)).length,
+    [habits, completed, skipped, today],
+  );
+
+  // Keep the home-screen app icon badge aligned with the same "open today" count shown in
+  // the Habits tab badge. Scheduled notifications also set this while the app is closed.
+  useEffect(() => {
+    void setAppBadgeCount(userId ? remainingToday : 0);
+  }, [userId, remainingToday]);
+
+  useEffect(
+    () => () => {
+      void setAppBadgeCount(0);
+    },
+    [],
+  );
 
   // The `users` row backing `habits.user_id` is not auto-created on signup, so
   // self-provision it (idempotently) before the first write.
@@ -644,11 +662,18 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return;
       const removed = habitsRef.current.find((h) => h.id === habitId);
       if (!removed) return;
+      const prevStacks = stacksRef.current;
       const wasDone = completedRef.current.has(habitId);
       const wasSkipped = skippedRef.current.has(habitId);
+      const emptyStackId =
+        removed.stack_id &&
+        !habitsRef.current.some((h) => h.id !== habitId && h.stack_id === removed.stack_id)
+          ? removed.stack_id
+          : null;
 
       // Optimistic removal.
       setHabits((prev) => prev.filter((h) => h.id !== habitId));
+      if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
       setCompleted((prev) => {
         if (!prev.has(habitId)) return prev;
         const next = new Set(prev);
@@ -668,15 +693,18 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         const { error: delError } = await supabase.from('habits').delete().eq('id', habitId);
         if (delError) throw delError;
         // Completions cascade-delete via the FK — no manual cleanup needed.
-        // If that was a stack's last member, drop the now-empty stack (best-effort).
-        if (removed.stack_id && !habitsRef.current.some((h) => h.stack_id === removed.stack_id)) {
-          const emptyStackId = removed.stack_id;
-          setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
-          void supabase.from('habit_stacks').delete().eq('id', emptyStackId);
+        // If that was a stack's last member, drop the now-empty stack too.
+        if (emptyStackId) {
+          const { error: stackError } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
+          if (stackError) {
+            setStacks(prevStacks);
+            setError('Deleted the habit, but could not remove its empty stack. Pull down to refresh.');
+          }
         }
       } catch {
         // Restore on failure, keeping position order.
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
+        setStacks(prevStacks);
         if (wasDone) {
           setCompleted((prev) => {
             const next = new Set(prev);
@@ -713,7 +741,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // Optimistic reorder.
       setHabits(reordered);
 
-      const persistable = reordered.filter((h) => !h.id.startsWith('temp-'));
+      const persistable = reordered.filter((h) => {
+        if (h.id.startsWith('temp-')) return false;
+        return byId.get(h.id)?.position !== h.position;
+      });
       try {
         const results = await Promise.all(
           persistable.map((h) => supabase.from('habits').update({ position: h.position }).eq('id', h.id)),
@@ -731,7 +762,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // Persist new positions + stack_id for the given habits (optimistic state already set).
   // Mirrors `reorderHabits`' per-row update; also carries the membership change.
   const persistGrouping = useCallback(async (rows: Habit[], prevHabits: Habit[]): Promise<boolean> => {
-    const persistable = rows.filter((h) => !h.id.startsWith('temp-'));
+    const prevById = new Map(prevHabits.map((h) => [h.id, h]));
+    const persistable = rows.filter((h) => {
+      if (h.id.startsWith('temp-')) return false;
+      const prev = prevById.get(h.id);
+      return prev?.position !== h.position || (prev?.stack_id ?? null) !== (h.stack_id ?? null);
+    });
     try {
       const results = await Promise.all(
         persistable.map((h) =>

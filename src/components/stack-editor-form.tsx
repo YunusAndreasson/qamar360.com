@@ -127,7 +127,7 @@ export function StackEditorForm({
         label="NAME"
         value={name}
         onChangeText={setName}
-        placeholder="e.g. Fajr routine"
+        placeholder="e.g. Morning routine"
         autoCapitalize="sentences"
         autoFocus={isNew}
         accessibilityLabel="Stack name"
