@@ -229,7 +229,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'surah-al-kahf-friday',
     categoryId: 'quran',
-    name: 'Recite al-Kahf on Friday',
+    name: 'Recite al-Kahf',
     detail: 'Recite Surah al-Kahf (chapter 18) sometime on Friday (from Maghrib Thursday through Maghrib Friday).',
     evidence: 'Whoever reads Surah al-Kahf on Friday has light between the two Fridays (al-Ḥākim/al-Bayhaqī, ṣaḥīḥ).',
     defaultSchedule: [5],
@@ -381,7 +381,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'fast-mon-thu',
     categoryId: 'fasting',
-    name: 'Fast Monday & Thursday',
+    name: 'Sunnah fast',
     detail: 'Fast from true dawn (Fajr) to sunset (Maghrib) on Mondays and Thursdays — no food, drink, or intimacy — having intended the fast beforehand.',
     evidence: 'Deeds are presented on Mondays and Thursdays, and I like mine presented while fasting (Tirmidhi 747, ḥasan; Muslim 1162).',
     defaultSchedule: [1, 4],
@@ -390,7 +390,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'fast-white-days',
     categoryId: 'fasting',
-    name: 'Fast the White Days (13–15)',
+    name: 'Fast the White Days',
     detail: 'Fast the three white days — the 13th, 14th, and 15th of each Hijri month — from dawn to sunset.',
     evidence: 'Fasting three days each month is like fasting for life; the Prophet ﷺ enjoined the white days, the 13th, 14th, and 15th (Bukhari 1979; Tirmidhi 761, ṣaḥīḥ).',
     defaultSchedule: [],
@@ -410,7 +410,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'fast-ashura',
     categoryId: 'fasting',
-    name: 'Fast ʿĀshūrāʾ (9–10 Muḥarram)',
+    name: 'Fast ʿĀshūrāʾ',
     detail: 'Fast ʿĀshūrāʾ — the 10th of Muḥarram — together with the 9th (Tāsūʿāʾ), as the Prophet ﷺ resolved to do.',
     evidence: 'Fasting ʿĀshūrāʾ expiates the previous year; "if I live to next year I will fast the ninth" (Muslim 1134).',
     defaultSchedule: [],
@@ -551,7 +551,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'daily-walk',
     categoryId: 'wellbeing',
-    name: 'Walk every day',
+    name: 'Go for a walk',
     detail: 'Take a brisk walk of 10–30 minutes — make it your walk to the masjid wherever you can.',
     evidence: 'For every step toward the masjid a rank is raised and a sin erased (Muslim 666).',
     defaultSchedule: DAILY_SCHEDULE,
