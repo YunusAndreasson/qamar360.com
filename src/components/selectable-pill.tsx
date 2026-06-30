@@ -1,4 +1,4 @@
-import { StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -13,33 +13,43 @@ type Props = Omit<PressableProps, 'style' | 'children'> & {
   textType?: keyof typeof Typography;
   /** Shape/size override (e.g. a fixed-size grid cell or a flex segment). */
   style?: StyleProp<ViewStyle>;
+  /**
+   * Render as a plain `Pressable` (ripple only) instead of the Reanimated `PressableScale`.
+   * Use for pills that sit in a screen with a native-stack transition — e.g. the pinned Discover
+   * filter chips: a Reanimated view there is hoisted into react-native-screens' transition overlay
+   * and "flies" over the header on push/pop. A plain Pressable stays put. (Scale press feedback is
+   * dropped; the ripple + selected fill still give touch feedback.)
+   */
+  noScale?: boolean;
 };
 
 /**
- * The app's one selectable chip/pill — a `PressableScale` that paints `accent` when
- * `selected` and the card surface when not, with the standard tactile press feedback
- * and Android ripple. Owns only the colour recipe + feedback; pass `style` for the
- * specific shape (a weekday circle, a grid cell, a flex segment, a filter chip).
- * Replaces the hand-rolled `on ? accent : backgroundElement` recipe that was repeated
+ * The app's one selectable chip/pill — paints `accent` when `selected` and the card surface when
+ * not, with the standard tactile press feedback and Android ripple. Owns only the colour recipe +
+ * feedback; pass `style` for the specific shape (a weekday circle, a grid cell, a flex segment, a
+ * filter chip). Replaces the hand-rolled `on ? accent : backgroundElement` recipe that was repeated
  * across the habit editor and the Discover filter chips.
  */
-export function SelectablePill({ selected, label, textType = 'smallBold', style, ...props }: Props) {
+export function SelectablePill({ selected, label, textType = 'smallBold', style, noScale, ...props }: Props) {
   const theme = useTheme();
-  return (
-    <PressableScale
-      android_ripple={{ color: theme.backgroundSelected }}
-      style={[
-        styles.pill,
-        {
-          backgroundColor: selected ? theme.accent : theme.backgroundElement,
-          borderColor: selected ? theme.accent : theme.border,
-        },
-        style,
-      ]}
-      {...props}>
-      <ThemedText type={textType} style={{ color: selected ? theme.accentText : theme.textSecondary }}>
-        {label}
-      </ThemedText>
+  const pillStyle = [
+    styles.pill,
+    { backgroundColor: selected ? theme.accent : theme.backgroundElement, borderColor: selected ? theme.accent : theme.border },
+    style,
+  ];
+  const content = (
+    <ThemedText type={textType} style={{ color: selected ? theme.accentText : theme.textSecondary }}>
+      {label}
+    </ThemedText>
+  );
+
+  return noScale ? (
+    <Pressable android_ripple={{ color: theme.backgroundSelected }} style={pillStyle} {...props}>
+      {content}
+    </Pressable>
+  ) : (
+    <PressableScale android_ripple={{ color: theme.backgroundSelected }} style={pillStyle} {...props}>
+      {content}
     </PressableScale>
   );
 }

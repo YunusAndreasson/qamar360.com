@@ -31,6 +31,9 @@ export function DiscoverFilterChips({ filters, active, onChange }: Props) {
             key={f.id}
             selected={selected}
             label={f.label}
+            // Plain Pressable (no Reanimated scale): these pinned chips otherwise get hoisted into
+            // the native-stack transition overlay and "fly" over the header on push/pop.
+            noScale
             onPress={() => {
               if (f.id === active) return;
               haptics.selection();
