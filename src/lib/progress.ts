@@ -1,7 +1,7 @@
 /**
  * Progress math, shared by every chart. Completion in this app is shown around a lunar orbit,
  * so a rate (0–1) is expressed in orbit *degrees*, never percent — see the Progress screen.
- * Kept here so the moon ring, the month bars and the year/week strips compute it identically.
+ * Kept here so the moon ring, the month grid and the year strip compute it identically.
  *
  * `computeProgress` lives here (not in the hook) so it stays a pure function with no React or
  * Supabase imports — directly unit-testable.
@@ -38,10 +38,12 @@ export type ProgressHabit = {
   created_at: string | null;
   schedule_days: number[];
   hijri_schedule?: HijriSchedule | null;
+  /** A count-goal target (e.g. 5 pages); a scheduled day earns `count ÷ target` credit. Null = binary. */
+  target_count?: number | null;
 };
 
 /** The completion-row fields the progress math reads. */
-export type CompletionRow = Pick<Tables<'habit_completions'>, 'habit_id' | 'completed_at' | 'status'>;
+export type CompletionRow = Pick<Tables<'habit_completions'>, 'habit_id' | 'completed_at' | 'status' | 'count'>;
 
 /** One day of the current Hijri month, for the "This month" bars. */
 export type MonthDay = {
@@ -124,32 +126,43 @@ export function computeProgress(
   completions: CompletionRow[],
   today: string,
 ): ProgressDerived {
-  // date → set of habit ids done that day, and date → set skipped (excused) that day.
-  // A skipped act is excluded from the rate entirely (numerator AND denominator), so it
-  // never counts as a miss — travel/period days can still read 100%.
-  const byDate = new Map<string, Set<string>>();
-  const skippedByDate = new Map<string, Set<string>>();
+  // date → (habit id → its completion row) for that day. A skipped act is excluded from the
+  // rate entirely (numerator AND denominator), so it never counts as a miss — travel/period
+  // days can still read 100%. A count goal earns partial credit (count ÷ target); a 'partial'
+  // row is an in-progress count goal.
+  const rowByDate = new Map<string, Map<string, CompletionRow>>();
   for (const row of completions) {
-    const map = row.status === 'skipped' ? skippedByDate : byDate;
-    let set = map.get(row.completed_at);
-    if (!set) {
-      set = new Set();
-      map.set(row.completed_at, set);
+    let m = rowByDate.get(row.completed_at);
+    if (!m) {
+      m = new Map();
+      rowByDate.set(row.completed_at, m);
     }
-    set.add(row.habit_id);
+    m.set(row.habit_id, row);
   }
 
-  // A day's completion fraction (done / scheduled, minus excused), for the per-day month bars.
+  // One scheduled habit's credit toward a day's rate: `null` = excused (drop from numerator
+  // AND denominator); otherwise 0–1. A count goal earns `count ÷ target` (capped at 1); a
+  // binary habit earns 1 when 'done', else 0.
+  const habitCredit = (h: ProgressHabit, iso: string): number | null => {
+    const row = rowByDate.get(iso)?.get(h.id);
+    if (row?.status === 'skipped') return null; // excused — out of the rate entirely
+    if (h.target_count && h.target_count > 0) {
+      if (row?.status === 'done') return 1; // reached target
+      return clamp01((row?.count ?? 0) / h.target_count); // in-progress count goal
+    }
+    return row?.status === 'done' ? 1 : 0; // binary
+  };
+
+  // A day's completion fraction (credit ÷ scheduled, minus excused), for the per-day month bars.
   const dayFraction = (iso: string): number => {
-    const done = byDate.get(iso);
-    const skip = skippedByDate.get(iso);
     let c = 0;
     let p = 0;
     for (const h of habits) {
       if (!scheduledOn(h, iso)) continue;
-      if (skip?.has(h.id)) continue; // excused — out of the rate entirely
+      const credit = habitCredit(h, iso);
+      if (credit === null) continue; // excused — out of the rate entirely
       p += 1;
-      if (done?.has(h.id)) c += 1;
+      c += credit;
     }
     return p ? c / p : 0;
   };
@@ -161,13 +174,12 @@ export function computeProgress(
     let done = 0;
     let possible = 0;
     for (let day = startISO; day <= endISO; day = addDaysISO(day, 1)) {
-      const got = byDate.get(day);
-      const skip = skippedByDate.get(day);
       for (const h of habits) {
         if (!scheduledOn(h, day)) continue;
-        if (skip?.has(h.id)) continue; // excused — excluded from done and possible
+        const credit = habitCredit(h, day);
+        if (credit === null) continue; // excused — excluded from done and possible
         possible += 1;
-        if (got?.has(h.id)) done += 1;
+        done += credit; // count goals add a fraction; binary habits add 1 or 0
       }
     }
     return { done, possible };

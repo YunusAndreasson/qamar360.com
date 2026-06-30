@@ -49,9 +49,11 @@ export function ThemeSegmented() {
             accessibilityState={{ selected }}
             accessibilityLabel={`${option.label} appearance`}
             android_ripple={{ color: theme.backgroundSelected }}
-            style={[styles.segment, selected && { backgroundColor: theme.accent }]}>
-            <MaterialIcons name={option.icon} size={16} color={selected ? theme.accentText : theme.textSecondary} />
-            <ThemedText type="smallBold" style={{ color: selected ? theme.accentText : theme.textSecondary }}>
+            // Selected reads as a raised thumb (a lighter tonal fill) carrying the one accent touch
+            // on its icon + label — not a saturated solid-accent block.
+            style={[styles.segment, selected && { backgroundColor: theme.backgroundSelected }]}>
+            <MaterialIcons name={option.icon} size={16} color={selected ? theme.accent : theme.textSecondary} />
+            <ThemedText type="smallBold" style={{ color: selected ? theme.accent : theme.textSecondary }}>
               {option.label}
             </ThemedText>
           </PressableScale>

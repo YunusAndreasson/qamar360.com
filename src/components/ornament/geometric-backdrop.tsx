@@ -2,7 +2,7 @@ import { useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { useTheme } from '@/hooks/use-theme';
+import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { flowerOfLife, type GCircle } from '@/lib/geometry';
 import { moonIllumination, moonPhasePath } from '@/lib/moon';
@@ -148,7 +148,64 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
         </G>
       </Svg>
       {phase ? <SkyMoon illumination={phase.illumination} waxing={phase.waxing} /> : null}
+      {variant === 'screen' ? <ScreenTint /> : null}
+      {variant === 'screen' ? <ScreenVignette /> : null}
     </View>
+  );
+}
+
+/**
+ * The sky leans with the worship day — a whisper of horizon light that warms toward Maghrib (dusk)
+ * and cools toward Fajr (dawn), fading to nothing at midday and in the depth of night (the cold mono
+ * base). Those threshold hours are exactly the prayer times the app is built around. Kept ≤6% so it
+ * is felt over hours, never seen as a tint.
+ */
+function ScreenTint() {
+  const uid = useId();
+  const id = `bd-tint-${uid}`;
+  const now = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const dusk = Math.max(0, 1 - Math.abs(hour - 18.5) / 3.5); // warm, peaks ~Maghrib
+  const dawn = Math.max(0, 1 - Math.abs(hour - 5.5) / 3); // cool, peaks ~Fajr
+  const warm = dusk >= dawn;
+  const strength = warm ? dusk : dawn;
+  if (strength <= 0.02) return null; // midday / deep night: pure cold base, no wash
+  const color = warm ? '#E8C39A' : '#A9C2E8';
+  const opacity = 0.06 * strength;
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity={opacity} />
+          <Stop offset="0.55" stopColor={color} stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+/**
+ * A whisper of a vignette — the screen edges fall toward deep space so content reads as floating in
+ * a lit room rather than on a flat fill. A real corner-fall in dark, barely there in light (a heavy
+ * vignette on a light page reads as dirt). Centre-high, tracking the moon's glow in the upper sky.
+ */
+function ScreenVignette() {
+  const scheme = useEffectiveScheme();
+  const uid = useId();
+  const id = `bd-vignette-${uid}`;
+  const edge = scheme === 'dark' ? 0.4 : 0.05;
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <Defs>
+        <RadialGradient id={id} cx="50%" cy="36%" r="80%">
+          <Stop offset="0" stopColor="#000" stopOpacity="0" />
+          <Stop offset="0.6" stopColor="#000" stopOpacity="0" />
+          <Stop offset="1" stopColor="#000" stopOpacity={edge} />
+        </RadialGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+    </Svg>
   );
 }
 

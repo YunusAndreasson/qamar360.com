@@ -73,6 +73,8 @@ function MoonDay({ day: d, index, monthLength }: { day: MonthDay; index: number;
         phase={{ illumination, waxing }}
         active={d.state === 'today'}
         muted={d.state === 'future'}
+        // The White Days (13th–15th): the moon is full and the Sunnah fast falls here.
+        whiteDay={d.day >= 13 && d.day <= 15}
         size={MOON_SIZE}
       />
     </Animated.View>

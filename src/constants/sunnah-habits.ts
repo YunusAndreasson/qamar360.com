@@ -50,6 +50,10 @@ export type SunnahPreset = {
   defaultSchedule: number[];
   /** A Hijri recurrence instead of weekdays. When set, the preset is Hijri-scheduled (store `defaultSchedule: []`). */
   hijriSchedule?: HijriSchedule;
+  /** A numeric daily target (a "count goal"), for presets that are naturally counted (cups, servings). */
+  targetCount?: number;
+  /** Unit label shown next to the count ("cups", "servings"). Only meaningful with `targetCount`. */
+  targetUnit?: string;
   /** MaterialIcons glyph (rendered on both platforms, matching `SettingsRow`). */
   icon: keyof typeof MaterialIcons.glyphMap;
   /** Part of the one-tap "starter set" — a balanced daily core for a new user. */
@@ -564,6 +568,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Stay hydrated — aim for 6–8 cups across the day, drinking seated and in a few breaths rather than one gulp.',
     evidence: 'The Prophet ﷺ would drink in three breaths and forbade gulping in one (Muslim 2028).',
     defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 8,
+    targetUnit: 'cups',
     icon: 'local-drink',
   },
   {
@@ -685,6 +691,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Eat at least two servings of vegetables today — add them to meals or have them as snacks.',
     evidence: 'Higher vegetable intake tracks with much lower risk of heart disease and early death — up to ~31% lower all-cause mortality near 800g a day of fruit and veg (Aune et al., Int. J. Epidemiol. 2017).',
     defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 2,
+    targetUnit: 'servings',
     icon: 'grass',
   },
   {

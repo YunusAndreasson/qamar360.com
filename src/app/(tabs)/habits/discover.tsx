@@ -38,6 +38,9 @@ const toCreate = (preset: SunnahPreset) => ({
   // Hijri presets store empty weekdays + a hijri_schedule; weekly presets the reverse.
   schedule_days: preset.hijriSchedule ? [] : preset.defaultSchedule,
   hijri_schedule: preset.hijriSchedule ?? null,
+  // A few presets are naturally counted (cups, servings); the rest stay binary.
+  target_count: preset.targetCount ?? null,
+  target_unit: preset.targetUnit ?? null,
   // Reminders are opt-in: presets never pre-schedule a notification (this is a habit
   // tracker, not a prayer-times app). The user sets a time per habit in the editor.
   reminder_time: null,
@@ -148,11 +151,11 @@ export default function DiscoverScreen() {
   // Section-level enter + reflow as chips/search change (reduced-motion drops the reflow). No
   // per-section *exit*: the native stack already animates this whole screen out on a back-pop,
   // and a Reanimated `exiting` on these children reparents them into an overlay mid-transition,
-  // so they "fly" over the header as the screen slides away (the violet add-pills most visibly).
+  // so they "fly" over the header as the screen slides away (the accent add-pills most visibly).
   //
   // The same reparenting bites on the way *in*: an `entering`/`layout` that runs while this
   // screen is being pushed gets hoisted into the stack's transition overlay, so a section card
-  // (most visibly the violet "essentials" starter) flies over the header. So arm the animations
+  // (most visibly the accent "essentials" starter) flies over the header. So arm the animations
   // only AFTER the push settles — the initially-visible sections then mount un-animated (the
   // native slide is their entrance), while later chip/search reflows still fade and shift.
   const [entryReady, setEntryReady] = useState(false);
@@ -200,7 +203,7 @@ export default function DiscoverScreen() {
       {/* Filter chips are a real sticky ScrollView header (via AppScreen `stickyHeader`) — still
           pinned under the native search bar for findability, but a descendant of the single tracked
           scroll. As an outside-the-scroll sibling they sat un-inset at the screen's true top and
-          react-native-screens flashed them over the header on the back-swipe (the violet "All" pill
+          react-native-screens flashed them over the header on the back-swipe (the selected "All" pill
           + grey chips). The route's centered "Add Habit" is the title. */}
       <AppScreen
         keyboardDismissMode="on-drag"
@@ -256,7 +259,7 @@ export default function DiscoverScreen() {
             {/* One-tap starter set for a new user — only in the default browse view. */}
             {isDefault && starterRemaining.length > 0 ? (
               <Animated.View key="starter" entering={enter} layout={layout}>
-                <Surface padded pattern style={[styles.starter, { backgroundColor: theme.accentSubtle }]}>
+                <Surface padded pattern contentStyle={[styles.starter, { backgroundColor: theme.accentSubtle }]}>
                   <ThemedText type="smallBold" themeColor="accent">
                     New here? Start with the essentials
                   </ThemedText>

@@ -24,21 +24,21 @@ type Props = Omit<PressableProps, 'style' | 'children'> & {
 };
 
 /**
- * The app's one selectable chip/pill — paints `accent` when `selected` and the card surface when
- * not, with the standard tactile press feedback and Android ripple. Owns only the colour recipe +
- * feedback; pass `style` for the specific shape (a weekday circle, a grid cell, a flex segment, a
- * filter chip). Replaces the hand-rolled `on ? accent : backgroundElement` recipe that was repeated
- * across the habit editor and the Discover filter chips.
+ * The app's one selectable chip/pill. Selected reads as *lit*, not blocked-in: a tonal `accentSubtle`
+ * wash with an `accent` outline and `accent` label — the Linear/Notion treatment — instead of a
+ * saturated solid-accent fill (which made a field of chosen days read as a wall of bright blocks).
+ * Owns only the colour recipe + feedback; pass `style` for the specific shape (a weekday circle, a
+ * grid cell, a flex segment, a filter chip).
  */
 export function SelectablePill({ selected, label, textType = 'smallBold', style, noScale, ...props }: Props) {
   const theme = useTheme();
   const pillStyle = [
     styles.pill,
-    { backgroundColor: selected ? theme.accent : theme.backgroundElement, borderColor: selected ? theme.accent : theme.border },
+    { backgroundColor: selected ? theme.accentSubtle : theme.backgroundElement, borderColor: selected ? theme.accent : theme.border },
     style,
   ];
   const content = (
-    <ThemedText type={textType} style={{ color: selected ? theme.accentText : theme.textSecondary }}>
+    <ThemedText type={textType} style={{ color: selected ? theme.accent : theme.textSecondary }}>
       {label}
     </ThemedText>
   );

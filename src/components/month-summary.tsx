@@ -1,13 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
+  useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Polygon } from 'react-native-svg';
+import Svg, { Circle, Defs, Polygon, RadialGradient, Stop } from 'react-native-svg';
 
 import { MoonPhase } from '@/components/moon-phase';
 import { MoonHalo } from '@/components/ornament/moon-halo';
@@ -29,6 +31,9 @@ const RING_STROKE = 12;
 const MOON_SIZE = ORBIT_SIZE - RING_STROKE * 3;
 // The halo radiates past the orbit into the card; sized to stay within the card's width.
 const HALO_SIZE = 330;
+// The completion bloom — a warm aura that blooms behind the moon and past the orbit when the
+// whole month is done. Smaller than the halo so it stays an aura, not a wash.
+const GLOW_SIZE = 300;
 const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
 // The Q's tail — last month's pace marker — sits just outside the rim (like the tail on
 // the app's "Q"), so the canvas is a touch larger than the ring footprint to give that
@@ -42,6 +47,18 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 /** Month-to-date progress wrapped around the real moon for today's Hijri date. */
 export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const theme = useTheme();
+
+  // Tonight's moon breathes — a very slow, shallow luminance dip, like the calm of dhikr, so the
+  // "you are here" moon reads as alive rather than merely lit. Reduce Motion holds it at full.
+  const reduceMotion = useReducedMotion();
+  const breath = useSharedValue(0);
+  useEffect(() => {
+    breath.value = reduceMotion
+      ? 0
+      : withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [reduceMotion, breath]);
+  const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.value * 0.07 }));
+
   if (!month) return null;
 
   const { monthName, year, dayOfMonth, monthLength, thisRate, previousRate, hasPrevious } = month;
@@ -63,15 +80,24 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
       <View style={styles.hero}>
         <View style={styles.orbit}>
-          <MoonHalo size={HALO_SIZE} />
+          {/* The month is done: the moon lights up. A warm aura blooms behind it and past the
+              orbit — the one moment the whole emblem glows. */}
+          {thisRate >= 1 ? <HeroGlow size={GLOW_SIZE} /> : null}
+          {/* The sacred geometry firms up as the month fills — faintest at the new month, clearest
+              when complete: "the moon generates the order", clarified by your consistency. */}
+          <MoonHalo size={HALO_SIZE} strokeOpacity={0.1 + 0.12 * thisRate} />
           <ProgressOrbit current={thisRate} previous={hasPrevious ? previousRate : 0} />
-          <View style={styles.moon}>
-            <MoonPhase illumination={illumination} waxing={waxing} size={MOON_SIZE} />
-          </View>
+          {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
+              moonlight, still opaque) and lets the bright ring + the degrees readout lead,
+              brightening to full only when the month is done (where the glow also lights). It
+              breathes slowly — tonight's moon, alive. */}
+          <Animated.View style={[styles.moon, moonBreath]}>
+            <MoonPhase illumination={illumination} waxing={waxing} size={MOON_SIZE} brightness={thisRate >= 1 ? 1 : 0.8} />
+          </Animated.View>
         </View>
 
         <View style={styles.metrics}>
-          <ThemedText type="subtitleBold">
+          <ThemedText type="display">
             {thisDegrees}°
           </ThemedText>
           <View style={styles.pace}>
@@ -110,9 +136,9 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   const reduceMotion = useReducedMotion();
   const currentRate = clamp01(current);
   const previousRate = clamp01(previous);
-  // Progress is always purple (gold is reserved for the moon itself); a full bright ring = the
-  // month complete.
-  const currentColor = theme.accent;
+  // The orbit carries the two-temperature signal: cool steel while the month is in progress, warm
+  // `complete` moonlight the instant it's done — so a finished orbit reads warm, matching the moon.
+  const currentColor = currentRate >= 1 ? theme.complete : theme.accent;
 
   // The orbit sweeps from empty to the month's completion on appear (and re-animates
   // when the rate changes) — the screen's signature motion. Reduce Motion lands it
@@ -194,11 +220,37 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   );
 }
 
+/** The completion aura — a warm radial bloom rendered behind the moon only when the whole month is
+ *  done. The moon disc occludes the bright centre, so what shows is a soft halo of moonlight around
+ *  the body, reaching past the orbit ring: the emblem "lit up". Non-interactive; rendered first. */
+function HeroGlow({ size }: { size: number }) {
+  const theme = useTheme();
+  const uid = useId();
+  const id = `hero-glow-${uid}`;
+  const r = size / 2;
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.glow]}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor={theme.glow} stopOpacity={0.55} />
+            <Stop offset="0.55" stopColor={theme.glow} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={theme.glow} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={r} cy={r} r={r} fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   // One card gap across all three Progress stat cards (this hero, MonthMoons, YearTrend) so
   // their header→content rhythm reads identically down the screen.
   card: { gap: Spacing.three },
   hero: { alignItems: 'center', gap: Spacing.three },
+  // The completion bloom is centred over the orbit, behind every other layer.
+  glow: { alignItems: 'center', justifyContent: 'center' },
   orbit: {
     width: ORBIT_SIZE,
     height: ORBIT_SIZE,

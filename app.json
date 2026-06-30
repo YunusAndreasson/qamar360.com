@@ -18,7 +18,7 @@
     "android": {
       "package": "com.qamar360.app",
       "adaptiveIcon": {
-        "backgroundColor": "#10131B",
+        "backgroundColor": "#08090C",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -30,19 +30,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#10131B",
+          "backgroundColor": "#08090C",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160,
           "resizeMode": "contain"
         }
       ],
       "expo-sqlite",
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Allow Qamar360 to show your local sunrise and sunset."
-        }
-      ],
       "@react-native-community/datetimepicker",
       [
         "expo-build-properties",

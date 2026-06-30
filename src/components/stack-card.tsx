@@ -19,7 +19,11 @@ type Props = {
   completed: Set<string>;
   /** Ids of members skipped (excused) for the viewed day. */
   skipped: Set<string>;
+  /** For count-goal members: the count logged for the viewed day (habit id → count). */
+  counts: Map<string, number>;
   onToggle: (id: string) => void;
+  /** Step a count-goal member's logged count for the viewed day by `delta` (±1). */
+  onAdjust: (id: string, delta: number) => void;
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
@@ -36,7 +40,7 @@ type Props = {
  * each member is still ticked individually. The header is the drag handle and opens the
  * stack editor.
  */
-function StackCardBase({ stack, members, completed, skipped, onToggle, onSkip, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
+function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
   const theme = useTheme();
 
   const onHeaderLongPress = drag
@@ -79,7 +83,9 @@ function StackCardBase({ stack, members, completed, skipped, onToggle, onSkip, o
               habit={habit}
               done={completed.has(habit.id)}
               skipped={skipped.has(habit.id)}
+              count={counts.get(habit.id) ?? 0}
               onToggle={onToggle}
+              onAdjust={onAdjust}
               onSkip={onSkip}
               onEdit={onEdit}
               onDelete={onDelete}

@@ -13,6 +13,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import { CompletionRing } from '@/components/completion-ring';
 import { PressableScale } from '@/components/pressable-scale';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
@@ -21,13 +22,18 @@ import { Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
+import { clamp01 } from '@/lib/progress';
 
 type Props = {
   habit: Habit;
   done: boolean;
   /** True when this habit is legitimately skipped (excused) for the viewed day. */
   skipped: boolean;
+  /** For count-goal habits: the count logged for the viewed day (0 when nothing logged). */
+  count?: number;
   onToggle: (id: string) => void;
+  /** Step a count-goal habit's logged count for the viewed day by `delta` (±1). */
+  onAdjust?: (id: string, delta: number) => void;
   /** Toggle the habit's skipped (excused) state for the viewed day. */
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
@@ -96,8 +102,17 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, onToggle, onSkip, onEdit, onDelete, drag, isActive, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, drag, isActive, standalone }: Props) {
   const theme = useTheme();
+
+  // A count goal (numeric daily target) is logged with a −/+ stepper rather than a single
+  // tap; `target == null` is an ordinary binary habit (tap the row to toggle done).
+  const target = habit.target_count;
+  const isCount = target != null;
+
+  // The completion fraction that fills the leading moon ring (the same unit the Progress grid
+  // uses): a count goal waxes by `count ÷ target`; a binary habit is a full moon when done.
+  const fraction = isCount && target ? clamp01(count / target) : done ? 1 : 0;
 
   // Spring "pop" on the check icon when a habit is completed — a tactile-feeling
   // confirmation. We skip the very first run so rows that load already-done don't
@@ -202,37 +217,49 @@ function HabitRowBase({ habit, done, skipped, onToggle, onSkip, onEdit, onDelete
       // don't let a stray horizontal pan also open the swipe panel.
       enabled={!isActive}>
       <Pressable
-        onPress={() => onToggle(habit.id)}
+        // A count goal is logged with its stepper (below), so the row body doesn't toggle —
+        // but it still long-presses to reorder. A binary habit toggles done on tap.
+        onPress={isCount ? undefined : () => onToggle(habit.id)}
         onLongPress={onLongPress}
         disabled={isActive}
-        android_ripple={{ color: theme.backgroundSelected }}
-        accessibilityRole="checkbox"
+        android_ripple={isCount ? undefined : { color: theme.backgroundSelected }}
+        accessibilityRole={isCount ? 'adjustable' : 'checkbox'}
         accessibilityState={{ checked: done }}
-        accessibilityLabel={skipped ? `${habit.name}, skipped` : habit.name}
+        accessibilityValue={isCount ? { min: 0, max: target ?? 0, now: count } : undefined}
+        accessibilityLabel={
+          isCount
+            ? `${habit.name}, ${count} of ${target}${habit.target_unit ? ` ${habit.target_unit}` : ''}`
+            : skipped
+              ? `${habit.name}, skipped`
+              : habit.name
+        }
         accessibilityHint={
-          drag
-            ? 'Activates to toggle done. Long press to reorder. Swipe left to skip, edit, or delete.'
-            : 'Activates to toggle done. Swipe left to skip, edit, or delete.'
+          isCount
+            ? drag
+              ? 'Use the stepper to log progress. Long press to reorder. Swipe left to skip, edit, or delete.'
+              : 'Use the stepper to log progress. Swipe left to skip, edit, or delete.'
+            : drag
+              ? 'Activates to toggle done. Long press to reorder. Swipe left to skip, edit, or delete.'
+              : 'Activates to toggle done. Swipe left to skip, edit, or delete.'
         }
         // A press lights the whole band rather than just dimming it, so the entire
         // row reads as one button — leading circle to trailing edge is the tap target.
-        style={({ pressed }) => [styles.row, (pressed || isActive) && { backgroundColor: theme.backgroundSelected }]}>
-        <View style={[styles.iconShell, { backgroundColor: theme.backgroundElement }]}>
-          <Animated.View style={iconStyle}>
-            {/* Done = filled check; skipped = a "no-entry" circle (excused, not missed);
-                otherwise the empty ring. Skipped shares the muted tone but a distinct glyph. */}
-            <MaterialIcons
-              name={done ? 'check-circle' : skipped ? 'do-not-disturb-on' : 'radio-button-unchecked'}
-              size={28}
-              // Done wears `accent` (the same indigo that fills the Progress orbit), not a
-              // standalone green — so "a habit completed" and "the orbit it fills" read as one
-              // colour. The filled glyph + struck-through label still carry "done" on their own.
-              color={done ? theme.accent : theme.textSecondary}
-            />
-          </Animated.View>
-        </View>
+        style={({ pressed }) => [styles.row, (pressed || isActive) && !isCount && { backgroundColor: theme.backgroundSelected }]}>
+        <Animated.View style={[styles.indicator, iconStyle]}>
+          {/* The leading mark is a ring that resolves to a check — a count goal fills it partway in
+              cool steel, a binary habit closes it in one tap and lights up warm at done. (No moon
+              here: a full moon means the calendar on Progress, not a finished task.) Skipped keeps a
+              distinct "no-entry" glyph — it's excused, a state apart from the completion continuum,
+              not a half-done point on it. */}
+          {skipped ? (
+            <MaterialIcons name="do-not-disturb-on" size={28} color={theme.textSecondary} />
+          ) : (
+            <CompletionRing fraction={fraction} size={28} strokeWidth={3} />
+          )}
+        </Animated.View>
         <ThemedText
           type="default"
+          numberOfLines={2}
           // Done is struck through; skipped is merely muted (no strikethrough — it's
           // excused, not finished, and reads differently from a completed act).
           style={[
@@ -242,6 +269,34 @@ function HabitRowBase({ habit, done, skipped, onToggle, onSkip, onEdit, onDelete
           ]}>
           {habit.name}
         </ThemedText>
+        {isCount ? (
+          // The count goal's logger: −  n / target unit  +. Each button is its own pressable
+          // so it captures the tap (the row body stays a long-press-to-reorder target).
+          <View style={styles.stepper}>
+            <PressableScale
+              onPress={() => onAdjust?.(habit.id, -1)}
+              disabled={count <= 0}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove one from ${habit.name}`}
+              style={[styles.stepButton, { borderColor: theme.border }]}>
+              <MaterialIcons name="remove" size={18} color={count <= 0 ? theme.textDisabled : theme.text} />
+            </PressableScale>
+            <ThemedText type="smallBold" numberOfLines={1} style={styles.stepCount}>
+              {count}/{target}
+              {habit.target_unit ? ` ${habit.target_unit}` : ''}
+            </ThemedText>
+            <PressableScale
+              onPress={() => onAdjust?.(habit.id, 1)}
+              disabled={count >= (target ?? 0)}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Add one to ${habit.name}`}
+              style={[styles.stepButton, { borderColor: theme.border }]}>
+              <MaterialIcons name="add" size={18} color={count >= (target ?? 0) ? theme.textDisabled : theme.accent} />
+            </PressableScale>
+          </View>
+        ) : null}
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -268,14 +323,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
   },
-  iconShell: {
+  indicator: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: { flex: 1 },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  stepButton: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  label: { flex: 1 },
+  stepCount: {
+    minWidth: 40,
+    maxWidth: 96,
+    textAlign: 'center',
+    // Tabular figures so the count doesn't jiggle the layout as digits change (9 → 10).
+    fontVariant: ['tabular-nums'],
+  },
   actions: { flexDirection: 'row', alignSelf: 'stretch' },
   actionClip: {
     alignSelf: 'stretch',

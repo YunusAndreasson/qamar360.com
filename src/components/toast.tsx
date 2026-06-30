@@ -74,8 +74,10 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
+  // No green in the palette — a success ("done") toast wears the warm `complete` moonlight, the
+  // same positive note the completion rings use; danger stays red; everything else is accent.
   const tint =
-    toast.variant === 'success' ? theme.success : toast.variant === 'danger' ? theme.danger : theme.accent;
+    toast.variant === 'success' ? theme.complete : toast.variant === 'danger' ? theme.danger : theme.accent;
 
   return (
     <Animated.View

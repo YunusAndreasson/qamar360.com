@@ -51,8 +51,24 @@ const whiteDaysHabit = (id: string): ProgressHabit => ({
   hijri_schedule: { monthDays: [13, 14, 15] },
 });
 
-const done = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'done' });
-const skip = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'skipped' });
+const done = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'done', count: null });
+const skip = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'skipped', count: null });
+
+/** A count-goal habit (scheduled every day) with a numeric daily target. */
+const countHabit = (id: string, target: number): ProgressHabit => ({
+  id,
+  created_at: null,
+  schedule_days: [0, 1, 2, 3, 4, 5, 6],
+  hijri_schedule: null,
+  target_count: target,
+});
+/** A count-goal completion row: `status` 'partial' while in progress, 'done' once at target. */
+const countRow = (habit_id: string, completed_at: string, count: number, status: 'done' | 'partial'): CompletionRow => ({
+  habit_id,
+  completed_at,
+  status,
+  count,
+});
 
 /** The Hijri shape of a day, read from the already-tested calendar helpers (no hardcoded 29/30). */
 function monthShape(today: string) {
@@ -262,5 +278,51 @@ describe('computeProgress — monotonicity', () => {
       prev = deg;
     }
     expect(prev).toBe(360); // every day of the month done → a complete orbit
+  });
+});
+
+// ── Count goals: a scheduled day earns count ÷ target (partial credit), not just 0/1 ─────────
+describe('computeProgress — count goals earn partial credit', () => {
+  const start = monthShape('2026-06-15').start;
+  const today = addDaysISO(start, 5); // day 6, mid-month → an unambiguous 'today' cell
+  const dom = monthShape(today).dayOfMonth;
+
+  const cellToday = (habits: ProgressHabit[], comps: CompletionRow[]) =>
+    computeProgress(habits, comps, today).month!.days[dom - 1]!;
+
+  it("a partial count (3 of 5) fills 3/5 of that day's cell", () => {
+    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 3, 'partial')]).fraction).toBeCloseTo(3 / 5, 10);
+  });
+
+  it('reaching the target closes the cell (1)', () => {
+    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 5, 'done')]).fraction).toBe(1);
+  });
+
+  it('no row → an empty cell (0)', () => {
+    expect(cellToday([countHabit('c', 5)], []).fraction).toBe(0);
+  });
+
+  it('a count beyond the target never exceeds full credit', () => {
+    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 99, 'done')]).fraction).toBe(1);
+  });
+
+  it("mixes with a binary habit as the average of the two acts' credit", () => {
+    // binary done (credit 1) + count goal 1 of 4 (credit 0.25) → cell = (1 + 0.25) / 2.
+    const cell = cellToday([dailyHabit('b'), countHabit('c', 4)], [done('b', today), countRow('c', today, 1, 'partial')]);
+    expect(cell.fraction).toBeCloseTo((1 + 0.25) / 2, 10);
+  });
+
+  it('a partial count feeds the whole-month ring proportionally', () => {
+    // One daily count goal (target 4) with 2 logged today and nothing else this month:
+    // month-to-date credit = 0.5 (today only), whole-month possible = `length` scheduled days.
+    const { length } = monthShape(today);
+    const m = computeProgress([countHabit('c', 4)], [countRow('c', today, 2, 'partial')], today).month!;
+    expect(m.thisRate).toBeCloseTo(0.5 / length, 10);
+  });
+
+  it('a skipped count goal leaves the rate entirely (excused, like a binary skip)', () => {
+    // Skip the count goal on a 2-habit day → the day reads off the other (done) habit only.
+    const cell = cellToday([dailyHabit('b'), countHabit('c', 4)], [done('b', today), skip('c', today)]);
+    expect(cell.fraction).toBe(1); // 'c' excused → 1 of 1 remaining
   });
 });

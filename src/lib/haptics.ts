@@ -47,8 +47,38 @@ export const haptics = {
   added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Confirm),
   /** A just-added curated habit was removed again — the lighter "undo" counterpart to {@link added}. */
   removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Reject),
-  /** The day's last open habit was completed — the ring closes. The single celebratory
-   *  moment, kept as the richer "success" notification on both platforms so it stands
-   *  distinctly apart from an ordinary tick. */
-  celebrate: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+  /**
+   * The day's last open habit was completed — the ring closes. The single celebratory moment, and
+   * it carries the weight of tonight's moon (`illumination` 0–1): the quietest tap on a new-moon
+   * night, the richer "success" beat through the month, and a rounder, weightier double-beat toward
+   * the full moon (laylat al-badr). So finishing the day literally has the heft of the moon.
+   */
+  celebrate: (illumination = 0.5) => {
+    if (illumination < 0.34) {
+      // New-moon nights — the quietest close.
+      run(
+        isAndroid
+          ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Toggle_On)
+          : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+      );
+      return;
+    }
+    run(
+      isAndroid
+        ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Confirm)
+        : () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+    );
+    if (illumination > 0.66) {
+      // Toward the full moon — a rounder, weightier tail beat.
+      setTimeout(
+        () =>
+          run(
+            isAndroid
+              ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
+              : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy),
+          ),
+        130,
+      );
+    }
+  },
 };

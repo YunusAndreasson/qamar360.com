@@ -17,7 +17,9 @@ export function StatCard({
   patternVariant,
   ...rest
 }: ViewProps & { pattern?: boolean; patternVariant?: 'card' | 'hero' }) {
-  return <Surface padded pattern={pattern} patternVariant={patternVariant} style={style} {...rest} />;
+  // A stat card's `style` is content rhythm (the card gap), so it rides the inner content layer —
+  // the outer card keeps the elevation shadow.
+  return <Surface padded pattern={pattern} patternVariant={patternVariant} contentStyle={style} {...rest} />;
 }
 
 /**

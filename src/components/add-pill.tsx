@@ -2,17 +2,18 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
+import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** The "already added" confirmation copy — used by the expanded full-width add button. */
 export const ADDED_LABEL = 'Added ✓';
 
 /**
- * The fill + label colours every add control wears — a solid accent button before adding, an
- * accent-subtle chip once added. Staying within the one indigo "moonlight" accent (rather than a
- * separate green) keeps add controls in step with the habit done-check and the Progress orbit.
- * One recipe so the row's {@link AddPill} and the expanded full-width add button
- * ({@link ExpandableAddRow}) can never drift in colour.
+ * The fill + label colours every add control wears — a solid accent button before adding (add is a
+ * real primary action, so it keeps the one solid-accent fill), an accent-subtle chip once added.
+ * Staying within the one steel "moonlight" accent (rather than a separate green) keeps add controls
+ * in step with the habit done-check and the Progress orbit. One recipe so the row's {@link AddPill}
+ * and the expanded full-width add button ({@link ExpandableAddRow}) can never drift in colour.
  */
 export function addControlColors(theme: ReturnType<typeof useTheme>, added: boolean) {
   return {
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16, // = width / 2, a circular tap target
+    borderRadius: Radius.full, // a circular tap target
     overflow: 'hidden', // clip the Android ripple to the circle
   },
 });

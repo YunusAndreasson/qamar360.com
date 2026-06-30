@@ -12,8 +12,9 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
+import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
+import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 
@@ -33,6 +34,10 @@ export type HabitPatch = {
   reminder_time?: string | null;
   /** Set to a {@link HijriSchedule} to make the habit Hijri-scheduled, or `null` for weekly. */
   hijri_schedule?: HijriSchedule | null;
+  /** A numeric daily target (a "count goal"), or `null` for a plain binary habit. */
+  target_count?: number | null;
+  /** Optional unit label shown next to the count ("pages", "cups"); `null` for none. */
+  target_unit?: string | null;
 };
 
 /** Everything needed to create a habit (name + schedule + optional reminder). */
@@ -42,6 +47,10 @@ export type HabitCreate = {
   reminder_time: string | null;
   /** A Hijri recurrence instead of weekdays; omit/null for a weekly habit. */
   hijri_schedule?: HijriSchedule | null;
+  /** A numeric daily target (a "count goal"); omit/null for a plain binary habit. */
+  target_count?: number | null;
+  /** Optional unit label shown next to the count ("pages", "cups"). */
+  target_unit?: string | null;
 };
 
 /** How far back the day-stepper lets you backfill a missed completion. */
@@ -50,6 +59,16 @@ const BACKFILL_DAYS = 30;
 /** Safety cap on the first load: if the network (or a stale session) hangs, we flip to a
  *  retryable error instead of spinning forever. Mirrors AuthProvider's `initialized` net. */
 const LOAD_TIMEOUT_MS = 12000;
+
+/** Tonight's moon illumination (0–1) for a given local date, so the day-complete haptic can carry
+ *  the weight of the moon. `undefined` when the runtime has no Islamic calendar (the haptic then
+ *  falls back to its default beat). */
+function moonLitFor(iso: string): number | undefined {
+  const parts = hijriParts(iso);
+  const range = hijriMonthRange(iso);
+  if (!parts || !range) return undefined;
+  return moonIllumination(parts.day, range.length).illumination;
+}
 
 /**
  * Rewrite the full habit id order so `orderedMemberIds` sit contiguously (in the given
@@ -71,10 +90,12 @@ type HabitsContextValue = {
   habits: Habit[];
   /** The user's habit stacks (named groups). Membership lives on `habit.stack_id`. */
   stacks: HabitStack[];
-  /** Ids of habits ticked off for `viewDate`. */
+  /** Ids of habits ticked off for `viewDate` (count goals included once they hit their target). */
   completed: Set<string>;
   /** Ids of habits skipped (legitimately excused) for `viewDate` — excluded from the rate. */
   skipped: Set<string>;
+  /** For count-goal habits: the count logged for `viewDate` (habit id → count). */
+  counts: Map<string, number>;
   /** True only during the first load. */
   loading: boolean;
   /** Plain-language message for the last failed action, or null. */
@@ -102,6 +123,8 @@ type HabitsContextValue = {
   /** Create several habits at once (Discover "starter set" / routines); returns the new rows. */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
   toggleHabit: (habitId: string) => Promise<void>;
+  /** Step a count-goal habit's logged count for `viewDate` by `delta` (clamped to 0…target). */
+  adjustHabitCount: (habitId: string, delta: number) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
@@ -136,6 +159,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const [stacks, setStacks] = useState<HabitStack[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
@@ -146,6 +170,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const stacksRef = useRef(stacks);
   const completedRef = useRef(completed);
   const skippedRef = useRef(skipped);
+  const countsRef = useRef(counts);
   const todayRef = useRef(today);
   const viewDateRef = useRef(viewDate);
   const ensuredUserRow = useRef(false);
@@ -163,6 +188,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     skippedRef.current = skipped;
   }, [skipped]);
+  useEffect(() => {
+    countsRef.current = counts;
+  }, [counts]);
   useEffect(() => {
     todayRef.current = today;
   }, [today]);
@@ -202,7 +230,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return;
       const { data, error: completionsError } = await supabase
         .from('habit_completions')
-        .select('habit_id, status')
+        .select('habit_id, status, count')
         .eq('user_id', userId)
         .eq('completed_at', day);
       if (completionsError) {
@@ -210,8 +238,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return;
       }
       const rows = data ?? [];
-      setCompleted(new Set(rows.filter((row) => row.status !== 'skipped').map((row) => row.habit_id)));
+      // 'done' = fully complete (binary tick, or a count goal that reached its target);
+      // 'partial' rows are in-progress count goals and stay OPEN (not in `completed`).
+      setCompleted(new Set(rows.filter((row) => row.status === 'done').map((row) => row.habit_id)));
       setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
+      setCounts(
+        new Map(
+          rows
+            .filter((row): row is typeof row & { count: number } => row.count != null)
+            .map((row) => [row.habit_id, row.count]),
+        ),
+      );
     },
     [userId],
   );
@@ -262,9 +299,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       didMount.current = true;
       return;
     }
-    // don't show the previous day's ticks/skips while the new day loads
+    // don't show the previous day's ticks/skips/counts while the new day loads
     setCompleted(new Set());
     setSkipped(new Set());
+    setCounts(new Map());
     void fetchCompletions(viewDate);
   }, [viewDate, fetchCompletions]);
 
@@ -392,7 +430,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           .map((h) => h.id);
         const dayComplete =
           openIds.length > 0 && openIds.every((id) => id === habitId || completedRef.current.has(id));
-        if (dayComplete) haptics.celebrate();
+        if (dayComplete) haptics.celebrate(moonLitFor(day));
         else haptics.completed();
       }
 
@@ -440,6 +478,119 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  // Step a count-goal habit's logged count for the viewed day by `delta`, clamped to
+  // 0…target. Mirrors `toggleHabit` (optimistic, single in-flight per habit, rolls back
+  // on failure), but persists the running count on the single habit-day row:
+  //   next <= 0        → delete the row (back to open)
+  //   0 < next < target → status 'partial', count = next  (in progress, still open)
+  //   next >= target    → status 'done',    count = target (closed — counts toward the rate)
+  const adjustHabitCount = useCallback(
+    async (habitId: string, delta: number) => {
+      if (!userId) return;
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      if (pending.current.has(habitId)) return; // ignore overlapping taps
+      const habit = habitsRef.current.find((h) => h.id === habitId);
+      const target = habit?.target_count;
+      if (!habit || target == null) return; // count goals only
+      pending.current.add(habitId);
+
+      const day = viewDateRef.current;
+      const prevCount = countsRef.current.get(habitId) ?? 0;
+      const wasDone = completedRef.current.has(habitId);
+      const wasSkipped = skippedRef.current.has(habitId);
+      const next = Math.min(Math.max(prevCount + delta, 0), target);
+      if (next === prevCount && !wasSkipped) {
+        pending.current.delete(habitId); // already at a clamp bound, nothing to do
+        return;
+      }
+      const nowDone = next >= target;
+
+      // Optimistic update: the running count, "done" membership (count goal closes at its
+      // target), and clearing any prior skip (logging and skipping are mutually exclusive).
+      setCounts((prev) => {
+        const m = new Map(prev);
+        if (next <= 0) m.delete(habitId);
+        else m.set(habitId, next);
+        return m;
+      });
+      setCompleted((prev) => {
+        if (nowDone === prev.has(habitId)) return prev;
+        const s = new Set(prev);
+        if (nowDone) s.add(habitId);
+        else s.delete(habitId);
+        return s;
+      });
+      if (wasSkipped) {
+        setSkipped((prev) => {
+          const s = new Set(prev);
+          s.delete(habitId);
+          return s;
+        });
+      }
+
+      // Haptics matched to the step: a light "undo" tap when stepping down, a solid tap on
+      // each step up — upgraded to a celebratory buzz when reaching the target closes every
+      // open habit scheduled for the day (mirrors `toggleHabit`).
+      if (next < prevCount) {
+        haptics.uncompleted();
+      } else if (nowDone && !wasDone) {
+        const openIds = habitsRef.current
+          .filter((h) => scheduledOn(h, day) && !skippedRef.current.has(h.id))
+          .map((h) => h.id);
+        const dayComplete =
+          openIds.length > 0 && openIds.every((id) => id === habitId || completedRef.current.has(id));
+        if (dayComplete) haptics.celebrate(moonLitFor(day));
+        else haptics.completed();
+      } else {
+        haptics.selection();
+      }
+
+      try {
+        if (next <= 0) {
+          const { error: delError } = await supabase
+            .from('habit_completions')
+            .delete()
+            .eq('habit_id', habitId)
+            .eq('completed_at', day);
+          if (delError) throw delError;
+        } else {
+          const { error: upError } = await supabase.from('habit_completions').upsert(
+            { habit_id: habitId, user_id: userId, completed_at: day, count: next, status: nowDone ? 'done' : 'partial' },
+            { onConflict: 'habit_id,completed_at' },
+          );
+          if (upError) throw upError;
+        }
+      } catch {
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          setCounts((prev) => {
+            const m = new Map(prev);
+            if (prevCount <= 0) m.delete(habitId);
+            else m.set(habitId, prevCount);
+            return m;
+          });
+          setCompleted((prev) => {
+            const s = new Set(prev);
+            if (wasDone) s.add(habitId);
+            else s.delete(habitId);
+            return s;
+          });
+          if (wasSkipped) {
+            setSkipped((prev) => {
+              const s = new Set(prev);
+              s.add(habitId);
+              return s;
+            });
+          }
+        }
+        setError('Could not update that habit. Check your connection.');
+      } finally {
+        pending.current.delete(habitId);
+      }
+    },
+    [userId],
+  );
+
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
   // (travel, menstruation, …) that shouldn't count against the rate. Mirrors
   // `toggleHabit`: optimistic, single in-flight per habit, rolls back on failure.
@@ -455,6 +606,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const day = viewDateRef.current;
       const wasSkipped = skippedRef.current.has(habitId);
       const wasDone = completedRef.current.has(habitId);
+      const prevCount = countsRef.current.get(habitId);
 
       // Optimistic flip: skipped → open, or open/done → skipped.
       setSkipped((prev) => {
@@ -466,6 +618,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!wasSkipped && wasDone) {
         setCompleted((prev) => {
           const next = new Set(prev);
+          next.delete(habitId);
+          return next;
+        });
+      }
+      // Skipping a count goal clears its running count for the day (mutually exclusive).
+      if (!wasSkipped && prevCount != null) {
+        setCounts((prev) => {
+          const next = new Map(prev);
           next.delete(habitId);
           return next;
         });
@@ -485,11 +645,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             .eq('completed_at', day);
           if (delError) throw delError;
         } else {
-          // Upsert so a prior 'done' row for the day is converted to 'skipped'.
+          // Upsert so a prior 'done'/'partial' row for the day is converted to 'skipped'
+          // (and any count goal's running count cleared).
           const { error: upError } = await supabase
             .from('habit_completions')
             .upsert(
-              { habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped' },
+              { habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped', count: null },
               { onConflict: 'habit_id,completed_at' },
             );
           if (upError) throw upError;
@@ -510,6 +671,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
               return next;
             });
           }
+          if (!wasSkipped && prevCount != null) {
+            setCounts((prev) => {
+              const next = new Map(prev);
+              next.set(habitId, prevCount);
+              return next;
+            });
+          }
         }
         setError('Could not update that habit. Check your connection.');
       } finally {
@@ -520,7 +688,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const createHabit = useCallback(
-    async ({ name: rawName, schedule_days, reminder_time, hijri_schedule = null }: HabitCreate) => {
+    async ({ name: rawName, schedule_days, reminder_time, hijri_schedule = null, target_count = null, target_unit = null }: HabitCreate) => {
       if (!userId) return;
       const name = rawName.trim();
       if (!name) return;
@@ -545,6 +713,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         schedule_days,
         reminder_time,
         hijri_schedule,
+        target_count,
+        target_unit,
         stack_id: null,
       };
       setHabits((prev) => [...prev, optimistic]);
@@ -552,7 +722,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error: insError } = await supabase
           .from('habits')
-          .insert({ user_id: userId, name, position, schedule_days, reminder_time, hijri_schedule })
+          .insert({ user_id: userId, name, position, schedule_days, reminder_time, hijri_schedule, target_count, target_unit })
           .select()
           .single();
         if (insError) throw insError;
@@ -596,6 +766,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         schedule_days: input.schedule_days,
         reminder_time: input.reminder_time,
         hijri_schedule: input.hijri_schedule ?? null,
+        target_count: input.target_count ?? null,
+        target_unit: input.target_unit ?? null,
         stack_id: null,
       }));
       const tempIds = new Set(optimistic.map((o) => o.id));
@@ -612,6 +784,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
               schedule_days: input.schedule_days,
               reminder_time: input.reminder_time,
               hijri_schedule: input.hijri_schedule ?? null,
+              target_count: input.target_count ?? null,
+              target_unit: input.target_unit ?? null,
             })),
           )
           .select();
@@ -933,6 +1107,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       stacks,
       completed,
       skipped,
+      counts,
       loading,
       error,
       today,
@@ -948,6 +1123,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       createHabit,
       createHabits,
       toggleHabit,
+      adjustHabitCount,
       skipHabit,
       updateHabit,
       deleteHabit,
@@ -961,6 +1137,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     stacks,
     completed,
     skipped,
+    counts,
     loading,
     error,
     today,
@@ -973,6 +1150,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createHabit,
     createHabits,
     toggleHabit,
+    adjustHabitCount,
     skipHabit,
     updateHabit,
     deleteHabit,

@@ -88,6 +88,10 @@ export function HabitEditorForm({
   const initialHijri = habit?.hijri_schedule ?? null;
 
   const [name, setName] = useState(habit?.name ?? '');
+  // Goal: a single daily act ('once'), or a count toward a numeric daily target ('count').
+  const [goalMode, setGoalMode] = useState<'once' | 'count'>(habit?.target_count != null ? 'count' : 'once');
+  const [targetText, setTargetText] = useState(habit?.target_count != null ? String(habit.target_count) : '3');
+  const [unit, setUnit] = useState(habit?.target_unit ?? '');
   const [scheduleMode, setScheduleMode] = useState<'weekly' | 'hijri'>(initialHijri ? 'hijri' : 'weekly');
   const [days, setDays] = useState<Set<number>>(() => new Set(habit?.schedule_days ?? DAILY_SCHEDULE));
   // Hijri schedule, split into its three independent pieces for easy toggling. `dates` keys are
@@ -118,8 +122,14 @@ export function HabitEditorForm({
     [trimmedName, existingNames],
   );
   const hijriValid = monthDays.size > 0 || months.size > 0 || hijriDates.size > 0;
+  // A count goal needs a whole-number target ≥ 1; 'once' carries no target.
+  const targetCount = Number.parseInt(targetText, 10);
+  const targetValid = Number.isInteger(targetCount) && targetCount >= 1;
   const canSave =
-    trimmedName.length > 0 && !isDuplicate && (scheduleMode === 'weekly' ? days.size > 0 : hijriValid);
+    trimmedName.length > 0 &&
+    !isDuplicate &&
+    (scheduleMode === 'weekly' ? days.size > 0 : hijriValid) &&
+    (goalMode === 'once' || targetValid);
 
   const toggleDay = (d: number) => {
     haptics.selection();
@@ -233,8 +243,14 @@ export function HabitEditorForm({
       scheduleMode === 'hijri'
         ? { schedule_days: [], hijri_schedule: buildHijriSchedule() }
         : { schedule_days: [...days].sort((a, b) => a - b), hijri_schedule: null };
-    if (habit) onSave(habit.id, { name: trimmedName, reminder_time, ...fields });
-    else onCreate({ name: trimmedName, reminder_time, ...fields });
+    // A count goal carries its target + optional unit; 'once' clears both so switching back
+    // to a plain binary habit can't leave a stale target behind.
+    const goalFields =
+      goalMode === 'count'
+        ? { target_count: targetCount, target_unit: unit.trim() || null }
+        : { target_count: null, target_unit: null };
+    if (habit) onSave(habit.id, { name: trimmedName, reminder_time, ...fields, ...goalFields });
+    else onCreate({ name: trimmedName, reminder_time, ...fields, ...goalFields });
     onClose();
   };
 
@@ -277,6 +293,48 @@ export function HabitEditorForm({
         accessibilityLabel="Habit name"
         error={isDuplicate ? 'You already have a habit with this name.' : undefined}
       />
+
+      {/* Goal — a single daily act, or counting toward a numeric target (e.g. 5 pages). */}
+      <FieldLabel>GOAL</FieldLabel>
+      <View style={styles.modeRow}>
+        {(['once', 'count'] as const).map((mode) => (
+          <SelectablePill
+            key={mode}
+            selected={goalMode === mode}
+            label={mode === 'once' ? 'Once daily' : 'Count'}
+            onPress={() => {
+              haptics.selection();
+              setGoalMode(mode);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: goalMode === mode }}
+            accessibilityLabel={mode === 'once' ? 'Once daily' : 'Count goal'}
+            style={styles.modePill}
+          />
+        ))}
+      </View>
+      {goalMode === 'count' ? (
+        <View style={styles.goalCountRow}>
+          <FormField
+            value={targetText}
+            onChangeText={(t) => setTargetText(t.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            placeholder="3"
+            maxLength={4}
+            accessibilityLabel="Daily target count"
+            style={styles.targetInput}
+          />
+          <FormField
+            value={unit}
+            onChangeText={setUnit}
+            placeholder="unit — e.g. pages, cups (optional)"
+            autoCapitalize="none"
+            maxLength={24}
+            accessibilityLabel="Count unit"
+            style={styles.unitInput}
+          />
+        </View>
+      ) : null}
 
       {/* Schedule */}
       <FieldLabel>REPEAT</FieldLabel>
@@ -525,6 +583,9 @@ const styles = StyleSheet.create({
   hint: { marginTop: Spacing.one },
   modeRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.one },
   modePill: { flex: 1, minHeight: 44 },
+  goalCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginTop: Spacing.two },
+  targetInput: { width: 72, textAlign: 'center' },
+  unitInput: { flex: 1 },
   subLabel: { marginTop: Spacing.three },
   monthDayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
   monthDay: { width: 40, height: 36, paddingHorizontal: 0, paddingVertical: 0 },

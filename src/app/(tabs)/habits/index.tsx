@@ -46,6 +46,7 @@ export default function HabitsScreen() {
     stacks,
     completed,
     skipped,
+    counts,
     loading,
     error,
     today,
@@ -54,6 +55,7 @@ export default function HabitsScreen() {
     isToday,
     setViewDate,
     toggleHabit,
+    adjustHabitCount,
     skipHabit,
     reorderHabits,
     deleteHabit,
@@ -67,7 +69,7 @@ export default function HabitsScreen() {
   // List-item enter/exit/reflow animations are disarmed during the focus transition and re-armed
   // a frame after it settles: a Reanimated entering/layout that runs while a tab switch or back-pop
   // is in flight gets reparented into the navigation transition overlay and "swipes" over the header
-  // (most visibly the violet done-checks). Once settled, genuine in-list changes animate again.
+  // (most visibly the done-checks lighting up). Once settled, genuine in-list changes animate again.
   const [itemsArmed, setItemsArmed] = useState(false);
   useFocusEffect(
     useCallback(() => {
@@ -164,7 +166,9 @@ export default function HabitsScreen() {
             members={item.members}
             completed={completed}
             skipped={skipped}
+            counts={counts}
             onToggle={toggleHabit}
+            onAdjust={adjustHabitCount}
             onSkip={skipHabit}
             onEdit={openEditor}
             onDelete={deleteHabit}
@@ -177,7 +181,9 @@ export default function HabitsScreen() {
             habit={item.habit}
             done={completed.has(item.habit.id)}
             skipped={skipped.has(item.habit.id)}
+            count={counts.get(item.habit.id) ?? 0}
             onToggle={toggleHabit}
+            onAdjust={adjustHabitCount}
             onSkip={skipHabit}
             onEdit={openEditor}
             onDelete={deleteHabit}
@@ -188,7 +194,7 @@ export default function HabitsScreen() {
         )}
       </Animated.View>
     ),
-    [itemsArmed, completed, skipped, toggleHabit, skipHabit, openEditor, deleteHabit, openStackEditor],
+    [itemsArmed, completed, skipped, counts, toggleHabit, adjustHabitCount, skipHabit, openEditor, deleteHabit, openStackEditor],
   );
 
   // The list shows only the scheduled subset; flatten the reordered entries (stack members

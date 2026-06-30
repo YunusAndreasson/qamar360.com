@@ -4,10 +4,17 @@ import { useTheme } from '@/hooks/use-theme';
 import { moonPhasePath } from '@/lib/moon';
 import { clamp01 } from '@/lib/progress';
 
-/** The shadowed limb tint — the rest of the moon in a faint wash of its own gold. */
+/** The shadowed limb tint — the rest of the moon in a faint wash of its own moonlight. */
 const MOON_FAINT = 0.16;
 /** Future cells still show their phase, but dimmed so they read as "not yet reached". */
 const MUTED_MOON_OPACITY = 0.42;
+/**
+ * The moon is context, the ring is the data — so every elapsed day's moon sits at one quiet,
+ * UNIFORM brightness and lets the brighter ring lead. Completion is never encoded in the moon (that
+ * would make the moon's colour jump at the done/not-done boundary, conflating calendar with task) —
+ * it lives entirely in the ring. Future days dim further still (they're not yet reached).
+ */
+const RESTING_MOON_OPACITY = 0.72;
 
 export function ProgressCircle({
   fraction,
@@ -35,20 +42,30 @@ export function ProgressCircle({
   // The moon sits a stroke-width inside the ring, so the ring always reads as a band around it.
   const moonR = ringRadius - strokeWidth;
 
-  // The moon itself is gold — the celestial body. Progress lives entirely in the purple ring:
-  // a fuller arc = more done, a full bright ring = the day complete. (Gold = moon, purple = pace.)
+  // The moon disc is warm moonlight — the celestial body (the calendar). Completion lives in the
+  // ring around it, and carries the two-temperature signal: a partial/today arc is cool steel
+  // ("in progress"), a complete day closes the ring in warm `complete` moonlight ("done") — so a
+  // finished day reads warm, not as a same-hue saturation bump. (Warm = moon/done, cool = pace.)
   const trackColor = muted ? theme.accentTrackMuted : theme.accentTrack;
-  const arcColor = muted ? theme.accentTrackMuted : active || isComplete ? theme.accent : theme.accentTrackStrong;
-  // Elapsed days wear the moon's gold; days still to come are greyed — so how far the gold has
-  // spread across the grid reads at a glance as how much of the month has passed. (The ring arc
-  // still carries that day's completion; disc hue = elapsed, ring = done.)
+  const arcColor = muted
+    ? theme.accentTrackMuted
+    : isComplete
+      ? theme.complete
+      : active
+        ? theme.accent
+        : theme.accentTrackStrong;
+  // The moon wears warm moonlight (the calendar); future days are greyed. Brightness is uniform
+  // across elapsed days — completion is the ring's job, not the moon's — so the grid never reads as
+  // a patchwork of warm/grey discs.
   const moonColor = muted ? theme.textDisabled : theme.complete;
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {phase ? (
-        // The moon as the interior: opaque shadow disc, a faint lit-side tint, then the true lit region.
-        <G opacity={muted ? MUTED_MOON_OPACITY : 1}>
+        // The moon as the interior: opaque shadow disc, a faint lit-side tint, then the true lit
+        // region. One uniform quiet brightness for every elapsed day (the ring leads and carries
+        // completion); future days dimmer still.
+        <G opacity={muted ? MUTED_MOON_OPACITY : RESTING_MOON_OPACITY}>
           <Circle cx={radius} cy={radius} r={moonR} fill={theme.backgroundElement} />
           <Circle cx={radius} cy={radius} r={moonR} fill={moonColor} fillOpacity={MOON_FAINT} />
           {phase.illumination > 0.005 ? (

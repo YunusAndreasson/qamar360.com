@@ -22,7 +22,7 @@ type Props = {
 /**
  * A single placeholder block for loading states — a calm opacity pulse on the card
  * tone, never a spinner. Skeletons let a screen show its *shape* immediately (Today's
- * week strip + rows, Progress's hero + bars) so the wait reads as "almost there"
+ * rows, Progress's hero + grid) so the wait reads as "almost there"
  * rather than "nothing yet" — the Linear/Notion default. The pulse is dropped under
  * Reduce Motion (the muted block alone still says "loading"; HIG: substitute, don't soften).
  */

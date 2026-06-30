@@ -62,7 +62,7 @@ export function useProgress(): ProgressData {
         supabase.from('habits').select('*').eq('user_id', userId).order('position', { ascending: true }),
         supabase
           .from('habit_completions')
-          .select('habit_id, completed_at, status')
+          .select('habit_id, completed_at, status, count')
           .eq('user_id', userId)
           .gte('completed_at', since),
       ]);

@@ -42,6 +42,7 @@ export type Database = {
       habit_completions: {
         Row: {
           completed_at: string
+          count: number | null
           created_at: string | null
           habit_id: string
           id: string
@@ -50,6 +51,7 @@ export type Database = {
         }
         Insert: {
           completed_at: string
+          count?: number | null
           created_at?: string | null
           habit_id: string
           id?: string
@@ -58,6 +60,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string
+          count?: number | null
           created_at?: string | null
           habit_id?: string
           id?: string
@@ -123,6 +126,8 @@ export type Database = {
           reminder_time: string | null
           schedule_days: number[]
           stack_id: string | null
+          target_count: number | null
+          target_unit: string | null
           updated_at: string | null
           user_id: string
         }
@@ -135,6 +140,8 @@ export type Database = {
           reminder_time?: string | null
           schedule_days?: number[]
           stack_id?: string | null
+          target_count?: number | null
+          target_unit?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -147,6 +154,8 @@ export type Database = {
           reminder_time?: string | null
           schedule_days?: number[]
           stack_id?: string | null
+          target_count?: number | null
+          target_unit?: string | null
           updated_at?: string | null
           user_id?: string
         }
