@@ -63,9 +63,18 @@ export default function HabitsScreen() {
   } = useHabits();
   // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
   // progress from Settings) are reflected on return — mirrors the Progress tab.
+  //
+  // List-item enter/exit/reflow animations are disarmed during the focus transition and re-armed
+  // a frame after it settles: a Reanimated entering/layout that runs while a tab switch or back-pop
+  // is in flight gets reparented into the navigation transition overlay and "swipes" over the header
+  // (most visibly the violet done-checks). Once settled, genuine in-list changes animate again.
+  const [itemsArmed, setItemsArmed] = useState(false);
   useFocusEffect(
     useCallback(() => {
       void refresh();
+      setItemsArmed(false);
+      const id = requestAnimationFrame(() => setItemsArmed(true));
+      return () => cancelAnimationFrame(id);
     }, [refresh]),
   );
 
@@ -146,9 +155,9 @@ export default function HabitsScreen() {
       // is skipped while this item is the one being dragged, so it doesn't fight the
       // drag's own cell transform.
       <Animated.View
-        entering={FadeIn.duration(Duration.base)}
-        exiting={FadeOut.duration(Duration.fast)}
-        layout={isActive ? undefined : LinearTransition.duration(Duration.base)}>
+        entering={itemsArmed ? FadeIn.duration(Duration.base) : undefined}
+        exiting={itemsArmed ? FadeOut.duration(Duration.fast) : undefined}
+        layout={isActive || !itemsArmed ? undefined : LinearTransition.duration(Duration.base)}>
         {item.type === 'stack' ? (
           <StackCard
             stack={item.stack}
@@ -179,7 +188,7 @@ export default function HabitsScreen() {
         )}
       </Animated.View>
     ),
-    [completed, skipped, toggleHabit, skipHabit, openEditor, deleteHabit, openStackEditor],
+    [itemsArmed, completed, skipped, toggleHabit, skipHabit, openEditor, deleteHabit, openStackEditor],
   );
 
   // The list shows only the scheduled subset; flatten the reordered entries (stack members

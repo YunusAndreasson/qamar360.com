@@ -39,7 +39,7 @@ export default function ProgressScreen() {
 
   if (habitsCount === 0) {
     return (
-      <AppScreen transparent centered>
+      <AppScreen transparent>
         <EmptyState
           art={<MoonEmblem />}
           title="Your moons will rise here"

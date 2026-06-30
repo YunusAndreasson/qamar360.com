@@ -51,7 +51,7 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       {busy ? (
         <ActivityIndicator color={color} />
       ) : (
-        <ThemedText type={variant === 'secondary' ? 'small' : 'smallBold'} style={{ color }}>
+        <ThemedText type={variant === 'secondary' ? 'default' : 'defaultBold'} style={{ color }}>
           {children}
         </ThemedText>
       )}
