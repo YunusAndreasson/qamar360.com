@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Linking, StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
@@ -28,10 +28,17 @@ export default function SettingsScreen() {
   const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
 
-  // Reflect the real OS permission on mount (without prompting), so the row shows
-  // accurate state rather than a "tap to…" guess.
+  // Reflect the real OS permission (without prompting), so the row shows accurate
+  // state rather than a "tap to…" guess. Re-read whenever the app returns to the
+  // foreground too — tapping an already-granted row sends the user to iOS Settings,
+  // and the label must update if they toggle the permission while they're there.
   useEffect(() => {
-    void permissionGranted().then(setNotifGranted);
+    const refresh = () => void permissionGranted().then(setNotifGranted);
+    refresh();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => sub.remove();
   }, []);
 
   // The app is versioned by the moon: `expoConfig.version` is the Umm al-Qura date it shipped on
@@ -91,6 +98,13 @@ export default function SettingsScreen() {
     );
 
   const enableNotifications = async () => {
+    // Already on: there's no permission to request, so the only useful action is to
+    // hand off to the OS settings — otherwise the tap is a silent no-op on a row that
+    // looks tappable. iOS can't re-prompt once decided, so this is also the way back.
+    if (await permissionGranted()) {
+      await Linking.openSettings();
+      return;
+    }
     const granted = await ensurePermission();
     setNotifGranted(granted);
     if (!granted) {
