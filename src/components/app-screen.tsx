@@ -12,6 +12,14 @@ type Props = Omit<ScrollViewProps, 'contentContainerStyle'> & {
   centered?: boolean;
   loading?: boolean;
   bottomInset?: boolean;
+  /**
+   * A header pinned to the top of the scroll as a real sticky `ScrollView` header — so it stays a
+   * descendant of the single tracked scroll view. Rendered as an outside-the-scroll sibling instead,
+   * such controls sit un-inset at the screen's true top (behind the native header) and get flashed
+   * over the header by react-native-screens mid-transition. Use for controls that must not scroll
+   * away (e.g. the Discover filter chips).
+   */
+  stickyHeader?: ReactNode;
   /** Faint flower-of-life sky anchored to the top of the screen, behind the content. */
   backdrop?: boolean;
   /**
@@ -31,6 +39,7 @@ export function AppScreen({
   bottomInset = true,
   transparent = false,
   backdrop = !transparent,
+  stickyHeader,
   style,
   ...props
 }: Props) {
@@ -50,8 +59,12 @@ export function AppScreen({
       style={[styles.container, transparent ? styles.transparent : { backgroundColor: theme.background }, style]}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.scrollContent}
+      // The backdrop (when present) is an absolutely-positioned child at index 0, so the sticky
+      // header is the next index. Both stay descendants of this one tracked ScrollView.
+      stickyHeaderIndices={stickyHeader ? [backdrop ? 1 : 0] : undefined}
       {...props}>
       {backdrop ? <GeometricBackdrop variant="screen" /> : null}
+      {stickyHeader}
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.textSecondary} />

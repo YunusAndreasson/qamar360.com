@@ -197,15 +197,19 @@ export default function DiscoverScreen() {
         headerIconColor={theme.textSecondary}
       />
 
-      {/* Pinned filter chips sit just under the native search bar so findability never scrolls
-          away. The title is the route's centered "Add Habit". */}
-      <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        <DiscoverFilterChips filters={FILTERS} active={filter} onChange={setFilter} />
-      </View>
-
+      {/* Filter chips are a real sticky ScrollView header (via AppScreen `stickyHeader`) — still
+          pinned under the native search bar for findability, but a descendant of the single tracked
+          scroll. As an outside-the-scroll sibling they sat un-inset at the screen's true top and
+          react-native-screens flashed them over the header on the back-swipe (the violet "All" pill
+          + grey chips). The route's centered "Add Habit" is the title. */}
       <AppScreen
         keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        stickyHeader={
+          <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+            <DiscoverFilterChips filters={FILTERS} active={filter} onChange={setFilter} />
+          </View>
+        }>
         {/* Add failures (network) surface here, at the point of action — otherwise the optimistic
             ✓ pill just reverts and the only message would appear back on the Habits list. */}
         <ErrorBanner message={error} onDismiss={dismissError} />
