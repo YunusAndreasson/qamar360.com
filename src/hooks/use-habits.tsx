@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -11,7 +12,7 @@ import {
 import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
-import type { Tables } from '@/lib/database.types';
+import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { moonIllumination } from '@/lib/moon';
@@ -55,6 +56,15 @@ export type HabitCreate = {
 
 /** How far back the day-stepper lets you backfill a missed completion. */
 const BACKFILL_DAYS = 30;
+
+// Plain-language messages for the failed actions, spelled once so the copy stays consistent
+// wherever the same failure is surfaced.
+const LOAD_ERROR = 'Could not load your habits. Check your connection and try again.';
+const UPDATE_ERROR = 'Could not update that habit. Check your connection.';
+const ACCOUNT_SETUP_ERROR = 'Could not set up your account. Try again.';
+
+/** The habit_completions unique key an upsert conflicts on (one row per habit per day). */
+const COMPLETION_CONFLICT = 'habit_id,completed_at';
 
 /** Safety cap on the first load: if the network (or a stale session) hangs, we flip to a
  *  retryable error instead of spinning forever. Mirrors AuthProvider's `initialized` net. */
@@ -151,6 +161,41 @@ export async function clearCompletionHistory(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Delete a habit's completion row for a single day (back to "open"). Throws on error. */
+async function deleteCompletion(habitId: string, day: string): Promise<void> {
+  const { error } = await supabase
+    .from('habit_completions')
+    .delete()
+    .eq('habit_id', habitId)
+    .eq('completed_at', day);
+  if (error) throw error;
+}
+
+/** Upsert a habit's completion row for a day (one row per habit per day). Throws on error. */
+async function upsertCompletion(row: TablesInsert<'habit_completions'>): Promise<void> {
+  const { error } = await supabase.from('habit_completions').upsert(row, { onConflict: COMPLETION_CONFLICT });
+  if (error) throw error;
+}
+
+/**
+ * Fire the completion haptic for ticking `habitId` on `day`: the celebratory, moon-weighted beat
+ * when this closes every open (scheduled, non-skipped) habit for the day, otherwise the plain
+ * "done" tap. Shared by the binary toggle and the count-goal stepper so the day-complete rule
+ * lives in one place.
+ */
+function celebrateIfDayComplete(
+  habits: Habit[],
+  skipped: Set<string>,
+  completed: Set<string>,
+  habitId: string,
+  day: string,
+): void {
+  const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
+  const dayComplete = openIds.length > 0 && openIds.every((id) => id === habitId || completed.has(id));
+  if (dayComplete) haptics.celebrate(moonLitFor(day));
+  else haptics.completed();
+}
+
 export function HabitsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -206,7 +251,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .eq('user_id', userId)
       .order('position', { ascending: true });
     if (habitsError) {
-      setError('Could not load your habits. Check your connection and try again.');
+      setError(LOAD_ERROR);
       return;
     }
     setHabits((data ?? []) as Habit[]);
@@ -219,7 +264,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('user_id', userId);
     if (stacksError) {
-      setError('Could not load your habits. Check your connection and try again.');
+      setError(LOAD_ERROR);
       return;
     }
     setStacks(data ?? []);
@@ -234,7 +279,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .eq('completed_at', day);
       if (completionsError) {
-        setError('Could not load your habits. Check your connection and try again.');
+        setError(LOAD_ERROR);
         return;
       }
       const rows = data ?? [];
@@ -268,7 +313,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const work = refresh().then(() => 'ok' as const);
     const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), LOAD_TIMEOUT_MS));
     if ((await Promise.race([work, timeout])) === 'timeout') {
-      setError('Could not load your habits. Check your connection and try again.');
+      setError(LOAD_ERROR);
     }
   }, [refresh]);
 
@@ -340,11 +385,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [habits],
   );
   const reminderSignature = JSON.stringify(reminders);
-  useEffect(() => {
+  // Effect Event (stable, non-reactive): reads the latest `reminders` without the sync
+  // effect having to depend on its per-render array identity. The signature string is the
+  // real trigger — reorders/ticks that don't touch reminder fields leave it unchanged.
+  const syncReminders = useEffectEvent(() => {
     void rescheduleAll(reminders);
-    // `reminders` is captured for the render whose signature changed; listing it would
-    // re-run every render (new array identity). The signature is the real dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    syncReminders();
   }, [reminderSignature]);
 
   const remainingToday = useMemo(
@@ -425,33 +473,16 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (wasDone) {
         haptics.uncompleted();
       } else {
-        const openIds = habitsRef.current
-          .filter((h) => scheduledOn(h, day) && !skippedRef.current.has(h.id))
-          .map((h) => h.id);
-        const dayComplete =
-          openIds.length > 0 && openIds.every((id) => id === habitId || completedRef.current.has(id));
-        if (dayComplete) haptics.celebrate(moonLitFor(day));
-        else haptics.completed();
+        celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
       }
 
       try {
         if (wasDone) {
-          const { error: delError } = await supabase
-            .from('habit_completions')
-            .delete()
-            .eq('habit_id', habitId)
-            .eq('completed_at', day);
-          if (delError) throw delError;
+          await deleteCompletion(habitId, day);
         } else {
           // Upsert (not insert) so an existing row — a prior skip, or an idempotent
           // re-tick — is flipped to 'done' rather than colliding on the unique key.
-          const { error: upError } = await supabase
-            .from('habit_completions')
-            .upsert(
-              { habit_id: habitId, user_id: userId, completed_at: day, status: 'done' },
-              { onConflict: 'habit_id,completed_at' },
-            );
-          if (upError) throw upError;
+          await upsertCompletion({ habit_id: habitId, user_id: userId, completed_at: day, status: 'done' });
         }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -470,7 +501,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-        setError('Could not update that habit. Check your connection.');
+        setError(UPDATE_ERROR);
       } finally {
         pending.current.delete(habitId);
       }
@@ -534,31 +565,22 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (next < prevCount) {
         haptics.uncompleted();
       } else if (nowDone && !wasDone) {
-        const openIds = habitsRef.current
-          .filter((h) => scheduledOn(h, day) && !skippedRef.current.has(h.id))
-          .map((h) => h.id);
-        const dayComplete =
-          openIds.length > 0 && openIds.every((id) => id === habitId || completedRef.current.has(id));
-        if (dayComplete) haptics.celebrate(moonLitFor(day));
-        else haptics.completed();
+        celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
       } else {
         haptics.selection();
       }
 
       try {
         if (next <= 0) {
-          const { error: delError } = await supabase
-            .from('habit_completions')
-            .delete()
-            .eq('habit_id', habitId)
-            .eq('completed_at', day);
-          if (delError) throw delError;
+          await deleteCompletion(habitId, day);
         } else {
-          const { error: upError } = await supabase.from('habit_completions').upsert(
-            { habit_id: habitId, user_id: userId, completed_at: day, count: next, status: nowDone ? 'done' : 'partial' },
-            { onConflict: 'habit_id,completed_at' },
-          );
-          if (upError) throw upError;
+          await upsertCompletion({
+            habit_id: habitId,
+            user_id: userId,
+            completed_at: day,
+            count: next,
+            status: nowDone ? 'done' : 'partial',
+          });
         }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -583,7 +605,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-        setError('Could not update that habit. Check your connection.');
+        setError(UPDATE_ERROR);
       } finally {
         pending.current.delete(habitId);
       }
@@ -638,22 +660,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       try {
         if (wasSkipped) {
-          const { error: delError } = await supabase
-            .from('habit_completions')
-            .delete()
-            .eq('habit_id', habitId)
-            .eq('completed_at', day);
-          if (delError) throw delError;
+          await deleteCompletion(habitId, day);
         } else {
           // Upsert so a prior 'done'/'partial' row for the day is converted to 'skipped'
           // (and any count goal's running count cleared).
-          const { error: upError } = await supabase
-            .from('habit_completions')
-            .upsert(
-              { habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped', count: null },
-              { onConflict: 'habit_id,completed_at' },
-            );
-          if (upError) throw upError;
+          await upsertCompletion({ habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped', count: null });
         }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -679,7 +690,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-        setError('Could not update that habit. Check your connection.');
+        setError(UPDATE_ERROR);
       } finally {
         pending.current.delete(habitId);
       }
@@ -696,7 +707,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         await ensureUserRow();
       } catch {
-        setError('Could not set up your account. Try again.');
+        setError(ACCOUNT_SETUP_ERROR);
         return;
       }
 
@@ -747,7 +758,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         await ensureUserRow();
       } catch {
-        setError('Could not set up your account. Try again.');
+        setError(ACCOUNT_SETUP_ERROR);
         return [];
       }
 
@@ -967,7 +978,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         await ensureUserRow();
       } catch {
-        setError('Could not set up your account. Try again.');
+        setError(ACCOUNT_SETUP_ERROR);
         return null;
       }
 
@@ -1160,7 +1171,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     deleteStack,
   ]);
 
-  return <HabitsContext.Provider value={value}>{children}</HabitsContext.Provider>;
+  return <HabitsContext value={value}>{children}</HabitsContext>;
 }
 
 export function useHabits() {

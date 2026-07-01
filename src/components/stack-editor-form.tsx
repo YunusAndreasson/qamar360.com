@@ -1,9 +1,9 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
+import { AppIcon } from '@/components/app-icon';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Pressed, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDestructive } from '@/lib/alerts';
 import { haptics } from '@/lib/haptics';
 
 type Props = {
@@ -104,12 +105,13 @@ export function StackEditorForm({
 
   const confirmDelete = () => {
     if (!stack) return;
-    Alert.alert('Delete stack', `Delete “${stack.name}”? The habits stay; only the grouping is removed.`, [
-      { text: 'Cancel', style: 'cancel' },
-      // Don't call onClose() — deleting removes the stack from state, and the route's
-      // "stack no longer exists" effect backs out. Calling both pops twice.
-      { text: 'Delete', style: 'destructive', onPress: () => onDelete(stack.id) },
-    ]);
+    // Don't call onClose() — deleting removes the stack from state, and the route's
+    // "stack no longer exists" effect backs out. Calling both pops twice.
+    confirmDestructive({
+      title: 'Delete stack',
+      message: `Delete “${stack.name}”? The habits stay; only the grouping is removed.`,
+      onConfirm: () => onDelete(stack.id),
+    });
   };
 
   return (
@@ -165,7 +167,7 @@ export function StackEditorForm({
                   accessibilityRole="button"
                   accessibilityState={{ disabled: index === 0 }}
                   accessibilityLabel={`Move ${habit.name} up`}>
-                  <MaterialIcons name="arrow-upward" size={20} color={index === 0 ? theme.textDisabled : theme.textSecondary} />
+                  <AppIcon name="moveUp" size={20} color={index === 0 ? theme.textDisabled : theme.textSecondary} />
                 </Pressable>
                 <Pressable
                   onPress={() => move(index, 1)}
@@ -174,14 +176,14 @@ export function StackEditorForm({
                   accessibilityRole="button"
                   accessibilityState={{ disabled: index === selected.length - 1 }}
                   accessibilityLabel={`Move ${habit.name} down`}>
-                  <MaterialIcons
-                    name="arrow-downward"
+                  <AppIcon
+                    name="moveDown"
                     size={20}
                     color={index === selected.length - 1 ? theme.textDisabled : theme.textSecondary}
                   />
                 </Pressable>
                 <Pressable onPress={() => remove(id)} hitSlop={11} accessibilityRole="button" accessibilityLabel={`Remove ${habit.name}`}>
-                  <MaterialIcons name="close" size={20} color={theme.textSecondary} />
+                  <AppIcon name="close" size={20} color={theme.textSecondary} />
                 </Pressable>
               </View>
             );
@@ -214,7 +216,7 @@ export function StackEditorForm({
                 index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth },
                 pressed && styles.pressed,
               ]}>
-              <MaterialIcons name="add-circle-outline" size={22} color={theme.accent} />
+              <AppIcon name="addCircle" size={22} color={theme.accent} />
               <ThemedText type="default" style={styles.memberName} numberOfLines={1}>
                 {habit.name}
               </ThemedText>

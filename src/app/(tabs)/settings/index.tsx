@@ -16,7 +16,7 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { formatHijriVersion } from '@/lib/dates';
+import { confirmDestructive } from '@/lib/alerts';
 import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
 
 export default function SettingsScreen() {
@@ -42,10 +42,9 @@ export default function SettingsScreen() {
   }, []);
 
   // The app is versioned by the moon: `expoConfig.version` is the Umm al-Qura date it shipped on
-  // (`YYYY.MM.DD`, a Hijri date that also happens to be valid SemVer). Show the human date, with
-  // the raw triple kept on the right for anyone who needs the literal version.
+  // (`YYYY.MM.DD`, a Hijri date that also happens to be valid SemVer) — already a Hijri date, so
+  // we show the triple as-is rather than humanising it twice.
   const version = Constants.expoConfig?.version ?? '—';
-  const hijriVersion = formatHijriVersion(version);
   const email = user?.email ?? '';
   const handle = email.split('@')[0] ?? '';
   const displayName = handle ? handle.charAt(0).toUpperCase() + handle.slice(1) : 'Your account';
@@ -63,14 +62,11 @@ export default function SettingsScreen() {
   };
 
   const confirmDelete = () =>
-    Alert.alert(
-      'Delete account',
-      'This permanently deletes your account and all your habits. This can’t be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void runDelete() },
-      ],
-    );
+    confirmDestructive({
+      title: 'Delete account',
+      message: 'This permanently deletes your account and all your habits. This can’t be undone.',
+      onConfirm: () => void runDelete(),
+    });
 
   const runReset = async () => {
     if (!user) return;
@@ -88,14 +84,13 @@ export default function SettingsScreen() {
   };
 
   const confirmReset = () =>
-    Alert.alert(
-      'Reset progress',
-      'This permanently deletes all your completion history — every check-off — for a fresh start. Your habits and stacks stay. This can’t be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: () => void runReset() },
-      ],
-    );
+    confirmDestructive({
+      title: 'Reset progress',
+      message:
+        'This permanently deletes all your completion history — every check-off — for a fresh start. Your habits and stacks stay. This can’t be undone.',
+      confirmLabel: 'Reset',
+      onConfirm: () => void runReset(),
+    });
 
   const enableNotifications = async () => {
     // Already on: there's no permission to request, so the only useful action is to
@@ -133,7 +128,7 @@ export default function SettingsScreen() {
           </ThemedText>
         </View>
         <View style={styles.identityText}>
-          <ThemedText type="default" numberOfLines={1}>
+          <ThemedText type="defaultSemiBold" numberOfLines={1}>
             {displayName}
           </ThemedText>
           {email ? (
@@ -151,56 +146,48 @@ export default function SettingsScreen() {
       </View>
 
       {/* Notifications */}
-      <SettingsSection
-        title="Notifications"
-        footer={
-          remindersAvailable ? 'Reminders are set per habit when you create or edit one.' : undefined
-        }>
+      <SettingsSection title="Notifications">
         {remindersAvailable ? (
           <SettingsRow
-            icon={notifGranted === false ? 'notifications-off' : 'notifications'}
+            icon={notifGranted === false ? 'notificationsOff' : 'notifications'}
             label="Allow notifications"
             sublabel={notifSublabel}
             onPress={() => void enableNotifications()}
             showChevron
           />
         ) : (
-          <SettingsRow
-            icon="notifications-off"
-            label="Reminders"
-            sublabel="Need a development build (not available in Expo Go)."
-          />
+          <SettingsRow icon="notificationsOff" label="Reminders" value="Unavailable" />
         )}
       </SettingsSection>
 
       {/* Account */}
       <SettingsSection title="Account">
         <SettingsRow
-          icon="lock-outline"
-          label="Change Password"
+          icon="lock"
+          label="Change password"
           onPress={() => router.push('/settings/change-password')}
           showChevron
         />
-        <SettingsRow icon="logout" label="Sign out" onPress={() => void signOut()} />
+        <SettingsRow icon="signOut" label="Sign out" onPress={() => void signOut()} />
       </SettingsSection>
 
       {/* About */}
       <SettingsSection title="About">
-        <SettingsRow icon="info-outline" label="Version" sublabel={hijriVersion} value={version} />
+        <SettingsRow icon="info" label="Version" value={version} />
         <SettingsRow
-          icon="privacy-tip"
+          icon="privacy"
           label="Privacy Policy"
           onPress={() => void WebBrowser.openBrowserAsync(Links.privacy)}
           showChevron
         />
         <SettingsRow
-          icon="description"
+          icon="document"
           label="Terms of Service"
           onPress={() => void WebBrowser.openBrowserAsync(Links.terms)}
           showChevron
         />
         <SettingsRow
-          icon="help-outline"
+          icon="help"
           label="Support"
           onPress={() => void WebBrowser.openBrowserAsync(Links.support)}
           showChevron
@@ -210,15 +197,14 @@ export default function SettingsScreen() {
       {/* Danger zone */}
       <SettingsSection title="Danger zone">
         <SettingsRow
-          icon="restart-alt"
+          icon="reset"
           label="Reset progress"
-          sublabel="Clear all completion history for a fresh start — keeps your habits & stacks"
           destructive
           busy={clearing}
           onPress={confirmReset}
         />
         <SettingsRow
-          icon="delete-outline"
+          icon="deleteOutline"
           label="Delete account"
           destructive
           busy={busy}

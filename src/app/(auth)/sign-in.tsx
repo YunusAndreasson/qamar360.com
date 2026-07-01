@@ -1,9 +1,9 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
+import { AppIcon } from '@/components/app-icon';
 import { FormField } from '@/components/form-field';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { MoonHalo } from '@/components/ornament/moon-halo';
@@ -108,7 +108,7 @@ export default function SignInScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.brand}>
           <MoonHalo size={300} strokeOpacity={0.16} />
-          <MaterialIcons name="dark-mode" size={40} color={theme.accent} />
+          <AppIcon name="moon" size={40} color={theme.accent} />
           <ThemedText type="subtitle">qamar360</ThemedText>
         </View>
         <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>

@@ -58,7 +58,7 @@ export default function ChangePasswordScreen() {
       bottomInset={false}>
       <Stack.Screen
         options={{
-          title: 'Change Password',
+          title: 'Change password',
           headerRight: headerSaveAction(() => void save(), canSave),
         }}
       />
@@ -67,7 +67,6 @@ export default function ChangePasswordScreen() {
         label="NEW PASSWORD"
         value={password}
         onChangeText={setPassword}
-        placeholder="New password"
         secureTextEntry
         autoCapitalize="none"
         autoComplete="new-password"
@@ -83,7 +82,6 @@ export default function ChangePasswordScreen() {
         label="CONFIRM PASSWORD"
         value={confirm}
         onChangeText={setConfirm}
-        placeholder="Confirm password"
         secureTextEntry
         autoCapitalize="none"
         autoComplete="new-password"

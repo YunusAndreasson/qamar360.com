@@ -1,6 +1,5 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { memo, useEffect, useRef } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
   Extrapolation,
@@ -13,15 +12,18 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import { AppIcon } from '@/components/app-icon';
 import { CompletionRing } from '@/components/completion-ring';
 import { PressableScale } from '@/components/pressable-scale';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
+import type { IconName } from '@/constants/icons';
 import { Scale, Spring } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { haptics } from '@/lib/haptics';
+import { confirmDestructive } from '@/lib/alerts';
+import { withPickup } from '@/lib/haptics';
 import { clamp01 } from '@/lib/progress';
 
 type Props = {
@@ -54,7 +56,7 @@ type SwipeActionProps = {
   progress: SharedValue<number>;
   kind: keyof typeof ACTION_ENTRY_DELAY;
   label: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: IconName;
   backgroundColor: string;
   foregroundColor: string;
   rippleColor: string;
@@ -93,7 +95,7 @@ function SwipeAction({
         accessibilityLabel={accessibilityLabel}
         android_ripple={{ color: rippleColor }}
         style={[styles.action, { backgroundColor }]}>
-        <MaterialIcons name={icon} size={20} color={foregroundColor} />
+        <AppIcon name={icon} size={20} color={foregroundColor} />
         <ThemedText type="small" style={{ color: foregroundColor }}>
           {label}
         </ThemedText>
@@ -138,23 +140,18 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   // Long-press hands off to DraggableFlatList; a "pick up" bump marks the grab.
-  const onLongPress = drag
-    ? () => {
-        haptics.pickup();
-        drag();
-      }
-    : undefined;
+  const onLongPress = withPickup(drag);
 
   // Skip, Edit, and Delete live in a trailing swipe — the platform-standard home for a
   // list item's secondary actions (Reminders, Mail). The row stays a clean check + label;
   // the gesture stays out of the way of tap-to-toggle and long-press-to-reorder. Skip is
   // an excused, completeness-neutral miss (travel, menstruation); it leads the panel.
-  const confirmDelete = () => {
-    Alert.alert('Delete habit', `Delete “${habit.name}”? This can’t be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => onDelete(habit.id) },
-    ]);
-  };
+  const confirmDelete = () =>
+    confirmDestructive({
+      title: 'Delete habit',
+      message: `Delete “${habit.name}”? This can’t be undone.`,
+      onConfirm: () => onDelete(habit.id),
+    });
 
   const renderRightActions = (
     progress: SharedValue<number>,
@@ -166,7 +163,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         progress={progress}
         kind="skip"
         label={skipped ? 'Unskip' : 'Skip'}
-        icon={skipped ? 'undo' : 'do-not-disturb-on'}
+        icon={skipped ? 'undo' : 'skip'}
         backgroundColor={theme.backgroundElement}
         foregroundColor={theme.textSecondary}
         rippleColor={theme.backgroundSelected}
@@ -242,9 +239,12 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               ? 'Activates to toggle done. Long press to reorder. Swipe left to skip, edit, or delete.'
               : 'Activates to toggle done. Swipe left to skip, edit, or delete.'
         }
-        // A press lights the whole band rather than just dimming it, so the entire
-        // row reads as one button — leading circle to trailing edge is the tap target.
-        style={({ pressed }) => [styles.row, (pressed || isActive) && !isCount && { backgroundColor: theme.backgroundSelected }]}>
+        // A press lights the whole band rather than just dimming it, so the entire row reads as
+        // one button — leading circle to trailing edge is the tap target. The press flash is for
+        // tap-to-toggle only (so a count row, whose body doesn't toggle, doesn't flash), but the
+        // picked-up-to-reorder highlight shows on EVERY row — count rows included — so the pickup
+        // haptic always lands on a visible change.
+        style={({ pressed }) => [styles.row, ((pressed && !isCount) || isActive) && { backgroundColor: theme.backgroundSelected }]}>
         <Animated.View style={[styles.indicator, iconStyle]}>
           {/* The leading mark is a ring that resolves to a check — a count goal fills it partway in
               cool steel, a binary habit closes it in one tap and lights up warm at done. (No moon
@@ -252,7 +252,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               distinct "no-entry" glyph — it's excused, a state apart from the completion continuum,
               not a half-done point on it. */}
           {skipped ? (
-            <MaterialIcons name="do-not-disturb-on" size={28} color={theme.textSecondary} />
+            <AppIcon name="skip" size={28} color={theme.textSecondary} />
           ) : (
             <CompletionRing fraction={fraction} size={28} strokeWidth={3} />
           )}
@@ -279,8 +279,9 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={`Remove one from ${habit.name}`}
-              style={[styles.stepButton, { borderColor: theme.border }]}>
-              <MaterialIcons name="remove" size={18} color={count <= 0 ? theme.textDisabled : theme.text} />
+              accessibilityState={{ disabled: count <= 0 }}
+              style={[styles.stepButton, { borderColor: theme.controlTrack }]}>
+              <AppIcon name="remove" size={18} color={count <= 0 ? theme.textDisabled : theme.text} />
             </PressableScale>
             <ThemedText type="smallBold" numberOfLines={1} style={styles.stepCount}>
               {count}/{target}
@@ -292,8 +293,9 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={`Add one to ${habit.name}`}
-              style={[styles.stepButton, { borderColor: theme.border }]}>
-              <MaterialIcons name="add" size={18} color={count >= (target ?? 0) ? theme.textDisabled : theme.accent} />
+              accessibilityState={{ disabled: count >= (target ?? 0) }}
+              style={[styles.stepButton, { borderColor: theme.controlTrack }]}>
+              <AppIcon name="add" size={18} color={count >= (target ?? 0) ? theme.textDisabled : theme.accent} />
             </PressableScale>
           </View>
         ) : null}
@@ -305,7 +307,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   // tappable unit (matching the stack cards and the Settings rows). Stack members
   // stay transparent — they already live on the stack card, under its connector rail.
   if (!standalone) return row;
-  return <Surface style={styles.surface}>{row}</Surface>;
+  return <Surface style={[styles.surface, isActive && styles.lifted]}>{row}</Surface>;
 }
 
 const styles = StyleSheet.create({
@@ -314,6 +316,15 @@ const styles = StyleSheet.create({
   surface: {
     marginHorizontal: Spacing.three,
     marginVertical: Spacing.one,
+  },
+  // The picked-up row rises: a deeper shadow and a hair of scale, so a reorder "grab" is seen as
+  // well as felt — the pickup haptic otherwise lands with almost no visual (see the row style).
+  lifted: {
+    transform: [{ scale: 1.03 }],
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
   row: {
     flexDirection: 'row',

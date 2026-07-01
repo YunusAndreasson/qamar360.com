@@ -1,7 +1,7 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
-import { clamp01 } from '@/lib/progress';
+import { ringMetrics } from '@/lib/progress';
 
 /**
  * A checklist item's completion mark — a ring that resolves to a checkmark, NEVER a moon. A full
@@ -24,12 +24,7 @@ export function CompletionRing({
   strokeWidth: number;
 }) {
   const theme = useTheme();
-  const clamped = clamp01(fraction);
-  const isComplete = clamped >= 1;
-  const radius = size / 2;
-  const ringRadius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * ringRadius;
-  const arc = circumference * clamped;
+  const { isComplete, radius, ringRadius, circumference, arc } = ringMetrics(size, strokeWidth, fraction);
 
   // The check — two strokes inside the disc, scaled to the mark's size.
   const check = `M ${size * 0.3} ${size * 0.53} L ${size * 0.43} ${size * 0.67} L ${size * 0.72} ${size * 0.35}`;
@@ -53,7 +48,7 @@ export function CompletionRing({
         </>
       ) : (
         <>
-          <Circle cx={radius} cy={radius} r={ringRadius} stroke={theme.accentTrack} strokeWidth={strokeWidth} fill="none" />
+          <Circle cx={radius} cy={radius} r={ringRadius} stroke={theme.controlTrack} strokeWidth={strokeWidth} fill="none" />
           {arc > 0 ? (
             <Circle
               cx={radius}

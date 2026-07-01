@@ -15,27 +15,31 @@ export function todayLocalISO(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Parse a `YYYY-MM-DD` string into a Date at *local* midnight. */
-function parseLocalISO(iso: string): Date {
+/**
+ * A `Date` at local `hour:minute` on the given `YYYY-MM-DD` day — local midnight by default, so the
+ * weekday/day match the local date. The one place a completion date-string is turned back into a
+ * local `Date`: display code and the reminder scheduler both build on this, so a day never shifts
+ * across a time zone.
+ */
+export function localDate(iso: string, hour = 0, minute = 0): Date {
   const [year = 1970, month = 1, day = 1] = iso.split('-').map(Number);
-  // Construct at local midnight so the weekday/day match the local date.
-  return new Date(year, month - 1, day);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
 }
 
 /** `iso` shifted by `n` calendar days (`n` may be negative), as `YYYY-MM-DD`. */
 export function addDaysISO(iso: string, n: number): string {
-  const date = parseLocalISO(iso);
+  const date = localDate(iso);
   date.setDate(date.getDate() + n); // setDate handles month/year overflow
   return todayLocalISO(date);
 }
 
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */
 export function weekdayIndex(iso: string): number {
-  return parseLocalISO(iso).getDay();
+  return localDate(iso).getDay();
 }
 
 /**
- * Umm al-Qura month names, 1-based (index 0 is Muharram). We name the month from
+ * Umm al-Qura month names, 1-based (index 0 is Muḥarram). We name the month from
  * its *numeric* value ourselves rather than trust `Intl`'s long month name:
  * Hermes/iOS routinely returns an empty string for `islamic-umalqura`
  * `month: 'long'` (the number still resolves), which left the Progress hero
@@ -43,18 +47,18 @@ export function weekdayIndex(iso: string): number {
  * every engine.
  */
 const HIJRI_MONTHS = [
-  'Muharram',
-  'Safar',
-  'Rabi al-Awwal',
-  'Rabi al-Thani',
-  'Jumada al-Awwal',
-  'Jumada al-Thani',
+  'Muḥarram',
+  'Ṣafar',
+  'Rabīʿ al-Awwal',
+  'Rabīʿ al-Thānī',
+  'Jumādā al-Awwal',
+  'Jumādā al-Thānī',
   'Rajab',
-  'Shaban',
-  'Ramadan',
-  'Shawwal',
-  'Dhu al-Qadah',
-  'Dhu al-Hijjah',
+  'Shaʿbān',
+  'Ramaḍān',
+  'Shawwāl',
+  'Dhū al-Qaʿdah',
+  'Dhū al-Ḥijjah',
 ] as const;
 
 /**
@@ -94,7 +98,7 @@ export function hijriParts(
   const fmt = getHijriFormatter();
   if (!fmt) return null;
   try {
-    const date = parseLocalISO(iso);
+    const date = localDate(iso);
     const parts = fmt.formatToParts(date);
     const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
     const day = Number(pick('day'));
@@ -106,20 +110,6 @@ export function hijriParts(
   } catch {
     return null;
   }
-}
-
-/**
- * Render a Hijri-CalVer version string — the app's release scheme, where the version *is* the
- * Umm al-Qura date it shipped on (`YYYY.MM.DD`, e.g. `1448.1.15`) — as a human date like
- * "15 Muḥarram 1448 AH". The triple doubles as valid SemVer, so tooling reads it as a version
- * while people read it as a date. Returns the raw string unchanged if it isn't that three-part
- * shape (e.g. a legacy `1.0.0`), so it's always safe on whatever `expoConfig.version` holds.
- */
-export function formatHijriVersion(version: string): string {
-  const [year, month, day] = version.split('.').map((n) => Number(n));
-  if (!year || !month || !day || month > 12 || day > 30) return version;
-  const name = HIJRI_MONTHS[month - 1];
-  return name ? `${day} ${name} ${year} AH` : version;
 }
 
 /**
@@ -144,9 +134,9 @@ export function hijriMonthRange(
 }
 
 /**
- * The Gregorian date (`YYYY-MM-DD`) of 1 Muharram — the first day of the Hijri
+ * The Gregorian date (`YYYY-MM-DD`) of 1 Muḥarram — the first day of the Hijri
  * year that contains `iso` — plus that Hijri year. Walks back month by month
- * from the current Hijri month to Muharram (month 1). Returns `null` when the
+ * from the current Hijri month to Muḥarram (month 1). Returns `null` when the
  * Islamic calendar is unavailable.
  */
 export function hijriYearStart(iso: string): { start: string; year: number } | null {
@@ -175,14 +165,14 @@ export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
  * Hijri-scheduled iff it carries one of these (stored in `habits.hijri_schedule`);
  * otherwise it uses the weekday `schedule_days`. All keys optional — a day counts
  * if it matches any of them. Lets us express the Sunnah practices a weekday schedule
- * can't: the White Days, ʿĀshūrāʾ, ʿArafah, Ramadan.
+ * can't: the White Days, ʿĀshūrāʾ, ʿArafah, Ramaḍān.
  */
 export type HijriSchedule = {
   /** Days of the Hijri month (1–30) that recur EVERY month, e.g. [13, 14, 15] = the White Days. */
   monthDays?: number[];
   /** Specific annual dates, e.g. [{ month: 1, day: 10 }] = 10 Muḥarram (ʿĀshūrāʾ). */
   dates?: { month: number; day: number }[];
-  /** Whole Hijri months (1–12), e.g. [9] = Ramadan. */
+  /** Whole Hijri months (1–12), e.g. [9] = Ramaḍān. */
   months?: number[];
 };
 
@@ -224,7 +214,7 @@ function numberList(values: number[]): string {
 
 /**
  * A human one-line summary of a {@link HijriSchedule}, e.g. "White Days (13–15)",
- * "Ramadan", "9–10 Muḥarram". Used wherever a Hijri habit's schedule is shown.
+ * "Ramaḍān", "9–10 Muḥarram". Used wherever a Hijri habit's schedule is shown.
  */
 export function describeHijriSchedule(hs: HijriSchedule): string {
   const parts: string[] = [];

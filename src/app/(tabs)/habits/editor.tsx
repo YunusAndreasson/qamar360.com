@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 
 import { HabitEditorForm } from '@/components/habit-editor';
 import { useHabits } from '@/hooks/use-habits';
+import { otherNames } from '@/lib/names';
 
 /**
  * One params-driven screen for both new and edit, presented as a native modal
@@ -45,10 +46,7 @@ export default function HabitEditorScreen() {
   // collides with one of these, so the user can't create an indistinguishable
   // duplicate (there's no DB uniqueness backing the name). The habit being
   // edited is excluded so keeping its own name is fine.
-  const existingNames = useMemo(
-    () => habits.filter((h) => h.id !== id).map((h) => h.name.trim().toLowerCase()),
-    [habits, id],
-  );
+  const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
 
   // Editing a habit that no longer exists (stale deep link / deleted elsewhere):
   // back out rather than render an empty form.

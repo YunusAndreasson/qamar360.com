@@ -1,4 +1,3 @@
-import { forwardRef } from 'react';
 import { Pressable, type PressableProps, type StyleProp, type View, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -9,12 +8,15 @@ import Animated, {
 
 import { Scale, Spring } from '@/constants/motion';
 
+import type { Ref } from 'react';
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
   /** Scale target while pressed. Defaults to `Scale.press`; pass `Scale.glyph` for bare icons. */
   scaleTo?: number;
+  ref?: Ref<View>;
 };
 
 /**
@@ -26,28 +28,35 @@ type Props = Omit<PressableProps, 'style'> & {
  * list rows that live inside a Swipeable/draggable keep a background highlight
  * instead — a scale transform there would fight the gesture translate.
  */
-export const PressableScale = forwardRef<View, Props>(function PressableScale(
-  { style, scaleTo = Scale.press, onPressIn, onPressOut, disabled, ...props },
+export function PressableScale({
+  style,
+  scaleTo = Scale.press,
+  onPressIn,
+  onPressOut,
+  disabled,
   ref,
-) {
+  ...props
+}: Props) {
   const scale = useSharedValue(1);
   const reduceMotion = useReducedMotion();
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  // Reanimated 4's `.get()`/`.set()` accessors (not the legacy `.value` property) — a method
+  // call rather than a mutation, so the React Compiler's immutability rule stays satisfied.
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
 
   return (
     <AnimatedPressable
       ref={ref}
       disabled={disabled}
       onPressIn={(e) => {
-        if (!reduceMotion && !disabled) scale.value = withSpring(scaleTo, Spring.press);
+        if (!reduceMotion && !disabled) scale.set(withSpring(scaleTo, Spring.press));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        if (!reduceMotion) scale.value = withSpring(1, Spring.press);
+        if (!reduceMotion) scale.set(withSpring(1, Spring.press));
         onPressOut?.(e);
       }}
       style={[animatedStyle, style]}
       {...props}
     />
   );
-});
+}

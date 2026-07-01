@@ -1,15 +1,16 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, View } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
+import type { IconName } from '@/constants/icons';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
 
 type Props = {
-  /** Optional calm glyph above the copy. */
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  /** Optional calm glyph above the copy (semantic name from the icon registry). */
+  icon?: IconName;
   /**
    * A branded emblem rendered above the copy in place of {@link icon} — e.g. `<MoonEmblem/>`.
    * Use it for the warm first-run / no-data moments; keep `icon` for contextual states (a
@@ -32,7 +33,7 @@ export function EmptyState({ icon, art, title, body, children }: Props) {
   const theme = useTheme();
   return (
     <View style={styles.root}>
-      {art ?? (icon ? <MaterialIcons name={icon} size={40} color={theme.textSecondary} /> : null)}
+      {art ?? (icon ? <AppIcon name={icon} size={40} color={theme.textSecondary} /> : null)}
       <ThemedText type="defaultSemiBold" style={styles.text}>
         {title}
       </ThemedText>

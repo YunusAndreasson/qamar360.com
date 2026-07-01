@@ -1,9 +1,9 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { addControlColors, AddPill, ADDED_LABEL } from '@/components/add-pill';
+import { AppIcon } from '@/components/app-icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
@@ -97,7 +97,7 @@ export function ExpandableAddRow({
               {subtitle}
             </ThemedText>
           </View>
-          <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={22} color={theme.textSecondary} />
+          <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={22} color={theme.textSecondary} />
         </Pressable>
         <AddPill added={added} onPress={add} onRemove={remove} label={itemLabel} />
       </View>

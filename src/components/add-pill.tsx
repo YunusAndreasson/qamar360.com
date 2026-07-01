@@ -1,6 +1,6 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -60,7 +60,7 @@ export function AddPill({ added, onPress, onRemove, label }: Props) {
       accessibilityLabel={added ? (onRemove ? `Remove ${label}` : `${label} already added`) : `Add ${label}`}
       accessibilityHint={added && onRemove ? 'Removes it from your habits' : undefined}
       style={[styles.pill, { backgroundColor }]}>
-      <MaterialIcons name={added ? 'check' : 'add'} size={20} color={color} />
+      <AppIcon name={added ? 'check' : 'add'} size={20} color={color} />
     </PressableScale>
   );
 }

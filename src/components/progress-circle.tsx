@@ -2,7 +2,7 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
 import { moonPhasePath } from '@/lib/moon';
-import { clamp01 } from '@/lib/progress';
+import { ringMetrics } from '@/lib/progress';
 
 /** The shadowed limb tint — the rest of the moon in a faint wash of its own moonlight. */
 const MOON_FAINT = 0.16;
@@ -33,12 +33,7 @@ export function ProgressCircle({
   phase?: { illumination: number; waxing: boolean };
 }) {
   const theme = useTheme();
-  const clamped = clamp01(fraction);
-  const isComplete = clamped >= 1;
-  const radius = size / 2;
-  const ringRadius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * ringRadius;
-  const arc = circumference * clamped;
+  const { isComplete, radius, ringRadius, circumference, arc } = ringMetrics(size, strokeWidth, fraction);
   // The moon sits a stroke-width inside the ring, so the ring always reads as a band around it.
   const moonR = ringRadius - strokeWidth;
 

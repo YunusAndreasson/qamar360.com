@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing,
@@ -12,18 +12,21 @@ import Svg, { Circle, Defs, LinearGradient, Line, Path, Stop } from 'react-nativ
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
-import { DenseLabelScale, Spacing } from '@/constants/theme';
+import { DenseLabelScale } from '@/constants/theme';
 import type { YearProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { clamp01, toDegrees } from '@/lib/progress';
 
 const H = 92;
-const PAD_X = 6;
 const PAD_Y = 12;
 const DOT_R = 3;
 const CURRENT_R = 4.5;
 const FUTURE_R = 2.5;
+// Half-width of an axis label box. A label is centered on its dot's x but clamped to the chart
+// edges, so the horizontal inset must be ≥ this — otherwise the first/last dots sit nearer the
+// edge than LABEL_HALF and their labels get shoved inward, drifting off the dot (the "1" and "12").
 const LABEL_HALF = 12;
+const PAD_X = LABEL_HALF;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -56,6 +59,9 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
+  // A unique gradient id per instance — a hardcoded id would collide if two YearTrends ever
+  // mount at once (e.g. mid nav-transition), making the second reference the first's fill.
+  const areaFillId = `yearArea-${useId()}`;
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
@@ -94,14 +100,14 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
     .join(', ')}.`;
 
   return (
-    <StatCard style={styles.card} accessible accessibilityLabel={a11y}>
+    <StatCard accessible accessibilityLabel={a11y}>
       <StatCardHeader title="This year" trailing={`${year.year} H`} />
 
       <View style={styles.chart} onLayout={onLayout}>
         {width > 0 ? (
           <Svg width={width} height={H} viewBox={`0 0 ${width} ${H}`}>
             <Defs>
-              <LinearGradient id="yearArea" x1="0" y1="0" x2="0" y2="1">
+              <LinearGradient id={areaFillId} x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor={theme.accent} stopOpacity={0.22} />
                 <Stop offset="1" stopColor={theme.accent} stopOpacity={0} />
               </LinearGradient>
@@ -110,7 +116,7 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
             {/* The faint floor the line rests on. */}
             <Line x1={PAD_X} y1={baselineY} x2={width - PAD_X} y2={baselineY} stroke={theme.accentTrack} strokeWidth={1} />
 
-            {areaPath ? <Path d={areaPath} fill="url(#yearArea)" /> : null}
+            {areaPath ? <Path d={areaPath} fill={`url(#${areaFillId})`} /> : null}
 
             {linePath ? (
               <AnimatedPath
@@ -146,13 +152,16 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
           ? labelIndices.map((i) => {
               const { x } = pointFor(i, 0, width);
               const isCurrent = i === currentIndex;
+              const isFuture = months[i]?.state === 'future';
               const left = Math.max(0, Math.min(width - LABEL_HALF * 2, x - LABEL_HALF));
               return (
                 <View key={i} style={[styles.labelBox, { left }]}>
                   <ThemedText
                     type={isCurrent ? 'smallCompactBold' : 'smallCompact'}
                     maxFontSizeMultiplier={DenseLabelScale}
-                    style={{ color: isCurrent ? theme.accent : theme.textSecondary }}>
+                    // Same axis language as the month grid (ProgressCell): you-are-here = accent,
+                    // months still to come are dimmed, past months sit at textSecondary.
+                    style={{ color: isCurrent ? theme.accent : isFuture ? theme.textDisabled : theme.textSecondary }}>
                     {i + 1}
                   </ThemedText>
                 </View>
@@ -165,7 +174,6 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
 }
 
 const styles = StyleSheet.create({
-  card: { gap: Spacing.three },
   chart: { width: '100%', height: H },
   axis: { height: 16 },
   labelBox: { position: 'absolute', width: LABEL_HALF * 2, alignItems: 'center' },

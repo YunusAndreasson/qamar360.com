@@ -1,16 +1,16 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolView } from 'expo-symbols';
 import { memo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { HabitRow } from '@/components/habit-row';
 import { PressableScale } from '@/components/pressable-scale';
+import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { haptics } from '@/lib/haptics';
+import { withPickup } from '@/lib/haptics';
 
 type Props = {
   stack: HabitStack;
@@ -43,12 +43,7 @@ type Props = {
 function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
   const theme = useTheme();
 
-  const onHeaderLongPress = drag
-    ? () => {
-        haptics.pickup();
-        drag();
-      }
-    : undefined;
+  const onHeaderLongPress = withPickup(drag);
 
   return (
     <Surface style={[styles.card, isActive && styles.active]}>
@@ -61,24 +56,20 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
         accessibilityLabel={`${stack.name} stack`}
         accessibilityHint={drag ? 'Activates to edit the stack. Long press to reorder.' : 'Activates to edit the stack.'}
         style={styles.header}>
-        {Platform.OS === 'ios' ? (
-          <SymbolView name="link" size={16} tintColor={theme.accent} type="monochrome" />
-        ) : (
-          <MaterialIcons name="link" size={18} color={theme.accent} />
-        )}
+        <AppIcon name="link" size={18} color={theme.accent} />
         <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
           {stack.name}
         </ThemedText>
-        <MaterialIcons name="chevron-right" size={16} color={theme.textSecondary} style={{ opacity: 0.4 }} />
+        <AppIcon name="chevronRight" size={16} color={theme.textSecondary} style={{ opacity: 0.4 }} />
       </PressableScale>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
       <View>
         {members.map((habit, index) => (
-          <View
-            key={habit.id}
-            style={index > 0 ? [styles.habitDivider, { borderTopColor: theme.border }] : undefined}>
+          <View key={habit.id}>
+            {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
+            {index > 0 ? <RowSeparator /> : null}
             <HabitRow
               habit={habit}
               done={completed.has(habit.id)}
@@ -112,8 +103,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   title: { flex: 1 },
+  // Full-bleed rule under the stack header (a header separator, distinct from the row dividers).
   divider: { height: StyleSheet.hairlineWidth },
-  habitDivider: { borderTopWidth: StyleSheet.hairlineWidth },
 });
 
 // Memoized: a card re-renders only when its members' done-state or identity changes.

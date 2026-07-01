@@ -1,6 +1,4 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { RefreshControl } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
@@ -12,22 +10,13 @@ import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
 import { YearTrend } from '@/components/year-trend';
 import { useProgress } from '@/hooks/use-progress';
-import { useTheme } from '@/hooks/use-theme';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const { loading, error, dismissError, refresh, habitsCount, month, year } = useProgress();
 
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refresh]);
+  const { refreshControl } = usePullToRefresh(refresh);
 
   if (loading) {
     return (
@@ -53,17 +42,7 @@ export default function ProgressScreen() {
   }
 
   return (
-    <AppScreen
-      transparent
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.textSecondary}
-          colors={[theme.accent]}
-          progressBackgroundColor={theme.backgroundElement}
-        />
-      }>
+    <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
       <MonthSummary month={month} />

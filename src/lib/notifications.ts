@@ -15,7 +15,7 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
-import { addDaysISO, type HijriSchedule, parseReminderTime, scheduledOn, todayLocalISO } from '@/lib/dates';
+import { addDaysISO, type HijriSchedule, localDate, parseReminderTime, scheduledOn, todayLocalISO } from '@/lib/dates';
 
 /** The fields a reminder needs from a habit. `Habit` satisfies this structurally. */
 type RemindableHabit = {
@@ -33,12 +33,6 @@ type RemindableHabit = {
 const HIJRI_HORIZON_DAYS = 120;
 const HIJRI_MAX_OCCURRENCES = 6;
 const IOS_BADGE_PERMISSION = { ios: { allowAlert: true, allowBadge: true, allowSound: true } };
-
-/** A Date at `hour:minute` local time on the given `YYYY-MM-DD` day. */
-function atLocalTime(iso: string, hour: number, minute: number): Date {
-  const [y = 1970, m = 1, d = 1] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d, hour, minute, 0, 0);
-}
 
 function weeklyDueCount(habits: RemindableHabit[], weekday: number): number {
   return habits.filter((habit) => !habit.hijri_schedule && habit.schedule_days.includes(weekday)).length;
@@ -142,7 +136,7 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
         for (let i = 0; i <= HIJRI_HORIZON_DAYS && armed < HIJRI_MAX_OCCURRENCES; i += 1) {
           const dayISO = addDaysISO(todayISO, i);
           if (!scheduledOn(habit, dayISO)) continue;
-          const when = atLocalTime(dayISO, time.hour, time.minute);
+          const when = localDate(dayISO, time.hour, time.minute);
           if (when.getTime() <= now.getTime()) continue; // today's slot already passed
           await N.scheduleNotificationAsync({
             content: { title: habit.name, body: `Time for ${habit.name}`, badge: dailyDueCount(habits, dayISO) },

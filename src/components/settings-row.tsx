@@ -1,15 +1,16 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
+import type { IconName } from '@/constants/icons';
 import { Disabled, Pressed, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
 
 type Props = {
-  /** Leading MaterialIcons glyph. */
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  /** Leading glyph (semantic name from the icon registry). */
+  icon?: IconName;
   label: string;
   /** Secondary line under the label. */
   sublabel?: string;
@@ -51,7 +52,7 @@ export function SettingsRow({
 
   const content = (
     <>
-      {icon ? <MaterialIcons name={icon} size={22} color={iconColor} /> : null}
+      {icon ? <AppIcon name={icon} size={22} color={iconColor} /> : null}
       <View style={styles.labels}>
         <ThemedText type="default" style={{ color: labelColor }} numberOfLines={1}>
           {label}
@@ -71,7 +72,7 @@ export function SettingsRow({
           {value}
         </ThemedText>
       ) : showChevron ? (
-        <MaterialIcons name="chevron-right" size={22} color={theme.textSecondary} />
+        <AppIcon name="chevronRight" size={22} color={theme.textSecondary} />
       ) : null}
     </>
   );
@@ -85,7 +86,7 @@ export function SettingsRow({
       android_ripple={{ color: theme.backgroundSelected }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? (value ? `${label}, ${value}` : label)}
-      accessibilityState={{ disabled: !!(disabled || busy) }}
+      accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
       style={({ pressed }) => [styles.row, pressed && styles.pressed, (disabled || busy) && styles.faded]}>
       {content}
     </Pressable>

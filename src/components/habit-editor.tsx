@@ -1,13 +1,13 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, {
   DateTimePickerAndroid,
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
+import { AppIcon } from '@/components/app-icon';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
@@ -18,6 +18,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import type { Habit, HabitCreate, HabitPatch } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDestructive } from '@/lib/alerts';
 import {
   DAILY_SCHEDULE,
   formatReminderTime,
@@ -35,12 +36,26 @@ const WHITE_DAYS = [13, 14, 15];
 
 /** Named Hijri occasions offered as one-tap toggles (each contributes months and/or dates). */
 const HIJRI_OCCASIONS: { key: string; label: string; months: number[]; dates: { month: number; day: number }[] }[] = [
-  { key: 'ramadan', label: 'Ramadan', months: [9], dates: [] },
+  { key: 'ramadan', label: 'Ramaḍān', months: [9], dates: [] },
   { key: 'arafah', label: 'Day of ʿArafah', months: [], dates: [{ month: 12, day: 9 }] },
   { key: 'ashura', label: 'ʿĀshūrāʾ (9–10 Muḥarram)', months: [], dates: [{ month: 1, day: 9 }, { month: 1, day: 10 }] },
 ];
 
 const dateKey = (d: { month: number; day: number }) => `${d.month}-${d.day}`;
+
+/**
+ * Add/remove `value` from a Set-state, with the standard selection tick. Shared by the weekday and
+ * month-day pickers, which each toggle one number in and out of their Set the same way.
+ */
+function toggleInSet<T>(setter: (update: (prev: Set<T>) => Set<T>) => void, value: T) {
+  haptics.selection();
+  setter((prev) => {
+    const next = new Set(prev);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    return next;
+  });
+}
 
 type Props = {
   /** The habit being edited, or `null` to create a new one. */
@@ -131,25 +146,8 @@ export function HabitEditorForm({
     (scheduleMode === 'weekly' ? days.size > 0 : hijriValid) &&
     (goalMode === 'once' || targetValid);
 
-  const toggleDay = (d: number) => {
-    haptics.selection();
-    setDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(d)) next.delete(d);
-      else next.add(d);
-      return next;
-    });
-  };
-
-  const toggleMonthDay = (d: number) => {
-    haptics.selection();
-    setMonthDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(d)) next.delete(d);
-      else next.add(d);
-      return next;
-    });
-  };
+  const toggleDay = (d: number) => toggleInSet(setDays, d);
+  const toggleMonthDay = (d: number) => toggleInSet(setMonthDays, d);
 
   // White Days (13–15) as a single quick-fill chip — on only when all three are selected.
   const whiteDaysOn = WHITE_DAYS.every((d) => monthDays.has(d));
@@ -256,18 +254,14 @@ export function HabitEditorForm({
 
   const confirmDelete = () => {
     if (!habit) return;
-    Alert.alert('Delete habit', `Delete “${habit.name}”? This can’t be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        // Don't call onClose() here. Deleting removes the habit from state, which
-        // makes the editor screen's "habit no longer exists" effect navigate back.
-        // Calling both fires router.back() twice — the second has nothing to pop
-        // and logs "The action 'GO_BACK' was not handled by any navigator."
-        onPress: () => onDelete(habit.id),
-      },
-    ]);
+    // Don't call onClose() here. Deleting removes the habit from state, which makes the editor
+    // screen's "habit no longer exists" effect navigate back. Calling both fires router.back()
+    // twice — the second has nothing to pop and logs "The action 'GO_BACK' was not handled…".
+    confirmDestructive({
+      title: 'Delete habit',
+      message: `Delete “${habit.name}”? This can’t be undone.`,
+      onConfirm: () => onDelete(habit.id),
+    });
   };
 
   return (
@@ -495,7 +489,7 @@ export function HabitEditorForm({
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
                 pressed && styles.stackRowPressed,
               ]}>
-              <MaterialIcons name="link" size={22} color={theme.accent} />
+              <AppIcon name="link" size={22} color={theme.accent} />
               <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                 {stackName}
               </ThemedText>
@@ -513,7 +507,7 @@ export function HabitEditorForm({
                 accessibilityState={{ expanded: stackPickerOpen }}
                 accessibilityLabel="Add to a stack"
                 style={({ pressed }) => [styles.stackHeaderRow, pressed && styles.stackRowPressed]}>
-                <MaterialIcons name="link" size={22} color={theme.accent} />
+                <AppIcon name="link" size={22} color={theme.accent} />
                 <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                   Not in a stack
                 </ThemedText>
@@ -535,7 +529,7 @@ export function HabitEditorForm({
                         { borderTopColor: theme.border },
                         pressed && styles.stackRowPressed,
                       ]}>
-                      <MaterialIcons name="add" size={22} color={theme.accent} />
+                      <AppIcon name="add" size={22} color={theme.accent} />
                       <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                         {s.name}
                       </ThemedText>
@@ -551,7 +545,7 @@ export function HabitEditorForm({
                       { borderTopColor: theme.border },
                       pressed && styles.stackRowPressed,
                     ]}>
-                    <MaterialIcons name="add-link" size={22} color={theme.accent} />
+                    <AppIcon name="addLink" size={22} color={theme.accent} />
                     <ThemedText type="smallBold" themeColor="accent">
                       New Stack…
                     </ThemedText>

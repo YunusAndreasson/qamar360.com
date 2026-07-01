@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 
 import { StackEditorForm } from '@/components/stack-editor-form';
 import { useHabits } from '@/hooks/use-habits';
+import { otherNames } from '@/lib/names';
 
 /**
  * One params-driven screen for both new and edit, a native modal sheet of the Habits
@@ -27,10 +28,7 @@ export default function StackEditorScreen() {
   }, [isNew, seed, habits, id]);
 
   // Other stacks' names — the form rejects a colliding name.
-  const existingNames = useMemo(
-    () => stacks.filter((s) => s.id !== id).map((s) => s.name.trim().toLowerCase()),
-    [stacks, id],
-  );
+  const existingNames = useMemo(() => otherNames(stacks, id), [stacks, id]);
 
   // Editing a stack that no longer exists (deleted here or elsewhere): back out.
   useEffect(() => {

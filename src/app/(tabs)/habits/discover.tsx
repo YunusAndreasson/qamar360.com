@@ -15,7 +15,7 @@ import { SunnahPresetRow } from '@/components/sunnah-preset-row';
 import { SunnahRoutineRow } from '@/components/sunnah-routine-row';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { HeaderIcons } from '@/constants/icons';
+import { Icons } from '@/constants/icons';
 import { Duration } from '@/constants/motion';
 import {
   ESSENTIAL_PRESETS,
@@ -30,8 +30,7 @@ import {
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-
-const norm = (name: string) => name.trim().toLowerCase();
+import { normalizeName } from '@/lib/names';
 
 const toCreate = (preset: SunnahPreset) => ({
   name: preset.name,
@@ -79,13 +78,13 @@ export default function DiscoverScreen() {
 
   // Normalized name → habit, so a row can both answer "already added?" and undo its own add
   // by deleting the exact habit it created (the ✓ becomes tap-to-remove).
-  const habitByName = useMemo(() => new Map(habits.map((h) => [norm(h.name), h])), [habits]);
+  const habitByName = useMemo(() => new Map(habits.map((h) => [normalizeName(h.name), h])), [habits]);
   const existing = useMemo(() => new Set(habitByName.keys()), [habitByName]);
-  const existingStacks = useMemo(() => new Set(stacks.map((s) => norm(s.name))), [stacks]);
+  const existingStacks = useMemo(() => new Set(stacks.map((s) => normalizeName(s.name))), [stacks]);
 
   const removePreset = useCallback(
     (preset: SunnahPreset) => {
-      const habit = habitByName.get(norm(preset.name));
+      const habit = habitByName.get(normalizeName(preset.name));
       if (habit) void deleteHabit(habit.id);
     },
     [habitByName, deleteHabit],
@@ -93,7 +92,7 @@ export default function DiscoverScreen() {
 
   // The starter set, minus anything already added.
   const starterRemaining = useMemo(
-    () => ESSENTIAL_PRESETS.filter((p) => !existing.has(norm(p.name))),
+    () => ESSENTIAL_PRESETS.filter((p) => !existing.has(normalizeName(p.name))),
     [existing],
   );
 
@@ -130,14 +129,14 @@ export default function DiscoverScreen() {
     async (routine: SunnahRoutine) => {
       const presets = routinePresets(routine);
       if (presets.length < 2) return;
-      const byName = new Map(habits.map((h) => [norm(h.name), h]));
-      const missing = presets.filter((p) => !byName.has(norm(p.name)));
+      const byName = new Map(habits.map((h) => [normalizeName(h.name), h]));
+      const missing = presets.filter((p) => !byName.has(normalizeName(p.name)));
       const created = missing.length > 0 ? await createHabits(missing.map(toCreate)) : [];
       if (created.length !== missing.length) return; // a create failed — error already shown
-      for (const h of created) byName.set(norm(h.name), h);
+      for (const h of created) byName.set(normalizeName(h.name), h);
       const orderedIds: string[] = [];
       for (const p of presets) {
-        const h = byName.get(norm(p.name));
+        const h = byName.get(normalizeName(p.name));
         if (h) orderedIds.push(h.id);
       }
       if (orderedIds.length >= 2) await createStack(routine.name, orderedIds);
@@ -175,7 +174,7 @@ export default function DiscoverScreen() {
           headerRight: () => (
             <HeaderActions>
               <HeaderIconButton
-                icon={HeaderIcons.add}
+                icon={Icons.add}
                 color={theme.accent}
                 accessibilityLabel="Create your own habit"
                 onPress={goCreateHabit}
@@ -220,7 +219,7 @@ export default function DiscoverScreen() {
           resultCount === 0 ? (
             <Animated.View key="empty" entering={enter}>
               <EmptyState
-                icon="search-off"
+                icon="searchOff"
                 title={`No matches for “${query.trim()}”`}
                 body="Try another word, or create your own.">
                 <AppButton
@@ -238,7 +237,7 @@ export default function DiscoverScreen() {
                   <SunnahRoutineRow
                     key={routine.id}
                     routine={routine}
-                    added={existingStacks.has(norm(routine.name))}
+                    added={existingStacks.has(normalizeName(routine.name))}
                     onAdd={() => void addRoutine(routine)}
                   />
                 ))}
@@ -246,7 +245,7 @@ export default function DiscoverScreen() {
                   <SunnahPresetRow
                     key={preset.id}
                     preset={preset}
-                    added={existing.has(norm(preset.name))}
+                    added={existing.has(normalizeName(preset.name))}
                     onAdd={() => void createHabit(toCreate(preset))}
                     onRemove={() => removePreset(preset)}
                   />
@@ -264,8 +263,8 @@ export default function DiscoverScreen() {
                     New here? Start with the essentials
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Start with the moments already in your day: prayer times, morning and evening
-                    adhkār, and a daily page of Qurʾān.
+                    The moments already in your day: prayer times, morning and evening adhkār, and a
+                    daily page of Qurʾān.
                   </ThemedText>
                   <AppButton
                     onPress={() => void createHabits(starterRemaining.map(toCreate))}
@@ -285,7 +284,7 @@ export default function DiscoverScreen() {
                     <SunnahRoutineRow
                       key={routine.id}
                       routine={routine}
-                      added={existingStacks.has(norm(routine.name))}
+                      added={existingStacks.has(normalizeName(routine.name))}
                       onAdd={() => void addRoutine(routine)}
                     />
                   ))}
@@ -295,12 +294,12 @@ export default function DiscoverScreen() {
 
             {categorySections.map(({ category, presets }) => (
               <Animated.View key={category.id} entering={enter} layout={layout}>
-                <SettingsSection title={category.title} footer={category.footer}>
+                <SettingsSection title={category.title}>
                   {presets.map((preset) => (
                     <SunnahPresetRow
                       key={preset.id}
                       preset={preset}
-                      added={existing.has(norm(preset.name))}
+                      added={existing.has(normalizeName(preset.name))}
                       onAdd={() => void createHabit(toCreate(preset))}
                       onRemove={() => removePreset(preset)}
                     />
@@ -322,7 +321,7 @@ export default function DiscoverScreen() {
                     onPress={goCreateHabit}
                   />
                   <SettingsRow
-                    icon="add-link"
+                    icon="addLink"
                     label="Create your own stack"
                     sublabel="Build a routine from one cue"
                     showChevron

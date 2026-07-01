@@ -38,7 +38,7 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityState={{ disabled: isDisabled, busy: !!busy }}
       disabled={isDisabled}
       android_ripple={{ color: variant === 'primary' ? theme.rippleOnFill : theme.backgroundSelected }}
       style={[
@@ -51,7 +51,7 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       {busy ? (
         <ActivityIndicator color={color} />
       ) : (
-        <ThemedText type={variant === 'secondary' ? 'default' : 'defaultBold'} style={{ color }}>
+        <ThemedText type={variant === 'secondary' ? 'default' : 'defaultSemiBold'} style={{ color }}>
           {children}
         </ThemedText>
       )}
@@ -61,10 +61,12 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: Radius.control,
+    borderRadius: Radius.button,
+    // minHeight drives the height to a sleek 48 (text line-height 24 + Spacing.two top/bottom
+    // = 40, so minHeight wins); the padding only takes over if Dynamic Type grows the label.
     minHeight: 48,
     minWidth: 160,
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',

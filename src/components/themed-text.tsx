@@ -14,6 +14,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   return (
     <Text
       style={[
+        styles.base,
         { color: theme[themeColor ?? 'text'] },
         styles[type],
         style,
@@ -23,4 +24,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   );
 }
 
-const styles = StyleSheet.create(Typography);
+// The type ramp, plus one shared base. `includeFontPadding: false` is Android-only (a no-op on
+// iOS): it drops the extra top/bottom padding Android adds beyond the font's own metrics, so the
+// iOS-tuned lineHeights render as specified and text centers accurately against icons and rings.
+// An individual Text can still set it back via its own `style` if a tall glyph ever needs the room.
+const styles = StyleSheet.create({ ...Typography, base: { includeFontPadding: false } });

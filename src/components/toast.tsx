@@ -1,4 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   createContext,
   useCallback,
@@ -6,14 +5,15 @@ import {
   useEffect,
   useRef,
   useState,
-  type ComponentProps,
   type ReactNode,
 } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
+import type { IconName } from '@/constants/icons';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -37,10 +37,10 @@ export function useToast(): ToastContextValue {
 
 const VISIBLE_MS = 3200;
 
-const ICONS: Record<Variant, ComponentProps<typeof MaterialIcons>['name']> = {
-  default: 'info-outline',
-  success: 'check-circle',
-  danger: 'error-outline',
+const ICONS: Record<Variant, IconName> = {
+  default: 'info',
+  success: 'success',
+  danger: 'danger',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -63,10 +63,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   return (
-    <ToastContext.Provider value={{ show }}>
+    <ToastContext value={{ show }}>
       {children}
       {toast ? <ToastView key={toast.id} toast={toast} onDismiss={dismiss} /> : null}
-    </ToastContext.Provider>
+    </ToastContext>
   );
 }
 
@@ -94,7 +94,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
           accessibilityLabel={toast.message}
           accessibilityLiveRegion="polite"
           style={[styles.toast, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}>
-          <MaterialIcons name={ICONS[toast.variant]} size={20} color={tint} />
+          <AppIcon name={ICONS[toast.variant]} size={20} color={tint} />
           <ThemedText type="small" style={styles.text} numberOfLines={2}>
             {toast.message}
           </ThemedText>

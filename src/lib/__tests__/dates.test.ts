@@ -93,8 +93,8 @@ describe('describeHijriSchedule', () => {
   });
 
   it('describes months and annual dates', () => {
-    expect(describeHijriSchedule({ months: [9] })).toBe('Ramadan');
-    expect(describeHijriSchedule({ dates: [{ month: 1, day: 10 }] })).toBe('10 Muharram');
+    expect(describeHijriSchedule({ months: [9] })).toBe('Ramaḍān');
+    expect(describeHijriSchedule({ dates: [{ month: 1, day: 10 }] })).toBe('10 Muḥarram');
   });
 
   it('falls back when nothing is set', () => {

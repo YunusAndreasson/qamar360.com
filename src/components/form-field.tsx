@@ -1,4 +1,3 @@
-import { forwardRef } from 'react';
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
 import { FieldLabel } from '@/components/field-label';
@@ -6,13 +5,16 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+import type { Ref } from 'react';
+
 type Props = TextInputProps & {
   label?: string;
   hint?: string;
   error?: string | null;
+  ref?: Ref<TextInput>;
 };
 
-export const FormField = forwardRef<TextInput, Props>(function FormField({ label, hint, error, style, ...props }, ref) {
+export function FormField({ label, hint, error, style, ref, ...props }: Props) {
   const theme = useTheme();
 
   return (
@@ -35,7 +37,7 @@ export const FormField = forwardRef<TextInput, Props>(function FormField({ label
       ) : null}
     </>
   );
-});
+}
 
 const styles = StyleSheet.create({
   input: {

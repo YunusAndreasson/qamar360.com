@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 
 import type { ViewProps } from 'react-native';
 
@@ -17,9 +18,12 @@ export function StatCard({
   patternVariant,
   ...rest
 }: ViewProps & { pattern?: boolean; patternVariant?: 'card' | 'hero' }) {
-  // A stat card's `style` is content rhythm (the card gap), so it rides the inner content layer —
-  // the outer card keeps the elevation shadow.
-  return <Surface padded pattern={pattern} patternVariant={patternVariant} contentStyle={style} {...rest} />;
+  // A stat card's `style` is content rhythm, so it rides the inner content layer — the outer card
+  // keeps the elevation shadow. One shared header→content gap so every Progress stat card reads
+  // with the same rhythm (callers used to each re-declare it); an override can still be passed.
+  return (
+    <Surface padded pattern={pattern} patternVariant={patternVariant} contentStyle={[styles.card, style]} {...rest} />
+  );
 }
 
 /**
@@ -30,7 +34,7 @@ export function StatCard({
 export function StatCardHeader({ title, trailing }: { title: string; trailing?: string }) {
   return (
     <View style={styles.header}>
-      <ThemedText type="defaultSemiBold" style={styles.title}>
+      <ThemedText type="heading" style={styles.title}>
         {title}
       </ThemedText>
       {trailing ? (
@@ -43,6 +47,8 @@ export function StatCardHeader({ title, trailing }: { title: string; trailing?: 
 }
 
 const styles = StyleSheet.create({
+  // One card gap across all Progress stat cards, so their header→content rhythm reads identically.
+  card: { gap: Spacing.three },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', width: '100%' },
   title: { flex: 1 },
 });

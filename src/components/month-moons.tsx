@@ -34,8 +34,8 @@ export function MonthMoons({ month }: { month: MonthProgress | null }) {
   const a11y = `This month: ${toDegrees(month.thisRate)} degrees complete, day ${month.dayOfMonth} of ${month.monthLength}.`;
 
   return (
-    <StatCard style={styles.card} accessible accessibilityLabel={a11y}>
-      <StatCardHeader title="Day by day" trailing={month.monthName} />
+    <StatCard accessible accessibilityLabel={a11y}>
+      <StatCardHeader title="This month" trailing={month.monthName} />
 
       <View style={styles.grid}>
         {month.days.map((d, i) => (
@@ -82,7 +82,6 @@ function MoonDay({ day: d, index, monthLength }: { day: MonthDay; index: number;
 }
 
 const styles = StyleSheet.create({
-  card: { gap: Spacing.three },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: Spacing.three },
   cell: { width: '16.666%' },
 });

@@ -17,5 +17,7 @@ export function FieldLabel({ children, style }: { children: string; style?: Styl
 }
 
 const styles = StyleSheet.create({
-  label: { marginTop: Spacing.two },
+  // Match SectionLabel's uppercase tracking so form captions and grouped-list captions read as the
+  // same overline treatment.
+  label: { marginTop: Spacing.two, letterSpacing: 0.6 },
 });

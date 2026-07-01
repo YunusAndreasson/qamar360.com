@@ -62,7 +62,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     [themePreference],
   );
 
-  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
+  return <PreferencesContext value={value}>{children}</PreferencesContext>;
 }
 
 export function usePreferences() {

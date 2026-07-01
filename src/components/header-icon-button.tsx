@@ -1,18 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
+import type { IconGlyph } from '@/constants/icons';
 import { Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 
 import type { ReactNode } from 'react';
-
-/**
- * A glyph named once, resolved per platform — SF Symbols on iOS, Material on
- * Android — matching the native tab bar's convention (`(tabs)/_layout.tsx`).
- */
-export type HeaderIcon = { sf: SFSymbol; material: keyof typeof MaterialIcons.glyphMap };
 
 /** Right-aligned cluster that owns the spacing between native header glyphs. */
 export function HeaderActions({ children }: { children: ReactNode }) {
@@ -29,7 +24,7 @@ export function HeaderIconButton({
   hidden = false,
   style,
 }: {
-  icon: HeaderIcon;
+  icon: IconGlyph;
   color: string;
   accessibilityLabel: string;
   onPress: () => void;

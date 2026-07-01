@@ -26,7 +26,7 @@ const ORBIT_SIZE = 232;
 const RING_STROKE = 12;
 // The moon fills the orbit's interior exactly as a day-grid cell fills its ring
 // (ProgressCircle: disc = box − 3×stroke, leaving a stroke/2 gap to the ring), so the hero and
-// the "Day by day" moons read as one object at two scales — not a snug disc beside a floating
+// the "This month" moons read as one object at two scales — not a snug disc beside a floating
 // one. 232 − 3×12 = 196.
 const MOON_SIZE = ORBIT_SIZE - RING_STROKE * 3;
 // The halo radiates past the orbit into the card; sized to stay within the card's width.
@@ -75,8 +75,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
     : `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is ${thisDegrees} degrees complete.`;
 
   return (
-    <StatCard style={styles.card} pattern patternVariant="hero" accessible accessibilityLabel={a11y}>
-      <StatCardHeader title={`${monthName} ${year}`} trailing={`Day ${dayOfMonth} of ${monthLength}`} />
+    <StatCard pattern patternVariant="hero" accessible accessibilityLabel={a11y}>
+      <StatCardHeader title={`${monthName} ${year} H`} trailing={`Day ${dayOfMonth} of ${monthLength}`} />
 
       <View style={styles.hero}>
         <View style={styles.orbit}>
@@ -247,7 +247,6 @@ function HeroGlow({ size }: { size: number }) {
 const styles = StyleSheet.create({
   // One card gap across all three Progress stat cards (this hero, MonthMoons, YearTrend) so
   // their header→content rhythm reads identically down the screen.
-  card: { gap: Spacing.three },
   hero: { alignItems: 'center', gap: Spacing.three },
   // The completion bloom is centred over the orbit, behind every other layer.
   glow: { alignItems: 'center', justifyContent: 'center' },

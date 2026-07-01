@@ -1,11 +1,11 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/app-button';
+import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
@@ -15,10 +15,11 @@ import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
-import { HeaderIcons } from '@/constants/icons';
+import { Icons } from '@/constants/icons';
 import { Duration } from '@/constants/motion';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, scheduledOn } from '@/lib/dates';
 
@@ -81,15 +82,7 @@ export default function HabitsScreen() {
   );
 
   // Pull-to-refresh. `refresh` is silent (no spinner); the RefreshControl owns the indicator.
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refresh]);
+  const { refreshControl } = usePullToRefresh(refresh);
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
@@ -232,7 +225,7 @@ export default function HabitsScreen() {
               {/* One door to add: the Add screen leads with "create your
                   own" and the curated Sunnah library below it. */}
               <HeaderIconButton
-                icon={HeaderIcons.add}
+                icon={Icons.add}
                 color={theme.accent}
                 accessibilityLabel="Add habit or stack"
                 onPress={() => router.push('/habits/discover')}
@@ -249,7 +242,7 @@ export default function HabitsScreen() {
       ) : loadFailed ? (
         <AppScreen transparent centered>
           <EmptyState
-            icon="cloud-off"
+            icon="cloudOff"
             title="Couldn't load your habits"
             body={error ?? 'Check your connection and try again.'}>
             <AppButton onPress={() => void reload()} accessibilityLabel="Try loading again">
@@ -269,15 +262,7 @@ export default function HabitsScreen() {
           onDragEnd={onDragEnd}
           activationDistance={12}
           contentInsetAdjustmentBehavior="automatic"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.textSecondary}
-              colors={[theme.accent]}
-              progressBackgroundColor={theme.backgroundElement}
-            />
-          }
+          refreshControl={refreshControl}
           // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper takes
           // `containerStyle`, which owns the screen background.
           containerStyle={[styles.list, styles.transparent]}
@@ -318,7 +303,7 @@ function DateStepperButtons({
   return (
     <>
       <HeaderIconButton
-        icon={HeaderIcons.stepBack}
+        icon={Icons.chevronLeft}
         color={canGoBack ? theme.accent : theme.textSecondary}
         accessibilityLabel="Previous day"
         disabled={!canGoBack}
@@ -327,7 +312,7 @@ function DateStepperButtons({
       />
       {canGoForward ? (
         <HeaderIconButton
-          icon={HeaderIcons.stepForward}
+          icon={Icons.chevronRight}
           color={theme.accent}
           accessibilityLabel="Next day"
           onPress={() => onStep(1)}
@@ -347,7 +332,7 @@ function UpcomingHint({ habits }: { habits: Habit[] }) {
       accessibilityRole="text"
       accessibilityLabel={`Tomorrow: ${label}`}
       style={[styles.upcoming, { backgroundColor: theme.accentSubtle }]}>
-      <MaterialIcons name="nightlight" size={16} color={theme.accent} />
+      <AppIcon name="moon" size={16} color={theme.accent} />
       <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.upcomingText}>
         Tomorrow · {label}
       </ThemedText>

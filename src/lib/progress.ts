@@ -32,6 +32,19 @@ export function toDegrees(rate: number): number {
   return Math.round(clamp01(rate) * FULL_CIRCLE_DEGREES);
 }
 
+/**
+ * The geometry of a progress ring of pixel `size` drawn with `strokeWidth`, filled to `fraction`
+ * (0–1). Shared by the checklist's completion ring and the Progress moon rings so both lay out the
+ * arc identically. `arc` / `circumference` feed an SVG `strokeDasharray`.
+ */
+export function ringMetrics(size: number, strokeWidth: number, fraction: number) {
+  const clamped = clamp01(fraction);
+  const radius = size / 2;
+  const ringRadius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * ringRadius;
+  return { clamped, isComplete: clamped >= 1, radius, ringRadius, circumference, arc: circumference * clamped };
+}
+
 /** The minimal habit shape {@link computeProgress} needs — `Habit` satisfies it structurally. */
 export type ProgressHabit = {
   id: string;

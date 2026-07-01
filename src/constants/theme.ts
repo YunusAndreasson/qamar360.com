@@ -14,80 +14,93 @@ export const Colors = {
   // month is finished. Two temperatures carry two meanings — cool steel = working, warm silver =
   // done — so a good state is never a same-hue guess. Light and dark are the same panel, lit or not.
   light: {
-    text: '#15161A',
-    textSecondary: '#5B6068',
-    textDisabled: '#9499A2',
+    text: '#141619',
+    textSecondary: '#5C6065',
+    textDisabled: '#95999E',
     // Light mode flips to the Linear/Notion model: white cards lifted by a soft shadow over a
     // faint neutral page (not a tint of the page). `Elevation` does the lifting, not a fill step.
-    background: '#F5F6F8',
+    background: '#F6F6F7',
     backgroundElement: '#FFFFFF',
-    backgroundSelected: '#ECEEF1',
-    border: '#E2E4E9',
+    backgroundSelected: '#EDEEEF',
+    border: '#E3E4E6',
     // A faint top edge so an elevated card reads as lit from above (paired with `Elevation`).
     topHighlight: 'rgba(255,255,255,0.7)',
     // Deep steel — the pale-steel accent needs real depth to carry contrast on white.
-    accent: '#3C5068',
+    accent: '#355070',
     accentText: '#FFFFFF',
     // Tonal "selected" wash — replaces the old saturated-accent fill so a chosen chip reads as
     // lit, not blocked-in.
-    accentSubtle: '#EAEDF2',
-    // Progress tracks/empty states must stay perceivable on the card (≥~3:1 non-text contrast).
-    accentTrack: '#CDD2DB',
-    accentTrackMuted: '#E7E9EE',
-    accentTrackStrong: '#7C879A',
+    accentSubtle: '#E7EEF5',
+    // The Progress data-viz tracks — a moon-ring's unfilled remainder, the year baseline. These are
+    // informational (the value reads from the filled arc, not the rim), so they stay quiet. An
+    // *interactive* control's outline is a different bar — see `controlTrack`.
+    accentTrack: '#CBD3DC',
+    accentTrackMuted: '#E5EAF0',
+    accentTrackStrong: '#77889D',
+    // Outline for interactive hollow controls — the checklist's tap-to-complete ring, the count
+    // stepper buttons. Clears ≥3:1 on the card so the affordance reads (the faint data-viz tracks
+    // above don't, and shouldn't be reused here).
+    controlTrack: '#868D96',
     // Hairline colour for the geometric ornament layer — a neutral cool steel so the lattice reads
     // as faint "telemetry" etching, only ever drawn at low opacity (ornament/*).
-    pattern: '#45505E',
+    pattern: '#44505F',
     // The moon / completion silver — cool moonlight, dark enough to read on the light page.
     // Differentiated from in-progress by brightness + glow (not warmth). Completion *visuals* only
     // (lit moon disc, closed ring, the done check), never text.
-    complete: '#566071',
+    complete: '#506175',
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
-    glow: '#AEB8C6',
-    danger: '#D4333A',
+    glow: '#AAB9CA',
+    danger: '#D43240',
     dangerText: '#FFFFFF',
-    dangerSubtle: '#F7E6E7',
+    dangerSubtle: '#F7E6E5',
     rippleOnFill: '#FFFFFF33',
   },
   // "Mission control" — night side. `background` is a near-black cool neutral; keep it in sync with
   // the native splash / adaptive-icon background (app.json) so launch flows seamlessly into the app.
   dark: {
-    text: '#ECEEF2',
-    textSecondary: '#9AA0AB',
-    textDisabled: '#5C616B',
+    text: '#EDEEEF',
+    textSecondary: '#9CA0A6',
+    textDisabled: '#5C6168',
     // Kept identical to the native splash / adaptive-icon background (app.json) so launch flows
     // seamlessly into the app.
     background: '#08090C',
-    backgroundElement: '#15161A',
-    backgroundSelected: '#212329',
-    border: '#2A2C33',
+    backgroundElement: '#141619',
+    backgroundSelected: '#202427',
+    border: '#292D31',
     // A whisper of light on the card's top edge — the Linear "lit from above" hairline.
     topHighlight: 'rgba(255,255,255,0.06)',
     // Pale steel — luminous against deep space, but desaturated so it reads as instrument light,
     // not a candy blue. Spent sparingly: active rings, links, the one primary action.
-    accent: '#9FB2C8',
+    accent: '#99B2D1',
     accentText: '#0A0B0D',
-    accentSubtle: '#1A1D23',
-    accentTrack: '#33363F',
-    accentTrackMuted: '#1B1D22',
-    accentTrackStrong: '#6E7C8E',
+    accentSubtle: '#181D24',
+    accentTrack: '#2E3743',
+    accentTrackMuted: '#191E23',
+    accentTrackStrong: '#6B7C91',
+    // See light note — an interactive control outline that clears ≥3:1 on the dark card.
+    controlTrack: '#69737F',
     // Neutral cool steel — faint etched-telemetry lines against deep space. See light note.
-    pattern: '#79818E',
+    pattern: '#77828F',
     // Cool luminous moonlight — the moon glowing against deep space, and the completion silver.
     // A real moon reads cool silver-white, not warm; "done" is set apart by brightness + glow (it's
     // far brighter than the muted steel of in-progress), not by temperature.
-    complete: '#E6EBF3',
-    glow: '#EAEFF7',
-    danger: '#FF5C6E',
+    complete: '#E5EBF3',
+    glow: '#EAEFF6',
+    danger: '#FF5E63',
     dangerText: '#0A0B0D',
-    dangerSubtle: '#2A1417',
+    dangerSubtle: '#2A1414',
     rippleOnFill: '#FFFFFF33',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+// The weight ramp: regular (400) body for a clean, modern read; medium (500) for the smaller 14pt
+// labels (optical compensation — small text carries a little more weight to hold its colour — and
+// it measures reliably on Android, where regular under-sizes the diacritic month names); semibold
+// (600) for emphasis + headings; bold (700) for the strongest accents and the display readout.
 export const FontWeight = {
+  regular: '400',
   medium: '500',
   semibold: '600',
   bold: '700',
@@ -124,20 +137,10 @@ export const Typography = {
     fontWeight: FontWeight.bold,
     fontVariant: ['tabular-nums'],
   },
-  smallDense: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: FontWeight.medium,
-  },
-  smallDenseBold: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: FontWeight.bold,
-  },
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: FontWeight.medium,
+    fontWeight: FontWeight.regular,
   },
   defaultSemiBold: {
     fontSize: 16,
@@ -149,15 +152,23 @@ export const Typography = {
     lineHeight: 24,
     fontWeight: FontWeight.bold,
   },
-  subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
+  // A card / section heading — one clear step above body, so titles (the Progress stat cards) read
+  // as headings by both size and weight against the regular body. Sits below the native large nav
+  // title and the hero `display`. No negative tracking: at 18pt it's imperceptible, and on Android
+  // `letterSpacing` on a flex-row Text mis-measures the row and clips the sibling trailing caption
+  // (the month name). Tracking is reserved for `subtitle`/`display`, which sit alone in their row.
+  heading: {
+    fontSize: 18,
+    lineHeight: 24,
     fontWeight: FontWeight.semibold,
   },
-  subtitleBold: {
+  // The wordmark / monogram tier. Tighter leading and a touch of negative tracking so a 32pt title
+  // reads as set type, not scaled-up body.
+  subtitle: {
     fontSize: 32,
-    lineHeight: 44,
-    fontWeight: FontWeight.bold,
+    lineHeight: 38,
+    fontWeight: FontWeight.semibold,
+    letterSpacing: -0.5,
   },
   // The instrument readout — the Progress hero's orbit degrees. Oversized, tightly tracked and
   // tabular so it reads as a precise telemetry value, not body copy.
@@ -182,8 +193,10 @@ export const Spacing = {
 
 /** Corner-radius scale — keep surfaces consistent instead of hand-picking per component. */
 export const Radius = {
-  /** Inputs, chips, buttons, small pills. */
+  /** Inputs, chips, small pills. */
   control: 8,
+  /** Buttons — a touch softer than inputs so a 48pt CTA reads modern, not blocky. */
+  button: 12,
   /** Inline notices / banners. */
   banner: 12,
   /** Cards and grouped-list surfaces. */

@@ -1,11 +1,11 @@
-import { Children, type ReactNode } from 'react';
+import { Children, isValidElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { RowSeparator } from '@/components/row-separator';
 import { SectionLabel } from '@/components/section-label';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
   /** Uppercase group label shown above the card. */
@@ -21,7 +21,6 @@ type Props = {
  * stray dividers. Shares the card surface with {@link StatCard}.
  */
 export function SettingsSection({ title, footer, children }: Props) {
-  const theme = useTheme();
   const rows = Children.toArray(children).filter(Boolean);
 
   return (
@@ -29,8 +28,11 @@ export function SettingsSection({ title, footer, children }: Props) {
       {title ? <SectionLabel>{title.toUpperCase()}</SectionLabel> : null}
       <Surface>
         {rows.map((row, i) => (
-          <View key={i}>
-            {i > 0 ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
+          // Key by the child's own identity, not the array index, so a row keeps its React
+          // instance — and any internal state, e.g. a Discover row's expanded detail — when the
+          // list is filtered or reordered around it, instead of being recycled into a sibling.
+          <View key={(isValidElement(row) && row.key) || i}>
+            {i > 0 ? <RowSeparator /> : null}
             {row}
           </View>
         ))}
@@ -47,6 +49,4 @@ export function SettingsSection({ title, footer, children }: Props) {
 const styles = StyleSheet.create({
   wrap: { gap: Spacing.two },
   footer: { marginLeft: Spacing.three, marginRight: Spacing.three },
-  // Inset hairline between rows (aligned past the horizontal padding), iOS-style.
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: Spacing.three },
 });

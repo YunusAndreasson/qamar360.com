@@ -18,5 +18,7 @@ export function SectionLabel({ children, style }: { children: string; style?: St
 }
 
 const styles = StyleSheet.create({
-  label: { marginLeft: Spacing.three },
+  // Positive tracking on the uppercase overline — caps read tight and cramped at their native
+  // spacing; a little extra makes the group label read as a deliberate label, not shouting body.
+  label: { marginLeft: Spacing.three, letterSpacing: 0.6 },
 });
