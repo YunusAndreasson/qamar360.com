@@ -27,16 +27,9 @@ const FUTURE_R = 2.5;
 // edge than LABEL_HALF and their labels get shoved inward, drifting off the dot (the "1" and "12").
 const LABEL_HALF = 12;
 const PAD_X = LABEL_HALF;
-// The name labels are wider than the old numerals; the box may exceed PAD_X (edge labels shift
-// inward slightly), and the axis is sparse so neighbouring boxes never collide.
-const LABEL_W = 52;
-
-// Short Hijri month names for the axis — bare 1–12 numerals were cryptic in an app that spells
-// Muḥarram everywhere else (few people map "7" to Rajab at a glance). Sparse anchors + "now"
-// keep the axis quiet; the diacritics follow the app's house transliteration.
-const HIJRI_ABBREV = ['Muḥ', 'Ṣaf', 'Rab I', 'Rab II', 'Jum I', 'Jum II', 'Raj', 'Shaʿ', 'Ram', 'Shaw', 'DhQ', 'DhḤ'];
-// The labelled anchor months (indices): the year's start, quarters, and its end.
-const AXIS_ANCHORS = [0, 3, 6, 9, 11];
+// Numerals 1–12, one under every dot: an evenly-ruled axis. A sparse named axis (Muḥ … DhḤ at
+// anchors) was tried and read worse — uneven label spacing obscured the month grid.
+const LABEL_W = LABEL_HALF * 2;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -102,11 +95,6 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
   if (!year) return null;
 
   const currentIndex = months.findIndex((m) => m.state === 'current');
-  // A sparse axis: the anchor months plus "now" — an anchor hugging the current month steps
-  // aside so the emphasized label never collides with a neighbour.
-  const labelIndices = months
-    .map((_, i) => i)
-    .filter((i) => i === currentIndex || (AXIS_ANCHORS.includes(i) && Math.abs(i - currentIndex) > 1));
 
   const a11y = `This Hijri year, ${year.year} H: ${elapsed
     .map((m) => `${m.monthName} ${toDegrees(m.fraction)} degrees`)
@@ -168,23 +156,23 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
         ) : null}
       </View>
 
-      {/* A sparse month-name axis (anchors + "now" in the accent). All labels sit at
-          textSecondary — the future/past distinction lives on the dots; textDisabled here
-          fell below comfortable contrast on the card. */}
+      {/* Month numerals, one per dot ("now" in the accent). All labels sit at textSecondary —
+          the future/past distinction lives on the dots; textDisabled here fell below
+          comfortable contrast on the card. */}
       <View style={styles.axis}>
         {width > 0
-          ? labelIndices.map((i) => {
+          ? months.map((m) => {
+              const i = m.month - 1;
               const { x } = pointFor(i, 0, width);
               const isCurrent = i === currentIndex;
               const left = Math.max(0, Math.min(width - LABEL_W, x - LABEL_W / 2));
               return (
-                <View key={i} style={[styles.labelBox, { left }]}>
+                <View key={m.month} style={[styles.labelBox, { left }]}>
                   <ThemedText
                     type={isCurrent ? 'smallCompactBold' : 'smallCompact'}
                     maxFontSizeMultiplier={DenseLabelScale}
-                    numberOfLines={1}
                     style={{ color: isCurrent ? theme.accent : theme.textSecondary }}>
-                    {HIJRI_ABBREV[i]}
+                    {m.month}
                   </ThemedText>
                 </View>
               );

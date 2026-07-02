@@ -11,7 +11,6 @@ import Animated, {
 
 import { ProgressCell } from '@/components/progress-cell';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { MonthDay, MonthProgress } from '@/hooks/use-progress';
@@ -45,12 +44,6 @@ export function MonthMoons({ month }: { month: MonthProgress | null }) {
           <MoonDay key={d.day} day={d} index={i} monthLength={month.monthLength} />
         ))}
       </View>
-
-      {/* One quiet line decoding the grid's bold trio — insider knowledge made visible without
-          a legend block: the emphasis is meaningful, not decorative. */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.legend}>
-        White Days (13–15) in bold — the Sunnah mid-month fasts.
-      </ThemedText>
     </StatCard>
   );
 }
@@ -93,5 +86,4 @@ function MoonDay({ day: d, index, monthLength }: { day: MonthDay; index: number;
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: Spacing.three },
   cell: { width: '16.666%' },
-  legend: { marginTop: Spacing.three },
 });
