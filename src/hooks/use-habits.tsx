@@ -698,6 +698,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  // Temp-id rows the user removed while their insert was still in flight. Without this,
+  // the insert's success path would swap the (now-deleted) temp row for the server row and
+  // resurrect the habit — tap-add then tap-remove would quietly re-add it.
+  const cancelledTempIds = useRef<Set<string>>(new Set());
+
   const createHabit = useCallback(
     async ({ name: rawName, schedule_days, reminder_time, hijri_schedule = null, target_count = null, target_unit = null }: HabitCreate) => {
       if (!userId) return;
@@ -737,9 +742,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           .select()
           .single();
         if (insError) throw insError;
+        // Removed while in flight → honor the removal: take the fresh server row back down.
+        if (cancelledTempIds.current.delete(tempId)) {
+          void supabase.from('habits').delete().eq('id', (data as Habit).id);
+          return;
+        }
         // Swap the temp row for the persisted one (real id).
         setHabits((prev) => prev.map((h) => (h.id === tempId ? (data as Habit) : h)));
       } catch {
+        cancelledTempIds.current.delete(tempId);
         setHabits((prev) => prev.filter((h) => h.id !== tempId));
         setError('Could not add that habit. Check your connection.');
       }
@@ -801,7 +812,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           )
           .select();
         if (insError) throw insError;
-        const persisted = (data ?? []) as Habit[];
+        const all = (data ?? []) as Habit[];
+        // Rows removed while the insert was in flight (matched by position — ids were temp):
+        // honor the removals by taking their fresh server rows back down, keep the rest.
+        const cancelledPos = new Set(
+          optimistic.filter((o) => cancelledTempIds.current.delete(o.id)).map((o) => o.position),
+        );
+        const persisted = all.filter((p) => {
+          if (!cancelledPos.has(p.position)) return true;
+          void supabase.from('habits').delete().eq('id', p.id);
+          return false;
+        });
         // Swap the temp rows for the persisted ones (real ids), keeping position order.
         setHabits((prev) =>
           [...prev.filter((h) => !tempIds.has(h.id)), ...persisted].sort((a, b) => a.position - b.position),
@@ -813,6 +834,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         );
         return persisted;
       } catch {
+        for (const o of optimistic) cancelledTempIds.current.delete(o.id);
         setHabits((prev) => prev.filter((h) => !tempIds.has(h.id)));
         setError('Could not add those habits. Check your connection.');
         return [];
@@ -872,7 +894,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      if (habitId.startsWith('temp-')) return; // never persisted
+      if (habitId.startsWith('temp-')) {
+        // Never persisted — but its insert may still be in flight; mark it so the insert's
+        // success path takes the server row back down instead of resurrecting it.
+        cancelledTempIds.current.add(habitId);
+        return;
+      }
 
       try {
         const { error: delError } = await supabase.from('habits').delete().eq('id', habitId);

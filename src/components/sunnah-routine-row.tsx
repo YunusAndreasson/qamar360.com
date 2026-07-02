@@ -10,14 +10,16 @@ type Props = {
   /** Whether a stack with this routine's name already exists. */
   added: boolean;
   onAdd: () => void;
+  /** Remove the added routine (stack + members) — wires the row as a tap-to-undo. */
+  onRemove?: () => void;
 };
 
 /**
  * One Sunnah routine inside a {@link SettingsSection}. A thin wrapper over
- * {@link ExpandableAddRow}: tap the row to add it; a trailing chevron expands to reveal the
- * habit sequence it stacks. Mirrors {@link SunnahPresetRow}.
+ * {@link ExpandableAddRow}: tap the row to add (or remove) it; a trailing chevron expands to
+ * reveal the habit sequence it stacks. Mirrors {@link SunnahPresetRow}.
  */
-export function SunnahRoutineRow({ routine, added, onAdd }: Props) {
+export function SunnahRoutineRow({ routine, added, onAdd, onRemove }: Props) {
   const members = routinePresets(routine);
 
   return (
@@ -26,6 +28,7 @@ export function SunnahRoutineRow({ routine, added, onAdd }: Props) {
       subtitle={`${members.length} habits`}
       added={added}
       onAdd={onAdd}
+      onRemove={onRemove}
       rowAccessibilityLabel={`${routine.name}. ${members.length} habits.`}
       expandHint="Show the sequence">
       <ThemedText type="small">{routine.detail}</ThemedText>

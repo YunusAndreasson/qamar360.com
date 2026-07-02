@@ -15,8 +15,7 @@ type Props = {
   subtitle: string;
   added: boolean;
   onAdd: () => void;
-  /** When added, makes the row tappable to undo the add. Omit to leave "added" a dead end —
-   *  e.g. routines, whose removal isn't a clean single-step undo. */
+  /** When added, makes the row tappable to undo the add. Omitting it leaves "added" inert. */
   onRemove?: () => void;
   /** Accessible name for the row body (item name + schedule/summary). */
   rowAccessibilityLabel: string;
@@ -50,8 +49,7 @@ export function ExpandableAddRow({
   // Expanding to read the detail is plain disclosure with clear visual feedback — no haptic.
   const toggleExpand = () => setExpanded((v) => !v);
 
-  // Added + removable → tapping the row undoes the add; added without a remover → inert (a
-  // routine, whose removal isn't a clean single-step undo — same rule the old ✓ pill followed).
+  // Added + removable → tapping the row undoes the add; added without a remover → inert.
   const inert = added && !onRemove;
   const toggleAdd = () => {
     if (inert) return;

@@ -1,4 +1,12 @@
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Duration } from '@/constants/motion';
 
@@ -15,39 +23,32 @@ type Props = {
 };
 
 /**
- * A mount fade-in driven by Reanimated's CSS animations API (`animationName` keyframes), NOT the
- * `entering={FadeIn}` layout-animation preset.
+ * A mount fade-in driven by a shared value, NOT the `entering={FadeIn}` layout-animation preset
+ * and NOT the CSS animations API.
  *
- * On the New Architecture those presets rely on a `nativeID` that Fabric's view-flattening
- * clobbers, so the view stays stuck at opacity 0 (it never appears) — and, being layout
- * animations, they also get reparented into the navigator's transition overlay mid-push, which
- * is what made Discover's cards "fly over the header". The CSS API is Reanimated 4's
- * Fabric-native declarative path: keyframes are applied like style props on the UI thread, with
- * no nativeID dependency and no reparenting. Its failure mode is also safe — keyframes only hold
- * while the animation runs, so if it ever didn't, the view renders at its base opacity (visible)
- * rather than stuck hidden. Honours Reduce Motion.
+ * `entering` presets rely on a `nativeID` that Fabric's view-flattening clobbers, so the view
+ * stays stuck at opacity 0 — and, being layout animations, they get reparented into the
+ * navigator's transition overlay mid-push ("cards flying over the header"). The CSS keyframes
+ * route (`animationName: { from: { opacity: 0 } }`) fixes those but applies its first keyframe
+ * only after the view has mounted, so the content paints fully visible for a frame, snaps to 0,
+ * then fades — a visible text flicker on the Discover accordions. A shared value born at 0 is
+ * the view's opacity on its very first frame, so no flash is possible; same proven pattern as
+ * the month grid's staggered cells. Honours Reduce Motion.
  */
 export function FadeInView({ children, style, duration = Duration.base, delay = 0 }: Props) {
   const reduceMotion = useReducedMotion();
-  return (
-    <Animated.View
-      style={[
-        style,
-        // Under Reduce Motion the view simply renders in place, fully shown (substitute, don't soften).
-        reduceMotion
-          ? null
-          : {
-              animationName: { from: { opacity: 0 } },
-              animationDuration: duration,
-              animationDelay: delay,
-              // Hold the pre-fade opacity through a stagger delay — without a backwards fill the
-              // view would mount fully shown, then blink to 0 when the delayed animation starts.
-              animationFillMode: 'backwards',
-              // Matches withTiming's default in-out easing, keeping the fade's feel unchanged.
-              animationTimingFunction: 'ease-in-out',
-            },
-      ]}>
-      {children}
-    </Animated.View>
-  );
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      opacity.set(1);
+      return;
+    }
+    // Matches withTiming's default in-out easing, keeping the fade's feel unchanged.
+    opacity.set(withDelay(delay, withTiming(1, { duration, easing: Easing.inOut(Easing.quad) })));
+  }, [reduceMotion, opacity, delay, duration]);
+
+  const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+
+  return <Animated.View style={[style, fade]}>{children}</Animated.View>;
 }

@@ -108,6 +108,22 @@ export default function DiscoverScreen() {
     [habitByName, deleteHabit],
   );
 
+  // Tap-to-undo for an added routine — the same idiom as a preset row: the stack and its
+  // member habits go together, as one unit, the way the add created them.
+  const removeRoutine = useCallback(
+    (routine: SunnahRoutine) => {
+      const stack = stacks.find((s) => normalizeName(s.name) === normalizeName(routine.name));
+      if (!stack) return;
+      const members = habits.filter((h) => h.stack_id === stack.id);
+      // Stack first (the row's ✓ keys off the stack name, so it flips back at once), then the
+      // members. Done here rather than through deleteHabit's empty-stack detection because
+      // these calls land in one tick and the ref that detection consults syncs between renders.
+      void deleteStack(stack.id);
+      for (const m of members) void deleteHabit(m.id);
+    },
+    [stacks, habits, deleteStack, deleteHabit],
+  );
+
   // The starter set, minus anything already added.
   const starterRemaining = useMemo(
     () => ESSENTIAL_PRESETS.filter((p) => !existing.has(normalizeName(p.name))),
@@ -248,6 +264,7 @@ export default function DiscoverScreen() {
                   routine={routine}
                   added={existingStacks.has(normalizeName(routine.name))}
                   onAdd={() => void addRoutine(routine)}
+                  onRemove={() => removeRoutine(routine)}
                 />
               ))}
               {flatPresets.map((preset) => (
@@ -294,6 +311,7 @@ export default function DiscoverScreen() {
                   routine={routine}
                   added={existingStacks.has(normalizeName(routine.name))}
                   onAdd={() => void addRoutine(routine)}
+                  onRemove={() => removeRoutine(routine)}
                 />
               ))}
             </SettingsSection>
