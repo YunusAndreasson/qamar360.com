@@ -1,8 +1,8 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import Sortable, { type SortableGridRenderItem } from 'react-native-sortables';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
@@ -16,12 +16,12 @@ import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
 import { Icons } from '@/constants/icons';
-import { Duration } from '@/constants/motion';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, scheduledOn } from '@/lib/dates';
+import { haptics } from '@/lib/haptics';
 
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
@@ -66,20 +66,14 @@ export default function HabitsScreen() {
   } = useHabits();
   // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
   // progress from Settings) are reflected on return — mirrors the Progress tab.
-  //
-  // List-item enter/exit/reflow animations are disarmed during the focus transition and re-armed
-  // a frame after it settles: a Reanimated entering/layout that runs while a tab switch or back-pop
-  // is in flight gets reparented into the navigation transition overlay and "swipes" over the header
-  // (most visibly the done-checks lighting up). Once settled, genuine in-list changes animate again.
-  const [itemsArmed, setItemsArmed] = useState(false);
   useFocusEffect(
     useCallback(() => {
       void refresh();
-      setItemsArmed(false);
-      const id = requestAnimationFrame(() => setItemsArmed(true));
-      return () => cancelAnimationFrame(id);
     }, [refresh]),
   );
+
+  // The scroll container ref hands auto-scroll-while-dragging to the sortable list.
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
   // Pull-to-refresh. `refresh` is silent (no spinner); the RefreshControl owns the indicator.
   const { refreshControl } = usePullToRefresh(refresh);
@@ -144,50 +138,37 @@ export default function HabitsScreen() {
     [router],
   );
 
-  const renderItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<Entry>) => (
-      // Items fade in on appear and reflow smoothly on add/remove/reorder. `layout`
-      // is skipped while this item is the one being dragged, so it doesn't fight the
-      // drag's own cell transform.
-      <Animated.View
-        entering={itemsArmed ? FadeIn.duration(Duration.base) : undefined}
-        exiting={itemsArmed ? FadeOut.duration(Duration.fast) : undefined}
-        layout={isActive || !itemsArmed ? undefined : LinearTransition.duration(Duration.base)}>
-        {item.type === 'stack' ? (
-          <StackCard
-            stack={item.stack}
-            members={item.members}
-            completed={completed}
-            skipped={skipped}
-            counts={counts}
-            onToggle={toggleHabit}
-            onAdjust={adjustHabitCount}
-            onSkip={skipHabit}
-            onEdit={openEditor}
-            onDelete={deleteHabit}
-            onEditStack={openStackEditor}
-            drag={drag}
-            isActive={isActive}
-          />
-        ) : (
-          <HabitRow
-            habit={item.habit}
-            done={completed.has(item.habit.id)}
-            skipped={skipped.has(item.habit.id)}
-            count={counts.get(item.habit.id) ?? 0}
-            onToggle={toggleHabit}
-            onAdjust={adjustHabitCount}
-            onSkip={skipHabit}
-            onEdit={openEditor}
-            onDelete={deleteHabit}
-            drag={drag}
-            isActive={isActive}
-            standalone
-          />
-        )}
-      </Animated.View>
-    ),
-    [itemsArmed, completed, skipped, counts, toggleHabit, adjustHabitCount, skipHabit, openEditor, deleteHabit, openStackEditor],
+  const renderItem = useCallback<SortableGridRenderItem<Entry>>(
+    ({ item }) =>
+      item.type === 'stack' ? (
+        <StackCard
+          stack={item.stack}
+          members={item.members}
+          completed={completed}
+          skipped={skipped}
+          counts={counts}
+          onToggle={toggleHabit}
+          onAdjust={adjustHabitCount}
+          onSkip={skipHabit}
+          onEdit={openEditor}
+          onDelete={deleteHabit}
+          onEditStack={openStackEditor}
+        />
+      ) : (
+        <HabitRow
+          habit={item.habit}
+          done={completed.has(item.habit.id)}
+          skipped={skipped.has(item.habit.id)}
+          count={counts.get(item.habit.id) ?? 0}
+          onToggle={toggleHabit}
+          onAdjust={adjustHabitCount}
+          onSkip={skipHabit}
+          onEdit={openEditor}
+          onDelete={deleteHabit}
+          standalone
+        />
+      ),
+    [completed, skipped, counts, toggleHabit, adjustHabitCount, skipHabit, openEditor, deleteHabit, openStackEditor],
   );
 
   // The list shows only the scheduled subset; flatten the reordered entries (stack members
@@ -251,39 +232,54 @@ export default function HabitsScreen() {
           </EmptyState>
         </AppScreen>
       ) : (
-        // The transparent list is the screen's sole content, so its scroll view is the screen's
+        // The transparent scroll view is the screen's sole content, so it is the screen's
         // first descendant — which is what the native large title tracks to collapse on scroll
         // (react-native-screens walks the first-subview chain). The fixed lunar sky lives behind
-        // the whole stack (in the habits layout) and shows through this transparent list.
-        <DraggableFlatList
-          data={entries}
-          keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
-          renderItem={renderItem}
-          onDragEnd={onDragEnd}
-          activationDistance={12}
+        // the whole stack (in the habits layout) and shows through this transparent scroll.
+        // (Animated.ScrollView so the sortable list's auto-scroll can drive it via the ref.)
+        <Animated.ScrollView
+          ref={scrollRef}
+          style={[styles.list, styles.transparent]}
+          contentContainerStyle={styles.listContent}
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
-          // DraggableFlatList applies `style` to the inner FlatList; its outer wrapper takes
-          // `containerStyle`, which owns the screen background.
-          containerStyle={[styles.list, styles.transparent]}
-          style={styles.list}
-          ListHeaderComponent={
-            <View>
-              <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
-              {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
-            </View>
-          }
-          ListEmptyComponent={
+          keyboardShouldPersistTaps="handled">
+          <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
+          {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+          {entries.length === 0 ? (
             <HabitsEmptyState
               hasHabits={habits.length > 0}
               isToday={isToday}
               onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
               onBrowse={() => router.push('/habits/discover')}
             />
-          }
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-        />
+          ) : (
+            <View style={styles.gridWrap}>
+              {/* Drag-to-reorder is the sortable list's own long-press gesture (no per-row drag
+                  wiring): hold any card ~as long as the old long-press, and it lifts with the
+                  same scale/shadow the hand-rolled `lifted` style used to draw. Entering/exiting
+                  item presets are disabled — they're the Reanimated layout animations that stick
+                  at opacity 0 on this app's New Architecture setup (see FadeInView). */}
+              <Sortable.Grid
+                columns={1}
+                data={entries}
+                renderItem={renderItem}
+                keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
+                onDragEnd={onDragEnd}
+                onDragStart={() => haptics.pickup()}
+                scrollableRef={scrollRef}
+                rowGap={Spacing.two}
+                dragActivationDelay={400}
+                activeItemScale={1.03}
+                activeItemShadowOpacity={0.24}
+                inactiveItemOpacity={1}
+                overDrag="vertical"
+                itemEntering={null}
+                itemExiting={null}
+              />
+            </View>
+          )}
+        </Animated.ScrollView>
       )}
     </>
   );
@@ -388,7 +384,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16, // = width / 2, a circular tap target
+    borderRadius: Radius.full, // a circular tap target
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
@@ -409,5 +405,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
+  },
+  // The cards' old margins, moved up here: the sortable list measures each bare item, so
+  // per-item margins would overlap the measured slots — side gutters and edge breathing room
+  // live on this wrapper instead (and the between-card space is the grid's `rowGap`).
+  gridWrap: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
   },
 });

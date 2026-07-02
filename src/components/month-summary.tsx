@@ -53,11 +53,11 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const reduceMotion = useReducedMotion();
   const breath = useSharedValue(0);
   useEffect(() => {
-    breath.value = reduceMotion
+    breath.set(reduceMotion
       ? 0
-      : withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true);
+      : withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true));
   }, [reduceMotion, breath]);
-  const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.value * 0.07 }));
+  const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * 0.07 }));
 
   if (!month) return null;
 
@@ -110,8 +110,10 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
                 {previousRate > 0 ? (
                   <View style={[styles.legendTick, { borderTopColor: theme.textSecondary }]} />
                 ) : null}
+                {/* "this day last month", not "last month" — the number is last month's pace by
+                    this same day, and the shorter label read as last month's final total. */}
                 <ThemedText type="small" themeColor="textSecondary">
-                  last month
+                  this day last month
                 </ThemedText>
                 <ThemedText type="defaultBold" themeColor="textSecondary">
                   {previousDegrees}°
@@ -145,13 +147,13 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   // on the final value with no sweep.
   const progress = useSharedValue(0);
   useEffect(() => {
-    progress.value = reduceMotion
+    progress.set(reduceMotion
       ? currentRate
-      : withTiming(currentRate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) });
+      : withTiming(currentRate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }));
   }, [currentRate, reduceMotion, progress]);
 
   const arcProps = useAnimatedProps(() => ({
-    strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.value),
+    strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.get()),
   }));
 
   // Last month's pace at this same day is shown as a faint "ghost" arc of its fill, and the

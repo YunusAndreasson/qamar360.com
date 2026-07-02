@@ -12,7 +12,7 @@ import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Links } from '@/constants/links';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -118,6 +118,14 @@ export default function SettingsScreen() {
   // "open settings" path in an alert. `undefined` while the mount check resolves.
   const notifSublabel = notifGranted === true ? 'On' : notifGranted === false ? 'Off' : undefined;
 
+  // Sign-out asks first: the row sits directly under "Change password", so one mis-tap would
+  // otherwise dump the user straight to the sign-in screen. Not destructive — plain buttons.
+  const confirmSignOut = () =>
+    Alert.alert('Sign out', 'You can sign back in anytime.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', onPress: () => void signOut() },
+    ]);
+
   return (
     <AppScreen transparent contentStyle={styles.content}>
       {/* Identity */}
@@ -168,7 +176,7 @@ export default function SettingsScreen() {
           onPress={() => router.push('/settings/change-password')}
           showChevron
         />
-        <SettingsRow icon="signOut" label="Sign out" onPress={() => void signOut()} />
+        <SettingsRow icon="signOut" label="Sign out" onPress={confirmSignOut} />
       </SettingsSection>
 
       {/* About */}
@@ -225,7 +233,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  monogram: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  monogram: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1, gap: Spacing.half },
   appearance: { gap: Spacing.two },
 });

@@ -157,32 +157,38 @@ export function StackEditorForm({
                 <ThemedText type="small" themeColor="textSecondary" style={styles.ordinal}>
                   {index + 1}
                 </ThemedText>
-                <ThemedText type="default" style={styles.memberName} numberOfLines={1}>
+                <ThemedText type="rowTitle" style={styles.memberName} numberOfLines={1}>
                   {habit.name}
                 </ThemedText>
+                {/* Each icon button carries its own ≥44pt frame (the old 20pt glyph + hitSlop 11
+                    resolved to ~42pt, under the minimum — and slop can't overlap a neighbour). */}
                 <Pressable
                   onPress={() => move(index, -1)}
                   disabled={index === 0}
-                  hitSlop={11}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: index === 0 }}
-                  accessibilityLabel={`Move ${habit.name} up`}>
+                  accessibilityLabel={`Move ${habit.name} up`}
+                  style={styles.iconButton}>
                   <AppIcon name="moveUp" size={20} color={index === 0 ? theme.textDisabled : theme.textSecondary} />
                 </Pressable>
                 <Pressable
                   onPress={() => move(index, 1)}
                   disabled={index === selected.length - 1}
-                  hitSlop={11}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: index === selected.length - 1 }}
-                  accessibilityLabel={`Move ${habit.name} down`}>
+                  accessibilityLabel={`Move ${habit.name} down`}
+                  style={styles.iconButton}>
                   <AppIcon
                     name="moveDown"
                     size={20}
                     color={index === selected.length - 1 ? theme.textDisabled : theme.textSecondary}
                   />
                 </Pressable>
-                <Pressable onPress={() => remove(id)} hitSlop={11} accessibilityRole="button" accessibilityLabel={`Remove ${habit.name}`}>
+                <Pressable
+                  onPress={() => remove(id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${habit.name}`}
+                  style={styles.iconButton}>
                   <AppIcon name="close" size={20} color={theme.textSecondary} />
                 </Pressable>
               </View>
@@ -217,7 +223,7 @@ export function StackEditorForm({
                 pressed && styles.pressed,
               ]}>
               <AppIcon name="addCircle" size={22} color={theme.accent} />
-              <ThemedText type="default" style={styles.memberName} numberOfLines={1}>
+              <ThemedText type="rowTitle" style={styles.memberName} numberOfLines={1}>
                 {habit.name}
               </ThemedText>
             </Pressable>
@@ -244,13 +250,15 @@ const styles = StyleSheet.create({
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     minHeight: 48,
   },
   ordinal: { width: 16, textAlign: 'center' },
   memberName: { flex: 1 },
+  // A full-size (≥44pt) target for each row control, centring its 20pt glyph.
+  iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',

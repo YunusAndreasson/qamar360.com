@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
@@ -19,11 +19,10 @@ import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
 import { Scale, Spring } from '@/constants/motion';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
-import { withPickup } from '@/lib/haptics';
 import { clamp01 } from '@/lib/progress';
 
 type Props = {
@@ -40,17 +39,19 @@ type Props = {
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
-  /** Starts a drag-to-reorder gesture (from DraggableFlatList). */
-  drag?: () => void;
-  /** True while this row is being dragged. */
-  isActive?: boolean;
-  /** A lone top-level habit (not a stack member): give it its own tappable card surface. */
+  /** A lone top-level habit (not a stack member): give it its own tappable card surface.
+   *  Standalone rows are sortable-list items, so they also long-press to reorder. */
   standalone?: boolean;
 };
 
 // Staggered reveal — each trailing action fades/slides in left-to-right as the panel
 // opens, keyed by its slot so Skip leads and Delete lands last.
 const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, delete: 0.2 } as const;
+
+// The one open swipe panel across every row (module-scoped: rows live in different cards and
+// lists but share one screen). Opening a second panel closes the first — the Reminders/Mail
+// idiom — so stale panels don't accumulate as you swipe down the checklist.
+let openSwipeable: SwipeableMethods | null = null;
 
 type SwipeActionProps = {
   progress: SharedValue<number>;
@@ -77,9 +78,10 @@ function SwipeAction({
 }: SwipeActionProps) {
   const animatedStyle = useAnimatedStyle(() => {
     const entryDelay = ACTION_ENTRY_DELAY[kind];
-    const opacity = interpolate(progress.value, [0, entryDelay, 1], [0, 0.4, 1], Extrapolation.CLAMP);
-    const shift = interpolate(progress.value, [0, 1], [28, 0], Extrapolation.CLAMP);
-    const settle = interpolate(progress.value, [0, 1], [0.98, 1], Extrapolation.CLAMP);
+    const p = progress.get();
+    const opacity = interpolate(p, [0, entryDelay, 1], [0, 0.4, 1], Extrapolation.CLAMP);
+    const shift = interpolate(p, [0, 1], [28, 0], Extrapolation.CLAMP);
+    const settle = interpolate(p, [0, 1], [0.98, 1], Extrapolation.CLAMP);
 
     return {
       opacity,
@@ -104,8 +106,21 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, drag, isActive, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, standalone }: Props) {
   const theme = useTheme();
+
+  // The swipeable's handle (for the single-open rule) and whether its panel is showing — the
+  // hidden actions are dropped from the accessibility tree while closed, so screen readers
+  // don't traverse three invisible buttons per row.
+  const swipeableRef = useRef<SwipeableMethods | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  // A row deleted while its panel is open must not leave the module slot pointing at it.
+  useEffect(
+    () => () => {
+      if (openSwipeable === swipeableRef.current) openSwipeable = null;
+    },
+    [],
+  );
 
   // A count goal (numeric daily target) is logged with a −/+ stepper rather than a single
   // tap; `target == null` is an ordinary binary habit (tap the row to toggle done).
@@ -130,17 +145,16 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
       return;
     }
     if (reduceMotion) {
-      scale.value = 1;
+      scale.set(1);
       return;
     }
-    scale.value = done
-      ? withSequence(withSpring(Scale.pop, Spring.confirm), withSpring(1, Spring.settle))
-      : withSpring(1, Spring.settle);
+    scale.set(
+      done
+        ? withSequence(withSpring(Scale.pop, Spring.confirm), withSpring(1, Spring.settle))
+        : withSpring(1, Spring.settle),
+    );
   }, [done, scale, reduceMotion]);
-  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
-  // Long-press hands off to DraggableFlatList; a "pick up" bump marks the grab.
-  const onLongPress = withPickup(drag);
+  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
 
   // Skip, Edit, and Delete live in a trailing swipe — the platform-standard home for a
   // list item's secondary actions (Reminders, Mail). The row stays a clean check + label;
@@ -158,15 +172,20 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
     _translation: SharedValue<number>,
     swipeable: SwipeableMethods,
   ) => (
-    <View style={styles.actions}>
+    <View
+      style={styles.actions}
+      accessibilityElementsHidden={!panelOpen}
+      importantForAccessibility={panelOpen ? 'auto' : 'no-hide-descendants'}>
       <SwipeAction
         progress={progress}
         kind="skip"
         label={skipped ? 'Unskip' : 'Skip'}
         icon={skipped ? 'undo' : 'skip'}
-        backgroundColor={theme.backgroundElement}
+        // The same tonal block as Edit (a bare card-coloured block read as a floating icon);
+        // the hairline gap between blocks keeps them reading as three separate actions.
+        backgroundColor={theme.backgroundSelected}
         foregroundColor={theme.textSecondary}
-        rippleColor={theme.backgroundSelected}
+        rippleColor={theme.backgroundElement}
         onPress={() => {
           swipeable.close();
           onSkip(habit.id);
@@ -206,19 +225,25 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
 
   const row = (
     <ReanimatedSwipeable
+      ref={swipeableRef}
       renderRightActions={renderRightActions}
       friction={1.35}
       rightThreshold={72}
       overshootRight={false}
-      // While a reorder drag is in progress, the row is following the finger —
-      // don't let a stray horizontal pan also open the swipe panel.
-      enabled={!isActive}>
+      onSwipeableWillOpen={() => {
+        if (openSwipeable && openSwipeable !== swipeableRef.current) openSwipeable.close();
+        openSwipeable = swipeableRef.current;
+        setPanelOpen(true);
+      }}
+      onSwipeableClose={() => {
+        if (openSwipeable === swipeableRef.current) openSwipeable = null;
+        setPanelOpen(false);
+      }}>
       <Pressable
-        // A count goal is logged with its stepper (below), so the row body doesn't toggle —
-        // but it still long-presses to reorder. A binary habit toggles done on tap.
+        // A count goal is logged with its stepper (below), so the row body doesn't toggle;
+        // a binary habit toggles done on tap. A standalone row's long-press pickup belongs to
+        // the sortable list (Sortable.Grid), not to this Pressable.
         onPress={isCount ? undefined : () => onToggle(habit.id)}
-        onLongPress={onLongPress}
-        disabled={isActive}
         android_ripple={isCount ? undefined : { color: theme.backgroundSelected }}
         accessibilityRole={isCount ? 'adjustable' : 'checkbox'}
         accessibilityState={{ checked: done }}
@@ -232,19 +257,18 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         }
         accessibilityHint={
           isCount
-            ? drag
+            ? standalone
               ? 'Use the stepper to log progress. Long press to reorder. Swipe left to skip, edit, or delete.'
               : 'Use the stepper to log progress. Swipe left to skip, edit, or delete.'
-            : drag
+            : standalone
               ? 'Activates to toggle done. Long press to reorder. Swipe left to skip, edit, or delete.'
               : 'Activates to toggle done. Swipe left to skip, edit, or delete.'
         }
         // A press lights the whole band rather than just dimming it, so the entire row reads as
         // one button — leading circle to trailing edge is the tap target. The press flash is for
-        // tap-to-toggle only (so a count row, whose body doesn't toggle, doesn't flash), but the
-        // picked-up-to-reorder highlight shows on EVERY row — count rows included — so the pickup
-        // haptic always lands on a visible change.
-        style={({ pressed }) => [styles.row, ((pressed && !isCount) || isActive) && { backgroundColor: theme.backgroundSelected }]}>
+        // tap-to-toggle only (so a count row, whose body doesn't toggle, doesn't flash); the
+        // picked-up-to-reorder lift is drawn by the sortable list (`activeItemScale`/shadow).
+        style={({ pressed }) => [styles.row, pressed && !isCount && { backgroundColor: theme.backgroundSelected }]}>
         <Animated.View style={[styles.indicator, iconStyle]}>
           {/* The leading mark is a ring that resolves to a check — a count goal fills it partway in
               cool steel, a binary habit closes it in one tap and lights up warm at done. (No moon
@@ -258,7 +282,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
           )}
         </Animated.View>
         <ThemedText
-          type="default"
+          type="rowTitle"
           numberOfLines={2}
           // Done is struck through; skipped is merely muted (no strikethrough — it's
           // excused, not finished, and reads differently from a completed act).
@@ -306,26 +330,13 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   // A lone habit sits on its own card surface so the whole row plainly reads as a
   // tappable unit (matching the stack cards and the Settings rows). Stack members
   // stay transparent — they already live on the stack card, under its connector rail.
+  // No margins here: the sortable list measures the bare item, so spacing between
+  // cards is the list's `rowGap`, and the side gutters are the list wrapper's padding.
   if (!standalone) return row;
-  return <Surface style={[styles.surface, isActive && styles.lifted]}>{row}</Surface>;
+  return <Surface>{row}</Surface>;
 }
 
 const styles = StyleSheet.create({
-  // Mirrors the stack card so a lone habit and a stack read as siblings in the list
-  // (both are `Surface` cards; only the margins live here).
-  surface: {
-    marginHorizontal: Spacing.three,
-    marginVertical: Spacing.one,
-  },
-  // The picked-up row rises: a deeper shadow and a hair of scale, so a reorder "grab" is seen as
-  // well as felt — the pickup haptic otherwise lands with almost no visual (see the row style).
-  lifted: {
-    transform: [{ scale: 1.03 }],
-    shadowOpacity: 0.24,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -351,7 +362,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: Radius.full,
     borderWidth: StyleSheet.hairlineWidth,
   },
   stepCount: {
@@ -361,7 +372,8 @@ const styles = StyleSheet.create({
     // Tabular figures so the count doesn't jiggle the layout as digits change (9 → 10).
     fontVariant: ['tabular-nums'],
   },
-  actions: { flexDirection: 'row', alignSelf: 'stretch' },
+  // The hairline gap lets the card show through between the tonal blocks, separating them.
+  actions: { flexDirection: 'row', alignSelf: 'stretch', gap: StyleSheet.hairlineWidth },
   actionClip: {
     alignSelf: 'stretch',
     overflow: 'hidden',

@@ -48,6 +48,10 @@ function Tabs() {
       // glass, so it keeps the themed solid background.
       blurEffect={scheme === 'dark' ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
       backgroundColor={Platform.OS === 'ios' ? undefined : colors.background}
+      // The badge in the app's own steel — the platform default is alarm-red, which made the
+      // remaining-count the loudest element in a near-greyscale UI (and a daily guilt signal).
+      badgeBackgroundColor={colors.accent}
+      badgeTextColor={colors.accentText}
       tintColor={colors.text}
       iconColor={{ default: colors.textSecondary, selected: colors.text }}
       labelStyle={{

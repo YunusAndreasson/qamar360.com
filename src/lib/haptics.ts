@@ -82,16 +82,3 @@ export const haptics = {
     }
   },
 };
-
-/**
- * The long-press handler that hands a row/card off to a drag-to-reorder gesture: a "pick up" bump,
- * then start the drag. Returns `undefined` when the list isn't draggable (no `drag`), so a habit
- * row and a stack card always feel the same on pickup instead of each re-wiring the pair.
- */
-export function withPickup(drag?: () => void) {
-  if (!drag) return undefined;
-  return () => {
-    haptics.pickup();
-    drag();
-  };
-}

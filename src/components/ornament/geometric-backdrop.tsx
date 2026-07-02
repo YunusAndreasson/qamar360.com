@@ -101,7 +101,12 @@ function lunarScreenConfig(illumination: number): FieldConfig {
 
 export function GeometricBackdrop({ variant }: { variant: Variant }) {
   const theme = useTheme();
+  const scheme = useEffectiveScheme();
   const uid = useId();
+  // Light mode dims the whole lattice: the dark-steel `pattern` lines on a white page read far
+  // stronger than the pale lines on deep space, so the same core opacity that whispers in dark
+  // was plainly visible in light (busiest exactly where section labels sit).
+  const dim = scheme === 'light' ? 0.55 : 1;
   // The whole-screen sky carries tonight's real moon: a faint phase-lit disc in the upper-right,
   // plus a gentle wax/wane of the field's reach. Cards/hero keep their fixed motif.
   const phase = useMemo(() => {
@@ -143,11 +148,11 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
           {cfg.circles.map((c, i) => (
             // Per-circle opacity = base × luminosity weight: the lattice blooms at its heart
             // (the seed-of-life rosette) and dissolves outward, instead of a flat field.
-            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={cfg.strokeOpacity * c.w} />
+            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={cfg.strokeOpacity * c.w * dim} />
           ))}
         </G>
       </Svg>
-      {phase ? <SkyMoon illumination={phase.illumination} waxing={phase.waxing} /> : null}
+      {phase ? <SkyMoon illumination={phase.illumination} waxing={phase.waxing} dim={dim} /> : null}
       {variant === 'screen' ? <ScreenTint /> : null}
       {variant === 'screen' ? <ScreenVignette /> : null}
     </View>
@@ -215,17 +220,18 @@ function ScreenVignette() {
  *  quietly takes the moon's shape, waxing and waning across the Hijri month. An art representation. */
 const MOON_SIZE = 116;
 
-function SkyMoon({ illumination, waxing }: { illumination: number; waxing: boolean }) {
+function SkyMoon({ illumination, waxing, dim }: { illumination: number; waxing: boolean; dim: number }) {
   const theme = useTheme();
   const r = MOON_SIZE / 2;
+  const opacity = 0.16 * dim;
   return (
     <View style={styles.skyMoon} pointerEvents="none">
       <Svg width={MOON_SIZE} height={MOON_SIZE} viewBox={`0 0 ${MOON_SIZE} ${MOON_SIZE}`}>
         {/* The body — one clean compass circle, in the sky's own line weight (never a filled disc). */}
-        <Circle cx={r} cy={r} r={r - 1} stroke={theme.pattern} strokeWidth={1} strokeOpacity={0.16} fill="none" />
+        <Circle cx={r} cy={r} r={r - 1} stroke={theme.pattern} strokeWidth={1} strokeOpacity={opacity} fill="none" />
         {/* The terminator — a thin arc across the body that gives the corner tonight's phase. */}
         {illumination > 0.03 && illumination < 0.97 ? (
-          <Path d={moonPhasePath(r, r, r - 1, illumination, waxing)} stroke={theme.pattern} strokeWidth={1} strokeOpacity={0.16} fill="none" />
+          <Path d={moonPhasePath(r, r, r - 1, illumination, waxing)} stroke={theme.pattern} strokeWidth={1} strokeOpacity={opacity} fill="none" />
         ) : null}
       </Svg>
     </View>

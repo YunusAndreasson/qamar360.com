@@ -14,8 +14,8 @@ type Props = {
 
 /**
  * One Sunnah routine inside a {@link SettingsSection}. A thin wrapper over
- * {@link ExpandableAddRow}: the row body expands to reveal the habit sequence it stacks,
- * with a one-tap {@link AddPill} on the right. Mirrors {@link SunnahPresetRow}.
+ * {@link ExpandableAddRow}: tap the row to add it; a trailing chevron expands to reveal the
+ * habit sequence it stacks. Mirrors {@link SunnahPresetRow}.
  */
 export function SunnahRoutineRow({ routine, added, onAdd }: Props) {
   const members = routinePresets(routine);
@@ -26,9 +26,6 @@ export function SunnahRoutineRow({ routine, added, onAdd }: Props) {
       subtitle={`${members.length} habits`}
       added={added}
       onAdd={onAdd}
-      itemLabel={routine.name}
-      addLabel="Add this stack"
-      addAccessibilityLabel={`Add the ${routine.name} stack`}
       rowAccessibilityLabel={`${routine.name}. ${members.length} habits.`}
       expandHint="Show the sequence">
       <ThemedText type="small">{routine.detail}</ThemedText>

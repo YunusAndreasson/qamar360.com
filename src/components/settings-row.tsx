@@ -54,7 +54,7 @@ export function SettingsRow({
     <>
       {icon ? <AppIcon name={icon} size={22} color={iconColor} /> : null}
       <View style={styles.labels}>
-        <ThemedText type="default" style={{ color: labelColor }} numberOfLines={1}>
+        <ThemedText type="rowTitle" style={{ color: labelColor }} numberOfLines={1}>
           {label}
         </ThemedText>
         {sublabel ? (

@@ -13,6 +13,7 @@ import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { PressableScale } from '@/components/pressable-scale';
+import { Segmented } from '@/components/segmented';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
@@ -288,25 +289,18 @@ export function HabitEditorForm({
         error={isDuplicate ? 'You already have a habit with this name.' : undefined}
       />
 
-      {/* Goal — a single daily act, or counting toward a numeric target (e.g. 5 pages). */}
+      {/* Goal — a single daily act, or counting toward a numeric target (e.g. 5 pages).
+          The shared Segmented control, so this mode choice reads exactly like Settings'. */}
       <FieldLabel>GOAL</FieldLabel>
-      <View style={styles.modeRow}>
-        {(['once', 'count'] as const).map((mode) => (
-          <SelectablePill
-            key={mode}
-            selected={goalMode === mode}
-            label={mode === 'once' ? 'Once daily' : 'Count'}
-            onPress={() => {
-              haptics.selection();
-              setGoalMode(mode);
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: goalMode === mode }}
-            accessibilityLabel={mode === 'once' ? 'Once daily' : 'Count goal'}
-            style={styles.modePill}
-          />
-        ))}
-      </View>
+      <Segmented
+        options={[
+          { value: 'once', label: 'Once daily' },
+          { value: 'count', label: 'Count', accessibilityLabel: 'Count goal' },
+        ]}
+        value={goalMode}
+        onChange={setGoalMode}
+        style={styles.modeRow}
+      />
       {goalMode === 'count' ? (
         <View style={styles.goalCountRow}>
           <FormField
@@ -333,23 +327,15 @@ export function HabitEditorForm({
       {/* Schedule */}
       <FieldLabel>REPEAT</FieldLabel>
       {/* Weekly (weekdays) vs Hijri (lunar dates) — the two schedule kinds. */}
-      <View style={styles.modeRow}>
-        {(['weekly', 'hijri'] as const).map((mode) => (
-          <SelectablePill
-            key={mode}
-            selected={scheduleMode === mode}
-            label={mode === 'weekly' ? 'Weekly' : 'Hijri'}
-            onPress={() => {
-              haptics.selection();
-              setScheduleMode(mode);
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: scheduleMode === mode }}
-            accessibilityLabel={mode === 'weekly' ? 'Weekly schedule' : 'Hijri schedule'}
-            style={styles.modePill}
-          />
-        ))}
-      </View>
+      <Segmented
+        options={[
+          { value: 'weekly', label: 'Weekly', accessibilityLabel: 'Weekly schedule' },
+          { value: 'hijri', label: 'Hijri', accessibilityLabel: 'Hijri schedule' },
+        ]}
+        value={scheduleMode}
+        onChange={setScheduleMode}
+        style={styles.modeRow}
+      />
 
       {scheduleMode === 'weekly' ? (
         <>
@@ -363,7 +349,9 @@ export function HabitEditorForm({
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: days.has(d) }}
                 accessibilityLabel={WEEKDAY_NAMES[d]}
-                hitSlop={{ top: 6, bottom: 6 }}
+                // Pads the 40pt pill to a ≥44pt effective target; ±2 horizontal stays inside
+                // the row's inter-pill gap, so neighbours' slop never overlaps.
+                hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
                 style={styles.day}
               />
             ))}
@@ -398,7 +386,8 @@ export function HabitEditorForm({
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: monthDays.has(d) }}
                 accessibilityLabel={`Day ${d}`}
-                hitSlop={{ top: 6, bottom: 6 }}
+                // 40×36 cell → ≥44pt effective target; the grid's 8pt gaps absorb the ±2/±4.
+                hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
                 style={styles.monthDay}
               />
             ))}
@@ -493,7 +482,7 @@ export function HabitEditorForm({
               <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                 {stackName}
               </ThemedText>
-              <ThemedText type="small" themeColor="accent">
+              <ThemedText type="small" themeColor="accent" style={styles.stackAction}>
                 Edit
               </ThemedText>
             </Pressable>
@@ -511,7 +500,7 @@ export function HabitEditorForm({
                 <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                   Not in a stack
                 </ThemedText>
-                <ThemedText type="small" themeColor="accent">
+                <ThemedText type="small" themeColor="accent" style={styles.stackAction}>
                   {stackPickerOpen ? 'Close' : 'Add to a stack'}
                 </ThemedText>
               </Pressable>
@@ -573,10 +562,9 @@ export function HabitEditorForm({
 const styles = StyleSheet.create({
   // Pill shape/size overrides; SelectablePill owns the border, radius, centring and colour.
   days: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.one },
-  day: { width: 40, height: 40, borderRadius: 20, paddingHorizontal: 0, paddingVertical: 0 },
+  day: { width: 40, height: 40, borderRadius: Radius.full, paddingHorizontal: 0, paddingVertical: 0 },
   hint: { marginTop: Spacing.one },
-  modeRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.one },
-  modePill: { flex: 1, minHeight: 44 },
+  modeRow: { marginTop: Spacing.one },
   goalCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginTop: Spacing.two },
   targetInput: { width: 72, textAlign: 'center' },
   unitInput: { flex: 1 },
@@ -630,6 +618,10 @@ const styles = StyleSheet.create({
   },
   stackRowPressed: { opacity: Pressed.dim },
   stackName: { flex: 1 },
+  // Width floor for the row's trailing action — Android's flex-row text measurement runs a few
+  // px short of the render width, so without the floor the label's last word wraps to a clipped
+  // second line ("Add to a stack" → "Add to a"). Same fix as the toast's Undo.
+  stackAction: { minWidth: 108, flexShrink: 0, textAlign: 'right' },
   delete: {
     marginTop: Spacing.four,
   },

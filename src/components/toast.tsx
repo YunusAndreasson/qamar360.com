@@ -7,22 +7,24 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
+import { FadeInView } from '@/components/fade-in-view';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, Elevation, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Variant = 'default' | 'success' | 'danger';
-type ToastItem = { id: number; message: string; variant: Variant };
+/** An optional trailing action (e.g. "Undo") — pressing it runs the handler and dismisses. */
+type ToastAction = { label: string; onPress: () => void };
+type ToastItem = { id: number; message: string; variant: Variant; action?: ToastAction };
 
 type ToastContextValue = {
   /** Show a brief, self-dismissing confirmation. Replaces any toast already on screen. */
-  show: (message: string, variant?: Variant) => void;
+  show: (message: string, variant?: Variant, action?: ToastAction) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -36,6 +38,8 @@ export function useToast(): ToastContextValue {
 }
 
 const VISIBLE_MS = 3200;
+/** A toast carrying an action stays longer — the user needs time to decide, not just to read. */
+const VISIBLE_ACTION_MS = 6000;
 
 const ICONS: Record<Variant, IconName> = {
   default: 'info',
@@ -48,11 +52,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const idRef = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback((message: string, variant: Variant = 'default') => {
+  const show = useCallback((message: string, variant: Variant = 'default', action?: ToastAction) => {
     if (timer.current) clearTimeout(timer.current);
     const id = (idRef.current += 1);
-    setToast({ id, message, variant });
-    timer.current = setTimeout(() => setToast((t) => (t?.id === id ? null : t)), VISIBLE_MS);
+    setToast({ id, message, variant, action });
+    timer.current = setTimeout(
+      () => setToast((t) => (t?.id === id ? null : t)),
+      action ? VISIBLE_ACTION_MS : VISIBLE_MS,
+    );
   }, []);
 
   const dismiss = useCallback(() => {
@@ -80,14 +87,11 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
     toast.variant === 'success' ? theme.complete : toast.variant === 'danger' ? theme.danger : theme.accent;
 
   return (
-    <Animated.View
+    <View
       pointerEvents="box-none"
       // Float just above the tab bar; respects the home-indicator inset.
       style={[styles.wrap, { bottom: insets.bottom + BottomTabInset + Spacing.two }]}>
-      <Animated.View
-        entering={FadeInDown.springify().damping(18).reduceMotion(ReduceMotion.System)}
-        exiting={FadeOutDown.duration(160).reduceMotion(ReduceMotion.System)}
-        style={styles.center}>
+      <FadeInView style={styles.center}>
         <Pressable
           onPress={onDismiss}
           accessibilityRole="alert"
@@ -98,9 +102,24 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
           <ThemedText type="small" style={styles.text} numberOfLines={2}>
             {toast.message}
           </ThemedText>
+          {toast.action ? (
+            <Pressable
+              onPress={() => {
+                toast.action?.onPress();
+                onDismiss();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={toast.action.label}
+              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}>
+              <ThemedText type="smallBold" themeColor="accent">
+                {toast.action.label}
+              </ThemedText>
+            </Pressable>
+          ) : null}
         </Pressable>
-      </Animated.View>
-    </Animated.View>
+      </FadeInView>
+    </View>
   );
 }
 
@@ -115,12 +134,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
-    // A soft lift so it reads as floating above the content.
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    // The shared card lift — the toast floats over content on the same recipe as raised cards.
+    ...Elevation.card,
   },
   text: { flex: 1 },
+  // The trailing action ("Undo") — padded out so its target clears the text comfortably.
+  // The width floor keeps Android from squeezing the label below its measured width (the same
+  // flex-row measure/layout mismatch as `heading`'s trailing caption — the tail glyph wraps to
+  // a clipped second line); `flex-end` keeps the label on the toast's right padding.
+  action: { paddingLeft: Spacing.two, paddingVertical: Spacing.one, minWidth: 56, alignItems: 'flex-end' },
+  actionPressed: { opacity: 0.6 },
 });

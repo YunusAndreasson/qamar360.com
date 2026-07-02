@@ -10,7 +10,6 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { withPickup } from '@/lib/haptics';
 
 type Props = {
   stack: HabitStack;
@@ -28,39 +27,32 @@ type Props = {
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
   onEditStack: (stackId: string) => void;
-  /** Starts a drag-to-reorder gesture for the whole card (from DraggableFlatList). */
-  drag?: () => void;
-  /** True while this card is being dragged. */
-  isActive?: boolean;
 };
 
 /**
  * A stack rendered as one logical unit: a titled card holding its member habits in
  * sequence, visually set apart from the rows before and after it. Presentation only —
- * each member is still ticked individually. The header is the drag handle and opens the
- * stack editor.
+ * each member is still ticked individually. The header opens the stack editor; the
+ * long-press pickup to reorder the whole card belongs to the sortable list around it.
  */
-function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, drag, isActive }: Props) {
+function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack }: Props) {
   const theme = useTheme();
 
-  const onHeaderLongPress = withPickup(drag);
-
   return (
-    <Surface style={[styles.card, isActive && styles.active]}>
+    <Surface>
       <PressableScale
         onPress={() => onEditStack(stack.id)}
-        onLongPress={onHeaderLongPress}
-        disabled={isActive}
         android_ripple={{ color: theme.backgroundSelected }}
         accessibilityRole="button"
         accessibilityLabel={`${stack.name} stack`}
-        accessibilityHint={drag ? 'Activates to edit the stack. Long press to reorder.' : 'Activates to edit the stack.'}
+        accessibilityHint="Activates to edit the stack. Long press to reorder."
         style={styles.header}>
         <AppIcon name="link" size={18} color={theme.accent} />
         <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
           {stack.name}
         </ThemedText>
-        <AppIcon name="chevronRight" size={16} color={theme.textSecondary} style={{ opacity: 0.4 }} />
+        {/* Same size + tone as the Settings rows' disclosure chevron — one glyph, one treatment. */}
+        <AppIcon name="chevronRight" size={22} color={theme.textSecondary} />
       </PressableScale>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -89,12 +81,8 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
 }
 
 const styles = StyleSheet.create({
-  // A `Surface` card; only the list margins live here (radius/border/bg come from Surface).
-  card: {
-    marginHorizontal: Spacing.three,
-    marginVertical: Spacing.one,
-  },
-  active: { opacity: 0.85 },
+  // A bare `Surface` card (radius/border/bg come from Surface) — no margins: the sortable
+  // list measures the bare item, so spacing comes from the list's `rowGap` + wrapper padding.
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -33,14 +33,14 @@ export function Skeleton({ width = '100%', height = 16, radius = Radius.control,
 
   useEffect(() => {
     if (reduceMotion) {
-      pulse.value = 1;
+      pulse.set(1);
       return;
     }
     // 0 → 1 → 0 … a slow breathing fade; `true` auto-reverses each cycle.
-    pulse.value = withRepeat(withTiming(1, { duration: 800 }), -1, true);
+    pulse.set(withRepeat(withTiming(1, { duration: 800 }), -1, true));
   }, [pulse, reduceMotion]);
 
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: 0.4 + pulse.value * 0.4 }));
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: 0.4 + pulse.get() * 0.4 }));
 
   return (
     <Animated.View

@@ -9,14 +9,14 @@ type Props = {
   /** Whether a habit with this preset's name already exists. */
   added: boolean;
   onAdd: () => void;
-  /** Remove the already-added habit — wires the ✓ as a tap-to-undo. */
+  /** Remove the already-added habit — wires the row as a tap-to-undo. */
   onRemove?: () => void;
 };
 
 /**
  * One Sunnah preset inside a {@link SettingsSection} card. A thin wrapper over
- * {@link ExpandableAddRow}: the row body expands to reveal the "what counts as done" detail
- * and the Sunnah evidence, with a one-tap {@link AddPill} on the right.
+ * {@link ExpandableAddRow}: tap the row to add (or remove) it; a trailing chevron expands to
+ * reveal the "what counts as done" detail and the Sunnah evidence.
  */
 export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
   const summary = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
@@ -28,9 +28,6 @@ export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
       added={added}
       onAdd={onAdd}
       onRemove={onRemove}
-      itemLabel={preset.name}
-      addLabel="Add to my habits"
-      addAccessibilityLabel={`Add ${preset.name} to my habits`}
       rowAccessibilityLabel={`${preset.name}. ${summary}.`}
       expandHint="Show details">
       <ThemedText type="small">{preset.detail}</ThemedText>

@@ -152,6 +152,14 @@ export const Typography = {
     lineHeight: 24,
     fontWeight: FontWeight.bold,
   },
+  // A list-row's primary label — one iOS-body step (17pt) above `default`, so a habit / stack
+  // member / settings row title reads as the row's content against its 14pt `small` meta. Keeps
+  // `default`'s 24pt leading so it still centers against the 28pt completion ring and 22pt icons.
+  rowTitle: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: FontWeight.regular,
+  },
   // A card / section heading — one clear step above body, so titles (the Progress stat cards) read
   // as headings by both size and weight against the regular body. Sits below the native large nav
   // title and the hero `display`. No negative tracking: at 18pt it's imperceptible, and on Android
@@ -217,6 +225,14 @@ export const Elevation = {
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
+  },
+  /** A tight lift for a small raised control (the segmented thumb) — not the big card shadow. */
+  thumb: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
 } satisfies Record<string, ViewStyle>;
 

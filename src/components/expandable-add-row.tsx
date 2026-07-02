@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
-import { addControlColors, AddPill, ADDED_LABEL } from '@/components/add-pill';
 import { AppIcon } from '@/components/app-icon';
-import { PressableScale } from '@/components/pressable-scale';
+import { FadeInView } from '@/components/fade-in-view';
 import { ThemedText } from '@/components/themed-text';
-import { Duration } from '@/constants/motion';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
@@ -18,28 +15,23 @@ type Props = {
   subtitle: string;
   added: boolean;
   onAdd: () => void;
-  /** When added, makes the trailing ✓ tappable to undo the add. Omit to keep ✓ a confirmation. */
+  /** When added, makes the row tappable to undo the add. Omit to leave "added" a dead end —
+   *  e.g. routines, whose removal isn't a clean single-step undo. */
   onRemove?: () => void;
-  /** Habit/routine name, for the accessible labels of both add controls. */
-  itemLabel: string;
-  /** Visible label of the full-width add button in the expanded body. */
-  addLabel: string;
-  /** Accessible name for that button when not yet added (e.g. "Add Fajr to my habits"). */
-  addAccessibilityLabel: string;
-  /** Accessible name + hint for the tap-to-expand row body. */
+  /** Accessible name for the row body (item name + schedule/summary). */
   rowAccessibilityLabel: string;
   expandHint: string;
   collapseHint?: string;
-  /** The revealed detail — evidence text, a habit sequence, etc. */
+  /** The revealed detail — evidence text, a habit sequence, etc. Read-only: adding is the row's job. */
   children: ReactNode;
 };
 
 /**
- * A Discover library row: a tap-to-expand body (the "why"/"what's inside") plus a separate,
- * always-visible {@link AddPill} so adding is one tap and never requires expanding first.
- * The expanded body ends with a full-width add button. Backs both {@link SunnahPresetRow}
- * and {@link SunnahRoutineRow}, which were otherwise near-identical. Visually matches
- * {@link SettingsRow}.
+ * A Discover library row: tap it to add — or to remove, once added — the same tap-to-toggle idiom
+ * as a `HabitRow` checklist item, so an already-added item is never a dead end. A small trailing
+ * chevron reveals the "why"/"what's inside" without touching the add state, so there's exactly one
+ * add control per row (never a second one behind the chevron). Backs both {@link SunnahPresetRow}
+ * and {@link SunnahRoutineRow}.
  */
 export function ExpandableAddRow({
   title,
@@ -47,9 +39,6 @@ export function ExpandableAddRow({
   added,
   onAdd,
   onRemove,
-  itemLabel,
-  addLabel,
-  addAccessibilityLabel,
   rowAccessibilityLabel,
   expandHint,
   collapseHint = 'Collapse details',
@@ -59,68 +48,76 @@ export function ExpandableAddRow({
   const [expanded, setExpanded] = useState(false);
 
   // Expanding to read the detail is plain disclosure with clear visual feedback — no haptic.
-  const toggle = () => setExpanded((v) => !v);
+  const toggleExpand = () => setExpanded((v) => !v);
 
-  const add = () => {
-    if (added) return;
-    haptics.added();
-    onAdd();
+  // Added + removable → tapping the row undoes the add; added without a remover → inert (a
+  // routine, whose removal isn't a clean single-step undo — same rule the old ✓ pill followed).
+  const inert = added && !onRemove;
+  const toggleAdd = () => {
+    if (inert) return;
+    if (added) {
+      haptics.removed();
+      onRemove?.();
+    } else {
+      haptics.added();
+      onAdd();
+    }
   };
 
-  // Undo a mis-tapped add in place (only when the host wired a remover).
-  const remove = onRemove
-    ? () => {
-        haptics.removed();
-        onRemove();
-      }
-    : undefined;
-
-  const addColors = addControlColors(theme, added);
+  // Not-added is the call to action: a tonal wash with an accent + (a solid accent disc made
+  // every unadded row the heaviest thing on the screen — worst in light mode, where the deep
+  // steel read as a column of dark dots). Added recedes: a bare muted check, no disc — matching
+  // the row's inert/undo state, so what you already have whispers and what you could add speaks.
+  const badgeColor = added ? 'transparent' : theme.accentSubtle;
+  const iconColor = added ? theme.textSecondary : theme.accent;
 
   return (
     <View>
       <View style={styles.row}>
-        {/* Row body = "learn more". The Add pill (sibling) = "add". */}
         <Pressable
-          onPress={toggle}
+          onPress={toggleAdd}
+          disabled={inert}
           android_ripple={{ color: theme.backgroundSelected }}
           accessibilityRole="button"
-          accessibilityState={{ expanded }}
+          accessibilityState={{ disabled: inert, selected: added }}
           accessibilityLabel={rowAccessibilityLabel}
-          accessibilityHint={expanded ? collapseHint : expandHint}
-          style={({ pressed }) => [styles.expand, pressed && styles.pressed]}>
+          accessibilityHint={
+            added ? (onRemove ? 'Removes it from your habits' : 'Already added to your habits') : 'Adds it to your habits'
+          }
+          style={({ pressed }) => [styles.add, pressed && !inert && styles.pressed]}>
+          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+            <AppIcon name={added ? 'check' : 'add'} size={20} color={iconColor} />
+          </View>
           <View style={styles.labels}>
-            <ThemedText type="default" numberOfLines={2} style={styles.title}>
+            {/* `rowTitle` (17pt) — the same primary-label size every other list row uses. */}
+            <ThemedText type="rowTitle" numberOfLines={2} style={styles.title}>
               {title}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
               {subtitle}
             </ThemedText>
           </View>
+        </Pressable>
+        <Pressable
+          onPress={toggleExpand}
+          hitSlop={8}
+          android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={`${title} details`}
+          accessibilityHint={expanded ? collapseHint : expandHint}
+          style={({ pressed }) => [styles.expandButton, pressed && styles.pressed]}>
           <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={22} color={theme.textSecondary} />
         </Pressable>
-        <AddPill added={added} onPress={add} onRemove={remove} label={itemLabel} />
       </View>
 
       {expanded ? (
-        <Animated.View
-          entering={FadeIn.duration(Duration.base)}
-          exiting={FadeOut.duration(Duration.fast)}
-          style={styles.detail}>
-          {children}
-          <PressableScale
-            onPress={add}
-            disabled={added}
-            android_ripple={added ? undefined : { color: theme.rippleOnFill }}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: added }}
-            accessibilityLabel={added ? `${itemLabel} added` : addAccessibilityLabel}
-            style={[styles.button, { backgroundColor: addColors.backgroundColor }]}>
-            <ThemedText type="smallBold" numberOfLines={1} style={{ color: addColors.color }}>
-              {added ? ADDED_LABEL : addLabel}
-            </ThemedText>
-          </PressableScale>
-        </Animated.View>
+        // A CSS-animation mount fade (FadeInView) — NOT reanimated entering/exiting. On the New
+        // Architecture those layout animations depend on a nativeID that Fabric's view-flattening
+        // clobbers, which left the body mounted at opacity 0 (empty on open) and only flashed it
+        // on unmount (flicker on close). Collapse stays an instant removal: exit animations need
+        // that same broken layout-animation machinery.
+        <FadeInView style={styles.detail}>{children}</FadeInView>
       ) : null}
     </View>
   );
@@ -130,11 +127,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: Spacing.three,
-    gap: Spacing.two,
   },
-  // The tap-to-expand area owns the left padding so its ripple/press dim reaches the edge.
-  expand: {
+  // The tap-to-add area owns the left padding so its ripple/press dim reaches the edge.
+  add: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -143,20 +138,29 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     gap: Spacing.three,
   },
+  badge: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+  },
   labels: { flex: 1, gap: Spacing.half },
   title: { flexShrink: 1 },
+  // Its own small hit area, clearly set apart from the (much larger) add target.
+  expandButton: {
+    minHeight: 48,
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.two,
+    marginRight: Spacing.one,
+  },
   pressed: { opacity: Pressed.dim },
   detail: {
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
     paddingTop: Spacing.one,
     gap: Spacing.two,
-  },
-  button: {
-    marginTop: Spacing.one,
-    borderRadius: Radius.control,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

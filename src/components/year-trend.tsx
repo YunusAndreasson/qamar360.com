@@ -27,6 +27,16 @@ const FUTURE_R = 2.5;
 // edge than LABEL_HALF and their labels get shoved inward, drifting off the dot (the "1" and "12").
 const LABEL_HALF = 12;
 const PAD_X = LABEL_HALF;
+// The name labels are wider than the old numerals; the box may exceed PAD_X (edge labels shift
+// inward slightly), and the axis is sparse so neighbouring boxes never collide.
+const LABEL_W = 52;
+
+// Short Hijri month names for the axis — bare 1–12 numerals were cryptic in an app that spells
+// Muḥarram everywhere else (few people map "7" to Rajab at a glance). Sparse anchors + "now"
+// keep the axis quiet; the diacritics follow the app's house transliteration.
+const HIJRI_ABBREV = ['Muḥ', 'Ṣaf', 'Rab I', 'Rab II', 'Jum I', 'Jum II', 'Raj', 'Shaʿ', 'Ram', 'Shaw', 'DhQ', 'DhḤ'];
+// The labelled anchor months (indices): the year's start, quarters, and its end.
+const AXIS_ANCHORS = [0, 3, 6, 9, 11];
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -69,7 +79,7 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
   const reveal = useSharedValue(0);
   useEffect(() => {
     if (width <= 0) return;
-    reveal.value = reduceMotion ? 1 : withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) });
+    reveal.set(reduceMotion ? 1 : withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }));
   }, [width, reduceMotion, reveal]);
 
   const baselineY = H - PAD_Y;
@@ -86,14 +96,17 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
   const areaPath = hasLine && first && last ? `M ${first.x} ${baselineY} L ${spine} L ${last.x} ${baselineY} Z` : '';
 
   const lineProps = useAnimatedProps(() => ({
-    strokeDashoffset: lineLength * (1 - reveal.value),
+    strokeDashoffset: lineLength * (1 - reveal.get()),
   }));
 
   if (!year) return null;
 
   const currentIndex = months.findIndex((m) => m.state === 'current');
-  // All twelve months on the axis (1 → 12), with "now" emphasized.
-  const labelIndices = months.map((_, i) => i);
+  // A sparse axis: the anchor months plus "now" — an anchor hugging the current month steps
+  // aside so the emphasized label never collides with a neighbour.
+  const labelIndices = months
+    .map((_, i) => i)
+    .filter((i) => i === currentIndex || (AXIS_ANCHORS.includes(i) && Math.abs(i - currentIndex) > 1));
 
   const a11y = `This Hijri year, ${year.year} H: ${elapsed
     .map((m) => `${m.monthName} ${toDegrees(m.fraction)} degrees`)
@@ -104,6 +117,15 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
       <StatCardHeader title="This year" trailing={`${year.year} H`} />
 
       <View style={styles.chart} onLayout={onLayout}>
+        {/* A brand-new year has no line yet — say what the empty space is for, instead of
+            presenting a bare baseline that reads as a broken chart. */}
+        {elapsed.length <= 1 ? (
+          <View style={styles.firstYear} pointerEvents="none">
+            <ThemedText type="small" themeColor="textSecondary">
+              The year’s arc draws here, month by month.
+            </ThemedText>
+          </View>
+        ) : null}
         {width > 0 ? (
           <Svg width={width} height={H} viewBox={`0 0 ${width} ${H}`}>
             <Defs>
@@ -146,23 +168,23 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
         ) : null}
       </View>
 
-      {/* A sparse month axis (numbers), with "now" emphasized in the accent. */}
+      {/* A sparse month-name axis (anchors + "now" in the accent). All labels sit at
+          textSecondary — the future/past distinction lives on the dots; textDisabled here
+          fell below comfortable contrast on the card. */}
       <View style={styles.axis}>
         {width > 0
           ? labelIndices.map((i) => {
               const { x } = pointFor(i, 0, width);
               const isCurrent = i === currentIndex;
-              const isFuture = months[i]?.state === 'future';
-              const left = Math.max(0, Math.min(width - LABEL_HALF * 2, x - LABEL_HALF));
+              const left = Math.max(0, Math.min(width - LABEL_W, x - LABEL_W / 2));
               return (
                 <View key={i} style={[styles.labelBox, { left }]}>
                   <ThemedText
                     type={isCurrent ? 'smallCompactBold' : 'smallCompact'}
                     maxFontSizeMultiplier={DenseLabelScale}
-                    // Same axis language as the month grid (ProgressCell): you-are-here = accent,
-                    // months still to come are dimmed, past months sit at textSecondary.
-                    style={{ color: isCurrent ? theme.accent : isFuture ? theme.textDisabled : theme.textSecondary }}>
-                    {i + 1}
+                    numberOfLines={1}
+                    style={{ color: isCurrent ? theme.accent : theme.textSecondary }}>
+                    {HIJRI_ABBREV[i]}
                   </ThemedText>
                 </View>
               );
@@ -176,5 +198,15 @@ export function YearTrend({ year }: { year: YearProgress | null }) {
 const styles = StyleSheet.create({
   chart: { width: '100%', height: H },
   axis: { height: 16 },
-  labelBox: { position: 'absolute', width: LABEL_HALF * 2, alignItems: 'center' },
+  labelBox: { position: 'absolute', width: LABEL_W, alignItems: 'center' },
+  // Centred in the chart's empty airspace, above the baseline.
+  firstYear: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

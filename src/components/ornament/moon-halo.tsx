@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { useTheme } from '@/hooks/use-theme';
+import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { octagramStar } from '@/lib/geometry';
 
 /**
@@ -16,6 +16,9 @@ import { octagramStar } from '@/lib/geometry';
 export function MoonHalo({ size, strokeOpacity = 0.14 }: { size: number; strokeOpacity?: number }) {
   const theme = useTheme();
   const uid = useId();
+  // Same light-mode dimming as GeometricBackdrop: dark-steel lines on a white page read far
+  // stronger than pale lines on deep space (the sign-in star was the loudest ornament in the app).
+  const dim = useEffectiveScheme() === 'light' ? 0.55 : 1;
   const c = size / 2;
   const rOuter = size * 0.44;
   const star = octagramStar(c, c, rOuter, rOuter * 0.46);
@@ -36,7 +39,7 @@ export function MoonHalo({ size, strokeOpacity = 0.14 }: { size: number; strokeO
             <Rect x="0" y="0" width={size} height={size} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
-        <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} strokeOpacity={strokeOpacity} fill="none">
+        <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} strokeOpacity={strokeOpacity * dim} fill="none">
           {rings.map((r, i) => (
             <Circle key={i} cx={c} cy={c} r={r} />
           ))}
