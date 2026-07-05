@@ -50,6 +50,7 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "version:hijri": "node scripts/hijri-version.mjs",
+    "seed:catalog": "node scripts/seed-catalog.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "expo lint",
@@ -65,7 +66,7 @@
     "preset": "jest-expo",
     "testEnvironment": "node",
     "testMatch": [
-      "**/src/**/*.test.ts"
+      "<rootDir>/src/**/*.test.ts"
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"

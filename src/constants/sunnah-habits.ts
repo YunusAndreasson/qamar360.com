@@ -660,9 +660,6 @@ export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null
   return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ') || 'No days';
 }
 
-/** The one-tap starter set — a balanced daily core for a brand-new user. */
-export const ESSENTIAL_PRESETS = SUNNAH_PRESETS.filter((p) => p.essential);
-
 /**
  * A curated "stack" — a natural sequence of Sunnah habits that belong together. Adding one
  * creates any missing member habits, then groups them in order (see `createStack`). Purely a
@@ -718,9 +715,13 @@ export const SUNNAH_ROUTINES: SunnahRoutine[] = [
   },
 ];
 
-/** Resolve a routine's preset ids to its member presets, in sequence order. */
-export function routinePresets(routine: SunnahRoutine): SunnahPreset[] {
+/**
+ * Resolve a routine's preset ids to its member presets, in sequence order, against the given
+ * preset library. Takes `presets` explicitly (rather than closing over `SUNNAH_PRESETS`) so it
+ * works over whichever catalog is live — the one fetched from Supabase or the bundled fallback.
+ */
+export function routinePresets(routine: SunnahRoutine, presets: SunnahPreset[]): SunnahPreset[] {
   return routine.presetIds
-    .map((id) => SUNNAH_PRESETS.find((p) => p.id === id))
+    .map((id) => presets.find((p) => p.id === id))
     .filter((p): p is SunnahPreset => p != null);
 }

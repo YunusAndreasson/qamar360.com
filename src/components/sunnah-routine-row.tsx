@@ -4,6 +4,7 @@ import { ExpandableAddRow } from '@/components/expandable-add-row';
 import { ThemedText } from '@/components/themed-text';
 import { routinePresets, type SunnahRoutine } from '@/constants/sunnah-habits';
 import { Spacing } from '@/constants/theme';
+import { useCatalog } from '@/hooks/use-catalog';
 
 type Props = {
   routine: SunnahRoutine;
@@ -20,7 +21,8 @@ type Props = {
  * reveal the habit sequence it stacks. Mirrors {@link SunnahPresetRow}.
  */
 export function SunnahRoutineRow({ routine, added, onAdd, onRemove }: Props) {
-  const members = routinePresets(routine);
+  const { presets } = useCatalog();
+  const members = routinePresets(routine, presets);
 
   return (
     <ExpandableAddRow

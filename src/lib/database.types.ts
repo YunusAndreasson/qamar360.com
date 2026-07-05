@@ -39,6 +39,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          id: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: []
+      }
       habit_completions: {
         Row: {
           completed_at: string
@@ -175,6 +193,125 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      hijri_months: {
+        Row: {
+          month: number
+          name: string
+        }
+        Insert: {
+          month: number
+          name: string
+        }
+        Update: {
+          month?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      presets: {
+        Row: {
+          category_id: string
+          default_schedule: number[]
+          detail: string
+          essential: boolean
+          evidence: string
+          hijri_schedule: Json | null
+          id: string
+          name: string
+          sort_order: number
+          target_count: number | null
+          target_unit: string | null
+        }
+        Insert: {
+          category_id: string
+          default_schedule?: number[]
+          detail: string
+          essential?: boolean
+          evidence: string
+          hijri_schedule?: Json | null
+          id: string
+          name: string
+          sort_order?: number
+          target_count?: number | null
+          target_unit?: string | null
+        }
+        Update: {
+          category_id?: string
+          default_schedule?: number[]
+          detail?: string
+          essential?: boolean
+          evidence?: string
+          hijri_schedule?: Json | null
+          id?: string
+          name?: string
+          sort_order?: number
+          target_count?: number | null
+          target_unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_presets: {
+        Row: {
+          position: number
+          preset_id: string
+          routine_id: string
+        }
+        Insert: {
+          position: number
+          preset_id: string
+          routine_id: string
+        }
+        Update: {
+          position?: number
+          preset_id?: string
+          routine_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_presets_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "presets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_presets_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routines: {
+        Row: {
+          detail: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          detail: string
+          id: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          detail?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       users: {
         Row: {

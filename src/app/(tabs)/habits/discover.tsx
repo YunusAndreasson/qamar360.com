@@ -15,16 +15,13 @@ import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import {
-  ESSENTIAL_PRESETS,
   routinePresets,
-  SUNNAH_CATEGORIES,
-  SUNNAH_PRESETS,
-  SUNNAH_ROUTINES,
   type SunnahCategory,
   type SunnahPreset,
   type SunnahRoutine,
 } from '@/constants/sunnah-habits';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { normalizeName } from '@/lib/names';
@@ -44,13 +41,6 @@ const toCreate = (preset: SunnahPreset) => ({
 
 /** 'all' | 'routines' | a category id — the active chip narrows the corpus searched. */
 type FilterId = 'all' | 'routines' | SunnahCategory['id'];
-
-// All → Routines → one chip per category, built once from the category list.
-const FILTERS: Filter[] = [
-  { id: 'all', label: 'All' },
-  { id: 'routines', label: 'Routines' },
-  ...SUNNAH_CATEGORIES.map((c) => ({ id: c.id, label: c.title })),
-];
 
 /**
  * One virtualized row of the library — a whole section card (or the banner / empty state), so
@@ -84,6 +74,14 @@ export default function DiscoverScreen() {
   const toast = useToast();
   const { habits, stacks, createHabit, createHabits, createStack, deleteHabit, deleteStack, error, dismissError } =
     useHabits();
+  const { categories, presets, routines, essentialPresets } = useCatalog();
+
+  // All → Routines → one chip per category, from the live category list.
+  const filters: Filter[] = [
+    { id: 'all', label: 'All' },
+    { id: 'routines', label: 'Routines' },
+    ...categories.map((c) => ({ id: c.id, label: c.title })),
+  ];
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
@@ -126,33 +124,33 @@ export default function DiscoverScreen() {
 
   // The starter set, minus anything already added.
   const starterRemaining = useMemo(
-    () => ESSENTIAL_PRESETS.filter((p) => !existing.has(normalizeName(p.name))),
-    [existing],
+    () => essentialPresets.filter((p) => !existing.has(normalizeName(p.name))),
+    [essentialPresets, existing],
   );
 
   // Routines visible under the current chip + search term (the two are ANDed).
   const visibleRoutines = useMemo(() => {
     if (filter !== 'all' && filter !== 'routines') return [];
-    return SUNNAH_ROUTINES.filter(
+    return routines.filter(
       (r) => r.name.toLowerCase().includes(q) || r.detail.toLowerCase().includes(q),
     );
-  }, [filter, q]);
+  }, [routines, filter, q]);
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
   // categories drop out so a filtered view shows no bare headers.
   const categorySections = useMemo(
     () =>
-      SUNNAH_CATEGORIES.filter((c) => filter === 'all' || filter === c.id)
+      categories.filter((c) => filter === 'all' || filter === c.id)
         .map((category) => ({
           category,
-          presets: SUNNAH_PRESETS.filter(
+          presets: presets.filter(
             (p) =>
               p.categoryId === category.id &&
               (p.name.toLowerCase().includes(q) || p.detail.toLowerCase().includes(q)),
           ),
         }))
         .filter((s) => s.presets.length > 0),
-    [filter, q],
+    [categories, presets, filter, q],
   );
 
   const flatPresets = useMemo(() => categorySections.flatMap((s) => s.presets), [categorySections]);
@@ -183,15 +181,15 @@ export default function DiscoverScreen() {
       // The row is inert once added, but guard against a double-tap racing the state update —
       // without this, two taps create two "On waking" stacks.
       if (existingStacks.has(normalizeName(routine.name))) return;
-      const presets = routinePresets(routine);
-      if (presets.length < 2) return;
+      const members = routinePresets(routine, presets);
+      if (members.length < 2) return;
       const byName = new Map(habits.map((h) => [normalizeName(h.name), h]));
-      const missing = presets.filter((p) => !byName.has(normalizeName(p.name)));
+      const missing = members.filter((p) => !byName.has(normalizeName(p.name)));
       const created = missing.length > 0 ? await createHabits(missing.map(toCreate)) : [];
       if (created.length !== missing.length) return; // a create failed — error already shown
       for (const h of created) byName.set(normalizeName(h.name), h);
       const orderedIds: string[] = [];
-      for (const p of presets) {
+      for (const p of members) {
         const h = byName.get(normalizeName(p.name));
         if (h) orderedIds.push(h.id);
       }
@@ -206,7 +204,7 @@ export default function DiscoverScreen() {
         },
       });
     },
-    [habits, existingStacks, createHabits, createStack, deleteStack, deleteHabit, toast],
+    [habits, presets, existingStacks, createHabits, createStack, deleteStack, deleteHabit, toast],
   );
 
   // Add the starter set — same pattern: multi-add lands off-screen, so confirm with an Undo
@@ -402,7 +400,7 @@ export default function DiscoverScreen() {
         stickyHeaderIndices={[0]}
         ListHeaderComponent={
           <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-            <DiscoverFilterChips filters={FILTERS} active={filter} onChange={setFilter} />
+            <DiscoverFilterChips filters={filters} active={filter} onChange={setFilter} />
           </View>
         }
         ItemSeparatorComponent={SectionGap}

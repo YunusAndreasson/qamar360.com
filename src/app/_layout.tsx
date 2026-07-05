@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { CatalogProvider } from '@/hooks/use-catalog';
 import { PreferencesProvider } from '@/hooks/use-preferences';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications } from '@/lib/notifications';
@@ -25,8 +26,10 @@ export default function RootLayout() {
         <PreferencesProvider>
           <ToastProvider>
             <AuthProvider>
-              <RootNavigator />
-              <ThemedChrome />
+              <CatalogProvider>
+                <RootNavigator />
+                <ThemedChrome />
+              </CatalogProvider>
             </AuthProvider>
           </ToastProvider>
         </PreferencesProvider>

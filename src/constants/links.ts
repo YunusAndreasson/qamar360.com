@@ -4,7 +4,7 @@
  * Opened in an in-app browser via `expo-web-browser`, so they must be `https://` URLs.
  */
 export const Links = {
-  privacy: 'https://qamar360.app/privacy',
-  terms: 'https://qamar360.app/terms',
-  support: 'https://qamar360.app/support',
+  privacy: 'https://qamar360.com/privacy',
+  terms: 'https://qamar360.com/terms',
+  support: 'https://qamar360.com/support',
 } as const;

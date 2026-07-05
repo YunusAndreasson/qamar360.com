@@ -46,7 +46,7 @@ export function weekdayIndex(iso: string): number {
  * showing just the year. Mapping from the number renders the name identically on
  * every engine.
  */
-const HIJRI_MONTHS = [
+export const HIJRI_MONTHS = [
   'Muḥarram',
   'Ṣafar',
   'Rabīʿ al-Awwal',

@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "qamar360",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "routes": [
+    { "pattern": "qamar360.com", "custom_domain": true },
+    { "pattern": "www.qamar360.com", "custom_domain": true }
+  ]
+}
