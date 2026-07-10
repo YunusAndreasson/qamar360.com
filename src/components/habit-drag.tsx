@@ -85,6 +85,13 @@ const EDGE_SCROLL_MAX_V = 900;
 const PRE_LIFT_DELAY_MS = 150;
 const PRE_LIFT_SCALE = 0.01;
 
+/** Drop-one-habit-onto-another to make a routine: a lone row must be *hovered* this long before the
+ *  merge arms, so dragging a row past a neighbour to reorder never trips it (the iOS home-screen
+ *  folder feel — a quick pass reorders, a deliberate hold combines). */
+const MERGE_DWELL_MS = 400;
+/** The armed merge target swells this much — a "drop here to combine" signifier echoing the card ring. */
+const TARGET_POP_SCALE = 0.05;
+
 type DragState = {
   /** The key being dragged (`habit:x` / `stack:x` / `member:x`), or null at rest. */
   draggingKey: SharedValue<string | null>;
@@ -94,6 +101,13 @@ type DragState = {
   /** Compact insertion index of the open gap; sentinel (= dragIndex, or -1) = gaps closed. */
   insertIndex: SharedValue<number>;
   hoveredStackId: SharedValue<string | null>;
+  /** Drop-onto-a-habit merge: the lone habit currently armed as the merge target, or null. Drives
+   *  its ring + pop and the onEnd commit — the row-level analogue of `hoveredStackId`. */
+  mergeArmedHabitId: SharedValue<string | null>;
+  /** Continuous ms the ghost has hovered `dwellKey`'s merge band; arms the merge past MERGE_DWELL_MS. */
+  dwellMs: SharedValue<number>;
+  /** The `habit:<id>` the dwell timer is counting (null when not over a merge candidate). */
+  dwellKey: SharedValue<string | null>;
   /** A dragged member's parent stack id (its own card body means "cancel", not "join"). */
   ownStackId: SharedValue<string | null>;
   /** Dragged entry height + grid gap — how far entries shift to open a gap. */
@@ -135,6 +149,7 @@ type DragState = {
   finishBetween: (draggedKey: string, beforeKey: string) => void;
   finishInto: (draggedKey: string, stackId: string) => void;
   finishReorder: (draggedKey: string, stackId: string, index: number) => void;
+  finishMerge: (draggedKey: string, targetHabitId: string) => void;
   hoverTick: () => void;
 };
 
@@ -160,6 +175,7 @@ export function HabitDragProvider({
   onDropBetween,
   onDropInto,
   onDropReorder,
+  onDropMerge,
   children,
 }: {
   scrollRef: AnimatedRef<Animated.ScrollView>;
@@ -177,6 +193,8 @@ export function HabitDragProvider({
   onDropInto: (draggedKey: string, stackId: string) => void;
   /** Commit an in-card reorder: move member `draggedKey` to compact `index` within `stackId`. */
   onDropReorder: (draggedKey: string, stackId: string, index: number) => void;
+  /** Commit a merge: fold habit `draggedKey` and lone habit `targetHabitId` into a new routine. */
+  onDropMerge: (draggedKey: string, targetHabitId: string) => void;
   children: ReactNode;
 }) {
   const draggingKey = useSharedValue<string | null>(null);
@@ -184,6 +202,9 @@ export function HabitDragProvider({
   const dragIndex = useSharedValue(0);
   const insertIndex = useSharedValue(0);
   const hoveredStackId = useSharedValue<string | null>(null);
+  const mergeArmedHabitId = useSharedValue<string | null>(null);
+  const dwellMs = useSharedValue(0);
+  const dwellKey = useSharedValue<string | null>(null);
   const ownStackId = useSharedValue<string | null>(null);
   const slotSize = useSharedValue(0);
   const committed = useSharedValue(false);
@@ -224,6 +245,7 @@ export function HabitDragProvider({
     if (slot.kind === 'reorder') {
       if (reorderStackId.get() !== slot.stackId) reorderStackId.set(slot.stackId);
       if (hoveredStackId.get() !== null) hoveredStackId.set(null);
+      if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
       insertIndex.set(closed);
       if (memberInsertIndex.get() !== slot.index) {
         memberInsertIndex.set(slot.index);
@@ -233,6 +255,7 @@ export function HabitDragProvider({
     }
     if (reorderStackId.get() !== null) reorderStackId.set(null); // left the own card
     if (slot.kind === 'into') {
+      if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
       if (hoveredStackId.get() !== slot.stackId) {
         hoveredStackId.set(slot.stackId);
         runOnJS(hoverTick)();
@@ -241,6 +264,27 @@ export function HabitDragProvider({
       return;
     }
     if (hoveredStackId.get() !== null) hoveredStackId.set(null);
+    // A lone habit over another lone habit: reorder until the dwell timer arms the merge. While
+    // unarmed the gap opens at `betweenIndex` (reordering still works); once armed the gaps shut,
+    // the target row pops + rings, and release folds the two into a new routine. (`dwellMs` is
+    // accumulated in the frame callback, where the frame delta is in scope.)
+    if (slot.kind === 'merge') {
+      if (dwellMs.get() >= MERGE_DWELL_MS) {
+        if (mergeArmedHabitId.get() !== slot.habitId) {
+          mergeArmedHabitId.set(slot.habitId);
+          runOnJS(hoverTick)();
+        }
+        insertIndex.set(closed);
+      } else {
+        if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
+        if (insertIndex.get() !== slot.betweenIndex) {
+          insertIndex.set(slot.betweenIndex);
+          runOnJS(hoverTick)();
+        }
+      }
+      return;
+    }
+    if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
     const next = slot.kind === 'between' ? slot.index : closed;
     if (insertIndex.get() !== next) {
       insertIndex.set(next);
@@ -271,20 +315,34 @@ export function HabitDragProvider({
     }
     const top = grabY.get() + lastTranslationY.get() + (scrollOffset.get() - scrollAtGrab.get());
     ghostY.set(top);
-    applySlot(
-      resolveDropSlot(
-        top + ghostH.get() / 2,
-        order.get(),
-        frames.get(),
-        draggingKey.get()!,
-        dragKind.get(),
-        ownStackId.get(),
-        slotSize.get(),
-        memberOrder.get(),
-        memberFrames.get(),
-        ghostH.get(), // the dragged member's own height — the slot the siblings compact by
-      ),
+    const slot = resolveDropSlot(
+      top + ghostH.get() / 2,
+      order.get(),
+      frames.get(),
+      draggingKey.get()!,
+      dragKind.get(),
+      ownStackId.get(),
+      slotSize.get(),
+      memberOrder.get(),
+      memberFrames.get(),
+      ghostH.get(), // the dragged member's own height — the slot the siblings compact by
     );
+    // Accumulate hover time over a merge candidate on the UI thread (no Date.now in a worklet — the
+    // clamped frame delta is the clock, same `dt` cap as the auto-scroll above). Moving to a new
+    // candidate, or off every band, resets the timer — so only a deliberate hold crosses the dwell
+    // threshold; a reorder fly-by (a fraction of a second over each neighbour) never arms the merge.
+    if (slot.kind === 'merge') {
+      const key = `habit:${slot.habitId}`;
+      if (dwellKey.get() === key) dwellMs.set(dwellMs.get() + Math.min(64, info.timeSincePreviousFrame ?? 16));
+      else {
+        dwellKey.set(key);
+        dwellMs.set(0);
+      }
+    } else if (dwellKey.get() !== null) {
+      dwellKey.set(null);
+      dwellMs.set(0);
+    }
+    applySlot(slot);
   }, false);
 
   /** Single gate for drag start/stop on the JS side: runs the screen's callback and toggles
@@ -343,6 +401,23 @@ export function HabitDragProvider({
     frame.setActive(false);
     onDragActive(null);
   };
+  // Two lone habits folded into a new routine (same protocol as finishInto — runs from the ghost's
+  // melt completion, so the drop is felt as the ghost lands, and a cancelled-and-replayed melt can't
+  // re-commit). The screen's onDropMerge creates the stack; here we just clear the drag.
+  const finishMerge = (draggedKey: string, targetHabitId: string) => {
+    if (draggingKey.get() !== draggedKey) return;
+    haptics.drop();
+    onDropMerge(draggedKey, targetHabitId);
+    draggingKey.set(null);
+    hoveredStackId.set(null);
+    reorderStackId.set(null);
+    memberInsertIndex.set(-1);
+    mergeArmedHabitId.set(null);
+    dwellKey.set(null);
+    dwellMs.set(0);
+    frame.setActive(false);
+    onDragActive(null);
+  };
 
   // Mirror the rendered entry order (top-level and per-card members) into the worklet-readable
   // registries; if either changes while a drag is live, the ground truth moved under the finger —
@@ -361,6 +436,9 @@ export function HabitDragProvider({
       hoveredStackId.set(null);
       reorderStackId.set(null);
       memberInsertIndex.set(-1);
+      mergeArmedHabitId.set(null);
+      dwellKey.set(null);
+      dwellMs.set(0);
       setDragActive(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the orders' identity
@@ -368,12 +446,12 @@ export function HabitDragProvider({
 
   // (No useMemo — the React Compiler memoizes this value with correct dependencies.)
   const value: DragState = {
-    draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
-    committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
-    pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH, minOffset, frames,
-    order, memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
-    scrollOffset, scrollRef, reduceMotion,
-    onDragActive: setDragActive, finishBetween, finishInto, finishReorder, hoverTick,
+    draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
+    dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
+    grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
+    minOffset, frames, order, memberFrames, memberOrder, reorderStackId, memberDragIndex,
+    memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
+    onDragActive: setDragActive, finishBetween, finishInto, finishReorder, finishMerge, hoverTick,
   };
 
   return <HabitDragContext value={value}>{children}</HabitDragContext>;
@@ -413,10 +491,11 @@ export function DraggableEntry({
   children: ReactNode;
 }) {
   const {
-    draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
-    committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
-    pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, frames, order,
-    scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto,
+    draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
+    dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
+    grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop,
+    minOffset, frames, order, scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween,
+    finishInto, finishMerge,
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
@@ -470,6 +549,9 @@ export function DraggableEntry({
       dragKind.set(kind);
       ownStackId.set(null);
       committed.set(false);
+      mergeArmedHabitId.set(null); // fresh drag: no armed merge target, dwell timer at zero
+      dwellKey.set(null);
+      dwellMs.set(0);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
       runOnJS(onDragActive)(entryKey);
@@ -484,6 +566,19 @@ export function DraggableEntry({
     })
     .onEnd(() => {
       if (draggingKey.get() !== entryKey) return;
+      const armedHabit = mergeArmedHabitId.get();
+      if (armedHabit !== null && kind === 'habit') {
+        // Drop onto the armed habit → a new routine. The ghost melts into the target (same beat as
+        // joining a card), then the merge commits. finished-guarded so a replayed melt can't recommit.
+        committed.set(true);
+        ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
+        ghostOpacity.set(
+          withTiming(0, { duration: reduceMotion ? 1 : Duration.fast }, (finished) => {
+            if (finished === true) runOnJS(finishMerge)(entryKey, armedHabit);
+          }),
+        );
+        return;
+      }
       const hovered = hoveredStackId.get();
       if (hovered !== null && kind === 'habit') {
         // Join the glowing routine: the ghost melts into the card, then the move commits.
@@ -524,6 +619,7 @@ export function DraggableEntry({
       // Cancel: close the gaps and float home (nothing changed — Nielsen's easy way out).
       committed.set(true); // settling now — the frame callback must let the spring fly home
       hoveredStackId.set(null);
+      mergeArmedHabitId.set(null);
       insertIndex.set(dragIndex.get());
       const home = grabY.get() + (scrollOffset.get() - scrollAtGrab.get());
       if (reduceMotion) {
@@ -545,6 +641,10 @@ export function DraggableEntry({
   const style = useAnimatedStyle(() => {
     const dk = draggingKey.get();
     const shift = dk === null ? 0 : displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
+    // The armed merge target — a *different*, still-visible entry from the hidden dragged one —
+    // swells to say "drop here to combine". reduceMotion skips the pop (the ring's cross-fade below
+    // still carries the meaning).
+    const armed = kind === 'habit' && mergeArmedHabitId.get() === entryKey.slice('habit:'.length);
     return {
       // The original hides only once the ghost is actually on screen — no handoff flicker.
       opacity: dk === entryKey && ghostMounted.get() ? 0 : 1,
@@ -552,6 +652,9 @@ export function DraggableEntry({
         // At rest the reset is instant, so a commit's re-render lands with no stale offset.
         { translateY: dk === null ? 0 : reduceMotion ? shift : withSpring(shift, Spring.settle) },
         { scale: 1 + preLift.get() * PRE_LIFT_SCALE },
+        // The pop is a *separate* composed scale (transforms multiply) so the spring stays a direct
+        // style value — arithmetic on a withSpring() result stringifies it ("1[object Object]").
+        { scale: reduceMotion ? 1 : withSpring(armed ? 1 + TARGET_POP_SCALE : 1, Spring.settle) },
       ],
     };
   });
@@ -560,7 +663,11 @@ export function DraggableEntry({
     <GestureDetector gesture={pan}>
       <Animated.View ref={ref} onLayout={onLayout} style={style}>
         {children}
-        {kind === 'stack' && stackId !== null ? <DropRing stackId={stackId} /> : null}
+        {kind === 'stack' && stackId !== null ? (
+          <DropRing stackId={stackId} />
+        ) : kind === 'habit' ? (
+          <MergeRing habitId={entryKey.slice('habit:'.length)} />
+        ) : null}
       </Animated.View>
     </GestureDetector>
   );
@@ -791,6 +898,18 @@ function DropRing({ stackId }: { stackId: string }) {
   const theme = useTheme();
   const style = useAnimatedStyle(() => ({
     opacity: withTiming(hoveredStackId.get() === stackId ? 1 : 0, { duration: Duration.fast }),
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.dropRing, { borderColor: theme.accent }, style]} />;
+}
+
+/** The accent "drop here to combine" ring a lone habit shows once a merge has armed over it — the
+ *  row-level twin of {@link DropRing} (a standalone row is a `Radius.card` Surface, so it reuses the
+ *  same ring style). Only appears after the dwell timer arms, so a reorder fly-by stays quiet. */
+function MergeRing({ habitId }: { habitId: string }) {
+  const { mergeArmedHabitId } = useDrag();
+  const theme = useTheme();
+  const style = useAnimatedStyle(() => ({
+    opacity: withTiming(mergeArmedHabitId.get() === habitId ? 1 : 0, { duration: Duration.fast }),
   }));
   return <Animated.View pointerEvents="none" style={[styles.dropRing, { borderColor: theme.accent }, style]} />;
 }

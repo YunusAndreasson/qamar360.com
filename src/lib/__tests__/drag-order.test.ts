@@ -146,6 +146,45 @@ describe('resolveDropSlot', () => {
     const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
     expect(result.kind).toBe('between');
   });
+
+  // habit:b is a lone row at y=252, h=56 → inset 12 → merge band 264..296. The dwell timer that
+  // actually arms the merge lives in the gesture layer (UI-thread, stateful) and is out of scope
+  // here; resolveDropSlot only reports the *candidate*.
+  const rowBodyY = 280; // inside habit:b's merge band
+  const rowBandY = 258; // habit:b's top band, above the merge band — still a reorder
+
+  it('a habit over another lone habit body is a merge candidate for that habit', () => {
+    const result = resolveDropSlot(rowBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
+    expect(result).toMatchObject({ kind: 'merge', habitId: 'b' });
+  });
+
+  it("a merge candidate's fallback betweenIndex equals the plain reorder index (stays reorderable)", () => {
+    const result = resolveDropSlot(rowBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
+    const mids = compactMidpoints(order, frames, 'habit:a', slot);
+    expect(result).toEqual({ kind: 'merge', habitId: 'b', betweenIndex: insertionIndexFor(rowBodyY, mids) });
+  });
+
+  it("a habit over another lone habit's band resolves to between (reorder, no merge)", () => {
+    const result = resolveDropSlot(rowBandY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
+    expect(result.kind).toBe('between');
+  });
+
+  it('a member dragged over a lone habit resolves to between (only habit-on-habit merges)', () => {
+    const result = resolveDropSlot(rowBodyY, order, frames, 'member:m1', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW);
+    expect(result.kind).toBe('between');
+  });
+
+  it('a dragged card over a lone habit resolves to between (cards never merge)', () => {
+    const result = resolveDropSlot(rowBodyY, order, frames, 'stack:T', 'stack', 'T', CARD + GAP, NO_MEMBERS, {}, 0);
+    expect(result.kind).toBe('between');
+  });
+
+  it('a degenerate ~20px habit row has no merge zone (inset floor leaves no body)', () => {
+    const tinyOrder: OrderMeta[] = [{ key: 'habit:x', kind: 'habit', stackId: null }];
+    const tinyFrames = { 'habit:x': { y: 0, h: 20 } }; // inset 12 each side → body empty
+    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
+    expect(result.kind).toBe('between');
+  });
 });
 
 describe('in-card member reorder', () => {

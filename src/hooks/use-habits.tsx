@@ -16,6 +16,7 @@ import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
+import { newId } from '@/lib/id';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
@@ -144,8 +145,10 @@ type HabitsContextValue = {
    *  drag-reorder and its Move up/down accessibility actions (keep stack members contiguous;
    *  `lib/drag-order`'s unit helpers build a valid order). */
   reorderHabits: (orderedIds: string[]) => Promise<void>;
-  /** Create a stack from existing habits (in order). Returns the new stack id, or null. */
-  createStack: (name: string, orderedMemberIds: string[]) => Promise<string | null>;
+  /** Create a stack from existing habits (in order). Returns the new stack id, or null. Pass `stackId`
+   *  to use a caller-minted id (so the card can be targeted the moment it appears — e.g. to animate a
+   *  drag-merge); otherwise one is generated. */
+  createStack: (name: string, orderedMemberIds: string[], stackId?: string) => Promise<string | null>;
   /** Rename a stack and/or set its full ordered membership. Empty membership deletes it. */
   updateStack: (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => Promise<void>;
   /** Delete a stack; its members survive as standalone habits. */
@@ -1006,7 +1009,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createStack = useCallback(
-    async (name: string, orderedMemberIds: string[]): Promise<string | null> => {
+    async (name: string, orderedMemberIds: string[], presetStackId?: string): Promise<string | null> => {
       if (!userId) return null;
       const cleanName = name.trim();
       const memberIds = orderedMemberIds.filter((id) => !id.startsWith('temp-'));
@@ -1022,20 +1025,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const prevHabits = habitsRef.current;
       const prevStacks = stacksRef.current;
 
-      // Insert the stack row first — we need its id to stamp members.
-      let stack: HabitStack;
-      try {
-        const { data, error: insErr } = await supabase
-          .from('habit_stacks')
-          .insert({ user_id: userId, name: cleanName })
-          .select()
-          .single();
-        if (insErr) throw insErr;
-        stack = data;
-      } catch {
-        setError('Could not create that stack. Check your connection.');
-        return null;
-      }
+      // Client-minted id so the card can appear this frame — no round-trip to read a server id, and
+      // no temp→real id swap (a swap would remount the card and re-fire its entrance animation). The
+      // insert below reuses this id. This keeps drag-to-merge instant: the two rows fold into a card
+      // the moment the ghost lands, instead of flashing back to standalone during the insert. A caller
+      // that pre-minted the id (to target the card as it appears) passes it through.
+      const stackId = presetStackId ?? newId();
+      const stack: HabitStack = { id: stackId, user_id: userId, name: cleanName, created_at: null, updated_at: null };
 
       // Pull members together (in order) and stamp their stack_id, optimistically.
       const orderIds = groupedOrder(prevHabits, memberIds);
@@ -1044,20 +1040,32 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const next = orderIds
         .map((id, index) => {
           const h = byId.get(id);
-          return h ? { ...h, position: index, stack_id: memberSet.has(id) ? stack.id : h.stack_id } : null;
+          return h ? { ...h, position: index, stack_id: memberSet.has(id) ? stackId : h.stack_id } : null;
         })
         .filter((h): h is Habit => h !== null);
       setStacks((prev) => [...prev, stack]);
       setHabits(next);
 
-      const ok = await persistGrouping(next, prevHabits);
-      if (!ok) {
+      // DB writes, correctly ordered: the stack row must exist before members' stack_id FK points at it.
+      try {
+        const { error: insErr } = await supabase.from('habit_stacks').insert({ id: stackId, user_id: userId, name: cleanName });
+        if (insErr) throw insErr;
+      } catch {
+        setHabits(prevHabits);
         setStacks(prevStacks);
-        void supabase.from('habit_stacks').delete().eq('id', stack.id);
         setError('Could not create that stack. Check your connection.');
         return null;
       }
-      return stack.id;
+
+      const ok = await persistGrouping(next, prevHabits);
+      if (!ok) {
+        // persistGrouping already rolled the habits back; undo the stack shell too (local + remote).
+        setStacks(prevStacks);
+        void supabase.from('habit_stacks').delete().eq('id', stackId);
+        setError('Could not create that stack. Check your connection.');
+        return null;
+      }
+      return stackId;
     },
     [userId, ensureUserRow, persistGrouping],
   );

@@ -221,7 +221,6 @@ export default function DiscoverScreen() {
   }, [starterRemaining, createHabits, deleteHabit, toast]);
 
   const goCreateHabit = () => router.push({ pathname: '/habits/editor', params: { id: 'new' } });
-  const goCreateStack = () => router.push({ pathname: '/habits/stack-editor', params: { id: 'new' } });
 
   const renderRow = ({ item, index }: ListRenderItemInfo<Row>) => {
     // Every cell shares the side gutters; the first also restores the breathing room the
@@ -333,7 +332,9 @@ export default function DiscoverScreen() {
         );
       case 'create':
         // Manual entry, surfaced as a fallback once the curated library has had its say
-        // (flexibility-after-failure); the header + offers it persistently too.
+        // (flexibility-after-failure); the header + offers it persistently too. Routines aren't
+        // built here — you make one on Today by dropping one habit onto another (or the swipe
+        // "Add to routine → New routine"), so this stays a single, focused habit-create door.
         return (
           <View style={wrap}>
             <SettingsSection title="Can't find it?">
@@ -343,14 +344,6 @@ export default function DiscoverScreen() {
                 showChevron
                 accessibilityLabel="Create your own habit"
                 onPress={goCreateHabit}
-              />
-              <SettingsRow
-                icon="addLink"
-                label="Create your own stack"
-                sublabel="Build a routine from one cue"
-                showChevron
-                accessibilityLabel="Create your own stack"
-                onPress={goCreateStack}
               />
             </SettingsSection>
           </View>

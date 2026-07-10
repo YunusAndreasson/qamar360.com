@@ -40,6 +40,7 @@ export type DropSlot =
   | { kind: 'between'; index: number } // compact-space insertion index at top level
   | { kind: 'into'; stackId: string } // join this routine (appended)
   | { kind: 'reorder'; stackId: string; index: number } // reorder within own routine (compact member index)
+  | { kind: 'merge'; habitId: string; betweenIndex: number } // hover a lone habit → candidate new routine; betweenIndex = the reorder it falls back to before the merge arms
   | { kind: 'none' }; // no meaning here → cancel (float home)
 
 /** A routine card's "into" zone is its frame inset top and bottom by 20% of its height
@@ -119,6 +120,11 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
  * resolve a compact insertion index among the siblings, compacted by `memberSlot` (the dragged
  * member's own height). Its top/bottom bands still fall through to "between", so a member can be
  * dropped directly above or below its own routine to detach there.
+ *
+ * A lone habit dragged over another lone habit's body resolves to "merge" (fold the two into a new
+ * routine) — the same body-inset zone as a card's "into", carrying the `between` index it falls back
+ * to so the row stays reorderable until the merge arms (the dwell timer lives in the gesture layer,
+ * not here). Only habit-over-habit merges; a member or a card over a lone habit stays "between".
  */
 export function resolveDropSlot(
   centerY: number,
@@ -133,23 +139,32 @@ export function resolveDropSlot(
   memberSlot: number,
 ): DropSlot {
   'worklet';
+  // Computed once and shared: the merge candidate's fallback reorder index must equal the plain
+  // `between` index, so a lone habit stays reorderable right up until the merge arms.
+  const midpoints = compactMidpoints(order, frames, draggedKey, slotSize);
   if (draggedKind !== 'stack') {
     for (const entry of order) {
-      if (entry.kind !== 'stack' || entry.key === draggedKey || !entry.stackId) continue;
+      if (entry.key === draggedKey) continue;
       const f = frames[entry.key];
       if (!f) continue;
       const inset = intoInset(f.h);
       const top = f.y + inset;
       const bottom = f.y + f.h - inset;
       if (top >= bottom || centerY < top || centerY > bottom) continue;
-      if (draggedKind === 'member' && entry.stackId === ownStackId) {
-        const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
-        return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
+      if (entry.kind === 'stack' && entry.stackId) {
+        if (draggedKind === 'member' && entry.stackId === ownStackId) {
+          const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
+          return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
+        }
+        return { kind: 'into', stackId: entry.stackId };
       }
-      return { kind: 'into', stackId: entry.stackId };
+      // A lone habit's body is a candidate merge target — but only when dragging another lone habit
+      // (drop-onto-app-makes-a-folder). A member or a card over it falls through to `between`.
+      if (entry.kind === 'habit' && draggedKind === 'habit') {
+        return { kind: 'merge', habitId: entry.key.slice('habit:'.length), betweenIndex: insertionIndexFor(centerY, midpoints) };
+      }
     }
   }
-  const midpoints = compactMidpoints(order, frames, draggedKey, slotSize);
   return { kind: 'between', index: insertionIndexFor(centerY, midpoints) };
 }
 

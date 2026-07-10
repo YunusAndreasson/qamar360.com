@@ -47,6 +47,10 @@ type Props = {
    *  non-visual equivalent of the drag): a standalone row moves in the day list, a member row
    *  moves within its routine. */
   onMove?: (habit: Habit, delta: -1 | 1) => void;
+  /** Screen-reader "start a routine with the next habit" — the gesture-free equivalent of dropping
+   *  this lone habit onto the one below it. Wired (standalone rows only) only when a lone-habit
+   *  neighbour exists, so the action never no-ops. */
+  onGroupWithNext?: (habit: Habit) => void;
   /** A lone top-level habit (not a stack member): give it its own tappable card surface.
    *  Standalone rows long-press-drag to reorder or to drop onto a routine card. */
   standalone?: boolean;
@@ -115,7 +119,7 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToRoutine, onRemoveFromRoutine, onMove, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToRoutine, onRemoveFromRoutine, onMove, onGroupWithNext, standalone }: Props) {
   const theme = useTheme();
 
   // The swipeable's handle (for the single-open rule) and whether its panel is showing — the
@@ -286,7 +290,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a routine. Swipe left to add to a routine, skip, edit, or delete.'
               : 'Use the stepper to log progress. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
             : standalone
-              ? 'Activates to toggle done. Hold and drag to reorder or drop onto a routine. Swipe left to add to a routine, skip, edit, or delete.'
+              ? 'Activates to toggle done. Hold and drag to reorder, drop onto a routine, or drop onto another habit to combine them. Swipe left to add to a routine, skip, edit, or delete.'
               : 'Activates to toggle done. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
         }
         // Everything the drag can do, as screen-reader actions (full parity — a drag gesture
@@ -300,6 +304,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               ]
             : []),
           ...(standalone && onAddToRoutine ? [{ name: 'addToRoutine', label: 'Add to routine' }] : []),
+          ...(standalone && onGroupWithNext ? [{ name: 'groupWithNext', label: 'Start a routine with next habit' }] : []),
           ...(!standalone && onRemoveFromRoutine
             ? [{ name: 'removeFromRoutine', label: 'Remove from routine' }]
             : []),
@@ -314,6 +319,9 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               break;
             case 'addToRoutine':
               onAddToRoutine?.(habit);
+              break;
+            case 'groupWithNext':
+              onGroupWithNext?.(habit);
               break;
             case 'removeFromRoutine':
               onRemoveFromRoutine?.(habit);

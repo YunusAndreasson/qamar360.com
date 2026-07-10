@@ -23,3 +23,19 @@ export const normalizeName = (name: string) =>
 /** Normalized names of every item except `id` — the collision set an editor rejects a name against. */
 export const otherNames = <T extends { id: string; name: string }>(items: T[], id?: string) =>
   items.filter((item) => item.id !== id).map((item) => normalizeName(item.name));
+
+/**
+ * A fresh routine's placeholder name for the drop-one-habit-onto-another gesture: the routine is
+ * created instantly (no name prompt — see the ⋯ → Rename affordance), so it needs a sensible
+ * default. Deduped against existing stacks so repeated merges read "New routine", "New routine 2",
+ * "New routine 3" … rather than colliding (createStack does not dedupe names itself).
+ */
+export const defaultRoutineName = (stacks: { id: string; name: string }[]) => {
+  const base = 'New routine';
+  const taken = new Set(otherNames(stacks));
+  if (!taken.has(normalizeName(base))) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(normalizeName(candidate))) return candidate;
+  }
+};

@@ -6,6 +6,7 @@ import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { CoalesceIn } from '@/components/coalesce-in';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
@@ -32,6 +33,8 @@ import {
   type OrderMeta,
 } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
+import { newId } from '@/lib/id';
+import { defaultRoutineName } from '@/lib/names';
 
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
@@ -70,6 +73,7 @@ export default function HabitsScreen() {
     skipHabit,
     moveHabit,
     createStack,
+    deleteStack,
     reorderHabits,
     deleteHabit,
     dismissError,
@@ -197,6 +201,41 @@ export default function HabitsScreen() {
     [habits, stacks, moveHabit, createStack, showToast],
   );
 
+  // The routine just created by a drag-merge — the only card that gets the coalesce spring-in (kept
+  // set until the next merge; overwriting it lets the previous card, long settled, unwrap seamlessly).
+  const [coalescingStackId, setCoalescingStackId] = useState<string | null>(null);
+
+  // Drop one habit onto another → a brand-new routine holding both. Created instantly with a default
+  // name (rename later from the card's ⋯ menu); the drop target hosts the new card at its slot and the
+  // dragged habit joins after it. Undo deletes the fresh stack and restores the exact prior order —
+  // createStack pulls the pair adjacent, so a bare delete would leave them regrouped where they landed.
+  const mergeHabits = useCallback(
+    async (draggedId: string, targetId: string) => {
+      const prevOrder = flattenUnits(buildUnits(habits));
+      haptics.added();
+      // Pre-mint the stack id and mark it coalescing BEFORE createStack stamps it into state, so the
+      // card animates its spring-in on its very first mount (only this card — not every card on load).
+      const stackId = newId();
+      setCoalescingStackId(stackId);
+      const created = await createStack(defaultRoutineName(stacks), [targetId, draggedId], stackId);
+      if (!created) return;
+      showToast('Routine created', 'success', {
+        label: 'Undo',
+        onPress: () => {
+          void deleteStack(created);
+          void reorderHabits(prevOrder);
+        },
+      });
+    },
+    [habits, stacks, createStack, deleteStack, reorderHabits, showToast],
+  );
+
+  // The drag layer's "dropped one lone habit onto another (held long enough to arm the merge)".
+  const onDropMerge = useCallback(
+    (draggedKey: string, targetHabitId: string) => mergeHabits(draggedKey.slice('habit:'.length), targetHabitId),
+    [mergeHabits],
+  );
+
   // The key being dragged (ghost source), or null at rest. While a drag is live the scroll is
   // frozen so a vertical drag doesn't fight the list (auto-scroll drives it instead).
   const [dragEntryKey, setDragEntryKey] = useState<string | null>(null);
@@ -313,6 +352,20 @@ export default function HabitsScreen() {
     [moveEntryForA11y],
   );
 
+  // The gesture-free twin of drop-onto-a-habit: a screen-reader action on a lone row that folds it
+  // with the immediately-following lone habit into a new routine (a stack neighbour is already served
+  // by "Add to routine"). Passed to a row only when that neighbour exists, so the action never no-ops.
+  const groupWithNext = useCallback(
+    (habit: Habit) => {
+      const at = entries.findIndex((e) => e.type === 'habit' && e.habit.id === habit.id);
+      const next = at === -1 ? undefined : entries[at + 1];
+      if (!next || next.type !== 'habit') return;
+      void mergeHabits(next.habit.id, habit.id);
+      AccessibilityInfo.announceForAccessibility('Routine created');
+    },
+    [entries, mergeHabits],
+  );
+
   return (
     <>
       <Stack.Screen
@@ -390,12 +443,14 @@ export default function HabitsScreen() {
               onDragActive={onDragActive}
               onDropBetween={onDropBetween}
               onDropInto={onDropInto}
-              onDropReorder={onDropReorder}>
+              onDropReorder={onDropReorder}
+              onDropMerge={onDropMerge}>
               {/* One long-press drag vocabulary (hold ~a beat, then move): a lone habit reorders
-                  through the gaps or joins the routine card it's dropped onto (accent ring); a
-                  routine card reorders as one unit, members in tow. The dragged item floats as a
-                  ghost above the grid while its original holds the empty slot. Swipe actions and
-                  the picker sheet remain as the explicit, screen-reader-friendly routes. */}
+                  through the gaps, joins the routine card it's dropped onto (accent ring), or —
+                  held over another lone habit — folds the two into a new routine (that row rings
+                  and pops); a routine card reorders as one unit, members in tow. The dragged item
+                  floats as a ghost above the grid while its original holds the empty slot. Swipe
+                  actions and the picker sheet remain as the explicit, screen-reader-friendly routes. */}
               <DragGrid>
                 {entries.map((entry, index) =>
                   entry.type === 'stack' ? (
@@ -405,22 +460,24 @@ export default function HabitsScreen() {
                       index={index}
                       kind="stack"
                       stackId={entry.stack.id}>
-                      <StackCard
-                        stack={entry.stack}
-                        members={entry.members}
-                        completed={completed}
-                        skipped={skipped}
-                        counts={counts}
-                        onToggle={toggleHabit}
-                        onAdjust={adjustHabitCount}
-                        onSkip={skipHabit}
-                        onEdit={openEditor}
-                        onDelete={deleteHabit}
-                        onEditStack={openRoutineActions}
-                        onRemoveFromRoutine={removeFromRoutine}
-                        onMove={moveStackForA11y}
-                        onMoveHabit={moveRowForA11y}
-                      />
+                      <CoalesceIn active={coalescingStackId === entry.stack.id}>
+                        <StackCard
+                          stack={entry.stack}
+                          members={entry.members}
+                          completed={completed}
+                          skipped={skipped}
+                          counts={counts}
+                          onToggle={toggleHabit}
+                          onAdjust={adjustHabitCount}
+                          onSkip={skipHabit}
+                          onEdit={openEditor}
+                          onDelete={deleteHabit}
+                          onEditStack={openRoutineActions}
+                          onRemoveFromRoutine={removeFromRoutine}
+                          onMove={moveStackForA11y}
+                          onMoveHabit={moveRowForA11y}
+                        />
+                      </CoalesceIn>
                     </DraggableEntry>
                   ) : (
                     <DraggableEntry
@@ -441,6 +498,9 @@ export default function HabitsScreen() {
                         onDelete={deleteHabit}
                         onAddToRoutine={openAddToRoutine}
                         onMove={moveRowForA11y}
+                        // Screen-reader "make a routine from these two" — offered only when the next
+                        // row is also a lone habit (the drag gesture's gesture-free equivalent).
+                        onGroupWithNext={entries[index + 1]?.type === 'habit' ? groupWithNext : undefined}
                         standalone
                       />
                     </DraggableEntry>
