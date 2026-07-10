@@ -200,10 +200,10 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         }}
         accessibilityLabel={`Edit ${habit.name}`}
       />
-      {/* The routine "organise" action — accent-tinted against the neutral Skip/Edit blocks. Exactly
-          one form applies per row: a lone habit is *added* to a routine (picker); a stack member is
-          *removed* from its routine. Each is the explicit, discoverable counterpart of a drag (drop
-          onto a card / drag out of it) — the same move, two doors (Nielsen: flexibility). */}
+      {/* The routine "organise" swipe action, accent-tinted against the neutral Skip/Edit blocks:
+          a lone habit is *added* to a routine (picker) — the discoverable counterpart of dropping it
+          onto a card. Removing a member is drag-only now (drag the row out of its card); screen
+          readers keep the row's "Remove from routine" action, so no Remove button clutters the swipe. */}
       {standalone && onAddToRoutine ? (
         <SwipeAction
           progress={progress}
@@ -218,21 +218,6 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
             onAddToRoutine(habit);
           }}
           accessibilityLabel={`Add ${habit.name} to a routine`}
-        />
-      ) : !standalone && onRemoveFromRoutine ? (
-        <SwipeAction
-          progress={progress}
-          kind="routine"
-          label="Remove"
-          icon="removeLink"
-          backgroundColor={theme.accentSubtle}
-          foregroundColor={theme.accent}
-          rippleColor={theme.backgroundElement}
-          onPress={() => {
-            swipeable.close();
-            onRemoveFromRoutine(habit);
-          }}
-          accessibilityLabel={`Remove ${habit.name} from its routine`}
         />
       ) : null}
       <SwipeAction
