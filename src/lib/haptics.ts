@@ -9,6 +9,18 @@
  * (expand/collapse), or for a native control (e.g. a `Switch`) that the OS already
  * vibrates for itself.
  *
+ * On iOS the impact *style* is a character axis, not just a volume knob (the full
+ * `UIImpactFeedbackGenerator` range — Light/Medium/Heavy for mass, Rigid/Soft for elasticity):
+ *
+ *   Rigid  — a state committed (tick, add): crisp and precise, a check clicking into place
+ *   Soft   — a state released (untick, remove): rounded and muted, the undo counterpart
+ *   Medium — a physical lift (drag pickup): the weight of the row in the fingers
+ *   Light  — a gentle landing (drag drop): setting the row down is lighter than lifting it
+ *
+ * So commit/release and lift/land are distinguished by *texture*, not merely amplitude — the
+ * same axis the animations use (a crisp check draw vs. a quiet dissolve, a swelling lift vs.
+ * a settling spring), which is what keeps touch and motion feeling like one event.
+ *
  * Per platform: iOS drives the Taptic Engine generators (selection / impact / notification);
  * Android uses the action-oriented `HapticFeedbackConstants` via `performAndroidHapticsAsync`
  * — Expo's recommended path, because it renders authentic per-device effects, honours the
@@ -17,6 +29,8 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+
+import { Tick } from '@/constants/motion';
 
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
@@ -37,16 +51,22 @@ function intent(ios: () => Promise<void>, android: Haptics.AndroidHaptics) {
 export const haptics = {
   /** A discrete value changed within a series — a weekday, the appearance segment, a stack's members. */
   selection: intent(() => Haptics.selectionAsync(), Haptics.AndroidHaptics.Segment_Tick),
-  /** A row was picked up to be dragged into a new order. */
+  /** A row was picked up to be dragged into a new order — the weight of the lift. */
   pickup: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Drag_Start),
-  /** A habit was ticked off — a solid, satisfying confirmation. */
-  completed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Toggle_On),
-  /** A habit was un-ticked — a lighter "undo" counterpart. */
-  uncompleted: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Toggle_Off),
-  /** A curated habit or stack was added to the user's own list. */
-  added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Confirm),
-  /** A just-added curated habit was removed again — the lighter "undo" counterpart to {@link added}. */
-  removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Reject),
+  /** A dragged row landed in its new place — fired as the settle spring completes, so the
+   *  touch-down is felt at the exact frame the ghost visually lands. Lighter than the pickup:
+   *  setting something down is gentler than lifting it. A cancelled drag stays silent —
+   *  nothing changed, so nothing confirms. */
+  drop: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Gesture_End),
+  /** A habit was ticked off — a crisp, precise click as the check sets. */
+  completed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Toggle_On),
+  /** A habit was un-ticked — the rounded, muted "release" counterpart. */
+  uncompleted: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Toggle_Off),
+  /** A curated habit or stack was added to the user's own list — the same crisp "commit"
+   *  texture as {@link completed}: on Discover as on Today, saying yes feels identical. */
+  added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Confirm),
+  /** A just-added curated habit was removed again — the soft "release" counterpart to {@link added}. */
+  removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Reject),
   /**
    * The day's last open habit was completed — the ring closes. The single celebratory moment, and
    * it carries the weight of tonight's moon (`illumination` 0–1): the quietest tap on a new-moon
@@ -55,7 +75,9 @@ export const haptics = {
    */
   celebrate: (illumination = 0.5) => {
     if (illumination < 0.34) {
-      // New-moon nights — the quietest close.
+      // New-moon nights — the quietest close. Light, not Soft: Soft is the vocabulary's
+      // "release" texture (untick/remove), and the quietest celebration must still not
+      // share a pattern with an undo.
       run(
         isAndroid
           ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Toggle_On)
@@ -69,7 +91,8 @@ export const haptics = {
         : () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
     );
     if (illumination > 0.66) {
-      // Toward the full moon — a rounder, weightier tail beat.
+      // Toward the full moon — a rounder, weightier tail beat, timed to `Tick.sweep` so it
+      // lands at the exact moment the last ring sweeps shut on screen (see constants/motion).
       setTimeout(
         () =>
           run(
@@ -77,7 +100,7 @@ export const haptics = {
               ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
               : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy),
           ),
-        130,
+        Tick.sweep,
       );
     }
   },

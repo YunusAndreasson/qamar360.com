@@ -262,9 +262,13 @@ export function HabitDragProvider({
   // order and the cleared translateY/opacity hit the screen on the same frame — no flash.
   // Each verifies it is committing the drag that is still live: a settle animation that gets
   // cancelled and replayed later (its completion re-fires with finished=false) must not
-  // re-commit a drag that already ended.
+  // re-commit a drag that already ended. The drop haptic fires here — these run from the
+  // settle spring's (or the melt's) completion, so the touch-down is felt on the very frame
+  // the ghost visually lands. The pickup buzzed the lift; this answers it. A cancelled drag
+  // never reaches these handlers, so "never mind" stays silent.
   const finishBetween = (draggedKey: string, beforeKey: string) => {
     if (draggingKey.get() !== draggedKey) return;
+    haptics.drop();
     onDropBetween(draggedKey, beforeKey);
     draggingKey.set(null);
     hoveredStackId.set(null);
@@ -273,6 +277,7 @@ export function HabitDragProvider({
   };
   const finishInto = (draggedKey: string, stackId: string) => {
     if (draggingKey.get() !== draggedKey) return;
+    haptics.drop();
     onDropInto(draggedKey, stackId);
     draggingKey.set(null);
     hoveredStackId.set(null);

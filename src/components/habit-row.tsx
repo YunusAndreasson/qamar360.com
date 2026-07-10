@@ -6,10 +6,6 @@ import Animated, {
   interpolate,
   type SharedValue,
   useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withSequence,
-  withSpring,
 } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/app-icon';
@@ -18,8 +14,8 @@ import { PressableScale } from '@/components/pressable-scale';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
-import { Scale, Spring } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
+import { useConfirmPop } from '@/hooks/use-confirm-pop';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
@@ -144,30 +140,11 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   // uses): a count goal waxes by `count ÷ target`; a binary habit is a full moon when done.
   const fraction = isCount && target ? clamp01(count / target) : done ? 1 : 0;
 
-  // Spring "pop" on the check icon when a habit is completed — a tactile-feeling
-  // confirmation. We skip the very first run so rows that load already-done don't
-  // animate on mount; only a genuine toggle pops. Under Reduce Motion the icon's
-  // colour/shape change already conveys completion, so we drop the scale animation
-  // entirely rather than just shrinking it (HIG: substitute, don't soften).
-  const scale = useSharedValue(1);
-  const reduceMotion = useReducedMotion();
-  const mounted = useRef(false);
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    if (reduceMotion) {
-      scale.set(1);
-      return;
-    }
-    scale.set(
-      done
-        ? withSequence(withSpring(Scale.pop, Spring.confirm), withSpring(1, Spring.settle))
-        : withSpring(1, Spring.settle),
-    );
-  }, [done, scale, reduceMotion]);
-  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+  // The confirmation "pop" on the leading mark when a habit is completed — the shared
+  // spring the Discover add-badge uses too (see use-confirm-pop for the mount-skip and
+  // Reduce Motion rules). It scales the whole indicator while the ring inside runs the
+  // `Tick` choreography (arc sweep + check draw) — one moment, two layers of the same clock.
+  const iconStyle = useConfirmPop(done);
 
   // Skip, Edit, and Delete live in a trailing swipe — the platform-standard home for a
   // list item's secondary actions (Reminders, Mail). The row stays a clean check + label;

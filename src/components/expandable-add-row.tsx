@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/app-icon';
 import { FadeInView } from '@/components/fade-in-view';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { useConfirmPop } from '@/hooks/use-confirm-pop';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
@@ -69,6 +71,11 @@ export function ExpandableAddRow({
   const badgeColor = added ? 'transparent' : theme.accentSubtle;
   const iconColor = added ? theme.textSecondary : theme.accent;
 
+  // The badge pops on a genuine add — the same confirm spring as ticking a habit on Today
+  // (and it rides the same Rigid "commit" haptic via `haptics.added`), so saying yes feels
+  // identical on both screens. Removing springs quietly back; mount never animates.
+  const badgePop = useConfirmPop(added);
+
   return (
     <View>
       <View style={styles.row}>
@@ -83,9 +90,9 @@ export function ExpandableAddRow({
             added ? (onRemove ? 'Removes it from your habits' : 'Already added to your habits') : 'Adds it to your habits'
           }
           style={({ pressed }) => [styles.add, pressed && !inert && styles.pressed]}>
-          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+          <Animated.View style={[styles.badge, { backgroundColor: badgeColor }, badgePop]}>
             <AppIcon name={added ? 'check' : 'add'} size={20} color={iconColor} />
-          </View>
+          </Animated.View>
           <View style={styles.labels}>
             {/* `rowTitle` (17pt) — the same primary-label size every other list row uses. */}
             <ThemedText type="rowTitle" numberOfLines={2} style={styles.title}>
