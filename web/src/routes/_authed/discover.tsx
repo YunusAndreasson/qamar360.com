@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { EmptyState, ListSkeleton, PageHeader, Panel, RowCard, Section } from '#/components/console'
 import { Button } from '#/components/ui/button'
-import { Card } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { Skeleton } from '#/components/ui/skeleton'
 import {
   catalogQueryOptions,
   presetToHabit,
@@ -14,9 +13,17 @@ import {
   type Preset,
   type Routine,
 } from '#/lib/catalog'
-import { createHabit, createHabits, createStack, habitsQueryOptions, stacksQueryOptions } from '#/lib/habits'
+import {
+  createHabit,
+  createHabits,
+  createStack,
+  habitsQueryOptions,
+  invalidateHabitData,
+  stacksQueryOptions,
+} from '#/lib/habits'
 import { normalizeName } from '#/lib/names'
 import { scheduleSummary } from '#/lib/schedule'
+import { countLabel } from '#/lib/utils'
 
 export const Route = createFileRoute('/_authed/discover')({ component: DiscoverPage })
 
@@ -30,10 +37,7 @@ function DiscoverPage() {
   const existing = useMemo(() => new Set((habits ?? []).map((h) => normalizeName(h.name))), [habits])
   const existingStacks = useMemo(() => new Set((stacks ?? []).map((s) => normalizeName(s.name))), [stacks])
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['habits'] })
-    qc.invalidateQueries({ queryKey: ['stacks'] })
-  }
+  const invalidate = () => invalidateHabitData(qc)
 
   const addPreset = useMutation({
     mutationFn: (p: Preset) => createHabit(presetToHabit(p)),
@@ -71,47 +75,42 @@ function DiscoverPage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-2xl font-semibold">Discover</h1>
-        <p className="text-sm text-muted-foreground">A curated library of Sunnah habits and routines.</p>
+      <PageHeader title="Discover" readout="A curated library of Sunnah habits and routines." />
+
+      <div className="relative mb-7">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search habits and routines…"
+          className="h-11 pl-9"
+        />
       </div>
 
-      <Input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search habits and routines…"
-        className="mb-5"
-      />
-
       {isPending ? (
-        <div className="grid gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
+        <ListSkeleton rows={6} height={72} />
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-8">
           {!q && essentialsRemaining.length > 0 && (
-            <Card className="gap-2 bg-accent/40 p-5">
-              <div className="font-medium">New here? Start with the essentials</div>
-              <p className="text-sm text-muted-foreground">
+            <Panel framed className="rise-in p-5">
+              <div className="text-base font-medium text-foreground">
+                New here? Start with the essentials
+              </div>
+              <p className="mt-1.5 text-sm text-muted-foreground">
                 The moments already in your day: prayer times, morning and evening adhkār, and a daily page of Qurʾān.
               </p>
-              <div>
-                <Button
-                  className="mt-1"
-                  disabled={addStarter.isPending}
-                  onClick={() => addStarter.mutate(essentialsRemaining)}
-                >
-                  Add starter set ({essentialsRemaining.length})
-                </Button>
-              </div>
-            </Card>
+              <Button
+                className="mt-4"
+                disabled={addStarter.isPending}
+                onClick={() => addStarter.mutate(essentialsRemaining)}
+              >
+                Add starter set ({essentialsRemaining.length})
+              </Button>
+            </Panel>
           )}
 
           {visibleRoutines.length > 0 && (
-            <section className="grid gap-2">
-              <h2 className="text-sm font-semibold text-muted-foreground">Routines</h2>
+            <Section title="Routines" count={visibleRoutines.length}>
               {visibleRoutines.map((r) => (
                 <RoutineRow
                   key={r.id}
@@ -122,12 +121,11 @@ function DiscoverPage() {
                   onAdd={() => addRoutine.mutate(r)}
                 />
               ))}
-            </section>
+            </Section>
           )}
 
           {sections.map(({ category, presets: items }) => (
-            <section key={category.id} className="grid gap-2">
-              <h2 className="text-sm font-semibold text-muted-foreground">{category.title}</h2>
+            <Section key={category.id} title={category.title} count={items.length}>
               {items.map((p) => (
                 <PresetRow
                   key={p.id}
@@ -137,11 +135,13 @@ function DiscoverPage() {
                   onAdd={() => addPreset.mutate(p)}
                 />
               ))}
-            </section>
+            </Section>
           ))}
 
           {q && visibleRoutines.length === 0 && sections.length === 0 && (
-            <Card className="p-10 text-center text-muted-foreground">No matches for “{query.trim()}”.</Card>
+            <EmptyState title="No matches">
+              Nothing in the catalog matches “{query.trim()}”.
+            </EmptyState>
           )}
         </div>
       )}
@@ -152,7 +152,7 @@ function DiscoverPage() {
 function AddButton({ added, busy, onAdd }: { added: boolean; busy: boolean; onAdd: () => void }) {
   if (added) {
     return (
-      <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ok">
         <Check className="size-4" /> Added
       </span>
     )
@@ -166,14 +166,16 @@ function AddButton({ added, busy, onAdd }: { added: boolean; busy: boolean; onAd
 
 function PresetRow({ preset, added, busy, onAdd }: { preset: Preset; added: boolean; busy: boolean; onAdd: () => void }) {
   return (
-    <Card className="flex flex-row items-start justify-between gap-3 p-4">
+    <RowCard className="items-start justify-between">
       <div className="min-w-0">
-        <div className="font-medium">{preset.name}</div>
-        <div className="text-sm text-muted-foreground">{scheduleSummary(preset.defaultSchedule, preset.hijriSchedule)}</div>
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{preset.detail}</p>
+        <div className="font-medium text-foreground">{preset.name}</div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          {scheduleSummary(preset.defaultSchedule, preset.hijriSchedule)}
+        </div>
+        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{preset.detail}</p>
       </div>
       <AddButton added={added} busy={busy} onAdd={onAdd} />
-    </Card>
+    </RowCard>
   )
 }
 
@@ -191,14 +193,15 @@ function RoutineRow({
   onAdd: () => void
 }) {
   return (
-    <Card className="flex flex-row items-start justify-between gap-3 p-4">
+    <RowCard className="items-start justify-between">
       <div className="min-w-0">
-        <div className="font-medium">
-          {routine.name} <span className="text-sm font-normal text-muted-foreground">· {memberCount} habits</span>
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-medium text-foreground">{routine.name}</span>
+          <span className="text-sm text-muted-foreground">{countLabel(memberCount, 'habit')}</span>
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{routine.detail}</p>
+        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{routine.detail}</p>
       </div>
       <AddButton added={added} busy={busy} onAdd={onAdd} />
-    </Card>
+    </RowCard>
   )
 }

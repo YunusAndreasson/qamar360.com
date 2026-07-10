@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 
+import { QamarWordmark } from '#/components/qamar-logo'
 import { Button } from '#/components/ui/button'
 import { supabaseBrowser } from '#/lib/supabase/client'
 import { getUserFn } from '#/server/auth'
@@ -13,8 +14,11 @@ export const Route = createFileRoute('/_authed')({
   component: AuthedLayout,
 })
 
-const navBase = 'rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-const navActive = { className: 'rounded-md px-3 py-1.5 bg-muted font-medium text-foreground' }
+const NAV = [
+  { to: '/habits', label: 'Habits' },
+  { to: '/routines', label: 'Routines' },
+  { to: '/discover', label: 'Discover' },
+] as const
 
 function AuthedLayout() {
   const { user } = Route.useRouteContext()
@@ -28,32 +32,48 @@ function AuthedLayout() {
   }
 
   return (
-    <div className="min-h-svh bg-muted/20">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex h-14 max-w-4xl items-center gap-4 px-4">
-          <span className="font-semibold">Qamar360</span>
-          <nav className="flex items-center gap-1 text-sm">
-            <Link to="/habits" className={navBase} activeProps={navActive}>
-              Habits
-            </Link>
-            <Link to="/routines" className={navBase} activeProps={navActive}>
-              Routines
-            </Link>
-            <Link to="/discover" className={navBase} activeProps={navActive}>
-              Discover
-            </Link>
+    <div className="min-h-svh">
+      <header className="command-bar sticky top-0 z-40">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
+          <Link to="/habits" className="shrink-0">
+            <QamarWordmark />
+          </Link>
+
+          <nav className="ml-auto flex items-center gap-5 sm:gap-7">
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="console-tab"
+                activeProps={{ className: 'console-tab is-active' }}
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              Sign out
-            </Button>
-          </div>
+
+          <span
+            className="ml-6 hidden max-w-[18ch] truncate border-l border-border pl-6 text-sm text-muted-foreground lg:inline"
+            title={user.email ?? undefined}
+          >
+            {user.email}
+          </span>
+          <Button variant="ghost" size="sm" onClick={signOut} className="ml-2 shrink-0">
+            Sign out
+          </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-6">
+
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <Outlet />
       </main>
+
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-10 sm:px-6">
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <QamarWordmark size={18} className="opacity-70" />
+          <span className="text-sm text-muted-foreground">Sunnah habits &amp; routines</span>
+        </div>
+      </footer>
     </div>
   )
 }

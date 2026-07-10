@@ -1,22 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Plus, Unlink } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 
+import {
+  EmptyState,
+  Field,
+  FormDialog,
+  FormError,
+  ListSkeleton,
+  PageHeader,
+  Panel,
+  RowList,
+} from '#/components/console'
 import { Button } from '#/components/ui/button'
-import { Card } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
+import { DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { Skeleton } from '#/components/ui/skeleton'
 import {
   createStack,
   deleteStack,
   habitsQueryOptions,
+  invalidateHabitData,
   stacksQueryOptions,
   type Habit,
 } from '#/lib/habits'
+import { countLabel } from '#/lib/utils'
 
 export const Route = createFileRoute('/_authed/routines')({ component: RoutinesPage })
 
@@ -26,11 +35,8 @@ function RoutinesPage() {
   const qc = useQueryClient()
   const [creating, setCreating] = useState(false)
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['stacks'] })
-    qc.invalidateQueries({ queryKey: ['habits'] })
-  }
-  const del = useMutation({ mutationFn: deleteStack, onSuccess: invalidate })
+  const isPending = sp || hp
+  const del = useMutation({ mutationFn: deleteStack, onSuccess: () => invalidateHabitData(qc) })
 
   const membersByStack = useMemo(() => {
     const map = new Map<string, Habit[]>()
@@ -47,75 +53,73 @@ function RoutinesPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Routines</h1>
-          <p className="text-sm text-muted-foreground">Group habits that belong together.</p>
-        </div>
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 size-4" /> New routine
-        </Button>
-      </div>
+      <PageHeader
+        title="Routines"
+        readout={isPending ? undefined : countLabel(stacks?.length ?? 0, 'routine')}
+        action={
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="mr-1 size-4" /> New routine
+          </Button>
+        }
+      />
 
-      {sp || hp ? (
-        <div className="grid gap-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
+      {isPending ? (
+        <ListSkeleton rows={3} height={112} />
       ) : stacks && stacks.length > 0 ? (
-        <div className="grid gap-3">
+        <RowList>
           {stacks.map((s) => {
             const members = membersByStack.get(s.id) ?? []
             return (
-              <Card key={s.id} className="gap-3 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium">{s.name}</div>
+              <Panel key={s.id} className="p-4">
+                <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="font-medium text-foreground">{s.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {countLabel(members.length, 'habit')}
+                    </span>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => del.mutate(s.id)}
                     title="Ungroup (keeps the habits)"
+                    className="text-muted-foreground"
                   >
                     <Unlink className="mr-1 size-4" /> Ungroup
                   </Button>
                 </div>
-                <ol className="grid gap-1">
+                <ol className="mt-3 grid gap-1.5">
                   {members.map((m, i) => (
-                    <li key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="w-4 text-center tabular-nums">{i + 1}</span>
+                    <li key={m.id} className="flex items-center gap-3 text-sm">
+                      <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
                       <span className="truncate text-foreground">{m.name}</span>
                     </li>
                   ))}
-                  {members.length === 0 && <li className="text-sm text-muted-foreground">No habits in this routine.</li>}
+                  {members.length === 0 && (
+                    <li className="text-sm text-muted-foreground">No habits in this routine.</li>
+                  )}
                 </ol>
-              </Card>
+              </Panel>
             )
           })}
-        </div>
+        </RowList>
       ) : (
-        <Card className="p-10 text-center text-muted-foreground">
-          No routines yet. Create one below, or add a ready-made one from{' '}
-          <span className="font-medium text-foreground">Discover</span>.
-        </Card>
+        <EmptyState title="No routines yet">
+          Create one, or add a ready-made routine from <Link to="/discover">Discover</Link>.
+        </EmptyState>
       )}
 
-      <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New routine</DialogTitle>
-          </DialogHeader>
-          {creating && (
-            <NewRoutineForm
-              ungrouped={ungrouped}
-              onSaved={() => {
-                setCreating(false)
-                invalidate()
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <FormDialog open={creating} onClose={() => setCreating(false)} title="New routine">
+        <NewRoutineForm
+          ungrouped={ungrouped}
+          onSaved={() => {
+            setCreating(false)
+            invalidateHabitData(qc)
+          }}
+        />
+      </FormDialog>
     </div>
   )
 }
@@ -151,13 +155,11 @@ function NewRoutineForm({ ungrouped, onSaved }: { ungrouped: Habit[]; onSaved: (
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="rname">Name</Label>
+    <form onSubmit={submit} className="grid gap-5">
+      <Field label="Name" htmlFor="rname">
         <Input id="rname" value={name} autoFocus onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning" />
-      </div>
-      <div className="grid gap-2">
-        <Label>Habits</Label>
+      </Field>
+      <Field label="Habits">
         {ungrouped.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No ungrouped habits available. Add some on the Habits page first.
@@ -172,8 +174,8 @@ function NewRoutineForm({ ungrouped, onSaved }: { ungrouped: Habit[]; onSaved: (
             ))}
           </div>
         )}
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      </Field>
+      <FormError message={error} />
       <DialogFooter>
         <Button type="submit" disabled={busy || ungrouped.length === 0}>
           {busy ? 'Saving…' : 'Create routine'}

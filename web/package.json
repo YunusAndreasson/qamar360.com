@@ -15,7 +15,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.4.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "@tailwindcss/vite": "^4.1.18",
@@ -33,11 +32,9 @@
     "radix-ui": "^1.6.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-hook-form": "^7.81.0",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.1.18",
-    "tw-animate-css": "^1.3.6",
-    "zod": "^4.4.3"
+    "tw-animate-css": "^1.3.6"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.43.0",

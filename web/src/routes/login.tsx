@@ -1,10 +1,10 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 
+import { Field, FormError, FormNotice } from '#/components/console'
+import { QamarBrandName, QamarMark } from '#/components/qamar-logo'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 import { supabaseBrowser } from '#/lib/supabase/client'
 import { getUserFn } from '#/server/auth'
 
@@ -48,69 +48,77 @@ function LoginPage() {
     }
   }
 
+  const isSignIn = mode === 'sign-in'
+
   return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-1 flex size-11 items-center justify-center rounded-xl bg-primary text-lg font-semibold text-primary-foreground">
-            ق
-          </div>
-          <CardTitle className="text-2xl">Qamar360</CardTitle>
-          <CardDescription>
-            {mode === 'sign-in' ? 'Sign in to manage your habits and routines.' : 'Create an account to get started.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden p-6">
+      {/* one faint ring echoing the mark, for quiet depth behind the card */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[112vmin] w-[112vmin] -translate-x-1/2 -translate-y-1/2 rounded-full border"
+        style={{ borderColor: 'rgba(150,173,205,0.05)' }}
+      />
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p>}
-
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? 'Please wait…' : mode === 'sign-in' ? 'Sign in' : 'Create account'}
-            </Button>
-          </form>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            {mode === 'sign-in' ? "Don't have an account? " : 'Already have an account? '}
-            <button
-              type="button"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-              onClick={() => {
-                setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')
-                setError(null)
-                setNotice(null)
-              }}
-            >
-              {mode === 'sign-in' ? 'Sign up' : 'Sign in'}
-            </button>
+      <div className="rise-in panel panel--framed w-full max-w-[25rem] p-8 sm:p-9">
+        <div className="flex flex-col items-center text-center">
+          <QamarMark size={56} className="text-signal" />
+          <h1 className="display-title mt-5 text-2xl leading-none text-foreground">
+            <QamarBrandName />
+          </h1>
+          <p className="mt-3 max-w-[26ch] text-sm text-muted-foreground">
+            {isSignIn
+              ? 'Sign in to manage your habits and routines.'
+              : 'Create an account to get started.'}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+
+        <form onSubmit={onSubmit} className="mt-8 grid gap-5">
+          <Field label="Email" htmlFor="email">
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
+          </Field>
+          <Field label="Password" htmlFor="password">
+            <Input
+              id="password"
+              type="password"
+              autoComplete={isSignIn ? 'current-password' : 'new-password'}
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+
+          <FormError message={error} />
+          <FormNotice message={notice} />
+
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? (isSignIn ? 'Signing in…' : 'Creating account…') : isSignIn ? 'Sign in' : 'Create account'}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          {isSignIn ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            type="button"
+            className="font-medium text-signal underline-offset-4 hover:underline"
+            onClick={() => {
+              setMode(isSignIn ? 'sign-up' : 'sign-in')
+              setError(null)
+              setNotice(null)
+            }}
+          >
+            {isSignIn ? 'Sign up' : 'Sign in'}
+          </button>
+        </p>
+      </div>
     </div>
   )
 }

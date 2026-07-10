@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, type QueryClient } from '@tanstack/react-query'
 
 import type { Tables } from '#/lib/database.types'
 import type { HijriSchedule } from '#/lib/schedule'
@@ -46,6 +46,12 @@ export const stacksQueryOptions = () =>
       return data ?? []
     },
   })
+
+/** Refetch everything habit-shaped after a mutation — habits carry stack_id, so both move together. */
+export function invalidateHabitData(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['habits'] })
+  qc.invalidateQueries({ queryKey: ['stacks'] })
+}
 
 async function requireUserId(): Promise<string> {
   const { data, error } = await supabaseBrowser.auth.getUser()
