@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
+import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
 import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
 import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
 
@@ -35,6 +36,11 @@ const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
   path: '/routines',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedProgressRoute = AuthedProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedHabitsRoute = AuthedHabitsRouteImport.update({
   id: '/habits',
   path: '/habits',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/discover': typeof AuthedDiscoverRoute
   '/habits': typeof AuthedHabitsRoute
+  '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/discover': typeof AuthedDiscoverRoute
   '/habits': typeof AuthedHabitsRoute
+  '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,15 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/discover': typeof AuthedDiscoverRoute
   '/_authed/habits': typeof AuthedHabitsRoute
+  '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/discover' | '/habits' | '/routines'
+  fullPaths:
+    '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/discover' | '/habits' | '/routines'
+  to: '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
   id:
     | '__root__'
     | '/'
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/discover'
     | '/_authed/habits'
+    | '/_authed/progress'
     | '/_authed/routines'
   fileRoutesById: FileRoutesById
 }
@@ -120,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRoutinesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/progress': {
+      id: '/_authed/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof AuthedProgressRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/habits': {
       id: '/_authed/habits'
       path: '/habits'
@@ -140,12 +158,14 @@ declare module '@tanstack/react-router' {
 interface AuthedRouteChildren {
   AuthedDiscoverRoute: typeof AuthedDiscoverRoute
   AuthedHabitsRoute: typeof AuthedHabitsRoute
+  AuthedProgressRoute: typeof AuthedProgressRoute
   AuthedRoutinesRoute: typeof AuthedRoutinesRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedDiscoverRoute: AuthedDiscoverRoute,
   AuthedHabitsRoute: AuthedHabitsRoute,
+  AuthedProgressRoute: AuthedProgressRoute,
   AuthedRoutinesRoute: AuthedRoutinesRoute,
 }
 

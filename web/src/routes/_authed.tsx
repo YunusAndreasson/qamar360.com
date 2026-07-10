@@ -17,6 +17,7 @@ export const Route = createFileRoute('/_authed')({
 const NAV = [
   { to: '/habits', label: 'Habits' },
   { to: '/routines', label: 'Routines' },
+  { to: '/progress', label: 'Progress' },
   { to: '/discover', label: 'Discover' },
 ] as const
 

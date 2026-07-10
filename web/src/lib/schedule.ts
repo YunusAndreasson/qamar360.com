@@ -1,23 +1,15 @@
 /**
- * Scheduling types and display helpers — a minimal port of the mobile app's `dates.ts` (just the
- * parts the web setup phase needs: describing a schedule, not computing which days a habit is due).
+ * Scheduling display helpers — summarising a schedule in words. The scheduling *math* (which days a
+ * habit is due, Hijri month ranges) and the canonical `HijriSchedule` type + `HIJRI_MONTHS` now live
+ * in `#/lib/dates` (ported from mobile for the Progress console); this module re-exports them so the
+ * many existing `#/lib/schedule` importers keep working, and adds the word-summary helpers.
  */
 
-/** A Hijri-calendar recurrence — the alternative to weekday `schedule_days`. Matches the DB jsonb. */
-export type HijriSchedule = {
-  /** Days of the Hijri month (1–30) recurring EVERY month, e.g. [13,14,15] = the White Days. */
-  monthDays?: number[]
-  /** Specific annual dates, e.g. [{ month: 1, day: 10 }] = 10 Muḥarram (ʿĀshūrāʾ). */
-  dates?: { month: number; day: number }[]
-  /** Whole Hijri months (1–12), e.g. [9] = Ramaḍān. */
-  months?: number[]
-}
+import { HIJRI_MONTHS } from '#/lib/dates'
+import type { HijriSchedule } from '#/lib/dates'
 
-/** Umm al-Qura month names, 1-based — a fallback if the DB `hijri_months` haven't loaded. */
-export const HIJRI_MONTHS = [
-  'Muḥarram', 'Ṣafar', 'Rabīʿ al-Awwal', 'Rabīʿ al-Thānī', 'Jumādā al-Awwal', 'Jumādā al-Thānī',
-  'Rajab', 'Shaʿbān', 'Ramaḍān', 'Shawwāl', 'Dhū al-Qaʿdah', 'Dhū al-Ḥijjah',
-]
+export { HIJRI_MONTHS }
+export type { HijriSchedule }
 
 /** One-letter weekday labels, 0=Sun … 6=Sat — for the schedule picker. */
 export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const
@@ -33,7 +25,7 @@ function numberList(values: number[]): string {
 }
 
 /** A one-line summary of a Hijri schedule, e.g. "White Days (13–15)", "Ramaḍān", "9 Dhū al-Ḥijjah". */
-export function describeHijriSchedule(hs: HijriSchedule, months: string[] = HIJRI_MONTHS): string {
+export function describeHijriSchedule(hs: HijriSchedule, months: readonly string[] = HIJRI_MONTHS): string {
   const monthName = (m: number) => months[m - 1] ?? `month ${m}`
   const parts: string[] = []
   if (hs.monthDays?.length) {
@@ -50,7 +42,7 @@ export function describeHijriSchedule(hs: HijriSchedule, months: string[] = HIJR
 export function scheduleSummary(
   schedule: number[],
   hijri?: HijriSchedule | null,
-  months: string[] = HIJRI_MONTHS,
+  months: readonly string[] = HIJRI_MONTHS,
 ): string {
   if (hijri) return describeHijriSchedule(hijri, months)
   const sorted = [...schedule].sort((a, b) => a - b)

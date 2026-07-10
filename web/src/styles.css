@@ -317,6 +317,34 @@ code {
   padding: 2px 6px;
 }
 
+/* ── Progress: orbit gauge draw-on ─────────────────────────────────────────
+   The arc sweeps from empty to its filled length on mount. Each gauge sets
+   --orbit-circumference (the full ring) and --orbit-offset (the target) inline,
+   so the keyframe reads its own instance's values. */
+.orbit-arc {
+  stroke-dashoffset: var(--orbit-offset);
+  animation: orbit-draw 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes orbit-draw {
+  from {
+    stroke-dashoffset: var(--orbit-circumference);
+  }
+  to {
+    stroke-dashoffset: var(--orbit-offset);
+  }
+}
+
+/* staggered panel entrance — set --rise-delay inline on a .rise-in wrapper */
+.rise-in {
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-arc {
+    animation: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise-in {
     animation: none !important;
