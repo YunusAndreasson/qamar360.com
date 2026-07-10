@@ -14,6 +14,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
+import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
@@ -139,6 +140,9 @@ type HabitsContextValue = {
   skipHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
   deleteHabit: (habitId: string) => Promise<void>;
+  /** Persist a full new habit order (`position = index`) — the commit of the Today list's
+   *  drag-reorder and its Move up/down accessibility actions (keep stack members contiguous;
+   *  `lib/drag-order`'s unit helpers build a valid order). */
   reorderHabits: (orderedIds: string[]) => Promise<void>;
   /** Create a stack from existing habits (in order). Returns the new stack id, or null. */
   createStack: (name: string, orderedMemberIds: string[]) => Promise<string | null>;
@@ -146,6 +150,12 @@ type HabitsContextValue = {
   updateStack: (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => Promise<void>;
   /** Delete a stack; its members survive as standalone habits. */
   deleteStack: (stackId: string) => Promise<void>;
+  /** Move one habit into a routine (`toStackId`), out to the top level (`null`), or to a new
+   *  slot within its routine — the single mutation behind the Today drag's drop and the tap
+   *  paths (the add-to-routine sheet, the member row's "Remove" swipe). `placement` defaults:
+   *  into a routine → appended last; out of one → right after its former card. Emptying a
+   *  routine deletes that now-memberless stack. */
+  moveHabit: (habitId: string, target: { toStackId: string | null; placement?: MovePlacement }) => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
@@ -1136,6 +1146,63 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId, deleteStack, persistGrouping],
   );
 
+  // Move a single habit into a routine, out to the top level, or to a new slot within its
+  // routine — membership + full re-position in ONE optimistic update and one persisted batch
+  // (`orderAfterHabitMove` rebuilds the whole order with stack members kept contiguous). If the
+  // move empties the habit's former routine, that now-memberless stack is deleted.
+  const moveHabit = useCallback(
+    async (habitId: string, target: { toStackId: string | null; placement?: MovePlacement }) => {
+      if (!userId) return;
+      const prevHabits = habitsRef.current;
+      const prevStacks = stacksRef.current;
+      const habit = prevHabits.find((h) => h.id === habitId);
+      if (!habit || habit.id.startsWith('temp-')) return;
+      const { toStackId } = target;
+      if (toStackId && !prevStacks.some((s) => s.id === toStackId)) return; // stale drop target
+      // Same stack with no explicit placement = already where it's going; WITH a placement it's
+      // a reorder within the routine (a legitimate move).
+      if ((habit.stack_id ?? null) === toStackId && !target.placement) return;
+
+      const fromStackId = habit.stack_id ?? null;
+      const placement: MovePlacement =
+        target.placement ??
+        (toStackId
+          ? { type: 'member-append' }
+          : fromStackId
+            ? { type: 'after-unit', key: `stack:${fromStackId}` } // "Remove" lands right after its old card
+            : { type: 'before-unit', key: null });
+
+      const { orderedIds } = orderAfterHabitMove(prevHabits, habitId, toStackId, placement);
+      const byId = new Map(prevHabits.map((h) => [h.id, h]));
+      const next = orderedIds
+        .map((id, index) => {
+          const h = byId.get(id);
+          if (!h) return null;
+          return { ...h, position: index, stack_id: id === habitId ? toStackId : h.stack_id };
+        })
+        .filter((h): h is Habit => h !== null);
+      if (next.length !== prevHabits.length) return; // unknown id crept in — bail rather than corrupt
+
+      const emptyStackId = fromStackId && !next.some((h) => h.stack_id === fromStackId) ? fromStackId : null;
+
+      setHabits(next);
+      if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
+
+      if (!(await persistGrouping(next, prevHabits))) {
+        setStacks(prevStacks);
+        setError('Could not move that habit. Check your connection.');
+        return;
+      }
+      if (emptyStackId) {
+        const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
+        // The move itself stands; a failed shell delete just leaves the empty routine in place
+        // (it still exists in the DB) — the next emptying move will retry the cleanup.
+        if (delErr) setStacks(prevStacks);
+      }
+    },
+    [userId, persistGrouping],
+  );
+
   const dismissError = useCallback(() => setError(null), []);
 
   const value = useMemo<HabitsContextValue>(() => {
@@ -1169,6 +1236,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       createStack,
       updateStack,
       deleteStack,
+      moveHabit,
     };
   }, [
     habits,
@@ -1196,6 +1264,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createStack,
     updateStack,
     deleteStack,
+    moveHabit,
   ]);
 
   return <HabitsContext value={value}>{children}</HabitsContext>;

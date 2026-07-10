@@ -1,26 +1,35 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
-import Sortable, { type SortableGridRenderItem } from 'react-native-sortables';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
+import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
 import { HabitRow } from '@/components/habit-row';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
+import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, scheduledOn } from '@/lib/dates';
+import {
+  buildUnits,
+  flattenUnits,
+  moveUnit,
+  placementToRestore,
+  type MovePlacement,
+  type OrderMeta,
+} from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 
 function viewDateTitle(viewDate: string, today: string): string {
@@ -58,6 +67,8 @@ export default function HabitsScreen() {
     toggleHabit,
     adjustHabitCount,
     skipHabit,
+    moveHabit,
+    createStack,
     reorderHabits,
     deleteHabit,
     dismissError,
@@ -72,7 +83,7 @@ export default function HabitsScreen() {
     }, [refresh]),
   );
 
-  // The scroll container ref hands auto-scroll-while-dragging to the sortable list.
+  // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
   // Pull-to-refresh. `refresh` is silent (no spinner); the RefreshControl owns the indicator.
@@ -138,52 +149,140 @@ export default function HabitsScreen() {
     [router],
   );
 
-  const renderItem = useCallback<SortableGridRenderItem<Entry>>(
-    ({ item }) =>
-      item.type === 'stack' ? (
-        <StackCard
-          stack={item.stack}
-          members={item.members}
-          completed={completed}
-          skipped={skipped}
-          counts={counts}
-          onToggle={toggleHabit}
-          onAdjust={adjustHabitCount}
-          onSkip={skipHabit}
-          onEdit={openEditor}
-          onDelete={deleteHabit}
-          onEditStack={openStackEditor}
-        />
-      ) : (
-        <HabitRow
-          habit={item.habit}
-          done={completed.has(item.habit.id)}
-          skipped={skipped.has(item.habit.id)}
-          count={counts.get(item.habit.id) ?? 0}
-          onToggle={toggleHabit}
-          onAdjust={adjustHabitCount}
-          onSkip={skipHabit}
-          onEdit={openEditor}
-          onDelete={deleteHabit}
-          standalone
-        />
-      ),
-    [completed, skipped, counts, toggleHabit, adjustHabitCount, skipHabit, openEditor, deleteHabit, openStackEditor],
+  // A lone habit's "Add to routine" swipe action → the routine picker sheet (seeded with it).
+  const openAddToRoutine = useCallback(
+    (habit: Habit) => router.push({ pathname: '/habits/add-to-routine', params: { habitId: habit.id } }),
+    [router],
   );
 
-  // The list shows only the scheduled subset; flatten the reordered entries (stack members
-  // stay together, in sequence) back onto the full habit list before persisting positions.
-  const onDragEnd = useCallback(
-    ({ data }: { data: Entry[] }) => {
-      const reordered = data.flatMap((e) => (e.type === 'stack' ? e.members.map((m) => m.id) : [e.habit.id]));
-      const visibleIds = new Set(reordered);
-      let vi = 0;
-      // visibleIds is built from `reordered`, so the counts match and the `?? h.id` never fires —
-      // it just keeps the result a clean string[] for reorderHabits.
-      const fullIds = habits.map((h) => (visibleIds.has(h.id) ? reordered[vi++] ?? h.id : h.id));
-      void reorderHabits(fullIds);
+  const { show: showToast } = useToast();
+
+  // Commit "join a routine" (the drag's drop-onto-a-card and the picker sheet both land here
+  // via moveHabit). The restore is captured BEFORE the move so the toast's Undo puts the habit
+  // back exactly where it was (user control & freedom — a slip is one tap from undone).
+  const addHabitToRoutine = useCallback(
+    (habitId: string, stackId: string) => {
+      const stack = stacks.find((s) => s.id === stackId);
+      const restore = placementToRestore(habits, habitId);
+      haptics.added();
+      void moveHabit(habitId, { toStackId: stackId });
+      if (!stack || !restore) return;
+      showToast(`Added to ${stack.name}`, 'success', {
+        label: 'Undo',
+        onPress: () => void moveHabit(habitId, restore),
+      });
     },
-    [habits, reorderHabits],
+    [habits, stacks, moveHabit, showToast],
+  );
+
+  // Commit "leave a routine" — the member row's "Remove" swipe (default placement: right after
+  // its former card) and the drag-out (an explicit drop slot). Removing the last member deletes
+  // the routine, so that Undo recreates it (a fresh id — nothing references the old one).
+  const removeFromRoutine = useCallback(
+    (habit: Habit, placement?: MovePlacement) => {
+      const stack = stacks.find((s) => s.id === habit.stack_id);
+      const restore = placementToRestore(habits, habit.id);
+      const wasOnlyMember = !!stack && habits.filter((h) => h.stack_id === stack.id).length === 1;
+      haptics.removed();
+      void moveHabit(habit.id, placement ? { toStackId: null, placement } : { toStackId: null });
+      if (!stack || !restore) return;
+      showToast(`Removed from ${stack.name}`, 'success', {
+        label: 'Undo',
+        onPress: () => {
+          if (wasOnlyMember) void createStack(stack.name, [habit.id]);
+          else void moveHabit(habit.id, restore);
+        },
+      });
+    },
+    [habits, stacks, moveHabit, createStack, showToast],
+  );
+
+  // The key being dragged (ghost source), or null at rest. While a drag is live the scroll is
+  // frozen so a vertical drag doesn't fight the list (auto-scroll drives it instead).
+  const [dragEntryKey, setDragEntryKey] = useState<string | null>(null);
+  const isDragging = dragEntryKey !== null;
+  const onDragActive = useCallback((key: string | null) => setDragEntryKey(key), []);
+
+  // The rendered entry order, mirrored into the drag layer's registry (keys in render order).
+  const orderMeta = entries.map((entry): OrderMeta =>
+    entry.type === 'stack'
+      ? { key: `stack:${entry.stack.id}`, kind: 'stack', stackId: entry.stack.id }
+      : { key: `habit:${entry.habit.id}`, kind: 'habit', stackId: null },
+  );
+
+  // A drop between entries: a top-level entry reorders (its members travel with it); a member
+  // row dragged out of its card detaches to that exact slot.
+  const onDropBetween = useCallback(
+    (draggedKey: string, beforeKey: string) => {
+      const anchor = beforeKey === '' ? null : beforeKey;
+      if (draggedKey.startsWith('member:')) {
+        const habit = habits.find((h) => h.id === draggedKey.slice('member:'.length));
+        if (habit) removeFromRoutine(habit, { type: 'before-unit', key: anchor });
+        return;
+      }
+      const units = buildUnits(habits);
+      const next = moveUnit(units, draggedKey, anchor);
+      if (next === units) return; // stale anchor — leave the order alone
+      haptics.selection();
+      void reorderHabits(flattenUnits(next));
+    },
+    [habits, removeFromRoutine, reorderHabits],
+  );
+
+  // A drop onto a glowing routine card: a standalone habit or another card's member joins it.
+  const onDropInto = useCallback(
+    (draggedKey: string, stackId: string) => {
+      const habitId = draggedKey.slice(draggedKey.indexOf(':') + 1);
+      addHabitToRoutine(habitId, stackId);
+    },
+    [addHabitToRoutine],
+  );
+
+  // Screen-reader reorder (the Move up / Move down accessibility actions — everything the drag
+  // can do without the gesture). Top-level entries step over their visible neighbour; a member
+  // steps within its routine's sequence.
+  const moveEntryForA11y = useCallback(
+    (entryKey: string, delta: -1 | 1) => {
+      const visible = entries.map((e) => (e.type === 'stack' ? `stack:${e.stack.id}` : `habit:${e.habit.id}`));
+      const at = visible.indexOf(entryKey);
+      const targetKey = at === -1 ? undefined : visible[at + delta];
+      if (!targetKey) return; // already at the edge
+      const units = buildUnits(habits);
+      const targetAt = units.findIndex((u) => u.key === targetKey);
+      if (targetAt === -1) return;
+      // Up: land just before the neighbour. Down: land just after it (before its follower).
+      const anchor = delta === -1 ? units[targetAt]!.key : (units[targetAt + 1]?.key ?? null);
+      const next = moveUnit(units, entryKey, anchor);
+      if (next === units) return;
+      haptics.selection();
+      void reorderHabits(flattenUnits(next));
+      AccessibilityInfo.announceForAccessibility(delta === -1 ? 'Moved up' : 'Moved down');
+    },
+    [entries, habits, reorderHabits],
+  );
+
+  const moveRowForA11y = useCallback(
+    (habit: Habit, delta: -1 | 1) => {
+      if (!habit.stack_id) {
+        moveEntryForA11y(`habit:${habit.id}`, delta);
+        return;
+      }
+      const siblings = habits
+        .filter((h) => h.stack_id === habit.stack_id)
+        .sort((a, b) => a.position - b.position);
+      const at = siblings.findIndex((h) => h.id === habit.id);
+      const target = at + delta;
+      if (at === -1 || target < 0 || target >= siblings.length) return;
+      haptics.selection();
+      void moveHabit(habit.id, { toStackId: habit.stack_id, placement: { type: 'member-index', index: target } });
+      AccessibilityInfo.announceForAccessibility(delta === -1 ? 'Moved up' : 'Moved down');
+    },
+    [habits, moveEntryForA11y, moveHabit],
+  );
+
+  const moveStackForA11y = useCallback(
+    (stackId: string, delta: -1 | 1) => moveEntryForA11y(`stack:${stackId}`, delta),
+    [moveEntryForA11y],
   );
 
   return (
@@ -236,13 +335,14 @@ export default function HabitsScreen() {
         // first descendant — which is what the native large title tracks to collapse on scroll
         // (react-native-screens walks the first-subview chain). The fixed lunar sky lives behind
         // the whole stack (in the habits layout) and shows through this transparent scroll.
-        // (Animated.ScrollView so the sortable list's auto-scroll can drive it via the ref.)
+        // (Animated.ScrollView so the drag layer's auto-scroll can drive it via the ref.)
         <Animated.ScrollView
           ref={scrollRef}
           style={[styles.list, styles.transparent]}
           contentContainerStyle={styles.listContent}
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
+          scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
@@ -254,36 +354,161 @@ export default function HabitsScreen() {
               onBrowse={() => router.push('/habits/discover')}
             />
           ) : (
-            <View style={styles.gridWrap}>
-              {/* Drag-to-reorder is the sortable list's own long-press gesture (no per-row drag
-                  wiring): hold any card ~as long as the old long-press, and it lifts with the
-                  same scale/shadow the hand-rolled `lifted` style used to draw. Entering/exiting
-                  item presets are disabled — they're the Reanimated layout animations that stick
-                  at opacity 0 on this app's New Architecture setup (see FadeInView). */}
-              <Sortable.Grid
-                columns={1}
-                data={entries}
-                renderItem={renderItem}
-                keyExtractor={(entry) => (entry.type === 'stack' ? `stack-${entry.stack.id}` : `habit-${entry.habit.id}`)}
-                onDragEnd={onDragEnd}
-                onDragStart={() => haptics.pickup()}
-                scrollableRef={scrollRef}
-                rowGap={Spacing.two}
-                dragActivationDelay={400}
-                activeItemScale={1.03}
-                activeItemShadowOpacity={0.24}
-                inactiveItemOpacity={1}
-                overDrag="vertical"
-                itemEntering={null}
-                itemExiting={null}
-              />
-            </View>
+            <HabitDragProvider
+              scrollRef={scrollRef}
+              order={orderMeta}
+              contentBottomInset={BottomTabInset + Spacing.four}
+              onDragActive={onDragActive}
+              onDropBetween={onDropBetween}
+              onDropInto={onDropInto}>
+              {/* One long-press drag vocabulary (hold ~a beat, then move): a lone habit reorders
+                  through the gaps or joins the routine card it's dropped onto (accent ring); a
+                  routine card reorders as one unit, members in tow. The dragged item floats as a
+                  ghost above the grid while its original holds the empty slot. Swipe actions and
+                  the picker sheet remain as the explicit, screen-reader-friendly routes. */}
+              <DragGrid>
+                {entries.map((entry, index) =>
+                  entry.type === 'stack' ? (
+                    <DraggableEntry
+                      key={`stack-${entry.stack.id}`}
+                      entryKey={`stack:${entry.stack.id}`}
+                      index={index}
+                      kind="stack"
+                      stackId={entry.stack.id}>
+                      <StackCard
+                        stack={entry.stack}
+                        members={entry.members}
+                        completed={completed}
+                        skipped={skipped}
+                        counts={counts}
+                        onToggle={toggleHabit}
+                        onAdjust={adjustHabitCount}
+                        onSkip={skipHabit}
+                        onEdit={openEditor}
+                        onDelete={deleteHabit}
+                        onEditStack={openStackEditor}
+                        onRemoveFromRoutine={removeFromRoutine}
+                        onMove={moveStackForA11y}
+                        onMoveHabit={moveRowForA11y}
+                      />
+                    </DraggableEntry>
+                  ) : (
+                    <DraggableEntry
+                      key={`habit-${entry.habit.id}`}
+                      entryKey={`habit:${entry.habit.id}`}
+                      index={index}
+                      kind="habit"
+                      stackId={null}>
+                      <HabitRow
+                        habit={entry.habit}
+                        done={completed.has(entry.habit.id)}
+                        skipped={skipped.has(entry.habit.id)}
+                        count={counts.get(entry.habit.id) ?? 0}
+                        onToggle={toggleHabit}
+                        onAdjust={adjustHabitCount}
+                        onSkip={skipHabit}
+                        onEdit={openEditor}
+                        onDelete={deleteHabit}
+                        onAddToRoutine={openAddToRoutine}
+                        onMove={moveRowForA11y}
+                        standalone
+                      />
+                    </DraggableEntry>
+                  ),
+                )}
+                <HabitsDragGhost
+                  dragEntryKey={dragEntryKey}
+                  entries={entries}
+                  completed={completed}
+                  skipped={skipped}
+                  counts={counts}
+                />
+              </DragGrid>
+            </HabitDragProvider>
           )}
         </Animated.ScrollView>
       )}
     </>
   );
 }
+
+/** The floating copy of whatever is being dragged (see {@link DragGhost}) — the same visuals as
+ *  the original, but inert: every handler is a no-op behind the ghost's `pointerEvents="none"`. */
+function HabitsDragGhost({
+  dragEntryKey,
+  entries,
+  completed,
+  skipped,
+  counts,
+}: {
+  dragEntryKey: string | null;
+  entries: Entry[];
+  completed: Set<string>;
+  skipped: Set<string>;
+  counts: Map<string, number>;
+}) {
+  if (!dragEntryKey) return null;
+  // A member being pulled out of its card floats as a card of its own (`standalone` wraps the
+  // row in a Surface) — it reads as "this is leaving the routine" while it travels.
+  if (dragEntryKey.startsWith('member:')) {
+    const habitId = dragEntryKey.slice('member:'.length);
+    const member = entries.flatMap((e) => (e.type === 'stack' ? e.members : [])).find((h) => h.id === habitId);
+    if (!member) return null;
+    return (
+      <DragGhost>
+        <HabitRow
+          habit={member}
+          done={completed.has(member.id)}
+          skipped={skipped.has(member.id)}
+          count={counts.get(member.id) ?? 0}
+          onToggle={noop}
+          onSkip={noop}
+          onEdit={noop}
+          onDelete={noop}
+          standalone
+        />
+      </DragGhost>
+    );
+  }
+  const entry =
+    entries.find((e) => (e.type === 'stack' ? `stack:${e.stack.id}` : `habit:${e.habit.id}`) === dragEntryKey) ??
+    null;
+  if (!entry) return null;
+  return (
+    <DragGhost>
+      {entry.type === 'stack' ? (
+        <StackCard
+          stack={entry.stack}
+          members={entry.members}
+          completed={completed}
+          skipped={skipped}
+          counts={counts}
+          onToggle={noop}
+          onAdjust={noop}
+          onSkip={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onEditStack={noop}
+          onRemoveFromRoutine={noop}
+        />
+      ) : (
+        <HabitRow
+          habit={entry.habit}
+          done={completed.has(entry.habit.id)}
+          skipped={skipped.has(entry.habit.id)}
+          count={counts.get(entry.habit.id) ?? 0}
+          onToggle={noop}
+          onSkip={noop}
+          onEdit={noop}
+          onDelete={noop}
+          standalone
+        />
+      )}
+    </DragGhost>
+  );
+}
+
+const noop = () => {};
 
 /** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
 function DateStepperButtons({
@@ -405,12 +630,5 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
-  },
-  // The cards' old margins, moved up here: the sortable list measures each bare item, so
-  // per-item margins would overlap the measured slots — side gutters and edge breathing room
-  // live on this wrapper instead (and the between-card space is the grid's `rowGap`).
-  gridWrap: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
   },
 });

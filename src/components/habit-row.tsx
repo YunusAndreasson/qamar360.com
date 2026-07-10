@@ -39,14 +39,27 @@ type Props = {
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
+  /** Open the "add to routine" picker for this habit. Only wired for standalone (ungrouped)
+   *  rows — a stack member already belongs to a routine, so the action is omitted there.
+   *  (The drag offers the same move: drop the row onto a routine card.) */
+  onAddToRoutine?: (habit: Habit) => void;
+  /** Detach this habit from its routine (back to standalone). The mirror of `onAddToRoutine`:
+   *  wired only for stack members — the explicit swipe counterpart to dragging the member row
+   *  out of its card. */
+  onRemoveFromRoutine?: (habit: Habit) => void;
+  /** Screen-reader reorder (exposed as Move up / Move down accessibility actions — the
+   *  non-visual equivalent of the drag): a standalone row moves in the day list, a member row
+   *  moves within its routine. */
+  onMove?: (habit: Habit, delta: -1 | 1) => void;
   /** A lone top-level habit (not a stack member): give it its own tappable card surface.
-   *  Standalone rows are sortable-list items, so they also long-press to reorder. */
+   *  Standalone rows long-press-drag to reorder or to drop onto a routine card. */
   standalone?: boolean;
 };
 
 // Staggered reveal — each trailing action fades/slides in left-to-right as the panel
-// opens, keyed by its slot so Skip leads and Delete lands last.
-const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, delete: 0.2 } as const;
+// opens, keyed by its slot so Skip leads and Delete lands last. `routine` slots between
+// Edit and Delete (standalone rows only), so Skip/Edit/Delete keep their original timing.
+const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, routine: 0.16, delete: 0.2 } as const;
 
 // The one open swipe panel across every row (module-scoped: rows live in different cards and
 // lists but share one screen). Opening a second panel closes the first — the Reminders/Mail
@@ -106,7 +119,7 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToRoutine, onRemoveFromRoutine, onMove, standalone }: Props) {
   const theme = useTheme();
 
   // The swipeable's handle (for the single-open rule) and whether its panel is showing — the
@@ -206,6 +219,41 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         }}
         accessibilityLabel={`Edit ${habit.name}`}
       />
+      {/* The routine "organise" action — accent-tinted against the neutral Skip/Edit blocks. Exactly
+          one form applies per row: a lone habit is *added* to a routine (picker); a stack member is
+          *removed* from its routine. Each is the explicit, discoverable counterpart of a drag (drop
+          onto a card / drag out of it) — the same move, two doors (Nielsen: flexibility). */}
+      {standalone && onAddToRoutine ? (
+        <SwipeAction
+          progress={progress}
+          kind="routine"
+          label="Routine"
+          icon="addLink"
+          backgroundColor={theme.accentSubtle}
+          foregroundColor={theme.accent}
+          rippleColor={theme.backgroundElement}
+          onPress={() => {
+            swipeable.close();
+            onAddToRoutine(habit);
+          }}
+          accessibilityLabel={`Add ${habit.name} to a routine`}
+        />
+      ) : !standalone && onRemoveFromRoutine ? (
+        <SwipeAction
+          progress={progress}
+          kind="routine"
+          label="Remove"
+          icon="removeLink"
+          backgroundColor={theme.accentSubtle}
+          foregroundColor={theme.accent}
+          rippleColor={theme.backgroundElement}
+          onPress={() => {
+            swipeable.close();
+            onRemoveFromRoutine(habit);
+          }}
+          accessibilityLabel={`Remove ${habit.name} from its routine`}
+        />
+      ) : null}
       <SwipeAction
         progress={progress}
         kind="delete"
@@ -241,8 +289,8 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
       }}>
       <Pressable
         // A count goal is logged with its stepper (below), so the row body doesn't toggle;
-        // a binary habit toggles done on tap. A standalone row's long-press pickup belongs to
-        // the sortable list (Sortable.Grid), not to this Pressable.
+        // a binary habit toggles done on tap. A row's long-press pickup belongs to the drag
+        // layer's wrapper (DraggableEntry / DraggableMemberRow), not to this Pressable.
         onPress={isCount ? undefined : () => onToggle(habit.id)}
         android_ripple={isCount ? undefined : { color: theme.backgroundSelected }}
         accessibilityRole={isCount ? 'adjustable' : 'checkbox'}
@@ -258,16 +306,47 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         accessibilityHint={
           isCount
             ? standalone
-              ? 'Use the stepper to log progress. Long press to reorder. Swipe left to skip, edit, or delete.'
-              : 'Use the stepper to log progress. Swipe left to skip, edit, or delete.'
+              ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a routine. Swipe left to add to a routine, skip, edit, or delete.'
+              : 'Use the stepper to log progress. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
             : standalone
-              ? 'Activates to toggle done. Long press to reorder. Swipe left to skip, edit, or delete.'
-              : 'Activates to toggle done. Swipe left to skip, edit, or delete.'
+              ? 'Activates to toggle done. Hold and drag to reorder or drop onto a routine. Swipe left to add to a routine, skip, edit, or delete.'
+              : 'Activates to toggle done. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
         }
+        // Everything the drag can do, as screen-reader actions (full parity — a drag gesture
+        // is invisible to TalkBack/VoiceOver): reorder via Move up/down, and the routine
+        // membership change appropriate to the row.
+        accessibilityActions={[
+          ...(onMove
+            ? [
+                { name: 'moveUp', label: 'Move up' },
+                { name: 'moveDown', label: 'Move down' },
+              ]
+            : []),
+          ...(standalone && onAddToRoutine ? [{ name: 'addToRoutine', label: 'Add to routine' }] : []),
+          ...(!standalone && onRemoveFromRoutine
+            ? [{ name: 'removeFromRoutine', label: 'Remove from routine' }]
+            : []),
+        ]}
+        onAccessibilityAction={(event) => {
+          switch (event.nativeEvent.actionName) {
+            case 'moveUp':
+              onMove?.(habit, -1);
+              break;
+            case 'moveDown':
+              onMove?.(habit, 1);
+              break;
+            case 'addToRoutine':
+              onAddToRoutine?.(habit);
+              break;
+            case 'removeFromRoutine':
+              onRemoveFromRoutine?.(habit);
+              break;
+          }
+        }}
         // A press lights the whole band rather than just dimming it, so the entire row reads as
         // one button — leading circle to trailing edge is the tap target. The press flash is for
         // tap-to-toggle only (so a count row, whose body doesn't toggle, doesn't flash); the
-        // picked-up-to-reorder lift is drawn by the sortable list (`activeItemScale`/shadow).
+        // picked-up lift is drawn by the drag layer (pre-lift swell, then the floating ghost).
         style={({ pressed }) => [styles.row, pressed && !isCount && { backgroundColor: theme.backgroundSelected }]}>
         <Animated.View style={[styles.indicator, iconStyle]}>
           {/* The leading mark is a ring that resolves to a check — a count goal fills it partway in
@@ -330,8 +409,8 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   // A lone habit sits on its own card surface so the whole row plainly reads as a
   // tappable unit (matching the stack cards and the Settings rows). Stack members
   // stay transparent — they already live on the stack card, under its connector rail.
-  // No margins here: the sortable list measures the bare item, so spacing between
-  // cards is the list's `rowGap`, and the side gutters are the list wrapper's padding.
+  // No margins here: the drag grid measures the bare item, so spacing between cards
+  // is the grid's `gap`, and the side gutters are the grid's padding.
   if (!standalone) return row;
   return <Surface>{row}</Surface>;
 }

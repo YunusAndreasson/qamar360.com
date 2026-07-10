@@ -27,6 +27,20 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
       {/* New / edit a stack (a named group of habits) — also a native modal sheet. */}
       <Stack.Screen name="stack-editor" options={modalHeaderOptions(theme)} />
+      {/* "Add to routine" picker for a lone habit — a native form sheet sized to its content
+          (a short list of routines), dismissed by the grabber or a swipe-down. No nav bar: the
+          sheet carries its own compact title. */}
+      <Stack.Screen
+        name="add-to-routine"
+        options={{
+          presentation: 'formSheet',
+          headerShown: false,
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          contentStyle: { backgroundColor: theme.background },
+        }}
+      />
     </TabStack>
   );
 }
