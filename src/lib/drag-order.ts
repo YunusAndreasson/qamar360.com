@@ -39,7 +39,8 @@ export type Frame = { y: number; h: number };
 export type DropSlot =
   | { kind: 'between'; index: number } // compact-space insertion index at top level
   | { kind: 'into'; stackId: string } // join this routine (appended)
-  | { kind: 'none' }; // no meaning here (e.g. a member over its own card) → cancel
+  | { kind: 'reorder'; stackId: string; index: number } // reorder within own routine (compact member index)
+  | { kind: 'none' }; // no meaning here → cancel (float home)
 
 /** A routine card's "into" zone is its frame inset top and bottom by 20% of its height
  *  (clamped 12–32 px); the bands outside the inset mean "between", so a drop just above or
@@ -53,13 +54,15 @@ function intoInset(height: number): number {
 }
 
 /**
- * Midpoints of the entries that remain once `draggedKey` is lifted out, in compact space —
- * the static thresholds for {@link insertionIndexFor}. Entries after the dragged one sit one
- * `slotSize` higher (its slot has closed). When `draggedKey` is not a top-level entry (a member
- * drag, or null), nothing is removed and the midpoints are simply the measured ones.
+ * Midpoints of the entries (by `key`) that remain once `draggedKey` is lifted out, in compact
+ * space — the static thresholds for {@link insertionIndexFor}. Entries after the dragged one sit
+ * one `slotSize` higher (its slot has closed). When `draggedKey` isn't in `keys` (a member drag
+ * over the top-level list, or null), nothing is removed and the midpoints are the measured ones.
+ * Keyed rather than `OrderMeta`-based so the same math serves both the top-level entry list and a
+ * routine card's inner member list (a member reordering within its own card).
  */
-export function compactMidpoints(
-  order: OrderMeta[],
+export function compactMidpointsForKeys(
+  keys: string[],
   frames: Record<string, Frame>,
   draggedKey: string | null,
   slotSize: number,
@@ -67,17 +70,33 @@ export function compactMidpoints(
   'worklet';
   const midpoints: number[] = [];
   let passedDragged = false;
-  for (const entry of order) {
-    if (entry.key === draggedKey) {
+  for (const key of keys) {
+    if (key === draggedKey) {
       passedDragged = true;
       continue;
     }
-    const f = frames[entry.key];
+    const f = frames[key];
     if (!f) continue; // not yet measured — skip rather than mis-place
     const top = passedDragged ? f.y - slotSize : f.y;
     midpoints.push(top + f.h / 2);
   }
   return midpoints;
+}
+
+/** {@link compactMidpointsForKeys} over the top-level entry order. */
+export function compactMidpoints(
+  order: OrderMeta[],
+  frames: Record<string, Frame>,
+  draggedKey: string | null,
+  slotSize: number,
+): number[] {
+  'worklet';
+  return compactMidpointsForKeys(
+    order.map((e) => e.key),
+    frames,
+    draggedKey,
+    slotSize,
+  );
 }
 
 /** The compact-space insertion index for a ghost centred at `centerY`: the count of remaining
@@ -95,9 +114,11 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
  * "Into" zones are checked first, against original frames: while a card is hovered the gaps
  * are closed, which puts every entry back at its measured position — so the zone and the visual
  * card agree exactly in the state where the ring shows. A routine card itself can only be
- * reordered (never nested), and a member over its own card's body is a cancel (`none`) — its
- * top/bottom bands still fall through to "between", so a member can be dropped directly above
- * or below its own routine.
+ * reordered (never nested). A member over its OWN card's body reorders *within* that card:
+ * `memberOrder[ownStackId]` (its members' keys in sequence) + `memberFrames` (their grid frames)
+ * resolve a compact insertion index among the siblings, compacted by `memberSlot` (the dragged
+ * member's own height). Its top/bottom bands still fall through to "between", so a member can be
+ * dropped directly above or below its own routine to detach there.
  */
 export function resolveDropSlot(
   centerY: number,
@@ -107,6 +128,9 @@ export function resolveDropSlot(
   draggedKind: DragKind,
   ownStackId: string | null,
   slotSize: number,
+  memberOrder: Record<string, string[]>,
+  memberFrames: Record<string, Frame>,
+  memberSlot: number,
 ): DropSlot {
   'worklet';
   if (draggedKind !== 'stack') {
@@ -118,7 +142,10 @@ export function resolveDropSlot(
       const top = f.y + inset;
       const bottom = f.y + f.h - inset;
       if (top >= bottom || centerY < top || centerY > bottom) continue;
-      if (draggedKind === 'member' && entry.stackId === ownStackId) return { kind: 'none' };
+      if (draggedKind === 'member' && entry.stackId === ownStackId) {
+        const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
+        return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
+      }
       return { kind: 'into', stackId: entry.stackId };
     }
   }
@@ -163,10 +190,12 @@ export function keyAtCompactIndex(
   return null;
 }
 
-/** Where the gap at compact `insertIndex` begins (grid coordinates) — the ghost's settle
- *  target for a between-drop. Past the last entry it is one gap below the compact list. */
-export function slotTopForIndex(
-  order: OrderMeta[],
+/** Where the gap at compact `insertIndex` begins (grid coordinates) for a list of entries (by
+ *  `key`) — the ghost's settle target. Past the last entry it is one `gap` below the compact
+ *  list. Keyed so it serves both the top-level list and a card's inner member list (see
+ *  {@link slotTopForIndex}). */
+export function slotTopForKeys(
+  keys: string[],
   frames: Record<string, Frame>,
   draggedKey: string | null,
   slotSize: number,
@@ -177,12 +206,12 @@ export function slotTopForIndex(
   let compact = 0;
   let passedDragged = false;
   let end = 0;
-  for (const entry of order) {
-    if (entry.key === draggedKey) {
+  for (const key of keys) {
+    if (key === draggedKey) {
       passedDragged = true;
       continue;
     }
-    const f = frames[entry.key];
+    const f = frames[key];
     if (!f) continue;
     const top = passedDragged ? f.y - slotSize : f.y;
     if (compact === insertIndex) return top;
@@ -190,6 +219,26 @@ export function slotTopForIndex(
     compact++;
   }
   return end;
+}
+
+/** {@link slotTopForKeys} over the top-level entry order — the settle target for a between-drop. */
+export function slotTopForIndex(
+  order: OrderMeta[],
+  frames: Record<string, Frame>,
+  draggedKey: string | null,
+  slotSize: number,
+  insertIndex: number,
+  gap: number,
+): number {
+  'worklet';
+  return slotTopForKeys(
+    order.map((e) => e.key),
+    frames,
+    draggedKey,
+    slotSize,
+    insertIndex,
+    gap,
+  );
 }
 
 /** Auto-scroll velocity (px/s) for a pointer at `pointerY` within a viewport of `viewportH`:

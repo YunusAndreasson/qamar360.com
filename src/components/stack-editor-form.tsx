@@ -2,7 +2,6 @@ import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
@@ -11,58 +10,41 @@ import { FormScreen } from '@/components/form-screen';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Spacing } from '@/constants/theme';
-import type { Habit, HabitStack } from '@/hooks/use-habits';
+import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { confirmDestructive } from '@/lib/alerts';
 import { haptics } from '@/lib/haptics';
 
 type Props = {
-  /** The stack being edited, or `null` to create a new one. */
-  stack: HabitStack | null;
   /** All of the user's habits — the pool of selectable members. */
   habits: Habit[];
-  /** Current members in sequence order (or a seed for a new stack). */
+  /** A seed member for the new routine (e.g. the habit you started it from), or empty. */
   initialMemberIds: string[];
-  /** Lower-cased names of the user's *other* stacks — used to reject duplicates. */
+  /** Folded names of the user's existing routines — used to reject a duplicate. */
   existingNames: string[];
   onClose: () => void;
   onCreate: (name: string, orderedMemberIds: string[]) => void;
-  onSave: (id: string, patch: { name?: string; orderedMemberIds?: string[] }) => void;
-  onDelete: (id: string) => void;
 };
 
 /**
- * The new/edit-stack form. A native modal route (`habits/stack-editor`); Cancel/Save live
- * in the native nav bar. Pick member habits, order them into a sequence, name the stack.
- * A stack only groups habits visually — completion stays per-habit.
+ * The create-a-routine form. A native modal route (`habits/stack-editor`); Cancel/Save live in the
+ * native nav bar. Pick member habits (the add order is the sequence — reorder later by dragging on
+ * Today) and name the routine. A routine only groups habits visually — completion stays per-habit.
+ * Renaming and deleting an existing routine live in the manage sheet (`habits/stack-manage`), and
+ * its members are added/removed/reordered by dragging the card — so none of that is edited here.
  */
-export function StackEditorForm({
-  stack,
-  habits,
-  initialMemberIds,
-  existingNames,
-  onClose,
-  onCreate,
-  onSave,
-  onDelete,
-}: Props) {
+export function StackEditorForm({ habits, initialMemberIds, existingNames, onClose, onCreate }: Props) {
   const theme = useTheme();
-  const isNew = !stack;
 
-  const [name, setName] = useState(stack?.name ?? '');
+  const [name, setName] = useState('');
   const [selected, setSelected] = useState<string[]>(initialMemberIds);
 
   const byId = useMemo(() => new Map(habits.map((h) => [h.id, h])), [habits]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  // Selectable additions: standalone habits and this stack's own members
-  // (so a member removed mid-edit can be re-added), minus what's already selected.
+  // Selectable additions: standalone habits not already selected (and not a pending temp row).
   const available = useMemo(
-    () =>
-      habits.filter(
-        (h) => (h.stack_id == null || h.stack_id === stack?.id) && !selectedSet.has(h.id) && !h.id.startsWith('temp-'),
-      ),
-    [habits, stack?.id, selectedSet],
+    () => habits.filter((h) => h.stack_id == null && !selectedSet.has(h.id) && !h.id.startsWith('temp-')),
+    [habits, selectedSet],
   );
 
   const trimmedName = name.trim();
@@ -70,7 +52,7 @@ export function StackEditorForm({
     () => trimmedName.length > 0 && existingNames.includes(trimmedName.toLowerCase()),
     [trimmedName, existingNames],
   );
-  // A stack needs a name and at least two habits to be a meaningful sequence.
+  // A routine needs a name and at least two habits to be a meaningful sequence.
   const canSave = trimmedName.length > 0 && !isDuplicate && selected.length >= 2;
 
   const add = (id: string) => {
@@ -81,44 +63,18 @@ export function StackEditorForm({
     haptics.selection();
     setSelected((prev) => prev.filter((x) => x !== id));
   };
-  const move = (index: number, delta: number) => {
-    const j = index + delta;
-    if (j < 0 || j >= selected.length) return;
-    haptics.selection();
-    setSelected((prev) => {
-      const next = [...prev];
-      const a = next[index];
-      const b = next[j];
-      if (a === undefined || b === undefined) return prev;
-      next[index] = b;
-      next[j] = a;
-      return next;
-    });
-  };
 
   const save = () => {
     if (!canSave) return;
-    if (stack) onSave(stack.id, { name: trimmedName, orderedMemberIds: selected });
-    else onCreate(trimmedName, selected);
+    onCreate(trimmedName, selected);
     onClose();
-  };
-
-  const confirmDelete = () => {
-    if (!stack) return;
-    // Don't call onClose() — deleting removes the stack from state, and the route's
-    // "stack no longer exists" effect backs out. Calling both pops twice.
-    confirmDestructive({
-      title: 'Delete stack',
-      message: `Delete “${stack.name}”? The habits stay; only the grouping is removed.`,
-      onConfirm: () => onDelete(stack.id),
-    });
   };
 
   return (
     <FormScreen>
       <Stack.Screen
         options={{
-          title: isNew ? 'New Stack' : 'Edit Stack',
+          title: 'New Routine',
           headerTitleAlign: 'center',
           ...formHeaderActions({ onCancel: onClose, onSave: save, canSave }),
         }}
@@ -131,9 +87,9 @@ export function StackEditorForm({
         onChangeText={setName}
         placeholder="e.g. Morning routine"
         autoCapitalize="sentences"
-        autoFocus={isNew}
-        accessibilityLabel="Stack name"
-        error={isDuplicate ? 'You already have a stack with this name.' : undefined}
+        autoFocus
+        accessibilityLabel="Routine name"
+        error={isDuplicate ? 'You already have a routine with this name.' : undefined}
       />
 
       {/* Sequence — the ordered members */}
@@ -160,30 +116,10 @@ export function StackEditorForm({
                 <ThemedText type="rowTitle" style={styles.memberName} numberOfLines={1}>
                   {habit.name}
                 </ThemedText>
-                {/* Each icon button carries its own ≥44pt frame (the old 20pt glyph + hitSlop 11
-                    resolved to ~42pt, under the minimum — and slop can't overlap a neighbour). */}
-                <Pressable
-                  onPress={() => move(index, -1)}
-                  disabled={index === 0}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: index === 0 }}
-                  accessibilityLabel={`Move ${habit.name} up`}
-                  style={styles.iconButton}>
-                  <AppIcon name="moveUp" size={20} color={index === 0 ? theme.textDisabled : theme.textSecondary} />
-                </Pressable>
-                <Pressable
-                  onPress={() => move(index, 1)}
-                  disabled={index === selected.length - 1}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: index === selected.length - 1 }}
-                  accessibilityLabel={`Move ${habit.name} down`}
-                  style={styles.iconButton}>
-                  <AppIcon
-                    name="moveDown"
-                    size={20}
-                    color={index === selected.length - 1 ? theme.textDisabled : theme.textSecondary}
-                  />
-                </Pressable>
+                {/* The × carries its own ≥44pt frame (the old 20pt glyph + hitSlop 11 resolved to
+                    ~42pt, under the minimum — and slop can't overlap a neighbour). Reordering lives
+                    on Today: press-and-drag a member within its card, the same as everywhere else —
+                    so this form only picks the members; the sequence is the add order. */}
                 <Pressable
                   onPress={() => remove(id)}
                   accessibilityRole="button"
@@ -198,7 +134,7 @@ export function StackEditorForm({
       )}
       {selected.length === 1 ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-          Add one more habit — a stack groups at least two.
+          Add one more habit — a routine groups at least two.
         </ThemedText>
       ) : null}
 
@@ -230,16 +166,6 @@ export function StackEditorForm({
           ))}
         </Surface>
       )}
-
-      {/* Delete (editing only) */}
-      {stack ? (
-        <AppButton
-          variant="destructive"
-          onPress={confirmDelete}
-          style={styles.delete}>
-          Delete stack
-        </AppButton>
-      ) : null}
     </FormScreen>
   );
 }
@@ -268,7 +194,4 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   pressed: { opacity: Pressed.dim },
-  delete: {
-    marginTop: Spacing.four,
-  },
 });

@@ -20,6 +20,7 @@ import { Icons } from '@/constants/icons';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useRoutineActions } from '@/hooks/use-routine-actions';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, scheduledOn } from '@/lib/dates';
 import {
@@ -144,10 +145,9 @@ export default function HabitsScreen() {
     [router],
   );
 
-  const openStackEditor = useCallback(
-    (stackId: string) => router.push({ pathname: '/habits/stack-editor', params: { id: stackId } }),
-    [router],
-  );
+  // Tapping a routine card's header opens the native "manage routine" menu (rename / delete) —
+  // an iOS action sheet or an Android bottom sheet. Composing its members is all drag on the card.
+  const openRoutineActions = useRoutineActions();
 
   // A lone habit's "Add to routine" swipe action → the routine picker sheet (seeded with it).
   const openAddToRoutine = useCallback(
@@ -210,6 +210,13 @@ export default function HabitsScreen() {
       : { key: `habit:${entry.habit.id}`, kind: 'habit', stackId: null },
   );
 
+  // stackId → its visible members' keys in sequence — the inner lists an in-card reorder drags
+  // within (the member analogue of `orderMeta`; day-hidden members aren't rendered, so aren't here).
+  const memberOrder: Record<string, string[]> = {};
+  for (const entry of entries) {
+    if (entry.type === 'stack') memberOrder[entry.stack.id] = entry.members.map((m) => `member:${m.id}`);
+  }
+
   // A drop between entries: a top-level entry reorders (its members travel with it); a member
   // row dragged out of its card detaches to that exact slot.
   const onDropBetween = useCallback(
@@ -236,6 +243,27 @@ export default function HabitsScreen() {
       addHabitToRoutine(habitId, stackId);
     },
     [addHabitToRoutine],
+  );
+
+  // A drop settled inside the member's own card: reorder within the routine. The gesture resolves
+  // an insertion index among the *visible* members; translate it to an index in the *full* member
+  // list so members hidden by the day filter keep their relative order (the same reason
+  // `moveRowForA11y` works off the unfiltered `habits`).
+  const onDropReorder = useCallback(
+    (draggedKey: string, stackId: string, visibleIndex: number) => {
+      const habitId = draggedKey.slice('member:'.length);
+      const stackEntry = entries.find((e) => e.type === 'stack' && e.stack.id === stackId);
+      const visibleMembers = stackEntry && stackEntry.type === 'stack' ? stackEntry.members : [];
+      const beforeId = visibleMembers.map((m) => m.id).filter((id) => id !== habitId)[visibleIndex];
+      const fullIds = habits
+        .filter((h) => h.stack_id === stackId)
+        .sort((a, b) => a.position - b.position)
+        .map((h) => h.id)
+        .filter((id) => id !== habitId);
+      const index = beforeId === undefined ? fullIds.length : Math.max(0, fullIds.indexOf(beforeId));
+      void moveHabit(habitId, { toStackId: stackId, placement: { type: 'member-index', index } });
+    },
+    [entries, habits, moveHabit],
   );
 
   // Screen-reader reorder (the Move up / Move down accessibility actions — everything the drag
@@ -357,10 +385,12 @@ export default function HabitsScreen() {
             <HabitDragProvider
               scrollRef={scrollRef}
               order={orderMeta}
+              memberOrder={memberOrder}
               contentBottomInset={BottomTabInset + Spacing.four}
               onDragActive={onDragActive}
               onDropBetween={onDropBetween}
-              onDropInto={onDropInto}>
+              onDropInto={onDropInto}
+              onDropReorder={onDropReorder}>
               {/* One long-press drag vocabulary (hold ~a beat, then move): a lone habit reorders
                   through the gaps or joins the routine card it's dropped onto (accent ring); a
                   routine card reorders as one unit, members in tow. The dragged item floats as a
@@ -386,7 +416,7 @@ export default function HabitsScreen() {
                         onSkip={skipHabit}
                         onEdit={openEditor}
                         onDelete={deleteHabit}
-                        onEditStack={openStackEditor}
+                        onEditStack={openRoutineActions}
                         onRemoveFromRoutine={removeFromRoutine}
                         onMove={moveStackForA11y}
                         onMoveHabit={moveRowForA11y}

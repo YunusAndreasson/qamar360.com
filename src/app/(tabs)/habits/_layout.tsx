@@ -25,13 +25,28 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="discover" options={{ title: 'Add Habit' }} />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
-      {/* New / edit a stack (a named group of habits) — also a native modal sheet. */}
+      {/* Create a routine (a named group of habits) — a native modal sheet. */}
       <Stack.Screen name="stack-editor" options={modalHeaderOptions(theme)} />
+      {/* Rename a routine — the one-field modal the manage sheet's Rename action opens. */}
+      <Stack.Screen name="stack-rename" options={modalHeaderOptions(theme)} />
       {/* "Add to routine" picker for a lone habit — a native form sheet sized to its content
           (a short list of routines), dismissed by the grabber or a swipe-down. No nav bar: the
           sheet carries its own compact title. */}
       <Stack.Screen
         name="add-to-routine"
+        options={{
+          presentation: 'formSheet',
+          headerShown: false,
+          sheetAllowedDetents: 'fitToContents',
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          contentStyle: { backgroundColor: theme.background },
+        }}
+      />
+      {/* "Manage routine" (rename / delete) for a routine card — the same fitToContents bottom
+          sheet idiom as "Add to routine", raised by tapping the card header. */}
+      <Stack.Screen
+        name="stack-manage"
         options={{
           presentation: 'formSheet',
           headerShown: false,

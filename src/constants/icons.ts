@@ -23,8 +23,7 @@ export const Icons = {
   chevronRight: { sf: 'chevron.right', material: 'chevron-right' },
   expandMore: { sf: 'chevron.down', material: 'expand-more' },
   expandLess: { sf: 'chevron.up', material: 'expand-less' },
-  moveUp: { sf: 'arrow.up', material: 'arrow-upward' },
-  moveDown: { sf: 'arrow.down', material: 'arrow-downward' },
+  ellipsis: { sf: 'ellipsis', material: 'more-horiz' },
   // ── Stacks / links ─────────────────────────────────────────────────────
   link: { sf: 'link', material: 'link' },
   addLink: { sf: 'link.badge.plus', material: 'add-link' },

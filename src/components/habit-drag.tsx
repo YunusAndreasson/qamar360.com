@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   measure,
   runOnJS,
+  runOnUI,
   scrollTo,
   useAnimatedRef,
   useAnimatedStyle,
@@ -27,6 +28,7 @@ import {
   keyAtCompactIndex,
   resolveDropSlot,
   slotTopForIndex,
+  slotTopForKeys,
   type DragKind,
   type DropSlot,
   type EntryKind,
@@ -61,6 +63,10 @@ import { haptics } from '@/lib/haptics';
 /** The grid's between-card gap — one slot is an entry's height plus this. The grid wrapper
  *  (`DragGrid`) applies it, so the drag math and the layout can never disagree. */
 const DRAG_GRID_GAP = Spacing.two;
+
+/** The hairline separator between member rows inside a routine card (matches `RowSeparator`) —
+ *  the inter-row gap for an in-card reorder's settle math. */
+const MEMBER_GAP = StyleSheet.hairlineWidth;
 
 /** How long a press must hold before the row lifts (matches the old pickup feel). A routine
  *  card holds a touch longer than its member rows, so on a member row the member's own gesture
@@ -114,6 +120,12 @@ type DragState = {
   // Layout registry (written from JS onLayout; read in worklets).
   frames: SharedValue<Record<string, Frame>>;
   order: SharedValue<OrderMeta[]>;
+  // In-card member reorder: a member dragged within its own routine reorders the siblings.
+  memberFrames: SharedValue<Record<string, Frame>>; // member row grid frames, keyed member:<id>
+  memberOrder: SharedValue<Record<string, string[]>>; // stackId → member keys in sequence
+  reorderStackId: SharedValue<string | null>; // the card being reordered (null = not reordering)
+  memberDragIndex: SharedValue<number>; // dragged member's index within its card
+  memberInsertIndex: SharedValue<number>; // live target compact index within the card
   // Scroll plumbing.
   scrollOffset: SharedValue<number>;
   scrollRef: AnimatedRef<Animated.ScrollView>;
@@ -122,6 +134,7 @@ type DragState = {
   onDragActive: (key: string | null) => void;
   finishBetween: (draggedKey: string, beforeKey: string) => void;
   finishInto: (draggedKey: string, stackId: string) => void;
+  finishReorder: (draggedKey: string, stackId: string, index: number) => void;
   hoverTick: () => void;
 };
 
@@ -141,14 +154,19 @@ function useDrag(): DragState {
 export function HabitDragProvider({
   scrollRef,
   order: orderProp,
+  memberOrder: memberOrderProp,
   contentBottomInset = 0,
   onDragActive,
   onDropBetween,
   onDropInto,
+  onDropReorder,
   children,
 }: {
   scrollRef: AnimatedRef<Animated.ScrollView>;
   order: OrderMeta[];
+  /** stackId → its member keys (`member:<id>`) in sequence — the inner lists a member reorders
+   *  within (mirrors `order` for the top level). */
+  memberOrder: Record<string, string[]>;
   /** The scroll content's padding below the grid — bounds how far auto-scroll may go. */
   contentBottomInset?: number;
   /** Ghost mount/unmount + scroll freeze: called with the lifted key, then null at rest. */
@@ -157,6 +175,8 @@ export function HabitDragProvider({
   onDropBetween: (draggedKey: string, beforeKey: string) => void;
   /** Commit an into-drop: `draggedKey` joins routine `stackId`. */
   onDropInto: (draggedKey: string, stackId: string) => void;
+  /** Commit an in-card reorder: move member `draggedKey` to compact `index` within `stackId`. */
+  onDropReorder: (draggedKey: string, stackId: string, index: number) => void;
   children: ReactNode;
 }) {
   const draggingKey = useSharedValue<string | null>(null);
@@ -183,6 +203,11 @@ export function HabitDragProvider({
   const minOffset = useSharedValue(0);
   const frames = useSharedValue<Record<string, Frame>>({});
   const order = useSharedValue<OrderMeta[]>([]);
+  const memberFrames = useSharedValue<Record<string, Frame>>({});
+  const memberOrder = useSharedValue<Record<string, string[]>>({});
+  const reorderStackId = useSharedValue<string | null>(null);
+  const memberDragIndex = useSharedValue(-1);
+  const memberInsertIndex = useSharedValue(-1);
   const scrollOffset = useScrollOffset(scrollRef);
   const reduceMotion = useReducedMotion();
 
@@ -194,6 +219,19 @@ export function HabitDragProvider({
   const applySlot = (slot: DropSlot) => {
     'worklet';
     const closed = dragKind.get() === 'member' ? -1 : dragIndex.get(); // sentinel: gaps shut
+    // A member over its own card: reorder inside it. The top-level gaps stay shut and no ring
+    // shows (the meaning is "move within", not "join"); the card's member rows part instead.
+    if (slot.kind === 'reorder') {
+      if (reorderStackId.get() !== slot.stackId) reorderStackId.set(slot.stackId);
+      if (hoveredStackId.get() !== null) hoveredStackId.set(null);
+      insertIndex.set(closed);
+      if (memberInsertIndex.get() !== slot.index) {
+        memberInsertIndex.set(slot.index);
+        runOnJS(hoverTick)();
+      }
+      return;
+    }
+    if (reorderStackId.get() !== null) reorderStackId.set(null); // left the own card
     if (slot.kind === 'into') {
       if (hoveredStackId.get() !== slot.stackId) {
         hoveredStackId.set(slot.stackId);
@@ -242,6 +280,9 @@ export function HabitDragProvider({
         dragKind.get(),
         ownStackId.get(),
         slotSize.get(),
+        memberOrder.get(),
+        memberFrames.get(),
+        ghostH.get(), // the dragged member's own height — the slot the siblings compact by
       ),
     );
   }, false);
@@ -272,6 +313,8 @@ export function HabitDragProvider({
     onDropBetween(draggedKey, beforeKey);
     draggingKey.set(null);
     hoveredStackId.set(null);
+    reorderStackId.set(null);
+    memberInsertIndex.set(-1);
     frame.setActive(false);
     onDragActive(null);
   };
@@ -281,31 +324,56 @@ export function HabitDragProvider({
     onDropInto(draggedKey, stackId);
     draggingKey.set(null);
     hoveredStackId.set(null);
+    reorderStackId.set(null);
+    memberInsertIndex.set(-1);
+    frame.setActive(false);
+    onDragActive(null);
+  };
+  // A member reorder settled inside its own card: commit the new member index (same protocol as
+  // finishInto — this runs from the settle spring's finished=true completion, so the drop is felt
+  // on the frame the ghost lands, and a cancelled-and-replayed settle can't re-commit).
+  const finishReorder = (draggedKey: string, stackId: string, index: number) => {
+    if (draggingKey.get() !== draggedKey) return;
+    haptics.drop();
+    onDropReorder(draggedKey, stackId, index);
+    draggingKey.set(null);
+    hoveredStackId.set(null);
+    reorderStackId.set(null);
+    memberInsertIndex.set(-1);
     frame.setActive(false);
     onDragActive(null);
   };
 
-  // Mirror the rendered entry order into the worklet-readable registry; if it changes while a
-  // drag is live, the ground truth moved under the finger — abort rather than commit stale.
+  // Mirror the rendered entry order (top-level and per-card members) into the worklet-readable
+  // registries; if either changes while a drag is live, the ground truth moved under the finger —
+  // abort rather than commit stale. Member order changes on its own for an in-card reorder commit
+  // (top-level order is untouched), so the member signature is a distinct trigger.
   const orderSignature = orderProp.map((o) => o.key).join('|');
+  const memberSignature = Object.keys(memberOrderProp)
+    .map((k) => `${k}:${memberOrderProp[k]!.join(',')}`)
+    .join('|');
   useEffect(() => {
     order.set(orderProp);
+    memberOrder.set(memberOrderProp);
     if (draggingKey.get() !== null) {
       committed.set(true); // a trailing onFinalize must not run its cancel spring
       draggingKey.set(null);
       hoveredStackId.set(null);
+      reorderStackId.set(null);
+      memberInsertIndex.set(-1);
       setDragActive(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the order's identity
-  }, [orderSignature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the orders' identity
+  }, [orderSignature, memberSignature]);
 
   // (No useMemo — the React Compiler memoizes this value with correct dependencies.)
   const value: DragState = {
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
     committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
     pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH, minOffset, frames,
-    order, scrollOffset, scrollRef, reduceMotion,
-    onDragActive: setDragActive, finishBetween, finishInto, hoverTick,
+    order, memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
+    scrollOffset, scrollRef, reduceMotion,
+    onDragActive: setDragActive, finishBetween, finishInto, finishReorder, hoverTick,
   };
 
   return <HabitDragContext value={value}>{children}</HabitDragContext>;
@@ -506,7 +574,13 @@ export function DraggableEntry({
  * make room. Tolerates a missing provider (a `StackCard` can render outside the Today grid —
  * e.g. as the drag ghost's copy) by rendering its child untouched.
  */
-export function DraggableMemberRow(props: { habitId: string; parentStackId: string; children: ReactNode }) {
+export function DraggableMemberRow(props: {
+  habitId: string;
+  parentStackId: string;
+  /** This member's index within its card's sequence — the anchor for an in-card reorder. */
+  memberIndex: number;
+  children: ReactNode;
+}) {
   const ctx = use(HabitDragContext);
   if (!ctx) return <>{props.children}</>;
   return <MemberRowDrag {...props} />;
@@ -515,21 +589,44 @@ export function DraggableMemberRow(props: { habitId: string; parentStackId: stri
 function MemberRowDrag({
   habitId,
   parentStackId,
+  memberIndex,
   children,
 }: {
   habitId: string;
   parentStackId: string;
+  memberIndex: number;
   children: ReactNode;
 }) {
   const {
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
     committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
     pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, order, frames,
-    scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto,
+    memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
+    scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto, finishReorder,
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
   const entryKey = `member:${habitId}`;
+
+  // Register this member row's grid-coordinate frame (measured on the UI thread and converted the
+  // same way `onStart` does), so an in-card reorder can resolve where the finger would drop among
+  // the siblings. Member rows are nested inside the card, so a plain `onLayout` gives only
+  // parent-relative coordinates — a `measure` is the honest read. `.modify` (not read-spread-set):
+  // sibling rows lay out in the same tick, and a read-modify-write would drop all but the last.
+  const registerFrame = () => {
+    runOnUI(() => {
+      'worklet';
+      const m = measure(ref);
+      const sv = measure(scrollRef);
+      if (!m || !sv) return;
+      const y = m.pageY - sv.pageY + scrollOffset.get() - gridTop.get();
+      memberFrames.modify((f) => {
+        'worklet';
+        f[entryKey] = { y, h: m.height };
+        return f;
+      });
+    })();
+  };
 
   const pan = Gesture.Pan()
     .activateAfterLongPress(LIFT_HOLD_MS)
@@ -563,6 +660,9 @@ function MemberRowDrag({
       insertIndex.set(-1);
       dragKind.set('member');
       ownStackId.set(parentStackId);
+      reorderStackId.set(null); // resolved per-frame: set only while over the own card
+      memberDragIndex.set(memberIndex);
+      memberInsertIndex.set(-1);
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
@@ -587,6 +687,31 @@ function MemberRowDrag({
           }),
         );
         return;
+      }
+      const reorderStack = reorderStackId.get();
+      if (reorderStack !== null) {
+        // Reordering within the own card: settle the ghost into the member gap, THEN commit the
+        // new index. A drop back on the member's own slot (at === its index) is a no-op — fall
+        // through to onFinalize's float-home. `finished === true` guards the re-fire on a
+        // cancelled settle (same rule as the top-level reorder).
+        const at = memberInsertIndex.get();
+        if (at !== memberDragIndex.get()) {
+          committed.set(true);
+          const keys = memberOrder.get()[reorderStack] ?? [];
+          const targetY = slotTopForKeys(keys, memberFrames.get(), entryKey, ghostH.get(), at, MEMBER_GAP);
+          if (reduceMotion) {
+            ghostY.set(targetY);
+            runOnJS(finishReorder)(entryKey, reorderStack, at);
+          } else {
+            ghostLift.set(withSpring(0, Spring.settle));
+            ghostY.set(
+              withSpring(targetY, Spring.settle, (finished) => {
+                if (finished === true) runOnJS(finishReorder)(entryKey, reorderStack, at);
+              }),
+            );
+          }
+        }
+        return; // over the own card → never a detach/between
       }
       const at = insertIndex.get();
       if (at >= 0) {
@@ -613,6 +738,8 @@ function MemberRowDrag({
       committed.set(true); // settling — the frame callback must let the spring fly home
       hoveredStackId.set(null);
       insertIndex.set(-1);
+      reorderStackId.set(null);
+      memberInsertIndex.set(-1);
       const home = grabY.get() + (scrollOffset.get() - scrollAtGrab.get());
       if (reduceMotion) {
         ghostY.set(home);
@@ -630,16 +757,28 @@ function MemberRowDrag({
       }
     });
 
-  const style = useAnimatedStyle(() => ({
-    // The hidden original holds its slot open inside the card — the visible hole is honest
-    // feedback about where the member returns if the drag cancels.
-    opacity: draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1,
-    transform: [{ scale: 1 + preLift.get() * PRE_LIFT_SCALE }],
-  }));
+  const style = useAnimatedStyle(() => {
+    // While THIS card is being reordered, member rows part to open the gap at the target index —
+    // the same displacement the top-level entries use, scoped to the card's members (the dragged
+    // member's own shift is 0, and it's hidden anyway).
+    const reordering = reorderStackId.get() === parentStackId;
+    const shift = reordering
+      ? displacementFor(memberIndex, memberDragIndex.get(), memberInsertIndex.get(), ghostH.get())
+      : 0;
+    return {
+      // The hidden original holds its slot open inside the card — the visible hole is honest
+      // feedback about where the member returns if the drag cancels.
+      opacity: draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1,
+      transform: [
+        { translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) },
+        { scale: 1 + preLift.get() * PRE_LIFT_SCALE },
+      ],
+    };
+  });
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} style={style}>
+      <Animated.View ref={ref} onLayout={registerFrame} style={style}>
         {children}
       </Animated.View>
     </GestureDetector>

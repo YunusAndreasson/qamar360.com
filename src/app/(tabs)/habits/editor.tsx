@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 
 import { HabitEditorForm } from '@/components/habit-editor';
 import { useHabits } from '@/hooks/use-habits';
+import { useRoutineActions } from '@/hooks/use-routine-actions';
 import { otherNames } from '@/lib/names';
 
 /**
@@ -28,10 +29,8 @@ export default function HabitEditorScreen() {
   const onNewStack = habit
     ? () => router.push({ pathname: '/habits/stack-editor', params: { id: 'new', seed: habit.id } })
     : undefined;
-  const onEditStack =
-    habit && habit.stack_id
-      ? () => router.push({ pathname: '/habits/stack-editor', params: { id: habit.stack_id! } })
-      : undefined;
+  const openRoutineActions = useRoutineActions();
+  const onEditStack = habit && habit.stack_id ? () => openRoutineActions(habit.stack_id!) : undefined;
   const onJoinStack = habit
     ? (stackId: string) => {
         const memberIds = habits

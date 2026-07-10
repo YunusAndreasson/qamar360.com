@@ -54,7 +54,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
         android_ripple={{ color: theme.backgroundSelected }}
         accessibilityRole="button"
         accessibilityLabel={`${stack.name} routine`}
-        accessibilityHint="Activates to edit the routine. Hold and drag to reorder the whole routine."
+        accessibilityHint="Activates to manage the routine — rename or delete it. Hold and drag to reorder the whole routine."
         accessibilityActions={
           onMove
             ? [
@@ -68,12 +68,15 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
           if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
         }}
         style={styles.header}>
-        <AppIcon name="link" size={18} color={theme.accent} />
+        {/* No leading link glyph — the accent title alone marks this as a routine header; a cleaner,
+            quieter card (the members' connector rail already reads as "grouped"). */}
         <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
           {stack.name}
         </ThemedText>
-        {/* Same size + tone as the Settings rows' disclosure chevron — one glyph, one treatment. */}
-        <AppIcon name="chevronRight" size={22} color={theme.textSecondary} />
+        {/* A quiet "⋯ more" glyph, not a › — tapping the header opens the manage sheet (rename /
+            delete), it doesn't navigate into a screen. Kept small + dim: the card's real verbs are
+            drag + ticking members, so this affordance recedes. */}
+        <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
       </PressableScale>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -86,7 +89,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
             {/* Swipe a member left to remove it from the routine (or skip/edit/delete); hold and
                 drag it to pull it out of the card — to a spot in the day list, or into another
                 routine. */}
-            <DraggableMemberRow habitId={habit.id} parentStackId={stack.id}>
+            <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
               <HabitRow
                 habit={habit}
                 done={completed.has(habit.id)}
