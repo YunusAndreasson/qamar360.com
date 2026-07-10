@@ -3,8 +3,6 @@ import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyl
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   measure,
-  runOnJS,
-  runOnUI,
   scrollTo,
   useAnimatedRef,
   useAnimatedStyle,
@@ -18,6 +16,7 @@ import Animated, {
   type AnimatedRef,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import { Duration, Spring } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
@@ -55,9 +54,9 @@ import { haptics } from '@/lib/haptics';
  * overlaid on the grid while the original hides in place: the ghost escapes every card's
  * `overflow: hidden` and needs no zIndex juggling, and because it lives inside the scroll
  * content it stays glued to the finger even while the list auto-scrolls. No React event ever
- * crosses into a worklet — JS callbacks are invoked via `runOnJS` with primitive arguments
- * only (the worklet-serialization crash that killed the old sortables integration can't
- * happen here). All geometry lives in pure helpers in `lib/drag-order` (jest-covered).
+ * crosses into a worklet — JS callbacks are invoked via `scheduleOnRN` (react-native-worklets)
+ * with primitive arguments only (the worklet-serialization crash that killed the old sortables
+ * integration can't happen here). All geometry lives in pure helpers in `lib/drag-order` (jest-covered).
  */
 
 /** The grid's between-card gap — one slot is an entry's height plus this. The grid wrapper
@@ -144,7 +143,7 @@ type DragState = {
   scrollOffset: SharedValue<number>;
   scrollRef: AnimatedRef<Animated.ScrollView>;
   reduceMotion: boolean;
-  // JS boundary — called via runOnJS with primitive args only.
+  // JS boundary — called via scheduleOnRN with primitive args only.
   onDragActive: (key: string | null) => void;
   finishBetween: (draggedKey: string, beforeKey: string) => void;
   finishInto: (draggedKey: string, stackId: string) => void;
@@ -249,7 +248,7 @@ export function HabitDragProvider({
       insertIndex.set(closed);
       if (memberInsertIndex.get() !== slot.index) {
         memberInsertIndex.set(slot.index);
-        runOnJS(hoverTick)();
+        scheduleOnRN(hoverTick);
       }
       return;
     }
@@ -258,7 +257,7 @@ export function HabitDragProvider({
       if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
       if (hoveredStackId.get() !== slot.stackId) {
         hoveredStackId.set(slot.stackId);
-        runOnJS(hoverTick)();
+        scheduleOnRN(hoverTick);
       }
       insertIndex.set(closed);
       return;
@@ -272,14 +271,14 @@ export function HabitDragProvider({
       if (dwellMs.get() >= MERGE_DWELL_MS) {
         if (mergeArmedHabitId.get() !== slot.habitId) {
           mergeArmedHabitId.set(slot.habitId);
-          runOnJS(hoverTick)();
+          scheduleOnRN(hoverTick);
         }
         insertIndex.set(closed);
       } else {
         if (mergeArmedHabitId.get() !== null) mergeArmedHabitId.set(null);
         if (insertIndex.get() !== slot.betweenIndex) {
           insertIndex.set(slot.betweenIndex);
-          runOnJS(hoverTick)();
+          scheduleOnRN(hoverTick);
         }
       }
       return;
@@ -288,7 +287,7 @@ export function HabitDragProvider({
     const next = slot.kind === 'between' ? slot.index : closed;
     if (insertIndex.get() !== next) {
       insertIndex.set(next);
-      runOnJS(hoverTick)();
+      scheduleOnRN(hoverTick);
     }
   };
 
@@ -554,8 +553,8 @@ export function DraggableEntry({
       dwellMs.set(0);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
-      runOnJS(onDragActive)(entryKey);
-      runOnJS(haptics.pickup)();
+      scheduleOnRN(onDragActive, entryKey);
+      scheduleOnRN(haptics.pickup);
     })
     // Only record the finger — the provider's frame callback does all the steering, so the
     // ghost and the drop slot stay live even when the finger rests still while auto-scrolling.
@@ -574,7 +573,7 @@ export function DraggableEntry({
         ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
         ghostOpacity.set(
           withTiming(0, { duration: reduceMotion ? 1 : Duration.fast }, (finished) => {
-            if (finished === true) runOnJS(finishMerge)(entryKey, armedHabit);
+            if (finished === true) scheduleOnRN(finishMerge, entryKey, armedHabit);
           }),
         );
         return;
@@ -588,7 +587,7 @@ export function DraggableEntry({
         ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
         ghostOpacity.set(
           withTiming(0, { duration: reduceMotion ? 1 : Duration.fast }, (finished) => {
-            if (finished === true) runOnJS(finishInto)(entryKey, hovered);
+            if (finished === true) scheduleOnRN(finishInto, entryKey, hovered);
           }),
         );
         return;
@@ -602,12 +601,12 @@ export function DraggableEntry({
         const targetY = slotTopForIndex(order.get(), frames.get(), entryKey, slotSize.get(), at, DRAG_GRID_GAP);
         if (reduceMotion) {
           ghostY.set(targetY);
-          runOnJS(finishBetween)(entryKey, beforeKey);
+          scheduleOnRN(finishBetween, entryKey, beforeKey);
         } else {
           ghostLift.set(withSpring(0, Spring.settle));
           ghostY.set(
             withSpring(targetY, Spring.settle, (finished) => {
-              if (finished === true) runOnJS(finishBetween)(entryKey, beforeKey);
+              if (finished === true) scheduleOnRN(finishBetween, entryKey, beforeKey);
             }),
           );
         }
@@ -625,14 +624,14 @@ export function DraggableEntry({
       if (reduceMotion) {
         ghostY.set(home);
         draggingKey.set(null);
-        runOnJS(onDragActive)(null);
+        scheduleOnRN(onDragActive, null);
       } else {
         ghostLift.set(withSpring(0, Spring.settle));
         ghostY.set(
           withSpring(home, Spring.settle, (finished) => {
             if (finished !== true || draggingKey.get() !== entryKey) return;
             draggingKey.set(null);
-            runOnJS(onDragActive)(null);
+            scheduleOnRN(onDragActive, null);
           }),
         );
       }
@@ -721,7 +720,7 @@ function MemberRowDrag({
   // parent-relative coordinates — a `measure` is the honest read. `.modify` (not read-spread-set):
   // sibling rows lay out in the same tick, and a read-modify-write would drop all but the last.
   const registerFrame = () => {
-    runOnUI(() => {
+    scheduleOnUI(() => {
       'worklet';
       const m = measure(ref);
       const sv = measure(scrollRef);
@@ -732,7 +731,7 @@ function MemberRowDrag({
         f[entryKey] = { y, h: m.height };
         return f;
       });
-    })();
+    });
   };
 
   const pan = Gesture.Pan()
@@ -773,8 +772,8 @@ function MemberRowDrag({
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
-      runOnJS(onDragActive)(entryKey);
-      runOnJS(haptics.pickup)();
+      scheduleOnRN(onDragActive, entryKey);
+      scheduleOnRN(haptics.pickup);
     })
     .onUpdate((e) => {
       if (draggingKey.get() !== entryKey) return;
@@ -790,7 +789,7 @@ function MemberRowDrag({
         ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
         ghostOpacity.set(
           withTiming(0, { duration: reduceMotion ? 1 : Duration.fast }, (finished) => {
-            if (finished === true) runOnJS(finishInto)(entryKey, hovered);
+            if (finished === true) scheduleOnRN(finishInto, entryKey, hovered);
           }),
         );
         return;
@@ -808,12 +807,12 @@ function MemberRowDrag({
           const targetY = slotTopForKeys(keys, memberFrames.get(), entryKey, ghostH.get(), at, MEMBER_GAP);
           if (reduceMotion) {
             ghostY.set(targetY);
-            runOnJS(finishReorder)(entryKey, reorderStack, at);
+            scheduleOnRN(finishReorder, entryKey, reorderStack, at);
           } else {
             ghostLift.set(withSpring(0, Spring.settle));
             ghostY.set(
               withSpring(targetY, Spring.settle, (finished) => {
-                if (finished === true) runOnJS(finishReorder)(entryKey, reorderStack, at);
+                if (finished === true) scheduleOnRN(finishReorder, entryKey, reorderStack, at);
               }),
             );
           }
@@ -828,12 +827,12 @@ function MemberRowDrag({
         const targetY = slotTopForIndex(order.get(), frames.get(), entryKey, slotSize.get(), at, DRAG_GRID_GAP);
         if (reduceMotion) {
           ghostY.set(targetY);
-          runOnJS(finishBetween)(entryKey, beforeKey);
+          scheduleOnRN(finishBetween, entryKey, beforeKey);
         } else {
           ghostLift.set(withSpring(0, Spring.settle));
           ghostY.set(
             withSpring(targetY, Spring.settle, (finished) => {
-              if (finished === true) runOnJS(finishBetween)(entryKey, beforeKey);
+              if (finished === true) scheduleOnRN(finishBetween, entryKey, beforeKey);
             }),
           );
         }
@@ -851,14 +850,14 @@ function MemberRowDrag({
       if (reduceMotion) {
         ghostY.set(home);
         draggingKey.set(null);
-        runOnJS(onDragActive)(null);
+        scheduleOnRN(onDragActive, null);
       } else {
         ghostLift.set(withSpring(0, Spring.settle));
         ghostY.set(
           withSpring(home, Spring.settle, (finished) => {
             if (finished !== true || draggingKey.get() !== entryKey) return;
             draggingKey.set(null);
-            runOnJS(onDragActive)(null);
+            scheduleOnRN(onDragActive, null);
           }),
         );
       }
