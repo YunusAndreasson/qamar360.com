@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { DayCompleteProvider } from '@/components/day-complete';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
@@ -27,8 +28,10 @@ export default function RootLayout() {
           <ToastProvider>
             <AuthProvider>
               <CatalogProvider>
-                <RootNavigator />
-                <ThemedChrome />
+                <DayCompleteProvider>
+                  <RootNavigator />
+                  <ThemedChrome />
+                </DayCompleteProvider>
               </CatalogProvider>
             </AuthProvider>
           </ToastProvider>

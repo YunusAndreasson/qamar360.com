@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, type CompletionRow, type MonthProgress, type YearProgress } from '@/lib/progress';
+import { computeProgress, type CompletionRow, type MonthProgress, type ProgressDerived, type YearProgress } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
@@ -17,6 +17,31 @@ export type { MonthDay, MonthProgress, YearProgress } from '@/lib/progress';
  * returns only rows that exist, so the payload scales with real usage, not the window.
  */
 const WINDOW_DAYS = 370;
+
+/** Pull the raw {@link WINDOW_DAYS}-day window of habits + completions for a user. Shared by the
+ *  focus-driven hook and the one-shot {@link loadProgress} (the day-complete celebration fetches
+ *  outside the navigator, where `useFocusEffect` can't run). Throws on a query error. */
+async function fetchProgressWindow(userId: string, today: string): Promise<{ habits: Habit[]; completions: CompletionRow[] }> {
+  const since = addDaysISO(today, -(WINDOW_DAYS - 1));
+  const [habitsRes, completionsRes] = await Promise.all([
+    supabase.from('habits').select('*').eq('user_id', userId).order('position', { ascending: true }),
+    supabase
+      .from('habit_completions')
+      .select('habit_id, completed_at, status, count')
+      .eq('user_id', userId)
+      .gte('completed_at', since),
+  ]);
+  if (habitsRes.error) throw habitsRes.error;
+  if (completionsRes.error) throw completionsRes.error;
+  return { habits: (habitsRes.data ?? []) as Habit[], completions: completionsRes.data ?? [] };
+}
+
+/** One-shot progress read (fetch + pure {@link computeProgress}) for callers outside the Progress
+ *  tab — the day-complete overlay. Same window and math as {@link useProgress}. */
+export async function loadProgress(userId: string, today: string): Promise<ProgressDerived> {
+  const { habits, completions } = await fetchProgressWindow(userId, today);
+  return computeProgress(habits, completions, today);
+}
 
 type ProgressData = {
   /** True only during the first load. */
@@ -56,21 +81,11 @@ export function useProgress(): ProgressData {
   const fetchData = useCallback(async () => {
     if (!userId) return;
     const day = todayLocalISO();
-    const since = addDaysISO(day, -(WINDOW_DAYS - 1));
     try {
-      const [habitsRes, completionsRes] = await Promise.all([
-        supabase.from('habits').select('*').eq('user_id', userId).order('position', { ascending: true }),
-        supabase
-          .from('habit_completions')
-          .select('habit_id, completed_at, status, count')
-          .eq('user_id', userId)
-          .gte('completed_at', since),
-      ]);
-      if (habitsRes.error) throw habitsRes.error;
-      if (completionsRes.error) throw completionsRes.error;
+      const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
       setToday(day);
-      setHabits((habitsRes.data ?? []) as Habit[]);
-      setCompletions(completionsRes.data ?? []);
+      setHabits(rows);
+      setCompletions(comps);
       setError(null);
     } catch {
       setError('Could not load your progress. Pull down to try again.');

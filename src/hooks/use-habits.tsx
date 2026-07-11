@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { AppState } from 'react-native';
 
+import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
@@ -202,11 +203,12 @@ function celebrateIfDayComplete(
   completed: Set<string>,
   habitId: string,
   day: string,
-): void {
+): { dayComplete: boolean } {
   const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
   const dayComplete = openIds.length > 0 && openIds.every((id) => id === habitId || completed.has(id));
   if (dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
+  return { dayComplete };
 }
 
 export function HabitsProvider({ children }: { children: ReactNode }) {
@@ -233,6 +235,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const viewDateRef = useRef(viewDate);
   const ensuredUserRow = useRef(false);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
+
+  // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
+  const { celebrate: showDayComplete } = useDayComplete();
 
   useEffect(() => {
     habitsRef.current = habits;
@@ -486,7 +491,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (wasDone) {
         haptics.uncompleted();
       } else {
-        celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
+        const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day);
       }
 
       try {
@@ -578,7 +584,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (next < prevCount) {
         haptics.uncompleted();
       } else if (nowDone && !wasDone) {
-        celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
+        const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day);
       } else {
         haptics.selection();
       }

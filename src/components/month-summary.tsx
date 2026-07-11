@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -9,9 +9,10 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, Polygon, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Polygon } from 'react-native-svg';
 
 import { MoonPhase } from '@/components/moon-phase';
+import { HeroGlow } from '@/components/ornament/hero-glow';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
@@ -222,36 +223,10 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   );
 }
 
-/** The completion aura — a warm radial bloom rendered behind the moon only when the whole month is
- *  done. The moon disc occludes the bright centre, so what shows is a soft halo of moonlight around
- *  the body, reaching past the orbit ring: the emblem "lit up". Non-interactive; rendered first. */
-function HeroGlow({ size }: { size: number }) {
-  const theme = useTheme();
-  const uid = useId();
-  const id = `hero-glow-${uid}`;
-  const r = size / 2;
-  return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.glow]}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Defs>
-          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={theme.glow} stopOpacity={0.55} />
-            <Stop offset="0.55" stopColor={theme.glow} stopOpacity={0.16} />
-            <Stop offset="1" stopColor={theme.glow} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Circle cx={r} cy={r} r={r} fill={`url(#${id})`} />
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   // One card gap across all three Progress stat cards (this hero, MonthMoons, YearTrend) so
   // their header→content rhythm reads identically down the screen.
   hero: { alignItems: 'center', gap: Spacing.three },
-  // The completion bloom is centred over the orbit, behind every other layer.
-  glow: { alignItems: 'center', justifyContent: 'center' },
   orbit: {
     width: ORBIT_SIZE,
     height: ORBIT_SIZE,

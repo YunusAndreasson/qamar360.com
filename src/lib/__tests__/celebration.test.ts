@@ -1,0 +1,62 @@
+import { describe, expect, it } from '@jest/globals';
+
+import { celebrationCopy } from '@/lib/celebration';
+import { hijriParts } from '@/lib/dates';
+import { toDegrees, type MonthProgress } from '@/lib/progress';
+
+/** A middle-of-the-month MonthProgress; override per case. */
+function month(over: Partial<MonthProgress> = {}): MonthProgress {
+  return {
+    monthName: 'Muḥarram',
+    year: 1448,
+    dayOfMonth: 15,
+    monthLength: 30,
+    thisRate: 0.5,
+    previousMonthName: 'Dhū al-Ḥijjah',
+    previousRate: 0.4,
+    hasPrevious: true,
+    days: [],
+    ...over,
+  };
+}
+
+const DAY = '2026-07-11';
+
+describe('celebrationCopy', () => {
+  it('reports degrees this month in the app lunar-orbit unit', () => {
+    expect(celebrationCopy(month({ thisRate: 0.5 }), DAY).degrees).toBe(toDegrees(0.5)); // 180
+    expect(celebrationCopy(month({ thisRate: 1 }), DAY).degrees).toBe(360);
+  });
+
+  it('counts the days left in the Hijri month (after today), pluralised', () => {
+    expect(celebrationCopy(month({ dayOfMonth: 15, monthLength: 30 }), DAY).daysLeftLabel).toBe('15 days left');
+    expect(celebrationCopy(month({ dayOfMonth: 29, monthLength: 30 }), DAY).daysLeftLabel).toBe('1 day left');
+    expect(celebrationCopy(month({ dayOfMonth: 30, monthLength: 30 }), DAY).daysLeftLabel).toBe('Last day of the month');
+  });
+
+  it('frames pace vs last month: ahead, behind, or first-month (none)', () => {
+    expect(celebrationCopy(month({ thisRate: 0.5, previousRate: 0.4 }), DAY).paceLabel).toBe(
+      "ahead of last month's pace",
+    );
+    expect(celebrationCopy(month({ thisRate: 0.3, previousRate: 0.45 }), DAY).paceLabel).toBe(
+      `last month you were at ${toDegrees(0.45)}°`,
+    );
+    // Equal is not "ahead" — falls to the behind/at-parity form.
+    expect(celebrationCopy(month({ thisRate: 0.4, previousRate: 0.4 }), DAY).paceLabel).toContain('last month');
+    expect(celebrationCopy(month({ hasPrevious: false }), DAY).paceLabel).toBeNull();
+  });
+
+  it('formats the Hijri date from hijriParts', () => {
+    const p = hijriParts(DAY);
+    expect(p).not.toBeNull();
+    expect(celebrationCopy(month(), DAY).hijriLabel).toBe(`${p!.day} ${p!.monthName} ${p!.year}`);
+  });
+
+  it('degrades gracefully when there is no month data (keeps the Hijri date)', () => {
+    const copy = celebrationCopy(null, DAY);
+    expect(copy.degrees).toBeNull();
+    expect(copy.daysLeftLabel).toBeNull();
+    expect(copy.paceLabel).toBeNull();
+    expect(copy.hijriLabel).toBe(celebrationCopy(month(), DAY).hijriLabel); // date still computed
+  });
+});
