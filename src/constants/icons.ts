@@ -28,6 +28,11 @@ export const Icons = {
   link: { sf: 'link', material: 'link' },
   addLink: { sf: 'link.badge.plus', material: 'add-link' },
   addCircle: { sf: 'plus.circle', material: 'add-circle-outline' },
+  // ── Maker signature ────────────────────────────────────────────────────
+  // The byline row + sibling-app rows in "More from the maker". Social rows reuse `link`
+  // rather than shipping brand glyphs (SF Symbols has no reliable GitHub/X/etc. marks).
+  person: { sf: 'person.circle', material: 'person-outline' },
+  apps: { sf: 'square.grid.2x2', material: 'apps' },
   // ── Habit actions ──────────────────────────────────────────────────────
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },
   undo: { sf: 'arrow.uturn.backward', material: 'undo' },

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 
+import { MakerSignature } from '#/components/maker-signature'
 import { QamarWordmark } from '#/components/qamar-logo'
 import { Button } from '#/components/ui/button'
 import { supabaseBrowser } from '#/lib/supabase/client'
@@ -70,9 +71,9 @@ function AuthedLayout() {
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 sm:px-6">
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-          <QamarWordmark size={18} className="opacity-70" />
-          <span className="text-sm text-muted-foreground">Sunnah habits &amp; routines</span>
+        <div className="flex flex-col items-center gap-4 border-t border-border pt-6">
+          <QamarWordmark size={16} className="opacity-40" />
+          <MakerSignature />
         </div>
       </footer>
     </div>

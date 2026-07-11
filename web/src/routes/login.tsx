@@ -2,6 +2,7 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 
 import { Field, FormError, FormNotice } from '#/components/console'
+import { MakerSignature } from '#/components/maker-signature'
 import { QamarBrandName, QamarMark } from '#/components/qamar-logo'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -59,7 +60,7 @@ function LoginPage() {
         style={{ borderColor: 'rgba(150,173,205,0.05)' }}
       />
 
-      <div className="rise-in panel panel--framed w-full max-w-[25rem] p-8 sm:p-9">
+      <div className="rise-in panel w-full max-w-[25rem] p-8 sm:p-9">
         <div className="flex flex-col items-center text-center">
           <QamarMark size={56} className="text-signal" />
           <h1 className="display-title mt-5 text-2xl leading-none text-foreground">
@@ -119,6 +120,8 @@ function LoginPage() {
           </button>
         </p>
       </div>
+
+      <MakerSignature className="absolute inset-x-0 bottom-6 px-6" />
     </div>
   )
 }

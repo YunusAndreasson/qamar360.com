@@ -202,6 +202,65 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
+      {/* More from the maker — a quiet signature: byline → hub, socials, sibling apps. */}
+      <SettingsSection title="More from the maker">
+        <SettingsRow
+          icon="person"
+          label="Made by Yunus Andreasson"
+          sublabel="andreassonphoto.com"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.maker)}
+          showChevron
+        />
+        <SettingsRow
+          icon="link"
+          label="GitHub"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.github)}
+          showChevron
+        />
+        <SettingsRow
+          icon="link"
+          label="X"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.x)}
+          showChevron
+        />
+        <SettingsRow
+          icon="link"
+          label="Instagram"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.instagram)}
+          showChevron
+        />
+        <SettingsRow
+          icon="link"
+          label="LinkedIn"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.linkedin)}
+          showChevron
+        />
+        <SettingsRow
+          icon="apps"
+          label="islam.se"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.islamSe)}
+          showChevron
+        />
+        <SettingsRow
+          icon="apps"
+          label="open-arabic"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.openArabic)}
+          showChevron
+        />
+        <SettingsRow
+          icon="apps"
+          label="al-ibadah"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.alIbadah)}
+          showChevron
+        />
+        <SettingsRow
+          icon="apps"
+          label="zuhd.news"
+          onPress={() => void WebBrowser.openBrowserAsync(Links.zuhdNews)}
+          showChevron
+        />
+      </SettingsSection>
+
       {/* Danger zone */}
       <SettingsSection title="Danger zone">
         <SettingsRow
