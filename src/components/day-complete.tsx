@@ -174,7 +174,11 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
       accessibilityViewIsModal
       accessibilityLabel={`Day complete. Alḥamdulillāh.${copy.hijriLabel ? ` ${copy.hijriLabel}.` : ''}`}
       style={[styles.fill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <Animated.View style={[styles.fill, styles.scrim, scrimStyle]} pointerEvents="none" />
+      {/* absoluteFill, NOT styles.fill — the latter carries `zIndex: 200` (needed on the Pressable to
+          sit above the navigator), which on the scrim painted it OVER the card, veiling the whole
+          celebration in 70% black. The scrim must sit BEHIND the card: no zIndex, so document order
+          (scrim first, card second) puts the card on top. */}
+      <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle]} pointerEvents="none" />
       <Animated.View
         style={[
           styles.card,
@@ -277,6 +281,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     overflow: 'visible',
+    zIndex: 1, // above the scrim (which now has no zIndex) — the card must never sit behind the veil
   },
   // Clips the seed-of-life ground to the card's rounded corners without clipping the card's shadow.
   backdropClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, overflow: 'hidden' },
