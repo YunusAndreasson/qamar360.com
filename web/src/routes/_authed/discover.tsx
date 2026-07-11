@@ -92,7 +92,7 @@ function DiscoverPage() {
       ) : (
         <div className="grid gap-8">
           {!q && essentialsRemaining.length > 0 && (
-            <Panel framed className="rise-in p-5">
+            <Panel className="rise-in p-5">
               <div className="text-base font-medium text-foreground">
                 New here? Start with the essentials
               </div>

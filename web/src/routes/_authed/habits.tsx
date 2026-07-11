@@ -73,10 +73,20 @@ function HabitsPage() {
                 )}
               </div>
               <div className="ml-auto flex items-center gap-5">
-                <span className="hidden text-sm tabular-nums text-muted-foreground sm:block">
-                  {scheduleSummary(h.schedule_days, h.hijri_schedule)}
-                  {h.target_count ? ` · ${h.target_count} ${h.target_unit ?? ''}`.trimEnd() : ''}
-                </span>
+                {(() => {
+                  // "Every day" is the default for most habits — showing it on every row is noise.
+                  // Surface the schedule only when it differs, so non-daily habits actually stand out.
+                  const sched = scheduleSummary(h.schedule_days, h.hijri_schedule)
+                  const parts = [
+                    sched === 'Every day' ? '' : sched,
+                    h.target_count ? `${h.target_count} ${h.target_unit ?? ''}`.trimEnd() : '',
+                  ].filter(Boolean)
+                  return parts.length ? (
+                    <span className="hidden text-sm tabular-nums text-muted-foreground sm:block">
+                      {parts.join(' · ')}
+                    </span>
+                  ) : null
+                })()}
                 <div className="flex shrink-0 gap-0.5">
                   <Button
                     variant="ghost"

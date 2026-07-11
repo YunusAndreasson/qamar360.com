@@ -109,6 +109,20 @@ export function hijriParts(
 }
 
 /**
+ * A `YYYY-MM-DD` day as an on-brand Hijri date string, e.g. "26 Muḥarram 1448". Returns `null` on a
+ * runtime whose `Intl` lacks the Islamic calendar, so callers can fall back to {@link formatGregorian}.
+ */
+export function formatHijriDate(iso: string): string | null {
+  const p = hijriParts(iso)
+  return p ? `${p.day} ${p.monthName} ${p.year}` : null
+}
+
+/** A `YYYY-MM-DD` day as a long Gregorian date in the viewer's locale, e.g. "11 July 2026". */
+export function formatGregorian(iso: string): string {
+  return localDate(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+/**
  * The Gregorian span of the Hijri month that contains `iso`: `start`/`end` as inclusive
  * `YYYY-MM-DD`, the month `length` (29 or 30), the month name, and the Hijri `year`. Built purely
  * from {@link hijriParts} + day arithmetic. Returns `null` when the Islamic calendar is unavailable.

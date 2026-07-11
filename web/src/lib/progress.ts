@@ -8,7 +8,7 @@
 import { queryOptions } from '@tanstack/react-query'
 
 import type { Tables } from '#/lib/database.types'
-import { addDaysISO, hijriMonthRange, hijriParts, hijriYearStart, scheduledOn, todayLocalISO } from '#/lib/dates'
+import { addDaysISO, hijriMonthRange, hijriParts, hijriYearStart, scheduledOn, todayLocalISO, weekdayIndex } from '#/lib/dates'
 import type { HijriSchedule } from '#/lib/dates'
 import type { Habit } from '#/lib/habits'
 import { supabaseBrowser } from '#/lib/supabase/client'
@@ -308,6 +308,65 @@ export function computeStreak(habits: ProgressHabit[], completions: CompletionRo
     break // an incomplete past day ends the streak
   }
   return streak
+}
+
+/**
+ * Average completion rate (0–1) by weekday (0=Sun … 6=Sat) over the last `windowDays` — the "best day
+ * of week" bars. Each habit only counts from the days it existed (via `scheduledOn`), so a light week
+ * isn't diluted by days before the habit was created.
+ */
+export function weekdayRates(
+  habits: ProgressHabit[],
+  completions: CompletionRow[],
+  today: string,
+  windowDays: number,
+): { weekday: number; rate: number; sample: number }[] {
+  const rows = indexRows(completions)
+  const start = addDaysISO(today, -(windowDays - 1))
+  const acc = Array.from({ length: 7 }, () => ({ done: 0, possible: 0 }))
+  for (let day = start; day <= today; day = addDaysISO(day, 1)) {
+    const bucket = acc[weekdayIndex(day)]!
+    for (const h of habits) {
+      if (!scheduledOn(h, day)) continue
+      const credit = habitCredit(rows, h, day)
+      if (credit === null) continue // excused
+      bucket.possible += 1
+      bucket.done += credit
+    }
+  }
+  return acc.map((a, weekday) => ({ weekday, rate: a.possible > 0 ? a.done / a.possible : 0, sample: a.possible }))
+}
+
+/**
+ * Headline records over the last `windowDays`: the longest run of fully-kept days (rest days bridge
+ * it), how many days were perfect, and the total acts completed — the "Records" readout.
+ */
+export function milestoneStats(
+  habits: ProgressHabit[],
+  completions: CompletionRow[],
+  today: string,
+  windowDays: number,
+): { longestStreak: number; perfectDays: number; totalActs: number } {
+  const rows = indexRows(completions)
+  const start = addDaysISO(today, -(windowDays - 1))
+  let longestStreak = 0
+  let run = 0
+  let perfectDays = 0
+  for (let day = start; day <= today; day = addDaysISO(day, 1)) {
+    const { done, possible } = tallyRange(rows, habits, day, day)
+    if (possible === 0) continue // a rest day bridges a run without extending or breaking it
+    if (done >= possible - 1e-9) {
+      run += 1
+      longestStreak = Math.max(longestStreak, run)
+      perfectDays += 1
+    } else {
+      run = 0
+    }
+  }
+  const totalActs = completions.filter(
+    (c) => c.status === 'done' && c.completed_at >= start && c.completed_at <= today,
+  ).length
+  return { longestStreak, perfectDays, totalActs }
 }
 
 /** The best day of the current Hijri month so far (highest fraction among past/today days). */

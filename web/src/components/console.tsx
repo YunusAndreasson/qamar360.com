@@ -29,17 +29,15 @@ export function PageHeader({
   )
 }
 
-/** Flat instrument panel. `framed` adds the HUD corner brackets. */
+/** Flat instrument panel — the base surface for every card. */
 export function Panel({
-  framed,
   className,
   children,
 }: {
-  framed?: boolean
   className?: string
   children: ReactNode
 }) {
-  return <div className={cn('panel', framed && 'panel--framed', className)}>{children}</div>
+  return <div className={cn('panel', className)}>{children}</div>
 }
 
 /** One row in a list: quiet hairline card with the signal-edge hover. */
@@ -85,10 +83,10 @@ export function Section({
   )
 }
 
-/** Centered empty-state inside a framed panel, anchored by the orbital mark. */
+/** Centered empty-state panel, anchored by the orbital mark. */
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <Panel framed className="rise-in flex flex-col items-center px-8 py-14 text-center">
+    <Panel className="rise-in flex flex-col items-center px-8 py-14 text-center">
       <QamarMark size={44} className="text-muted-foreground opacity-60" />
       <p className="display-title mt-5 text-lg text-foreground">{title}</p>
       {children != null && (

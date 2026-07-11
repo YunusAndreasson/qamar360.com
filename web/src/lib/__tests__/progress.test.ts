@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '../dates'
+import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, weekdayIndex } from '../dates'
 import {
   clamp01,
   computeProgress,
   computeStreak,
+  milestoneStats,
   rollingRate,
   toDegrees,
+  weekdayRates,
   type CompletionRow,
   type ProgressHabit,
 } from '../progress'
@@ -376,5 +378,60 @@ describe('computeStreak', () => {
 
   it('is 0 with no habits', () => {
     expect(computeStreak([], [], today)).toBe(0)
+  })
+})
+
+// ── weekdayRates: average completion per weekday (the "best day of week" bars) ──
+
+describe('weekdayRates', () => {
+  it('returns 7 buckets, Sun→Sat, sampled once each over a 7-day window', () => {
+    const today = '2026-06-15'
+    const res = weekdayRates([dailyHabit('a')], [], today, 7)
+    expect(res).toHaveLength(7)
+    expect(res.map((r) => r.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6])
+    // A daily habit is scheduled every day, so a 7-day window samples each weekday exactly once.
+    expect(res.every((r) => r.sample === 1)).toBe(true)
+  })
+
+  it('credits the completed day to its own weekday and no other', () => {
+    const today = '2026-06-15'
+    const wd = weekdayIndex(today)
+    const res = weekdayRates([dailyHabit('a')], [done('a', today)], today, 7)
+    expect(res[wd]!.rate).toBe(1)
+    expect(res.filter((r) => r.weekday !== wd).every((r) => r.rate === 0)).toBe(true)
+  })
+
+  it('leaves a weekday with nothing scheduled at rate 0, sample 0', () => {
+    // A habit scheduled only on Fridays (weekday 5): every other weekday bucket stays untouched.
+    const today = '2026-06-15'
+    const fridayHabit: ProgressHabit = { id: 'f', created_at: null, schedule_days: [5], hijri_schedule: null }
+    const res = weekdayRates([fridayHabit], [], today, 7)
+    expect(res.filter((r) => r.weekday !== 5).every((r) => r.sample === 0 && r.rate === 0)).toBe(true)
+    expect(res[5]!.sample).toBe(1)
+  })
+})
+
+// ── milestoneStats: longest run, perfect days, total acts (the "Records" readout) ──
+
+describe('milestoneStats', () => {
+  const today = '2026-06-15'
+
+  it('measures the longest fully-kept run, counts perfect days, and totals acts done', () => {
+    const comps: CompletionRow[] = []
+    // days -6,-5,-4 kept (run of 3), -3 missed, -2,-1,0 kept (run of 3)
+    for (const d of [-6, -5, -4, -2, -1, 0]) comps.push(done('a', addDaysISO(today, d)))
+    const res = milestoneStats([dailyHabit('a')], comps, today, 7)
+    expect(res.longestStreak).toBe(3)
+    expect(res.perfectDays).toBe(6)
+    expect(res.totalActs).toBe(6)
+  })
+
+  it('excludes excused (skipped) rows from the total act count', () => {
+    const comps: CompletionRow[] = [done('a', today), skip('a', addDaysISO(today, -1))]
+    expect(milestoneStats([dailyHabit('a')], comps, today, 7).totalActs).toBe(1)
+  })
+
+  it('is all zero with no habits', () => {
+    expect(milestoneStats([], [], today, 30)).toEqual({ longestStreak: 0, perfectDays: 0, totalActs: 0 })
   })
 })

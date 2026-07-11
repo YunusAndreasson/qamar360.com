@@ -3,10 +3,10 @@ import { toDegrees } from '#/lib/progress'
 
 function Tile({ label, value, sub }: { label: string; value: string | number; sub: string }) {
   return (
-    <Panel className="p-4">
-      <div className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
-      <div className="display-title mt-2 text-3xl leading-none text-foreground tabular-nums">{value}</div>
-      <div className="mt-1.5 text-xs text-muted-foreground">{sub}</div>
+    <Panel className="p-5">
+      <div className="metric-label">{label}</div>
+      <div className="display-title mt-3 text-[2rem] leading-none text-foreground tabular-nums">{value}</div>
+      <div className="mt-2 text-xs text-muted-foreground">{sub}</div>
     </Panel>
   )
 }
@@ -29,7 +29,7 @@ export function StatTiles({
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Tile label="Current streak" value={streak} sub={streak === 1 ? 'day kept' : 'days kept'} />
-      <Tile label="Last 30 days" value={`${toDegrees(rate30)}°`} sub="of the orbit" />
+      <Tile label="Last 30 days" value={`${toDegrees(rate30)}°`} sub="of a full orbit" />
       <Tile label="Habits" value={habitsCount} sub="tracked" />
       <Tile
         label="Best day"

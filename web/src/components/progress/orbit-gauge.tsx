@@ -90,25 +90,26 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
         </div>
       </div>
 
-      <div className="mt-5 text-center">
-        <div className="display-title text-5xl leading-none text-foreground tabular-nums">
+      <div className="mt-6 text-center">
+        <div className="display-title text-6xl leading-none text-foreground tabular-nums">
           {degrees}
           <span className="align-top text-2xl text-muted-foreground">°</span>
         </div>
-        <div className="mt-2 font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-          of 360° · {month.monthName} {month.year}
-        </div>
+        <div className="mt-2.5 text-sm text-muted-foreground">of a 360° orbit</div>
         {month.hasPrevious && (
-          <div className="mt-3 flex items-center justify-center gap-1.5 text-sm">
+          <div className="mt-4 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
             <span
               className={cn(
-                'tabular-nums',
-                delta > 0 ? 'text-ok' : delta < 0 ? 'text-destructive' : 'text-muted-foreground',
+                'inline-flex items-center gap-1 tabular-nums',
+                delta > 0 ? 'text-ok' : delta < 0 ? 'text-foreground/80' : 'text-muted-foreground',
               )}
             >
-              {delta > 0 ? '▲' : delta < 0 ? '▼' : '■'} {Math.abs(delta)}°
+              <span aria-hidden className="text-xs leading-none">
+                {delta > 0 ? '↑' : delta < 0 ? '↓' : '·'}
+              </span>
+              {Math.abs(delta)}°
             </span>
-            <span className="text-muted-foreground">vs {month.previousMonthName}</span>
+            <span>vs {month.previousMonthName}</span>
           </div>
         )}
       </div>
