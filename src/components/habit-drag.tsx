@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   measure,
   scrollTo,
+  useAnimatedReaction,
   useAnimatedRef,
   useAnimatedStyle,
   useFrameCallback,
@@ -78,11 +79,22 @@ const EDGE_SCROLL_ZONE = 72;
 /** …ramping quadratically up to this speed (px/s) at the very edge. */
 const EDGE_SCROLL_MAX_V = 900;
 
-/** The pre-lift signifier: partway into a deliberate hold, the pressed item swells ~1% — a
- *  quiet "keep holding, this is picking up" cue that quick taps and swipes never see
- *  (Norman: a hidden gesture needs a signifier the moment the user starts to find it). */
+/** The pre-lift signifier: partway into a deliberate hold, the pressed entry starts to lift — a
+ *  quiet "keep holding, this is picking up" cue that quick taps and swipes never see (Norman: a
+ *  hidden gesture needs a signifier the moment the user starts to find it). It's a *shadow bloom*,
+ *  not a scale: scaling a card by a hair doesn't re-render it, it bitmap-scales the drawn card, so
+ *  the text + hairline border + rounded corners get resampled into a faint grain. A shadow is drawn
+ *  apart from the content, so the card stays crisp — and it previews the drag ghost's own lift. A
+ *  member row (a bare row on a routine card, no surface to float) can't cast a clean shadow, so it
+ *  uses a faint dim instead — same intent, no resample. */
 const PRE_LIFT_DELAY_MS = 150;
-const PRE_LIFT_SCALE = 0.01;
+/** The pre-lift shadow at full bloom — gentler than the ghost's lift (the card hasn't left yet). */
+const PRE_LIFT_SHADOW_OPACITY = 0.16;
+const PRE_LIFT_SHADOW_RADIUS = 10;
+const PRE_LIFT_SHADOW_LIFT = 5; // shadow y-offset (px): the card's apparent height off the surface
+const PRE_LIFT_ELEVATION = 6; // Android's shadow is elevation-driven
+/** A member row's grain-free pre-lift instead of the shadow — a barely-there dim as the hold arms. */
+const PRE_LIFT_DIM = 0.06;
 
 /** Drop-one-habit-onto-another to make a routine: a lone row must be *hovered* this long before the
  *  merge arms, so dragging a row past a neighbour to reorder never trips it (the iOS home-screen
@@ -90,6 +102,12 @@ const PRE_LIFT_SCALE = 0.01;
 const MERGE_DWELL_MS = 400;
 /** The armed merge target swells this much — a "drop here to combine" signifier echoing the card ring. */
 const TARGET_POP_SCALE = 0.05;
+
+/** Fallback release for the post-drop position hold (see the settle reaction in `DraggableEntry`):
+ *  onLayout normally releases it the instant the reordered slot lands; this covers the off chance a
+ *  platform skips the layout event, so a held row can never stick. ~2 frames — long enough that the
+ *  layout swap lands first, short enough to be imperceptible if it ever fires. */
+const SETTLE_HANDOFF_MS = 32;
 
 type DragState = {
   /** The key being dragged (`habit:x` / `stack:x` / `member:x`), or null at rest. */
@@ -498,7 +516,34 @@ export function DraggableEntry({
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
+  // The post-drop position hold. On a reorder the rows swap to new layout slots (React) while
+  // their drag displacement resets to 0 (Reanimated, on the UI thread) — a sub-frame apart, so
+  // the neighbour of the drop jitters up then down. `settleY` bridges that handoff: it freezes
+  // this row's on-screen offset the instant the drag ends, and `translateY` keeps the row put
+  // until its reordered slot actually lands (released in `onLayout`). Zero at all other times.
+  const settleY = useSharedValue(0);
+  // The last laid-out slot top — used to notice when the reorder has moved us, so the hold releases.
+  const slotY = useSharedValue<number | null>(null);
   const holdMs = kind === 'stack' ? CARD_LIFT_HOLD_MS : LIFT_HOLD_MS;
+
+  // When a drag ends, capture whatever displacement this row currently shows so `settleY` can hold
+  // it steady across the reorder's layout swap. Only the rows that actually parted to open the drop
+  // gap have a non-zero displacement (the dragged row and bystanders read 0 — see `displacementFor`),
+  // so this is a no-op for everything but the drop's immediate neighbours.
+  useAnimatedReaction(
+    () => draggingKey.get(),
+    (curr, prev) => {
+      if (prev == null || curr != null) return; // only the drag-end transition (null → held key would re-arm; guard both)
+      const held = displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
+      settleY.set(held);
+      // Belt-and-suspenders release in case onLayout never reports the slot move.
+      if (held !== 0) {
+        settleY.set(
+          withDelay(SETTLE_HANDOFF_MS, reduceMotion ? withTiming(0, { duration: 0 }) : withSpring(0, Spring.settle)),
+        );
+      }
+    },
+  );
 
   // Register this entry's frame (grid coordinates — entries are direct grid children).
   // onLayout ignores transforms, so mid-drag displacement never pollutes the registry.
@@ -506,6 +551,10 @@ export function DraggableEntry({
   // read-modify-write against the async JS-side copy would drop all but the last entry.
   const onLayout = (e: LayoutChangeEvent) => {
     const { y, height } = e.nativeEvent.layout;
+    // The reordered slot has landed — drop the post-drop hold; the layout now carries the row to
+    // the right place, so any lingering `settleY` offset would only push it back off.
+    if (slotY.get() !== null && slotY.get() !== y) settleY.set(0);
+    slotY.set(y);
     frames.modify((f) => {
       'worklet';
       f[entryKey] = { y, h: height };
@@ -644,23 +693,33 @@ export function DraggableEntry({
     // swells to say "drop here to combine". reduceMotion skips the pop (the ring's cross-fade below
     // still carries the meaning).
     const armed = kind === 'habit' && mergeArmedHabitId.get() === entryKey.slice('habit:'.length);
+    const lift = preLift.get();
     return {
       // The original hides only once the ghost is actually on screen — no handoff flicker.
       opacity: dk === entryKey && ghostMounted.get() ? 0 : 1,
       transform: [
-        // At rest the reset is instant, so a commit's re-render lands with no stale offset.
-        { translateY: dk === null ? 0 : reduceMotion ? shift : withSpring(shift, Spring.settle) },
-        { scale: 1 + preLift.get() * PRE_LIFT_SCALE },
-        // The pop is a *separate* composed scale (transforms multiply) so the spring stays a direct
-        // style value — arithmetic on a withSpring() result stringifies it ("1[object Object]").
+        // At rest we sit at 0 — except for the sliver of time right after a drop, where `settleY`
+        // holds the row on-screen so the transform reset and the reorder's layout swap land together
+        // instead of a frame apart (the drop "wobble"). `settleY` is 0 once the new slot settles.
+        { translateY: dk === null ? settleY.get() : reduceMotion ? shift : withSpring(shift, Spring.settle) },
+        // The merge-target pop (a *separate* composed scale so the spring stays a direct style value —
+        // arithmetic on a withSpring() result stringifies it, "1[object Object]").
         { scale: reduceMotion ? 1 : withSpring(armed ? 1 + TARGET_POP_SCALE : 1, Spring.settle) },
       ],
+      // The pre-lift cue: a soft shadow blooms so the card floats a touch — grain-free (a shadow is
+      // drawn apart from the card's crisp text/edges) and a preview of the ghost's lift shadow.
+      shadowOpacity: lift * PRE_LIFT_SHADOW_OPACITY,
+      shadowRadius: lift * PRE_LIFT_SHADOW_RADIUS,
+      shadowOffset: { width: 0, height: lift * PRE_LIFT_SHADOW_LIFT },
+      elevation: lift * PRE_LIFT_ELEVATION,
     };
   });
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} onLayout={onLayout} style={style}>
+      {/* `styles.liftShadow` sets a static shadow colour; the animated style above blooms its
+          opacity/radius on the pre-lift hold (zero at rest, so no shadow shows until then). */}
+      <Animated.View ref={ref} onLayout={onLayout} style={[styles.liftShadow, style]}>
         {children}
         {kind === 'stack' && stackId !== null ? (
           <DropRing stackId={stackId} />
@@ -873,12 +932,10 @@ function MemberRowDrag({
       : 0;
     return {
       // The hidden original holds its slot open inside the card — the visible hole is honest
-      // feedback about where the member returns if the drag cancels.
-      opacity: draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1,
-      transform: [
-        { translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) },
-        { scale: 1 + preLift.get() * PRE_LIFT_SCALE },
-      ],
+      // feedback about where the member returns if the drag cancels. The pre-lift cue is a faint
+      // dim (not a scale): a bare row has no card to float, and scaling its text only grained it.
+      opacity: (draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1) * (1 - preLift.get() * PRE_LIFT_DIM),
+      transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }],
     };
   });
 
@@ -972,6 +1029,11 @@ const styles = StyleSheet.create({
   ghost: {
     shadowColor: '#000',
     elevation: 8,
+  },
+  // Static shadow colour for the pre-lift bloom; the animated style supplies the (zero-at-rest)
+  // opacity/radius/offset, so an entry casts no shadow until a deliberate hold begins.
+  liftShadow: {
+    shadowColor: '#000',
   },
   dropRing: {
     position: 'absolute',
