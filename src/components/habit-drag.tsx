@@ -910,8 +910,14 @@ function MemberRowDrag({
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} onLayout={registerFrame} style={style}>
-        {children}
+      {/* The MEASURED node (ref + onLayout) carries NO transform, so `measure(ref)` reads the
+          member's RESTING grid position. `measure()` returns the on-screen frame with transforms
+          applied (reanimated docs), so if the displacement lived here, a reorder's settling
+          translateY would pollute `memberFrames` — the in-card reorder would then resolve against
+          drifted positions (why it felt more fragile inside a routine than at the top level, where
+          frames come from transform-free `onLayout`). The displacement rides the inner view. */}
+      <Animated.View ref={ref} onLayout={registerFrame}>
+        <Animated.View style={style}>{children}</Animated.View>
       </Animated.View>
     </GestureDetector>
   );
