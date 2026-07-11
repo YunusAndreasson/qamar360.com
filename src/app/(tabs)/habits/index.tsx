@@ -440,6 +440,7 @@ export default function HabitsScreen() {
               order={orderMeta}
               memberOrder={memberOrder}
               contentBottomInset={BottomTabInset + Spacing.four}
+              active={isDragging}
               onDragActive={onDragActive}
               onDropBetween={onDropBetween}
               onDropInto={onDropInto}

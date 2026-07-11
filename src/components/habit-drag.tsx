@@ -154,6 +154,11 @@ type DragState = {
   scrollOffset: SharedValue<number>;
   scrollRef: AnimatedRef<Animated.ScrollView>;
   reduceMotion: boolean;
+  /** A drag is live (React state, mirrors `draggingKey`). The displacement transform is applied only
+   *  while this is true, so the instant a drop ends React drops it (→ translateY 0) in the SAME
+   *  commit that reorders the list — the reset and the layout swap are atomic, so the row the drop
+   *  lands beside never jitters (a shared-value reset would land a frame off React's reorder). */
+  active: boolean;
   // JS boundary — called via scheduleOnRN with primitive args only.
   onDragActive: (key: string | null) => void;
   finishBetween: (draggedKey: string, beforeKey: string) => void;
@@ -181,6 +186,7 @@ export function HabitDragProvider({
   order: orderProp,
   memberOrder: memberOrderProp,
   contentBottomInset = 0,
+  active,
   onDragActive,
   onDropBetween,
   onDropInto,
@@ -190,6 +196,9 @@ export function HabitDragProvider({
 }: {
   scrollRef: AnimatedRef<Animated.ScrollView>;
   order: OrderMeta[];
+  /** Whether a drag is live (the screen's `dragEntryKey !== null`). Drives the atomic reset — see
+   *  {@link DragState.active}. Flips false in the same render that commits a reorder. */
+  active: boolean;
   /** stackId → its member keys (`member:<id>`) in sequence — the inner lists a member reorders
    *  within (mirrors `order` for the top level). */
   memberOrder: Record<string, string[]>;
@@ -460,7 +469,7 @@ export function HabitDragProvider({
     dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
     grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
     minOffset, frames, order, memberFrames, memberOrder, reorderStackId, memberDragIndex,
-    memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
+    memberInsertIndex, scrollOffset, scrollRef, reduceMotion, active,
     onDragActive: setDragActive, finishBetween, finishInto, finishReorder, finishMerge, hoverTick,
   };
 
@@ -504,8 +513,8 @@ export function DraggableEntry({
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
     dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
     grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop,
-    minOffset, frames, order, scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween,
-    finishInto, finishMerge,
+    minOffset, frames, order, scrollOffset, scrollRef, reduceMotion, active, onDragActive,
+    finishBetween, finishInto, finishMerge,
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
@@ -648,24 +657,30 @@ export function DraggableEntry({
       }
     });
 
-  const style = useAnimatedStyle(() => {
-    const dk = draggingKey.get();
-    const shift = dk === null ? 0 : displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
+  // The drag DISPLACEMENT lives on its own view, applied ONLY while a drag is live (`active`, below).
+  // At rest React applies no transform, so when a drop ends React drops this style (→ translateY 0)
+  // in the SAME commit that reorders the list — the reset and the layout swap are one Fabric mount,
+  // atomic, so the row the drop lands beside can't jitter (a shared-value reset lands a frame off).
+  const displacement = useAnimatedStyle(() => {
+    const shift = displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
+    return { transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }] };
+  });
+
+  // The DECOR is always on: hide-while-the-ghost-shows, the merge-target pop, and the pre-lift shadow.
+  // None of these fight the reorder (opacity/scale/shadow don't move a row's slot), so they can stay
+  // shared-value-driven without a wobble.
+  const decor = useAnimatedStyle(() => {
     // The armed merge target — a *different*, still-visible entry from the hidden dragged one —
-    // swells to say "drop here to combine". reduceMotion skips the pop (the ring's cross-fade below
+    // swells to say "drop here to combine". reduceMotion skips the pop (the ring's cross-fade
     // still carries the meaning).
     const armed = kind === 'habit' && mergeArmedHabitId.get() === entryKey.slice('habit:'.length);
     const lift = preLift.get();
     return {
       // The original hides only once the ghost is actually on screen — no handoff flicker.
-      opacity: dk === entryKey && ghostMounted.get() ? 0 : 1,
-      transform: [
-        // At rest the reset is instant, so a commit's re-render lands with no stale offset.
-        { translateY: dk === null ? 0 : reduceMotion ? shift : withSpring(shift, Spring.settle) },
-        // The merge-target pop (a *separate* composed scale so the spring stays a direct style value —
-        // arithmetic on a withSpring() result stringifies it, "1[object Object]").
-        { scale: reduceMotion ? 1 : withSpring(armed ? 1 + TARGET_POP_SCALE : 1, Spring.settle) },
-      ],
+      opacity: draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1,
+      // A *separate* composed scale so the spring stays a direct style value — arithmetic on a
+      // withSpring() result stringifies it ("1[object Object]").
+      transform: [{ scale: reduceMotion ? 1 : withSpring(armed ? 1 + TARGET_POP_SCALE : 1, Spring.settle) }],
       // The pre-lift cue: a soft shadow blooms so the card floats a touch — grain-free (a shadow is
       // drawn apart from the card's crisp text/edges) and a preview of the ghost's lift shadow.
       shadowOpacity: lift * PRE_LIFT_SHADOW_OPACITY,
@@ -677,15 +692,20 @@ export function DraggableEntry({
 
   return (
     <GestureDetector gesture={pan}>
-      {/* `styles.liftShadow` sets a static shadow colour; the animated style above blooms its
-          opacity/radius on the pre-lift hold (zero at rest, so no shadow shows until then). */}
-      <Animated.View ref={ref} onLayout={onLayout} style={[styles.liftShadow, style]}>
-        {children}
-        {kind === 'stack' && stackId !== null ? (
-          <DropRing stackId={stackId} />
-        ) : kind === 'habit' ? (
-          <MergeRing habitId={entryKey.slice('habit:'.length)} />
-        ) : null}
+      {/* Outer view carries only the drag displacement, and only while a drag is live — so a drop's
+          reset lands atomically with the reorder. `ref`/`onLayout` stay here (the grid child);
+          onLayout ignores the transform, so `frames` still records the resting slot. */}
+      <Animated.View ref={ref} onLayout={onLayout} style={active ? displacement : undefined}>
+        {/* Inner view carries the always-on decor. `styles.liftShadow` sets the (static) shadow
+            colour the pre-lift bloom animates. */}
+        <Animated.View style={[styles.liftShadow, decor]}>
+          {children}
+          {kind === 'stack' && stackId !== null ? (
+            <DropRing stackId={stackId} />
+          ) : kind === 'habit' ? (
+            <MergeRing habitId={entryKey.slice('habit:'.length)} />
+          ) : null}
+        </Animated.View>
       </Animated.View>
     </GestureDetector>
   );
@@ -727,7 +747,7 @@ function MemberRowDrag({
     committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
     pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, order, frames,
     memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
-    scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto, finishReorder,
+    scrollOffset, scrollRef, reduceMotion, active, onDragActive, finishBetween, finishInto, finishReorder,
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
@@ -882,7 +902,10 @@ function MemberRowDrag({
       }
     });
 
-  const style = useAnimatedStyle(() => {
+  // Displacement on its own view, applied ONLY while a drag is live (`active`) — so an in-card
+  // reorder's reset lands in the same React commit as the reorder (atomic, no wobble). Same trick
+  // as the top-level entry.
+  const displacement = useAnimatedStyle(() => {
     // While THIS card is being reordered, member rows part to open the gap at the target index —
     // the same displacement the top-level entries use, scoped to the card's members (the dragged
     // member's own shift is 0, and it's hidden anyway).
@@ -890,19 +913,20 @@ function MemberRowDrag({
     const shift = reordering
       ? displacementFor(memberIndex, memberDragIndex.get(), memberInsertIndex.get(), ghostH.get())
       : 0;
-    return {
-      // The hidden original holds its slot open inside the card — the visible hole is honest
-      // feedback about where the member returns if the drag cancels. The pre-lift cue is a faint
-      // dim (not a scale): a bare row has no card to float, and scaling its text only grained it.
-      opacity: (draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1) * (1 - preLift.get() * PRE_LIFT_DIM),
-      transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }],
-    };
+    return { transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }] };
   });
+
+  // Always-on decor: the hidden original holds its slot open inside the card (honest feedback about
+  // where the member returns if the drag cancels), plus the faint pre-lift dim (a bare row has no
+  // card to float, and scaling its text only grained it).
+  const decor = useAnimatedStyle(() => ({
+    opacity: (draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1) * (1 - preLift.get() * PRE_LIFT_DIM),
+  }));
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} onLayout={registerFrame} style={style}>
-        {children}
+      <Animated.View ref={ref} onLayout={registerFrame} style={active ? displacement : undefined}>
+        <Animated.View style={decor}>{children}</Animated.View>
       </Animated.View>
     </GestureDetector>
   );
