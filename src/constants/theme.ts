@@ -72,7 +72,8 @@ export const Colors = {
     // Raised surface for a focused overlay on a scrim — a dark-theme elevation overlay: lifted well
     // above `backgroundElement` so a modal/celebration card reads as a distinct panel against the
     // darkened app behind it (the near-black element fill would otherwise vanish into the scrim).
-    backgroundElevated: '#262B33',
+    // Deliberately a clear slate lift (not a hair above black): #262B33 still blended into the scrim.
+    backgroundElevated: '#3A414E',
     backgroundSelected: '#202427',
     border: '#292D31',
     // A whisper of light on the card's top edge — the Linear "lit from above" hairline.

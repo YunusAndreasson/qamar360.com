@@ -54,7 +54,7 @@ const GLOW_SIZE = 184;
 // card — a near-black elevated surface on a near-black theme — didn't announce itself (you could
 // miss the moment). 0.64 recedes the app so the lit card + moon read as a distinct foreground layer
 // (still short of an opaque blackout — the night sky behind stays sensed, not erased).
-const SCRIM = 'rgba(0,0,0,0.64)';
+const SCRIM = 'rgba(0,0,0,0.7)';
 
 export function DayCompleteProvider({ children }: { children: ReactNode }) {
   const [celebration, setCelebration] = useState<{ id: number; day: string } | null>(null);
@@ -155,9 +155,14 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
     return () => clearTimeout(t);
   }, [runDismiss]);
 
-  const scrimStyle = useAnimatedStyle(() => ({ opacity: enter.get() * exit.get() }));
+  // Opacity rides ONLY the dismiss value (`exit`), never the entrance `enter`: the overlay must be
+  // fully opaque the instant it mounts. Gating base visibility on a mount fade meant that if that
+  // fade ever failed to run to 1 (a Reanimated/Fabric hiccup on this root-level overlay), the whole
+  // celebration stayed translucent — "dimmed, you almost miss it". `enter` still drives the scale
+  // pop and the glow beat, so the entrance keeps its life without holding visibility hostage.
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: exit.get() }));
   const cardStyle = useAnimatedStyle(() => ({
-    opacity: enter.get() * exit.get(),
+    opacity: exit.get(),
     transform: [{ scale: 0.96 + 0.04 * enter.get() }],
   }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: beat.get() }));
@@ -176,7 +181,7 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
           // An ELEVATED surface (not the flat element fill): on dark this is a lifted panel that
           // clears the scrim, on light it stays white. With the firmer scrim it reads as a distinct
           // card, not a faint wash — the "better balance" between subtle and legible.
-          { backgroundColor: theme.backgroundElevated, borderColor: theme.border },
+          { backgroundColor: theme.backgroundElevated, borderColor: theme.controlTrack },
           Elevation.card,
           cardStyle,
         ]}
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.five,
     paddingHorizontal: Spacing.four,
     borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'visible',
   },
   // Clips the seed-of-life ground to the card's rounded corners without clipping the card's shadow.
