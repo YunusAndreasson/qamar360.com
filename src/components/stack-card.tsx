@@ -5,12 +5,14 @@ import { AppIcon } from '@/components/app-icon';
 import { DraggableMemberRow } from '@/components/habit-drag';
 import { HabitRow } from '@/components/habit-row';
 import { PressableScale } from '@/components/pressable-scale';
+import { RoutineCompleteFlash } from '@/components/routine-complete-flash';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { isRoutineComplete } from '@/lib/progress';
 
 type Props = {
   stack: HabitStack;
@@ -43,71 +45,81 @@ type Props = {
  * Today grid the card takes part in the drag vocabulary: hold anywhere on it to lift and
  * reorder the whole routine, hold a member row to pull that habit out, and a loose habit
  * dropped onto the card's body joins the routine (the drag layer draws the accent ring).
+ * When a tick resolves every act the routine has due today, its border flashes the "done"
+ * tone (see {@link RoutineCompleteFlash}) with a synced haptic — the group sealing.
  */
 function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, onRemoveFromRoutine, onMove, onMoveHabit }: Props) {
   const theme = useTheme();
+  // The whole group sealed — every act the routine has due today is done. Drives the one-shot
+  // border flash; the synced completion haptic is fired from the toggle seam in use-habits.
+  const routineComplete = isRoutineComplete(members, completed, skipped);
 
   return (
-    <Surface>
-      <PressableScale
-        onPress={() => onEditStack(stack.id)}
-        android_ripple={{ color: theme.backgroundSelected }}
-        accessibilityRole="button"
-        accessibilityLabel={`${stack.name} routine`}
-        accessibilityHint="Activates to manage the routine — rename or delete it. Hold and drag to reorder the whole routine."
-        accessibilityActions={
-          onMove
-            ? [
-                { name: 'moveUp', label: 'Move up' },
-                { name: 'moveDown', label: 'Move down' },
-              ]
-            : undefined
-        }
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'moveUp') onMove?.(stack.id, -1);
-          if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
-        }}
-        style={styles.header}>
-        {/* No leading link glyph — the accent title alone marks this as a routine header; a cleaner,
-            quieter card (the members' connector rail already reads as "grouped"). */}
-        <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
-          {stack.name}
-        </ThemedText>
-        {/* A quiet "⋯ more" glyph, not a › — tapping the header opens the manage sheet (rename /
-            delete), it doesn't navigate into a screen. Kept small + dim: the card's real verbs are
-            drag + ticking members, so this affordance recedes. */}
-        <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
-      </PressableScale>
+    <View>
+      <Surface>
+        <PressableScale
+          onPress={() => onEditStack(stack.id)}
+          android_ripple={{ color: theme.backgroundSelected }}
+          accessibilityRole="button"
+          accessibilityLabel={`${stack.name} routine`}
+          accessibilityHint="Activates to manage the routine — rename or delete it. Hold and drag to reorder the whole routine."
+          accessibilityActions={
+            onMove
+              ? [
+                  { name: 'moveUp', label: 'Move up' },
+                  { name: 'moveDown', label: 'Move down' },
+                ]
+              : undefined
+          }
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'moveUp') onMove?.(stack.id, -1);
+            if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
+          }}
+          style={styles.header}>
+          {/* No leading link glyph — the accent title alone marks this as a routine header; a cleaner,
+              quieter card (the members' connector rail already reads as "grouped"). */}
+          <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
+            {stack.name}
+          </ThemedText>
+          {/* A quiet "⋯ more" glyph, not a › — tapping the header opens the manage sheet (rename /
+              delete), it doesn't navigate into a screen. Kept small + dim: the card's real verbs are
+              drag + ticking members, so this affordance recedes. */}
+          <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
+        </PressableScale>
 
-      <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-      <View>
-        {members.map((habit, index) => (
-          <View key={habit.id}>
-            {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
-            {index > 0 ? <RowSeparator /> : null}
-            {/* Swipe a member left to remove it from the routine (or skip/edit/delete); hold and
-                drag it to pull it out of the card — to a spot in the day list, or into another
-                routine. */}
-            <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
-              <HabitRow
-                habit={habit}
-                done={completed.has(habit.id)}
-                skipped={skipped.has(habit.id)}
-                count={counts.get(habit.id) ?? 0}
-                onToggle={onToggle}
-                onAdjust={onAdjust}
-                onSkip={onSkip}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onRemoveFromRoutine={onRemoveFromRoutine}
-                onMove={onMoveHabit}
-              />
-            </DraggableMemberRow>
-          </View>
-        ))}
-      </View>
-    </Surface>
+        <View>
+          {members.map((habit, index) => (
+            <View key={habit.id}>
+              {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
+              {index > 0 ? <RowSeparator /> : null}
+              {/* Swipe a member left to remove it from the routine (or skip/edit/delete); hold and
+                  drag it to pull it out of the card — to a spot in the day list, or into another
+                  routine. */}
+              <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
+                <HabitRow
+                  habit={habit}
+                  done={completed.has(habit.id)}
+                  skipped={skipped.has(habit.id)}
+                  count={counts.get(habit.id) ?? 0}
+                  onToggle={onToggle}
+                  onAdjust={onAdjust}
+                  onSkip={onSkip}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onRemoveFromRoutine={onRemoveFromRoutine}
+                  onMove={onMoveHabit}
+                />
+              </DraggableMemberRow>
+            </View>
+          ))}
+        </View>
+      </Surface>
+      {/* Sibling of the Surface (not a child — the Surface clips its content), so the 2px border
+          overlays the whole card at its rounded rect and flashes when the routine seals. */}
+      <RoutineCompleteFlash complete={routineComplete} />
+    </View>
   );
 }
 

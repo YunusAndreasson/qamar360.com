@@ -20,6 +20,7 @@ import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
+import { isRoutineComplete } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -209,6 +210,30 @@ function celebrateIfDayComplete(
   if (dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
   return { dayComplete };
+}
+
+/**
+ * Fire the routine-complete tail beat when ticking `habitId` seals its routine — every act the
+ * habit's stack has due today is now done — but only when it *doesn't* also close the whole day:
+ * the day's `celebrate` owns that moment, so the two never double-buzz. The matching border flash on
+ * the card is driven separately from the same `completed`/`skipped` state (see StackCard), reading
+ * the same {@link isRoutineComplete} rule so the flash and the buzz can't disagree. A standalone
+ * habit has no routine to seal, so it stays silent. `completed` is read pre-flip, so the just-ticked
+ * id is passed through as done — the same stale-read guard `celebrateIfDayComplete` uses.
+ */
+function celebrateIfRoutineComplete(
+  habits: Habit[],
+  skipped: Set<string>,
+  completed: Set<string>,
+  habitId: string,
+  day: string,
+  dayComplete: boolean,
+): void {
+  if (dayComplete) return; // the day's celebration owns the moment
+  const stackId = habits.find((h) => h.id === habitId)?.stack_id ?? null;
+  if (!stackId) return; // not in a routine — nothing to seal
+  const members = habits.filter((h) => h.stack_id === stackId && scheduledOn(h, day));
+  if (isRoutineComplete(members, completed, skipped, habitId)) haptics.routineComplete();
 }
 
 export function HabitsProvider({ children }: { children: ReactNode }) {
@@ -493,6 +518,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } else {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day);
+        celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       }
 
       try {
@@ -586,6 +612,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } else if (nowDone && !wasDone) {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day);
+        celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       } else {
         haptics.selection();
       }
