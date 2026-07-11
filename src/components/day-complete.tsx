@@ -35,7 +35,10 @@ import { moonIllumination } from '@/lib/moon';
  * Mounted at the root like {@link ToastProvider} — an overlay above the navigator, inside Auth so it
  * can fetch progress. `HabitsProvider` (a descendant) calls `useDayComplete().celebrate(day)`.
  */
-type DayCompleteContextValue = { celebrate: (day: string) => void };
+/** `doneToday` are the ids the completion seam already proved done for `day` (the overlay only fires
+ *  once the day is complete) — passed so the overlay's degrees count the just-made ticks even before
+ *  they reach the server, keeping it in step with the Progress tab. */
+type DayCompleteContextValue = { celebrate: (day: string, doneToday: string[]) => void };
 const NOOP: DayCompleteContextValue = { celebrate: () => {} };
 const DayCompleteContext = createContext<DayCompleteContextValue>(NOOP);
 
@@ -57,15 +60,15 @@ const GLOW_SIZE = 184;
 const SCRIM = 'rgba(0,0,0,0.7)';
 
 export function DayCompleteProvider({ children }: { children: ReactNode }) {
-  const [celebration, setCelebration] = useState<{ id: number; day: string } | null>(null);
+  const [celebration, setCelebration] = useState<{ id: number; day: string; doneToday: string[] } | null>(null);
   const idRef = useRef(0);
   // Celebrate a given day at most once per session — un-tick then re-tick must not nag.
   const lastDay = useRef<string | null>(null);
 
-  const celebrate = useCallback((day: string) => {
+  const celebrate = useCallback((day: string, doneToday: string[]) => {
     if (lastDay.current === day) return;
     lastDay.current = day;
-    setCelebration({ id: (idRef.current += 1), day });
+    setCelebration({ id: (idRef.current += 1), day, doneToday });
   }, []);
 
   const dismiss = useCallback(() => setCelebration(null), []);
@@ -74,13 +77,13 @@ export function DayCompleteProvider({ children }: { children: ReactNode }) {
     <DayCompleteContext value={{ celebrate }}>
       {children}
       {celebration ? (
-        <DayCompleteOverlay key={celebration.id} day={celebration.day} onDismiss={dismiss} />
+        <DayCompleteOverlay key={celebration.id} day={celebration.day} doneToday={celebration.doneToday} onDismiss={dismiss} />
       ) : null}
     </DayCompleteContext>
   );
 }
 
-function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => void }) {
+function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneToday: string[]; onDismiss: () => void }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
@@ -102,7 +105,7 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
       setStatsReady(true);
       return;
     }
-    void loadProgress(user.id, day)
+    void loadProgress(user.id, day, doneToday)
       .then((d) => {
         if (!active) return;
         setMonth(d.month);
@@ -114,7 +117,8 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
     return () => {
       active = false;
     };
-  }, [user?.id, day]);
+    // doneToday is fixed for a given celebration (set once when it fires), so it never re-triggers.
+  }, [user?.id, day, doneToday]);
 
   const copy = celebrationCopy(month, day);
 

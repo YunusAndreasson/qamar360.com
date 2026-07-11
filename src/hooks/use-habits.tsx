@@ -204,12 +204,14 @@ function celebrateIfDayComplete(
   completed: Set<string>,
   habitId: string,
   day: string,
-): { dayComplete: boolean } {
+): { dayComplete: boolean; doneIds: string[] } {
   const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
   const dayComplete = openIds.length > 0 && openIds.every((id) => id === habitId || completed.has(id));
   if (dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
-  return { dayComplete };
+  // When complete, `openIds` are exactly the day's done (non-skipped, all ticked) ids — handed to
+  // the overlay so its degrees count the just-made ticks before they reach the server (matches Progress).
+  return { dayComplete, doneIds: dayComplete ? openIds : [] };
 }
 
 /**
@@ -517,7 +519,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         haptics.uncompleted();
       } else {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
-        if (res.dayComplete && day === todayRef.current) showDayComplete(day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
         celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       }
 
@@ -611,7 +613,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         haptics.uncompleted();
       } else if (nowDone && !wasDone) {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
-        if (res.dayComplete && day === todayRef.current) showDayComplete(day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
         celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       } else {
         haptics.selection();

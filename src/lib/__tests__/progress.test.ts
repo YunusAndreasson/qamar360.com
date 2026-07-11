@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isRoutineComplete, toDegrees, type CompletionRow, type ProgressHabit } from '@/lib/progress';
+import { clamp01, computeProgress, isRoutineComplete, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -350,5 +350,49 @@ describe('computeProgress — count goals earn partial credit', () => {
     // Skip the count goal on a 2-habit day → the day reads off the other (done) habit only.
     const cell = cellToday([dailyHabit('b'), countHabit('c', 4)], [done('b', today), skip('c', today)]);
     expect(cell.fraction).toBe(1); // 'c' excused → 1 of 1 remaining
+  });
+});
+
+describe('withDoneToday (overlay optimistic-done overlay)', () => {
+  const DAY = '2026-07-11';
+
+  it('is a no-op (same reference) when no ids are given', () => {
+    const rows: CompletionRow[] = [{ habit_id: 'a', completed_at: DAY, status: 'done', count: null }];
+    expect(withDoneToday(rows, [], DAY)).toBe(rows);
+  });
+
+  it('injects a done row for an id the server fetch is still missing', () => {
+    expect(withDoneToday([], ['a'], DAY)).toEqual([{ habit_id: 'a', completed_at: DAY, status: 'done', count: null }]);
+  });
+
+  it('upgrades an existing partial/count row for the day to done (a count goal that closed the day)', () => {
+    const rows: CompletionRow[] = [{ habit_id: 'a', completed_at: DAY, status: 'partial', count: 2 }];
+    expect(withDoneToday(rows, ['a'], DAY)).toEqual([{ habit_id: 'a', completed_at: DAY, status: 'done', count: null }]);
+  });
+
+  it('leaves other days and other habits untouched', () => {
+    const otherDay: CompletionRow = { habit_id: 'a', completed_at: '2026-07-10', status: 'done', count: null };
+    const otherHabit: CompletionRow = { habit_id: 'b', completed_at: DAY, status: 'done', count: null };
+    const out = withDoneToday([otherDay, otherHabit], ['a'], DAY);
+    expect(out).toContainEqual(otherDay);
+    expect(out).toContainEqual(otherHabit);
+    expect(out).toContainEqual({ habit_id: 'a', completed_at: DAY, status: 'done', count: null });
+  });
+
+  it('closes the stale-read gap: overlaying the last unpersisted tick equals the fully-persisted read', () => {
+    const habits: ProgressHabit[] = [
+      { id: 'a', created_at: null, schedule_days: [0, 1, 2, 3, 4, 5, 6] },
+      { id: 'b', created_at: null, schedule_days: [0, 1, 2, 3, 4, 5, 6] },
+    ];
+    const persisted: CompletionRow[] = [
+      { habit_id: 'a', completed_at: DAY, status: 'done', count: null },
+      { habit_id: 'b', completed_at: DAY, status: 'done', count: null },
+    ];
+    const stale = persisted.slice(0, 1); // 'b' hasn't reached the server yet
+    const full = computeProgress(habits, persisted, DAY).month?.thisRate;
+    const staleRate = computeProgress(habits, stale, DAY).month?.thisRate;
+    const overlaid = computeProgress(habits, withDoneToday(stale, ['a', 'b'], DAY), DAY).month?.thisRate;
+    expect(staleRate).toBeLessThan(full ?? 0); // proves the race undercounts
+    expect(overlaid).toBe(full); // the overlay overlay closes it
   });
 });

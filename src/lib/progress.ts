@@ -156,6 +156,23 @@ export type ProgressDerived = {
   year: YearProgress | null;
 };
 
+/**
+ * Overlay a set of known-done habit ids onto `day`'s completion rows. The day-complete overlay
+ * fires the instant the day closes — BEFORE the last ticks have round-tripped to the server — so a
+ * plain fetch undercounts and its degrees read below the Progress tab's (e.g. 74° vs 77°). Feeding
+ * it the caller's optimistic "done today" set (the ids the day-complete rule already proved done)
+ * keeps both readings on the same data, so they agree. Pure. Replaces any existing row for those
+ * habits on `day` with a 'done' row — a count goal that closed the day has reached its target, so it
+ * earns full credit. No-op when `doneIds` is empty (every other caller).
+ */
+export function withDoneToday(completions: CompletionRow[], doneIds: string[], day: string): CompletionRow[] {
+  if (doneIds.length === 0) return completions;
+  const done = new Set(doneIds);
+  const kept = completions.filter((r) => !(r.completed_at === day && done.has(r.habit_id)));
+  const injected: CompletionRow[] = doneIds.map((habit_id) => ({ habit_id, completed_at: day, status: 'done', count: null }));
+  return [...kept, ...injected];
+}
+
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
 export function computeProgress(
   habits: ProgressHabit[],

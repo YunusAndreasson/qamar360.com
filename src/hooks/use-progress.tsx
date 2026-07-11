@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, type CompletionRow, type MonthProgress, type ProgressDerived, type YearProgress } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type YearProgress } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
@@ -37,10 +37,13 @@ async function fetchProgressWindow(userId: string, today: string): Promise<{ hab
 }
 
 /** One-shot progress read (fetch + pure {@link computeProgress}) for callers outside the Progress
- *  tab — the day-complete overlay. Same window and math as {@link useProgress}. */
-export async function loadProgress(userId: string, today: string): Promise<ProgressDerived> {
+ *  tab — the day-complete overlay. Same window and math as {@link useProgress}. `doneToday` are the
+ *  ids the overlay already knows are done for `today` (it only fires once the day is complete) —
+ *  overlaid via {@link withDoneToday} so the overlay's degrees don't undercount ticks that haven't
+ *  yet reached the server, and so match the Progress tab. */
+export async function loadProgress(userId: string, today: string, doneToday: string[] = []): Promise<ProgressDerived> {
   const { habits, completions } = await fetchProgressWindow(userId, today);
-  return computeProgress(habits, completions, today);
+  return computeProgress(habits, withDoneToday(completions, doneToday, today), today);
 }
 
 type ProgressData = {
