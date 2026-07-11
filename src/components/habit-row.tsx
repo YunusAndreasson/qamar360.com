@@ -437,5 +437,34 @@ const styles = StyleSheet.create({
   },
 });
 
-// Memoized: only the toggled row's `done` changes, so the rest skip re-render.
-export const HabitRow = memo(HabitRowBase);
+// Memoized on the fields this row actually paints. A reorder / move / merge re-stamps every
+// habit's `position` (and sometimes `stack_id`) into a fresh object — fields the row never
+// renders — so the default identity compare would re-render (and re-measure the two-line title
+// of) EVERY row on the frame a drop commits, jerking the text as the ghost's settle spring lands.
+// The React Compiler can't know `position`/`stack_id` are render-irrelevant here, so we spell out
+// the comparison: the four habit fields the row reads, the day-state props, and every callback by
+// identity (all stable — the screen's handlers close over refs, not `habits`). Keep this in sync
+// if the row starts rendering another `habit` field.
+function propsEqual(a: Props, b: Props): boolean {
+  return (
+    a.habit.id === b.habit.id &&
+    a.habit.name === b.habit.name &&
+    a.habit.target_count === b.habit.target_count &&
+    a.habit.target_unit === b.habit.target_unit &&
+    a.done === b.done &&
+    a.skipped === b.skipped &&
+    a.count === b.count &&
+    a.standalone === b.standalone &&
+    a.onToggle === b.onToggle &&
+    a.onAdjust === b.onAdjust &&
+    a.onSkip === b.onSkip &&
+    a.onEdit === b.onEdit &&
+    a.onDelete === b.onDelete &&
+    a.onAddToRoutine === b.onAddToRoutine &&
+    a.onRemoveFromRoutine === b.onRemoveFromRoutine &&
+    a.onMove === b.onMove &&
+    a.onGroupWithNext === b.onGroupWithNext
+  );
+}
+
+export const HabitRow = memo(HabitRowBase, propsEqual);

@@ -138,5 +138,40 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth },
 });
 
-// Memoized: a card re-renders only when its members' done-state or identity changes.
-export const StackCard = memo(StackCardBase);
+// Memoized on what the card paints. Like HabitRow, a reorder re-stamps every member's `position`
+// into a fresh object and `entries` hands over a fresh `members` array each render — so the default
+// identity compare would rebuild the whole card (every member's drag subtree) on the frame a drop
+// commits. Compare the rendered stack fields, the members by the fields their rows read, and the
+// day-state Sets + callbacks by identity (a tick swaps the Set identity, so completions still land).
+function stackPropsEqual(a: Props, b: Props): boolean {
+  if (
+    a.stack.id !== b.stack.id ||
+    a.stack.name !== b.stack.name ||
+    a.completed !== b.completed ||
+    a.skipped !== b.skipped ||
+    a.counts !== b.counts ||
+    a.onToggle !== b.onToggle ||
+    a.onAdjust !== b.onAdjust ||
+    a.onSkip !== b.onSkip ||
+    a.onEdit !== b.onEdit ||
+    a.onDelete !== b.onDelete ||
+    a.onEditStack !== b.onEditStack ||
+    a.onRemoveFromRoutine !== b.onRemoveFromRoutine ||
+    a.onMove !== b.onMove ||
+    a.onMoveHabit !== b.onMoveHabit ||
+    a.members.length !== b.members.length
+  ) {
+    return false;
+  }
+  return a.members.every((m, i) => {
+    const n = b.members[i]!;
+    return (
+      m.id === n.id &&
+      m.name === n.name &&
+      m.target_count === n.target_count &&
+      m.target_unit === n.target_unit
+    );
+  });
+}
+
+export const StackCard = memo(StackCardBase, stackPropsEqual);
