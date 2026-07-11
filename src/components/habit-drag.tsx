@@ -134,7 +134,10 @@ type DragState = {
   // Grab bookkeeping.
   grabY: SharedValue<number>;
   lastTranslationY: SharedValue<number>;
-  pointerViewportY: SharedValue<number>;
+  /** The finger's window-relative Y (RNGH `absoluteY`). Window-relative is transform-immune, so
+   *  the frame callback derives the viewport-relative position from the current `viewportTop` each
+   *  frame — the edge-scroll zone can't go stale while the iOS large title collapses mid-drag. */
+  pointerAbsoluteY: SharedValue<number>;
   scrollAtGrab: SharedValue<number>;
   viewportTop: SharedValue<number>;
   viewportH: SharedValue<number>;
@@ -225,7 +228,7 @@ export function HabitDragProvider({
   const ghostMounted = useSharedValue(false);
   const grabY = useSharedValue(0);
   const lastTranslationY = useSharedValue(0);
-  const pointerViewportY = useSharedValue(0);
+  const pointerAbsoluteY = useSharedValue(0);
   const scrollAtGrab = useSharedValue(0);
   const viewportTop = useSharedValue(0);
   const viewportH = useSharedValue(0);
@@ -314,7 +317,13 @@ export function HabitDragProvider({
       viewportH.set(sv.height);
     }
     const dt = Math.min(64, info.timeSincePreviousFrame ?? 16) / 1000;
-    const v = edgeScrollVelocity(pointerViewportY.get(), viewportH.get(), EDGE_SCROLL_ZONE, EDGE_SCROLL_MAX_V);
+    // Derive the finger's viewport-relative Y from the viewport top measured THIS frame — so the
+    // edge-scroll zone stays correct even while the finger is still and the iOS large title
+    // collapses under an auto-scroll. `absoluteY` is window-relative (RNGH recommends the absolute
+    // coords for a view the gesture transforms); `measure().pageY` is the scrollview's window Y, so
+    // the difference is the finger within the viewport — recomputed here, never a stale snapshot.
+    const pointerY = pointerAbsoluteY.get() - viewportTop.get();
+    const v = edgeScrollVelocity(pointerY, viewportH.get(), EDGE_SCROLL_ZONE, EDGE_SCROLL_MAX_V);
     if (v !== 0) {
       const maxOffset = Math.max(
         minOffset.get(),
@@ -458,7 +467,7 @@ export function HabitDragProvider({
   const value: DragState = {
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
     dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
-    grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
+    grabY, lastTranslationY, pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
     minOffset, frames, order, memberFrames, memberOrder, reorderStackId, memberDragIndex,
     memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
     onDragActive: setDragActive, finishBetween, finishInto, finishReorder, finishMerge, hoverTick,
@@ -503,7 +512,7 @@ export function DraggableEntry({
   const {
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
     dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
-    grabY, lastTranslationY, pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop,
+    grabY, lastTranslationY, pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop,
     minOffset, frames, order, scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween,
     finishInto, finishMerge,
   } = useDrag();
@@ -550,7 +559,7 @@ export function DraggableEntry({
       const gy = m.pageY - sv.pageY + scrollOffset.get() - gridTop.get();
       grabY.set(gy);
       lastTranslationY.set(0);
-      pointerViewportY.set(e.absoluteY - sv.pageY);
+      pointerAbsoluteY.set(e.absoluteY);
       ghostY.set(gy);
       ghostH.set(m.height);
       slotSize.set(m.height + DRAG_GRID_GAP);
@@ -572,7 +581,7 @@ export function DraggableEntry({
     .onUpdate((e) => {
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
-      pointerViewportY.set(e.absoluteY - viewportTop.get());
+      pointerAbsoluteY.set(e.absoluteY);
     })
     .onEnd(() => {
       if (draggingKey.get() !== entryKey) return;
@@ -725,7 +734,7 @@ function MemberRowDrag({
   const {
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
     committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
-    pointerViewportY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, order, frames,
+    pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, order, frames,
     memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
     scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto, finishReorder,
   } = useDrag();
@@ -777,7 +786,7 @@ function MemberRowDrag({
       const gy = m.pageY - sv.pageY + scrollOffset.get() - gridTop.get();
       grabY.set(gy);
       lastTranslationY.set(0);
-      pointerViewportY.set(e.absoluteY - sv.pageY);
+      pointerAbsoluteY.set(e.absoluteY);
       ghostY.set(gy);
       ghostH.set(m.height);
       slotSize.set(m.height + DRAG_GRID_GAP);
@@ -797,7 +806,7 @@ function MemberRowDrag({
     .onUpdate((e) => {
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
-      pointerViewportY.set(e.absoluteY - viewportTop.get());
+      pointerAbsoluteY.set(e.absoluteY);
     })
     .onEnd(() => {
       if (draggingKey.get() !== entryKey) return;
