@@ -490,6 +490,46 @@ export function DragGrid({ style, children }: { style?: StyleProp<ViewStyle>; ch
 }
 
 /**
+ * The drop-handoff hold, shared by the top-level entries and the in-card member rows (same problem,
+ * different geometry). On a reorder commit the rows swap to new layout slots (React) while their drag
+ * displacement resets to 0 (Reanimated, on the UI thread) — a sub-frame apart, so the row the drop
+ * lands beside jitters up/down before settling. This keeps a row visually put across that swap:
+ *
+ *  - `getShift` reports the row's *live* displacement (how far it has parted to open the drop gap),
+ *    or `null` when it isn't dragging. We mirror it into `offset` every frame, so the instant the
+ *    drag ends `offset` already carries the exact shift — no cross-worklet ordering race — and the
+ *    caller keeps the row put by reading `offset` while at rest.
+ *  - `release(slotY)` — called from the row's onLayout — drops the hold the moment the reordered
+ *    slot actually lands, so the transform reset and the layout swap coincide. A hard fallback
+ *    (`SETTLE_HANDOFF_MS`) covers a platform that never reports the slot move, so a row can't stick.
+ *
+ * `deps` are the non-shared-value captures of `getShift` (a row's index), so the reaction re-reads
+ * the right geometry after a reorder renumbers the rows.
+ */
+function useDropHandoff(
+  getShift: () => number | null,
+  deps: unknown[],
+): { offset: SharedValue<number>; release: (slotY: number) => void } {
+  const offset = useSharedValue(0);
+  const lastSlotY = useSharedValue<number | null>(null);
+  useAnimatedReaction(
+    getShift,
+    (shift, prevShift) => {
+      if (shift !== null) offset.set(shift); // mirror the live displacement while dragging
+      // Drag just ended while we were displaced: `offset` already holds the shift — keep it until
+      // the slot lands (release), with a hard fallback snap so a missed layout event can't stick us.
+      else if (prevShift != null && prevShift !== 0) offset.set(withDelay(SETTLE_HANDOFF_MS, withTiming(0, { duration: 0 })));
+    },
+    deps,
+  );
+  const release = (slotY: number) => {
+    if (lastSlotY.get() !== null && lastSlotY.get() !== slotY) offset.set(0);
+    lastSlotY.set(slotY);
+  };
+  return { offset, release };
+}
+
+/**
  * Wraps a top-level entry (a standalone habit row or a whole routine card): a deliberate hold
  * lifts it, entries around it spring aside to show where it would land, and a routine card
  * glows when a habit would join it. Also draws that glow (the accent ring) on stack entries.
@@ -516,34 +556,18 @@ export function DraggableEntry({
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
-  // The post-drop position hold. On a reorder the rows swap to new layout slots (React) while
-  // their drag displacement resets to 0 (Reanimated, on the UI thread) — a sub-frame apart, so
-  // the neighbour of the drop jitters up then down. `settleY` bridges that handoff: it freezes
-  // this row's on-screen offset the instant the drag ends, and `translateY` keeps the row put
-  // until its reordered slot actually lands (released in `onLayout`). Zero at all other times.
-  const settleY = useSharedValue(0);
-  // The last laid-out slot top — used to notice when the reorder has moved us, so the hold releases.
-  const slotY = useSharedValue<number | null>(null);
   const holdMs = kind === 'stack' ? CARD_LIFT_HOLD_MS : LIFT_HOLD_MS;
 
-  // When a drag ends, capture whatever displacement this row currently shows so `settleY` can hold
-  // it steady across the reorder's layout swap. Only the rows that actually parted to open the drop
-  // gap have a non-zero displacement (the dragged row and bystanders read 0 — see `displacementFor`),
-  // so this is a no-op for everything but the drop's immediate neighbours.
-  useAnimatedReaction(
-    () => draggingKey.get(),
-    (curr, prev) => {
-      if (prev == null || curr != null) return; // only the drag-end transition (null → held key would re-arm; guard both)
-      const held = displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
-      settleY.set(held);
-      // Belt-and-suspenders release in case onLayout never reports the slot move.
-      if (held !== 0) {
-        settleY.set(
-          withDelay(SETTLE_HANDOFF_MS, reduceMotion ? withTiming(0, { duration: 0 }) : withSpring(0, Spring.settle)),
-        );
-      }
-    },
-  );
+  // The drop-handoff hold (see useDropHandoff): keeps this entry visually put across a reorder's
+  // layout swap. Live displacement = how far it has parted to open the drop gap; only the drop's
+  // immediate neighbours ever read non-zero (the dragged row + bystanders read 0 — displacementFor).
+  const getShift = () => {
+    'worklet';
+    return draggingKey.get() === null
+      ? null
+      : displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
+  };
+  const { offset: settleY, release: releaseSettle } = useDropHandoff(getShift, [index]);
 
   // Register this entry's frame (grid coordinates — entries are direct grid children).
   // onLayout ignores transforms, so mid-drag displacement never pollutes the registry.
@@ -551,10 +575,7 @@ export function DraggableEntry({
   // read-modify-write against the async JS-side copy would drop all but the last entry.
   const onLayout = (e: LayoutChangeEvent) => {
     const { y, height } = e.nativeEvent.layout;
-    // The reordered slot has landed — drop the post-drop hold; the layout now carries the row to
-    // the right place, so any lingering `settleY` offset would only push it back off.
-    if (slotY.get() !== null && slotY.get() !== y) settleY.set(0);
-    slotY.set(y);
+    releaseSettle(y); // the reordered slot has landed → drop the handoff hold, in step with the swap
     frames.modify((f) => {
       'worklet';
       f[entryKey] = { y, h: height };
@@ -773,6 +794,18 @@ function MemberRowDrag({
   const preLift = useSharedValue(0);
   const entryKey = `member:${habitId}`;
 
+  // The drop-handoff hold (see useDropHandoff): keeps a member visually put across an in-card
+  // reorder's layout swap. Live displacement applies only while THIS card is the one being reordered
+  // (otherwise, and for the dragged member itself, it reads 0).
+  const getShift = () => {
+    'worklet';
+    if (draggingKey.get() === null) return null;
+    return reorderStackId.get() === parentStackId
+      ? displacementFor(memberIndex, memberDragIndex.get(), memberInsertIndex.get(), ghostH.get())
+      : 0;
+  };
+  const { offset: settleY, release: releaseSettle } = useDropHandoff(getShift, [memberIndex, parentStackId]);
+
   // Register this member row's grid-coordinate frame (measured on the UI thread and converted the
   // same way `onStart` does), so an in-card reorder can resolve where the finger would drop among
   // the siblings. Member rows are nested inside the card, so a plain `onLayout` gives only
@@ -791,6 +824,13 @@ function MemberRowDrag({
         return f;
       });
     });
+  };
+
+  // Parent-relative y is enough to notice our slot moved (an in-card reorder), so release the
+  // handoff hold in step with the layout swap, then re-measure the grid frame as before.
+  const onLayout = (e: LayoutChangeEvent) => {
+    releaseSettle(e.nativeEvent.layout.y);
+    registerFrame();
   };
 
   const pan = Gesture.Pan()
@@ -926,6 +966,7 @@ function MemberRowDrag({
     // While THIS card is being reordered, member rows part to open the gap at the target index —
     // the same displacement the top-level entries use, scoped to the card's members (the dragged
     // member's own shift is 0, and it's hidden anyway).
+    const dragging = draggingKey.get() !== null;
     const reordering = reorderStackId.get() === parentStackId;
     const shift = reordering
       ? displacementFor(memberIndex, memberDragIndex.get(), memberInsertIndex.get(), ghostH.get())
@@ -935,13 +976,15 @@ function MemberRowDrag({
       // feedback about where the member returns if the drag cancels. The pre-lift cue is a faint
       // dim (not a scale): a bare row has no card to float, and scaling its text only grained it.
       opacity: (draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1) * (1 - preLift.get() * PRE_LIFT_DIM),
-      transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }],
+      // At rest, `settleY` holds the row through a reorder's layout swap (0 otherwise); mid-drag it
+      // springs to the in-card displacement — mirrors the top-level entry handoff.
+      transform: [{ translateY: dragging ? (reduceMotion ? shift : withSpring(shift, Spring.settle)) : settleY.get() }],
     };
   });
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} onLayout={registerFrame} style={style}>
+      <Animated.View ref={ref} onLayout={onLayout} style={style}>
         {children}
       </Animated.View>
     </GestureDetector>
