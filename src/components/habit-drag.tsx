@@ -663,7 +663,12 @@ export function DraggableEntry({
   // atomic, so the row the drop lands beside can't jitter (a shared-value reset lands a frame off).
   const displacement = useAnimatedStyle(() => {
     const shift = displacementFor(index, dragIndex.get(), insertIndex.get(), slotSize.get());
-    return { transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }] };
+    // Spring the gap open while dragging, but the moment a drop commits (`committed`) hold the
+    // EXACT settled shift — no spring may still be in flight when React detaches this style on the
+    // atomic reorder, or Reanimated strands a partial translateY and the row rests a fraction of a
+    // slot off (the "placed half a row off" bug the plain gate left behind).
+    const t = reduceMotion || committed.get() ? shift : withSpring(shift, Spring.settle);
+    return { transform: [{ translateY: t }] };
   });
 
   // The DECOR is always on: hide-while-the-ghost-shows, the merge-target pop, and the pre-lift shadow.
@@ -695,7 +700,7 @@ export function DraggableEntry({
       {/* Outer view carries only the drag displacement, and only while a drag is live — so a drop's
           reset lands atomically with the reorder. `ref`/`onLayout` stay here (the grid child);
           onLayout ignores the transform, so `frames` still records the resting slot. */}
-      <Animated.View ref={ref} onLayout={onLayout} style={active ? displacement : undefined}>
+      <Animated.View ref={ref} onLayout={onLayout} style={active ? displacement : styles.noShift}>
         {/* Inner view carries the always-on decor. `styles.liftShadow` sets the (static) shadow
             colour the pre-lift bloom animates. */}
         <Animated.View style={[styles.liftShadow, decor]}>
@@ -913,7 +918,11 @@ function MemberRowDrag({
     const shift = reordering
       ? displacementFor(memberIndex, memberDragIndex.get(), memberInsertIndex.get(), ghostH.get())
       : 0;
-    return { transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }] };
+    // See DraggableEntry: freeze at the settled shift once a drop commits, so no in-flight spring is
+    // stranded when the style detaches on the atomic reorder (member rows are short, so a stranded
+    // fraction reads as a big slice of a row).
+    const t = reduceMotion || committed.get() ? shift : withSpring(shift, Spring.settle);
+    return { transform: [{ translateY: t }] };
   });
 
   // Always-on decor: the hidden original holds its slot open inside the card (honest feedback about
@@ -925,7 +934,7 @@ function MemberRowDrag({
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} onLayout={registerFrame} style={active ? displacement : undefined}>
+      <Animated.View ref={ref} onLayout={registerFrame} style={active ? displacement : styles.noShift}>
         <Animated.View style={decor}>{children}</Animated.View>
       </Animated.View>
     </GestureDetector>
@@ -1018,6 +1027,12 @@ const styles = StyleSheet.create({
   // opacity/radius/offset, so an entry casts no shadow until a deliberate hold begins.
   liftShadow: {
     shadowColor: '#000',
+  },
+  // The resting (no-drag) transform: an explicit identity so a drop's reset writes translateY 0
+  // through React's own commit — not by relying on Reanimated releasing the detached animated
+  // style — landing atomically with the reorder.
+  noShift: {
+    transform: [{ translateY: 0 }],
   },
   dropRing: {
     position: 'absolute',
