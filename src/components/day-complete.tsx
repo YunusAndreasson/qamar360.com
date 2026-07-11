@@ -50,7 +50,11 @@ export function useDayComplete(): DayCompleteContextValue {
 const VISIBLE_MS = 5200;
 const MOON_SIZE = 96;
 const GLOW_SIZE = 184;
-const SCRIM = 'rgba(0,0,0,0.5)';
+// A firmer modal scrim than the old 0.5: at 0.5 the app behind stayed clearly legible, so the
+// card — a near-black elevated surface on a near-black theme — didn't announce itself (you could
+// miss the moment). 0.64 recedes the app so the lit card + moon read as a distinct foreground layer
+// (still short of an opaque blackout — the night sky behind stays sensed, not erased).
+const SCRIM = 'rgba(0,0,0,0.64)';
 
 export function DayCompleteProvider({ children }: { children: ReactNode }) {
   const [celebration, setCelebration] = useState<{ id: number; day: string } | null>(null);
@@ -169,7 +173,10 @@ function DayCompleteOverlay({ day, onDismiss }: { day: string; onDismiss: () => 
       <Animated.View
         style={[
           styles.card,
-          { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+          // An ELEVATED surface (not the flat element fill): on dark this is a lifted panel that
+          // clears the scrim, on light it stays white. With the firmer scrim it reads as a distinct
+          // card, not a faint wash — the "better balance" between subtle and legible.
+          { backgroundColor: theme.backgroundElevated, borderColor: theme.border },
           Elevation.card,
           cardStyle,
         ]}

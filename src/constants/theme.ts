@@ -21,6 +21,10 @@ export const Colors = {
     // faint neutral page (not a tint of the page). `Elevation` does the lifting, not a fill step.
     background: '#F6F6F7',
     backgroundElement: '#FFFFFF',
+    // A raised surface for a focused overlay (modal / celebration card) sitting on a scrim. On the
+    // light page the element white already reads as lifted, so it matches `backgroundElement`; the
+    // dark side lightens it (a dark-theme elevation overlay) so the panel clears its scrim.
+    backgroundElevated: '#FFFFFF',
     backgroundSelected: '#EDEEEF',
     border: '#E3E4E6',
     // A faint top edge so an elevated card reads as lit from above (paired with `Elevation`).
@@ -65,6 +69,10 @@ export const Colors = {
     // seamlessly into the app.
     background: '#08090C',
     backgroundElement: '#141619',
+    // Raised surface for a focused overlay on a scrim — a dark-theme elevation overlay: lifted well
+    // above `backgroundElement` so a modal/celebration card reads as a distinct panel against the
+    // darkened app behind it (the near-black element fill would otherwise vanish into the scrim).
+    backgroundElevated: '#262B33',
     backgroundSelected: '#202427',
     border: '#292D31',
     // A whisper of light on the card's top edge — the Linear "lit from above" hairline.
