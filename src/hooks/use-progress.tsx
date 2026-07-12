@@ -95,18 +95,27 @@ export function useProgress(): ProgressData {
     }
   }, [userId]);
 
-  // Fetch on focus (covers the first mount too) so the view reflects ticks made
-  // on the Habits tab when the user switches back here.
+  // Preload on mount. Under NativeTabs every tab screen is mounted eagerly (all tabs
+  // pre-render and never unmount), so this fetch runs in the background the moment the user
+  // enters the tabs — while they're still on Habits. By the time they open Progress the data
+  // (and its one-time entrance animation) is already settled, so the screen pops with content
+  // instead of a skeleton. https://docs.expo.dev/router/advanced/native-tabs/
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      await fetchData();
+      if (active) setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [fetchData]);
+
+  // Refetch on focus so ticks made on the Habits tab appear on return. Silent — the mount
+  // preload owns the one-time loading gate, so this never re-shows the skeleton.
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      void (async () => {
-        await fetchData();
-        if (active) setLoading(false);
-      })();
-      return () => {
-        active = false;
-      };
+      void fetchData();
     }, [fetchData]),
   );
 

@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/use-auth';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
+import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { moonIllumination } from '@/lib/moon';
@@ -242,12 +243,18 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [stacks, setStacks] = useState<HabitStack[]>([]);
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
-  const [skipped, setSkipped] = useState<Set<string>>(new Set());
-  const [counts, setCounts] = useState<Map<string, number>>(new Map());
-  const [loading, setLoading] = useState(true);
+  // Seed from the last-known snapshot so a cold start paints real content on the first frame
+  // instead of a skeleton (revalidated on mount below). Trusted only when the snapshot's day is
+  // still today — a rolled-over or past-day snapshot falls back to the skeleton (see habits-cache).
+  const [snapshot] = useState(readHabitsSnapshot);
+  const seed = snapshot && snapshot.userId === userId && snapshot.day === todayLocalISO() ? snapshot : null;
+
+  const [habits, setHabits] = useState<Habit[]>(() => seed?.habits ?? []);
+  const [stacks, setStacks] = useState<HabitStack[]>(() => seed?.stacks ?? []);
+  const [completed, setCompleted] = useState<Set<string>>(() => new Set(seed?.completed));
+  const [skipped, setSkipped] = useState<Set<string>>(() => new Set(seed?.skipped));
+  const [counts, setCounts] = useState<Map<string, number>>(() => new Map(seed?.counts));
+  const [loading, setLoading] = useState(() => !seed);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
   const [viewDate, setViewDateState] = useState<string>(() => todayLocalISO());
@@ -381,6 +388,23 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [load]);
+
+  // Persist a snapshot of the viewed day so the next cold start paints instantly (the mount
+  // load above revalidates it). Tagged with `viewDate` — the day these completion sets belong
+  // to — so the seed is only trusted next launch when it's still today (see habits-cache).
+  // Skipped while the first load is still in flight, so we never cache the empty pre-seed state.
+  useEffect(() => {
+    if (loading || !userId) return;
+    writeHabitsSnapshot({
+      userId,
+      day: viewDate,
+      habits,
+      stacks,
+      completed: [...completed],
+      skipped: [...skipped],
+      counts: [...counts],
+    });
+  }, [loading, userId, viewDate, habits, stacks, completed, skipped, counts]);
 
   // Refetch completions when the viewed day changes (the mount load covers the first day).
   const didMount = useRef(false);
