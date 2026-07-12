@@ -577,7 +577,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId],
+    [userId, showDayComplete],
   );
 
   // Step a count-goal habit's logged count for the viewed day by `delta`, clamped to
@@ -683,7 +683,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId],
+    [userId, showDayComplete],
   );
 
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses

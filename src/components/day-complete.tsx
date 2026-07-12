@@ -19,8 +19,8 @@ import { ThemedText } from '@/components/themed-text';
 import { Duration, Tick } from '@/constants/motion';
 import { Elevation, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { useTheme } from '@/hooks/use-theme';
 import { loadProgress, type MonthProgress } from '@/hooks/use-progress';
+import { useTheme } from '@/hooks/use-theme';
 import { celebrationCopy } from '@/lib/celebration';
 import { hijriMonthRange, hijriParts } from '@/lib/dates';
 import { moonIllumination } from '@/lib/moon';
@@ -98,13 +98,12 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
   // Stats: a one-shot progress read (the overlay lives outside the navigator, so it can't use the
   // focus-driven useProgress hook). Gratitude + Hijri render immediately; stats fade in when ready.
   const [month, setMonth] = useState<MonthProgress | null>(null);
-  const [statsReady, setStatsReady] = useState(false);
+  // No user → nothing to fetch, so the stats are "ready" immediately. Seeded here rather than
+  // set from the effect (a synchronous setState-in-effect); the effect only runs the fetch.
+  const [statsReady, setStatsReady] = useState(!user?.id);
   useEffect(() => {
+    if (!user?.id) return; // nothing to fetch — statsReady already true
     let active = true;
-    if (!user?.id) {
-      setStatsReady(true);
-      return;
-    }
     void loadProgress(user.id, day, doneToday)
       .then((d) => {
         if (!active) return;
@@ -236,13 +235,12 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
  * final number at once.
  */
 function DegreesReadout({ target, reduceMotion }: { target: number; reduceMotion: boolean }) {
-  const [shown, setShown] = useState(reduceMotion ? target : 0);
+  // The count-up value. Reduce Motion renders `target` directly (derived below), so state is only
+  // ever driven for the animated path — no synchronous setState-in-effect for the reduced case.
+  const [animated, setAnimated] = useState(0);
 
   useEffect(() => {
-    if (reduceMotion) {
-      setShown(target);
-      return;
-    }
+    if (reduceMotion) return; // reduced motion renders `target` directly (see `shown`)
     // The stats block only appears once the fetch resolves — already after the beat — so the count-up
     // starts on mount (the fade-in reveals it) rather than sitting at 0.
     let raf = requestAnimationFrame(step);
@@ -251,13 +249,15 @@ function DegreesReadout({ target, reduceMotion }: { target: number; reduceMotion
       if (start == null) start = ts;
       const p = Math.min(1, (ts - start) / 600);
       const eased = 1 - Math.pow(1 - p, 3);
-      setShown(Math.round(target * eased));
+      setAnimated(Math.round(target * eased));
       if (p < 1) raf = requestAnimationFrame(step);
     }
     return () => {
       if (raf) cancelAnimationFrame(raf);
     };
   }, [target, reduceMotion]);
+
+  const shown = reduceMotion ? target : animated;
 
   return (
     <View style={styles.center}>

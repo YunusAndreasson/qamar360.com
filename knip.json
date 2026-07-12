@@ -7,7 +7,7 @@
     "scripts/**/*.js"
   ],
   "project": ["src/**/*.{ts,tsx}"],
-  "ignore": ["src/lib/database.types.ts"],
+  "ignore": ["src/lib/database.types.ts", "web/**"],
   "ignoreDependencies": [
     "@jest/globals",
     "@babel/types",
