@@ -3,19 +3,25 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
-import { AppIcon } from '@/components/app-icon';
+import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
+import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { FormField } from '@/components/form-field';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { MoonHalo } from '@/components/ornament/moon-halo';
+import { HeroGlow } from '@/components/ornament/hero-glow';
+import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { socialAuthAvailable } from '@/lib/social-auth';
 
 import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
+
+/** The signature "moon in the compass rings" hero — sized for the auth screen. */
+const HERO_SIZE = 200;
 
 const SUBTITLES: Record<Mode, string> = {
   'sign-in': 'Sign in to continue',
@@ -33,12 +39,14 @@ const SUBMIT_LABELS: Record<Mode, string> = {
 
 export default function SignInScreen() {
   const theme = useTheme();
-  const { signIn, signUp, resetPassword, verifyRecovery, updatePassword } = useAuth();
+  const { signIn, signUp, signInWithApple, signInWithGoogle, resetPassword, verifyRecovery, updatePassword } =
+    useAuth();
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(''); // also the new password in 'reset' mode
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [socialBusy, setSocialBusy] = useState<'apple' | 'google' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // Refs for keyboard "next" focus-chaining so the form is submittable without
@@ -52,6 +60,22 @@ export default function SignInScreen() {
     setCode('');
     if (next === 'sign-in' || next === 'sign-up') setPassword('');
     setMode(next);
+  }
+
+  async function handleSocial(provider: 'apple' | 'google') {
+    setError(null);
+    setNotice(null);
+    setSocialBusy(provider);
+    try {
+      if (provider === 'apple') await signInWithApple();
+      else await signInWithGoogle();
+      // On success, onAuthStateChange flips the root gate to (tabs). A cancel resolves as a
+      // no-op (no error), so nothing is shown when the user backs out of the native sheet.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed');
+    } finally {
+      setSocialBusy(null);
+    }
   }
 
   async function onSubmit() {
@@ -94,6 +118,9 @@ export default function SignInScreen() {
 
   const showEmail = mode !== 'reset';
   const showPassword = mode === 'sign-in' || mode === 'sign-up';
+  // Social sign-in leads the sign-in / sign-up screens; hidden during password recovery, and in
+  // Expo Go (the native modules aren't bundled there).
+  const showSocial = socialAuthAvailable && (mode === 'sign-in' || mode === 'sign-up');
 
   return (
     <ThemedView style={styles.container}>
@@ -106,14 +133,34 @@ export default function SignInScreen() {
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.brand}>
-          <MoonHalo size={300} strokeOpacity={0.16} />
-          <AppIcon name="moon" size={40} color={theme.accent} />
-          <ThemedText type="subtitle">qamar360</ThemedText>
+        <View style={styles.hero}>
+          {/* The circle framework as the brand moment: a soft moonlight bloom behind a young
+              crescent cradled in the octagram/compass halo. */}
+          <View style={styles.heroArt}>
+            <HeroGlow size={HERO_SIZE} />
+            <MoonEmblem size={HERO_SIZE} />
+          </View>
+          <ThemedText type="subtitle" style={styles.centeredText}>
+            qamar360
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
+            {SUBTITLES[mode]}
+          </ThemedText>
         </View>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-          {SUBTITLES[mode]}
-        </ThemedText>
+
+        {showSocial ? (
+          <View style={styles.social}>
+            <AppleSignInButton onPress={() => handleSocial('apple')} />
+            <GoogleSignInButton onPress={() => handleSocial('google')} busy={socialBusy === 'google'} />
+            <View style={styles.divider}>
+              <View style={[styles.rule, { backgroundColor: theme.border }]} />
+              <ThemedText type="small" themeColor="textSecondary">
+                or
+              </ThemedText>
+              <View style={[styles.rule, { backgroundColor: theme.border }]} />
+            </View>
+          </View>
+        ) : null}
 
         {showEmail ? (
           <FormField
@@ -226,8 +273,12 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  brand: { gap: Spacing.one },
-  subtitle: { marginBottom: Spacing.two },
+  hero: { alignItems: 'center', gap: Spacing.one },
+  heroArt: { width: HERO_SIZE, height: HERO_SIZE, alignItems: 'center', justifyContent: 'center' },
+  centeredText: { textAlign: 'center' },
+  social: { gap: Spacing.two },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, marginTop: Spacing.one },
+  rule: { flex: 1, height: StyleSheet.hairlineWidth },
   submitButton: {
     marginTop: Spacing.two,
   },

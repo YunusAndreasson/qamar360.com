@@ -7,10 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "qamar360",
     "userInterfaceStyle": "automatic",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "bundleIdentifier": "com.qamar360.app",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -44,6 +48,13 @@
           "ios": {
             "deploymentTarget": "17.0"
           }
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.417419719833-o6u0bg7tqjgvovlfib3sc1d303ab0bf9"
         }
       ],
       "./plugins/strip-aps-environment.js"

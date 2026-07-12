@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import * as socialAuth from '@/lib/social-auth';
 import { supabase } from '@/lib/supabase';
 
 import type { Session, User } from '@supabase/supabase-js';
@@ -11,6 +12,10 @@ type AuthContextValue = {
   initialized: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  /** Native Sign in with Apple (ID-token flow). No-op if the user cancels. */
+  signInWithApple: () => Promise<void>;
+  /** Native Sign in with Google (ID-token flow). No-op if the user cancels. */
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Email a one-time recovery code (tokenless reset — no deep link needed). */
   resetPassword: (email: string) => Promise<void>;
@@ -71,6 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
       },
+      // Native social sign-in lands a session that flows through the onAuthStateChange listener
+      // above, so these just delegate — no manual navigation. `public.users` is provisioned by the
+      // `handle_new_user` DB trigger (and `ensureUserRow` on first write), same as any signup.
+      signInWithApple: socialAuth.signInWithApple,
+      signInWithGoogle: socialAuth.signInWithGoogle,
       async signOut() {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
