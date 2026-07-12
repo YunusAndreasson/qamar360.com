@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { Alert, AppState, Linking, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
@@ -12,7 +12,7 @@ import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Links } from '@/constants/links';
-import { Radius, Spacing } from '@/constants/theme';
+import { Pressed, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -181,7 +181,6 @@ export default function SettingsScreen() {
 
       {/* About */}
       <SettingsSection title="About">
-        <SettingsRow icon="info" label="Version" value={version} />
         <SettingsRow
           icon="privacy"
           label="Privacy Policy"
@@ -202,67 +201,9 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-      {/* More from the maker — a quiet signature: byline → hub, socials, sibling apps. */}
-      <SettingsSection title="More from the maker">
-        <SettingsRow
-          icon="person"
-          label="Made by Yunus Andreasson"
-          sublabel="andreassonphoto.com"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.maker)}
-          showChevron
-        />
-        <SettingsRow
-          icon="link"
-          label="GitHub"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.github)}
-          showChevron
-        />
-        <SettingsRow
-          icon="link"
-          label="X"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.x)}
-          showChevron
-        />
-        <SettingsRow
-          icon="link"
-          label="Instagram"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.instagram)}
-          showChevron
-        />
-        <SettingsRow
-          icon="link"
-          label="LinkedIn"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.linkedin)}
-          showChevron
-        />
-        <SettingsRow
-          icon="apps"
-          label="islam.se"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.islamSe)}
-          showChevron
-        />
-        <SettingsRow
-          icon="apps"
-          label="open-arabic"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.openArabic)}
-          showChevron
-        />
-        <SettingsRow
-          icon="apps"
-          label="al-ibadah"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.alIbadah)}
-          showChevron
-        />
-        <SettingsRow
-          icon="apps"
-          label="zuhd.news"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.zuhdNews)}
-          showChevron
-        />
-      </SettingsSection>
-
-      {/* Danger zone */}
-      <SettingsSection title="Danger zone">
+      {/* Destructive actions — an unlabeled card at the foot of the list. No "Danger zone"
+          heading: the red rows carry the warning themselves. */}
+      <SettingsSection>
         <SettingsRow
           icon="reset"
           label="Reset progress"
@@ -278,6 +219,23 @@ export default function SettingsScreen() {
           onPress={confirmDelete}
         />
       </SettingsSection>
+
+      {/* Footer — a quiet sign-off. Version lives here (not a tappable-looking row); the maker
+          credit is a single whisper-quiet link to the projects page, not a section. */}
+      <View style={styles.footer}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
+          qamar360 · {version}
+        </ThemedText>
+        <Pressable
+          onPress={() => void WebBrowser.openBrowserAsync(Links.maker)}
+          accessibilityRole="link"
+          accessibilityLabel="Made by Yunus Andreasson, opens andreassonphoto.com"
+          style={({ pressed }) => (pressed ? styles.footerPressed : undefined)}>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
+            Made by Yunus Andreasson
+          </ThemedText>
+        </Pressable>
+      </View>
     </AppScreen>
   );
 }
@@ -295,4 +253,7 @@ const styles = StyleSheet.create({
   monogram: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1, gap: Spacing.half },
   appearance: { gap: Spacing.two },
+  footer: { alignItems: 'center', gap: Spacing.half, paddingTop: Spacing.two },
+  footerText: { textAlign: 'center' },
+  footerPressed: { opacity: Pressed.dim },
 });
