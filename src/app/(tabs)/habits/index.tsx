@@ -420,7 +420,7 @@ export default function HabitsScreen() {
         <Animated.ScrollView
           ref={scrollRef}
           style={[styles.list, styles.transparent]}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, entries.length === 0 && styles.emptyTop]}
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
@@ -721,4 +721,8 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
+  // Only when the list is empty: match the top offset AppScreen gives the Progress empty state
+  // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
+  // instead of jumping a notch when you switch between them. The populated list keeps its flush top.
+  emptyTop: { paddingTop: Spacing.two },
 });
