@@ -49,8 +49,10 @@ const CARD_VB = 300;
 // One *core* opacity for both variants so the screen "sky" and the card watermark read as a
 // single, consistent texture (the two used to differ, 0.05 vs 0.06). Each circle's actual
 // opacity is this × its luminosity weight, so the field blooms at the heart and recedes —
-// the heart sits a touch brighter than the old flat field, the rim far fainter.
-const STROKE_OPACITY = 0.075;
+// the heart sits a touch brighter than the old flat field, the rim far fainter. Kept low enough
+// to whisper, but high enough that the rosette actually reads on both the deep-space and the
+// near-white background (it had faded to near-invisible, especially in light mode).
+const STROKE_OPACITY = 0.12;
 
 const CONFIG: Record<Variant, FieldConfig> = {
   // Finer than the hero: smaller circles + more rings cover the screen as quiet texture, with
@@ -103,10 +105,10 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
   const theme = useTheme();
   const scheme = useEffectiveScheme();
   const uid = useId();
-  // Light mode dims the whole lattice: the dark-steel `pattern` lines on a white page read far
-  // stronger than the pale lines on deep space, so the same core opacity that whispers in dark
-  // was plainly visible in light (busiest exactly where section labels sit).
-  const dim = scheme === 'light' ? 0.55 : 1;
+  // Light mode still dims the lattice a little (dark-steel `pattern` lines on a white page read
+  // stronger than the pale lines on deep space), but only gently — the old 0.55 cut, on top of
+  // the low base opacity, faded the rosette to invisible in light mode.
+  const dim = scheme === 'light' ? 0.8 : 1;
   // The whole-screen sky carries tonight's real moon: a faint phase-lit disc in the upper-right,
   // plus a gentle wax/wane of the field's reach. Cards/hero keep their fixed motif.
   const phase = useMemo(() => {
