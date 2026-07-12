@@ -6,6 +6,7 @@ import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { CoalesceIn } from '@/components/coalesce-in';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
@@ -432,7 +433,6 @@ export default function HabitsScreen() {
               hasHabits={habits.length > 0}
               isToday={isToday}
               onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
-              onBrowse={() => router.push('/habits/discover')}
             />
           ) : (
             <HabitDragProvider
@@ -655,12 +655,10 @@ function HabitsEmptyState({
   hasHabits,
   isToday,
   onAdd,
-  onBrowse,
 }: {
   hasHabits: boolean;
   isToday: boolean;
   onAdd: () => void;
-  onBrowse: () => void;
 }) {
   // A rest day (you have habits, none fall today) is a calm, action-free "bedtime" note. The
   // brand-new user instead gets the warm moon emblem and a clear, inviting way in.
@@ -680,9 +678,7 @@ function HabitsEmptyState({
       art={<MoonEmblem />}
       title="Start your first habit"
       body="Pick one from the Sunnah library, or create your own.">
-      <AppButton onPress={onBrowse} accessibilityLabel="Browse Sunnah habits">
-        Browse Sunnah habits
-      </AppButton>
+      <BrowseHabitsButton />
       <AppButton variant="secondary" onPress={onAdd} accessibilityLabel="Add your own habit" hitSlop={8}>
         Add your own
       </AppButton>
