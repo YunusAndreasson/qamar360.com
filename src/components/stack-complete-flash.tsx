@@ -17,8 +17,9 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * The border flash a stack card gives the instant its last open act is ticked — the whole group
  * sealed. It reuses the drag "drop ring" shape (a 2px border overlaying the card's rounded rect),
- * but in the warm `complete` tone — the same colour the completing habit's ring settles into — and
- * as a one-shot bloom-and-fade rather than the drag ring's hover cross-fade.
+ * but in the `accent` steel tone — the stack's own identity colour (its header glyph and title are
+ * accent-tinted), so the seal reads as *this stack* closing rather than a generic "done" — and as a
+ * one-shot bloom-and-fade rather than the drag ring's hover cross-fade.
  *
  * The bloom is on the shared `Tick` clock (constants/motion), so it reads as one motion with the
  * completing tick: the border lights to full as the last habit's ring sweeps shut (`Tick.sweep`),
@@ -53,7 +54,7 @@ export function StackCompleteFlash({ complete }: { complete: boolean }) {
 
   const style = useAnimatedStyle(() => ({ opacity: flash.get() }));
 
-  return <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: theme.complete }, style]} />;
+  return <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: theme.accent }, style]} />;
 }
 
 const styles = StyleSheet.create({

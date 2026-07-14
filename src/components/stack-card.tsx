@@ -9,7 +9,7 @@ import { RowSeparator } from '@/components/row-separator';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { FontWeight, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
@@ -83,9 +83,9 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
               titles (header gap === the row's circle→title gap). Accent-tinted to match the title —
               together they mark this as a stack header. */}
           <View style={styles.leading}>
-            <AppIcon name="stack" size={22} color={theme.accent} />
+            <AppIcon name="stack" size={26} color={theme.accent} />
           </View>
-          <ThemedText type="smallBold" themeColor="accent" style={styles.title} numberOfLines={1}>
+          <ThemedText type="rowTitle" themeColor="accent" style={styles.title} numberOfLines={1}>
             {stack.name}
           </ThemedText>
           {/* A quiet "⋯ more" glyph, not a › — tapping the header opens the manage sheet (rename /
@@ -111,7 +111,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
                   sits directly under the stack icon and "Add your first habit" lines up with the
                   stack title (and the habit titles once members arrive). */}
               <View style={styles.leading}>
-                <AppIcon name="add" size={22} color={theme.accent} />
+                <AppIcon name="add" size={26} color={theme.accent} />
               </View>
               <ThemedText type="rowTitle" themeColor="accent">
                 Add your first habit
@@ -171,7 +171,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { flex: 1 },
+  // Sized to the member rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
+  // habits it holds; the accent tint + semibold weight (not a smaller size) mark it as the header.
+  title: { flex: 1, fontWeight: FontWeight.semibold },
   // Full-bleed rule under the stack header (a header separator, distinct from the row dividers).
   divider: { height: StyleSheet.hairlineWidth },
   // The empty card's single "Add your first habit" row — sized like a member row so the card

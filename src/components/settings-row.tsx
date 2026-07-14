@@ -94,11 +94,14 @@ export function SettingsRow({
 }
 
 const styles = StyleSheet.create({
+  // The iOS-standard grouped-list row: 44pt (the platform's row height + minimum tap target), with
+  // tight vertical padding so a single-line row sits at 44 and a two-line (sublabel) row grows just
+  // enough — closer to a native Settings list than the app's old roomier 48/62 rows.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
-    paddingVertical: Spacing.two,
+    minHeight: 44,
+    paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
   },

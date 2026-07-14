@@ -692,6 +692,22 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   },
 ];
 
+/**
+ * Presets for which "Add another" — a second, independent copy — is meaningful: an open-ended
+ * practice you might keep in more than one part of the day (a page of Qurʾān in both a Morning and
+ * an Evening stack, tracked as two ticks). Everything else in the library is a *singular* daily or
+ * occasion act — you pray Dhuhr once, fast ʿĀshūrāʾ once, and a counted goal (cups of water, tasbīḥ
+ * ×33) already carries its own volume — so a duplicate is nonsense and Discover hides the trailing
+ * ＋. Keyed by stable preset id so it holds for both the bundled list and the Supabase catalog with
+ * no schema change; add ids here as genuinely-repeatable presets appear.
+ */
+const REPEATABLE_PRESET_IDS = new Set<string>(['quran-daily-page']);
+
+/** Whether Discover should offer "Add another" (an independent copy) for this preset. */
+export function isRepeatablePreset(preset: SunnahPreset): boolean {
+  return REPEATABLE_PRESET_IDS.has(preset.id);
+}
+
 /** One starter stack: a named group of presets added together, in this order. */
 export type StarterStack = {
   /** The stack's name as created — plain English day-parts, per house style. */

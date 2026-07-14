@@ -157,14 +157,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // The tap-to-add area owns the left padding so its ripple/press dim reaches the edge.
+  // The tap-to-add area owns the left padding so its ripple/press dim reaches the edge. Tight
+  // vertical padding (the two-line title+subtitle already sets a comfortable height): a library of
+  // these should scan compact, closer to a native list row than the app's roomier settings rows.
   add: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
+    minHeight: 44, // the iOS minimum tap target; the content sits a little above it
     paddingLeft: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingVertical: Spacing.one,
     gap: Spacing.three,
   },
   badge: {

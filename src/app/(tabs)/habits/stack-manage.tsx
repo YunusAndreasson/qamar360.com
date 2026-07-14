@@ -63,7 +63,7 @@ export default function StackManageScreen() {
   if (!stack) return null;
 
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.four }]}>
+    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
       <View style={styles.header}>
         <ThemedText type="heading" numberOfLines={1}>
           {stack.name}
@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    minHeight: 56, // comfortably above the 44pt minimum tap target
-    paddingVertical: Spacing.two,
+    minHeight: 44, // the iOS-standard row height + minimum tap target
+    paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
   },
   rowText: { flex: 1 },

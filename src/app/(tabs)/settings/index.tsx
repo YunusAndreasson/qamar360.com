@@ -9,6 +9,7 @@ import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
+import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
@@ -181,16 +182,20 @@ export default function SettingsScreen() {
         <SettingsRow icon="signOut" label="Sign out" onPress={confirmSignOut} />
       </SettingsSection>
 
-      {/* About */}
-      <SettingsSection title="About">
-        {/* The habit-stacking guide — the same sheet the Today hint opens, findable here after
-            that one-shot hint has retired. */}
+      {/* Guide — the in-app how-to for the app's core method, split out from the external
+          legal/support links in "About" so a "learn how it works" row doesn't read as fine print.
+          (Same sheet the Today hint opens, findable here once that one-shot hint has retired.) */}
+      <SettingsSection title="Guide">
         <SettingsRow
           icon="stack"
           label="Habit stacking"
           onPress={() => router.push('/settings/stacking-info')}
           showChevron
         />
+      </SettingsSection>
+
+      {/* About */}
+      <SettingsSection title="About">
         <SettingsRow
           icon="privacy"
           label="Privacy Policy"
@@ -230,9 +235,11 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-      {/* Footer — a quiet sign-off. Version lives here (not a tappable-looking row); the maker
-          credit is a single whisper-quiet link to the projects page, not a section. */}
+      {/* Footer — a quiet sign-off. The app's website + socials sit here as a compact icon row
+          (the conventional home for them); the version follows (not a tappable-looking row), and
+          the maker credit is a single whisper-quiet link to the projects page, not a section. */}
       <View style={styles.footer}>
+        <SocialLinks style={styles.footerSocial} />
         <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
           {APP_NAME} · {version}
         </ThemedText>
@@ -265,6 +272,8 @@ const styles = StyleSheet.create({
   identityText: { flex: 1, gap: Spacing.half },
   appearance: { gap: Spacing.two },
   footer: { alignItems: 'center', gap: Spacing.half, paddingTop: Spacing.two },
+  // A little air below the social row so it doesn't crowd the version line beneath it.
+  footerSocial: { marginBottom: Spacing.two },
   footerText: { textAlign: 'center' },
   footerPressed: { opacity: Pressed.dim },
   makerLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },

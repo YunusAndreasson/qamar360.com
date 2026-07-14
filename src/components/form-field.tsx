@@ -2,7 +2,7 @@ import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
 import { FieldLabel } from '@/components/field-label';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, Typography } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { Ref } from 'react';
@@ -41,7 +41,11 @@ export function FormField({ label, hint, error, style, ref, ...props }: Props) {
 
 const styles = StyleSheet.create({
   input: {
-    ...Typography.default,
+    // A comfortably large 18pt — the app can afford it and it reads better on iOS. Deliberately
+    // NO `lineHeight`: an explicit lineHeight on an iOS TextInput clips the glyph box — the tops of
+    // ascenders and the app's Arabic diacritics (ā ḥ ṣ ʿ) get cut off. Let the font set its own,
+    // and let the vertical padding (not a fixed height) size the field so nothing is clipped.
+    fontSize: 18,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.three,

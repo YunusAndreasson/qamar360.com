@@ -18,7 +18,7 @@ export function StackingGuide() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.four }]}>
+    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
       <View style={styles.header}>
         <AppIcon name="stack" size={22} color={theme.accent} />
         <ThemedText type="heading">Habit stacking</ThemedText>
@@ -57,7 +57,6 @@ const styles = StyleSheet.create({
   sheet: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.four,
-    paddingBottom: Spacing.four,
     gap: Spacing.three,
   },
   header: {

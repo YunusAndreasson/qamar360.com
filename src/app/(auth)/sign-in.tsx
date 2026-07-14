@@ -5,10 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '@/components/app-button';
 import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
-import { QMark } from '@/components/brand/q-mark';
+import { BrandHero } from '@/components/brand/brand-hero';
 import { FormField } from '@/components/form-field';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { HeroGlow } from '@/components/ornament/hero-glow';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { APP_NAME } from '@/constants/app';
@@ -21,8 +20,9 @@ import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
 
-/** The brand hero — the geometric "Q" mark over a moonlight bloom, sized for the auth screen. */
-const HERO_SIZE = 200;
+/** The brand hero — the geometric "Q" framing a lit moon. A refined lockup size (a 200px outline
+ *  read as oversized); the crisp mark + defined moon carry the brand without dominating the form. */
+const HERO_SIZE = 132;
 
 const SUBTITLES: Record<Mode, string> = {
   'sign-in': 'Sign in to continue',
@@ -135,11 +135,10 @@ export default function SignInScreen() {
         showsVerticalScrollIndicator={false}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.hero}>
-          {/* The brand moment: the app's geometric "Q" mark over a soft moonlight bloom — the
-              360° circle reading as a full moon behind the letter. */}
+          {/* The brand moment: the app's geometric "Q" framing a soft moonlight disc — the 360°
+              circle reading as a full moon the letter encircles. */}
           <View style={styles.heroArt}>
-            <HeroGlow size={HERO_SIZE} />
-            <QMark size={HERO_SIZE} />
+            <BrandHero size={HERO_SIZE} />
           </View>
           <ThemedText type="subtitle" style={styles.centeredText}>
             {APP_NAME}
@@ -237,7 +236,7 @@ export default function SignInScreen() {
           </ThemedText>
         ) : null}
 
-        <AppButton variant="neutral" busy={busy} onPress={onSubmit} style={styles.submitButton}>
+        <AppButton variant="primary" busy={busy} onPress={onSubmit} style={styles.submitButton}>
           {SUBMIT_LABELS[mode]}
         </AppButton>
 
@@ -274,7 +273,9 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  hero: { alignItems: 'center', gap: Spacing.one },
+  // A touch of air under the lockup so the wordmark doesn't hug the mark and the form gets room
+  // to breathe below — the difference between "polished" and "toy" is often just the spacing.
+  hero: { alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.two },
   heroArt: { width: HERO_SIZE, height: HERO_SIZE, alignItems: 'center', justifyContent: 'center' },
   centeredText: { textAlign: 'center' },
   social: { gap: Spacing.two },

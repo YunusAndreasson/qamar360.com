@@ -13,7 +13,7 @@ import { SunnahPresetRow } from '@/components/sunnah-preset-row';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
-import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
+import { isRepeatablePreset, scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
@@ -344,7 +344,7 @@ export default function DiscoverScreen() {
                   added={addedFor(preset)}
                   onAdd={() => addPreset(preset)}
                   onRemove={() => removePreset(preset)}
-                  onAddAnother={scoped ? undefined : () => void addAnother(preset)}
+                  onAddAnother={scoped || !isRepeatablePreset(preset) ? undefined : () => void addAnother(preset)}
                 />
               ))}
             </SettingsSection>
@@ -411,7 +411,7 @@ export default function DiscoverScreen() {
                     added={addedFor(preset)}
                     onAdd={() => addPreset(preset)}
                     onRemove={() => removePreset(preset)}
-                    onAddAnother={scoped ? undefined : () => void addAnother(preset)}
+                    onAddAnother={scoped || !isRepeatablePreset(preset) ? undefined : () => void addAnother(preset)}
                   />
                 ))}
               </SettingsSection>

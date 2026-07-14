@@ -22,7 +22,7 @@ export default function AddMenuScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.four }]}>
+    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
       <View style={styles.header}>
         <ThemedText type="heading">Add</ThemedText>
       </View>
@@ -31,14 +31,14 @@ export default function AddMenuScreen() {
         <ChoiceRow
           icon="add"
           label="New habit"
-          sublabel="One act to track — from the Sunnah library, or your own."
+          sublabel="A single habit to track."
           onPress={() => router.replace('/habits/discover')}
         />
         <RowSeparator />
         <ChoiceRow
           icon="stack"
           label="New stack"
-          sublabel="A named group of habits done in sequence, like After Fajr."
+          sublabel="A group of habits, in order."
           onPress={() => router.replace('/habits/stack-new')}
         />
       </Surface>
@@ -81,8 +81,9 @@ function ChoiceRow({
 }
 
 const styles = StyleSheet.create({
-  // Padded content of a `fitToContents` sheet — the grabber sits above this, the safe-area
-  // bottom inset is added inline so the last row clears the home indicator.
+  // Padded content of a `fitToContents` sheet — the grabber sits above this, the safe-area bottom
+  // inset (+ a small gap) is added inline so the last row clears the home indicator without a slab
+  // of dead space beneath it.
   sheet: {
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.four,
@@ -96,8 +97,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    minHeight: 56, // comfortably above the 44pt minimum tap target
-    paddingVertical: Spacing.two,
+    minHeight: 44, // the iOS-standard row height + minimum tap target
+    paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
   },
   rowText: { flex: 1, gap: 2 },
