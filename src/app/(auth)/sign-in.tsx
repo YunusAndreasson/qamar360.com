@@ -5,12 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '@/components/app-button';
 import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
+import { QMark } from '@/components/brand/q-mark';
 import { FormField } from '@/components/form-field';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { HeroGlow } from '@/components/ornament/hero-glow';
-import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { APP_NAME } from '@/constants/app';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
@@ -20,7 +21,7 @@ import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
 
-/** The signature "moon in the compass rings" hero — sized for the auth screen. */
+/** The brand hero — the geometric "Q" mark over a moonlight bloom, sized for the auth screen. */
 const HERO_SIZE = 200;
 
 const SUBTITLES: Record<Mode, string> = {
@@ -134,14 +135,14 @@ export default function SignInScreen() {
         showsVerticalScrollIndicator={false}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.hero}>
-          {/* The circle framework as the brand moment: a soft moonlight bloom behind a young
-              crescent cradled in the octagram/compass halo. */}
+          {/* The brand moment: the app's geometric "Q" mark over a soft moonlight bloom — the
+              360° circle reading as a full moon behind the letter. */}
           <View style={styles.heroArt}>
             <HeroGlow size={HERO_SIZE} />
-            <MoonEmblem size={HERO_SIZE} />
+            <QMark size={HERO_SIZE} />
           </View>
           <ThemedText type="subtitle" style={styles.centeredText}>
-            qamar360
+            {APP_NAME}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
             {SUBTITLES[mode]}
@@ -236,7 +237,7 @@ export default function SignInScreen() {
           </ThemedText>
         ) : null}
 
-        <AppButton busy={busy} onPress={onSubmit} style={styles.submitButton}>
+        <AppButton variant="neutral" busy={busy} onPress={onSubmit} style={styles.submitButton}>
           {SUBMIT_LABELS[mode]}
         </AppButton>
 

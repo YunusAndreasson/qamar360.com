@@ -1,5 +1,5 @@
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, type ListRenderItemInfo } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -10,21 +10,18 @@ import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
-import { SunnahRoutineRow } from '@/components/sunnah-routine-row';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
-import {
-  routinePresets,
-  type SunnahCategory,
-  type SunnahPreset,
-  type SunnahRoutine,
-} from '@/constants/sunnah-habits';
+import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
-import { useHabits } from '@/hooks/use-habits';
+import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { normalizeName } from '@/lib/names';
+import { placementToRestore } from '@/lib/drag-order';
+import { haptics } from '@/lib/haptics';
+import { dedupeName, normalizeName } from '@/lib/names';
+import { buildStarterPlan } from '@/lib/starter';
 
 const toCreate = (preset: SunnahPreset) => ({
   name: preset.name,
@@ -39,8 +36,8 @@ const toCreate = (preset: SunnahPreset) => ({
   reminder_time: null,
 });
 
-/** 'all' | 'routines' | a category id — the active chip narrows the corpus searched. */
-type FilterId = 'all' | 'routines' | SunnahCategory['id'];
+/** 'all' | a category id — the active chip narrows the corpus searched. */
+type FilterId = 'all' | SunnahCategory['id'];
 
 /**
  * One virtualized row of the library — a whole section card (or the banner / empty state), so
@@ -52,34 +49,65 @@ type Row =
   | { type: 'empty' }
   | { type: 'results' }
   | { type: 'starter' }
-  | { type: 'routines' }
+  | { type: 'yourHabits'; habits: Habit[] }
   | { type: 'category'; category: SunnahCategory; presets: SunnahPreset[] }
   | { type: 'create' };
 
 const rowKey = (row: Row) => (row.type === 'category' ? `category-${row.category.id}` : row.type);
 
-/** The breathing room between section cards (tight on purpose — many short cards in a column). */
+/** The air between sections — generous so each category reads as its own group (its heading
+ * hugs its card from above, tighter than the gap to the section before). */
 const SectionGap = () => <View style={styles.gap} />;
 
 /**
  * Discover — a curated, evidence-backed library of SMART Sunnah habits. Search or filter to
- * find one fast, then add it with a single tap from the row (no need to expand first); expand
- * to read how it's tracked and its Sunnah source. Manual entry lives at the foot and in the
- * persistent header +. A pushed sub-screen of the Habits Stack, so it shares `HabitsProvider`.
- * The body is a virtualized FlatList of section cards, so only visible sections mount.
+ * find one fast, then add it with a single tap from the row (no need to expand first); once
+ * added, a trailing ＋ adds another independent copy — for a habit you keep in more than one
+ * place (a page of Qurʾān in both Morning and Evening). Expand to read how it's tracked and its
+ * Sunnah source. The library leads: the starter set for new
+ * users, then the categories; "Create your own" closes the list as a quiet row for the rarer
+ * from-scratch path. A native modal sheet of the Habits Stack (from the bottom, like the
+ * editor), so it shares `HabitsProvider`; a left-aligned Close dismisses it (set in the
+ * layout). The body is a virtualized FlatList of section cards, so only visible sections mount.
+ *
+ * With a `stackId` param (the empty card's "Add your first habit" and the ⋯ menu's "Add
+ * habits") the same screen adds *into* that stack: the title says so, rows answer "in this
+ * stack?" rather than "exists?", adds land as members (existing lone habits move in instead of
+ * duplicating), the ✓ tap un-members rather than deletes, and a "Your habits" section offers
+ * the lone habits you already have.
  */
 export default function DiscoverScreen() {
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { habits, stacks, createHabit, createHabits, createStack, deleteHabit, deleteStack, error, dismissError } =
-    useHabits();
-  const { categories, presets, routines, essentialPresets } = useCatalog();
+  const { stackId } = useLocalSearchParams<{ stackId?: string }>();
+  const {
+    habits,
+    stacks,
+    createHabit,
+    createHabits,
+    createHabitInStack,
+    createStack,
+    updateStack,
+    deleteStack,
+    moveHabit,
+    deleteHabit,
+    error,
+    dismissError,
+  } = useHabits();
+  const { categories, presets } = useCatalog();
 
-  // All → Routines → one chip per category, from the live category list.
+  const stack = stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
+  const scoped = stack !== null;
+
+  // Scoped to a stack that no longer exists (deleted while this modal was up): back out.
+  useEffect(() => {
+    if (stackId && !stack) router.back();
+  }, [stackId, stack, router]);
+
+  // All → one chip per category, from the live category list.
   const filters: Filter[] = [
     { id: 'all', label: 'All' },
-    { id: 'routines', label: 'Routines' },
     ...categories.map((c) => ({ id: c.id, label: c.title })),
   ];
 
@@ -96,45 +124,68 @@ export default function DiscoverScreen() {
   // by deleting the exact habit it created (the ✓ becomes tap-to-remove).
   const habitByName = useMemo(() => new Map(habits.map((h) => [normalizeName(h.name), h])), [habits]);
   const existing = useMemo(() => new Set(habitByName.keys()), [habitByName]);
-  const existingStacks = useMemo(() => new Set(stacks.map((s) => normalizeName(s.name))), [stacks]);
 
-  const removePreset = useCallback(
-    (preset: SunnahPreset) => {
-      const habit = habitByName.get(normalizeName(preset.name));
-      if (habit) void deleteHabit(habit.id);
-    },
-    [habitByName, deleteHabit],
-  );
+  // Scoped: a row is "added" only when its habit is a member of THIS stack — the surface
+  // manages membership; the plain screen manages existence.
+  const addedFor = (preset: SunnahPreset) => {
+    const habit = habitByName.get(normalizeName(preset.name));
+    return scoped ? habit?.stack_id === stack.id : habit !== undefined;
+  };
 
-  // Tap-to-undo for an added routine — the same idiom as a preset row: the stack and its
-  // member habits go together, as one unit, the way the add created them.
-  const removeRoutine = useCallback(
-    (routine: SunnahRoutine) => {
-      const stack = stacks.find((s) => normalizeName(s.name) === normalizeName(routine.name));
-      if (!stack) return;
-      const members = habits.filter((h) => h.stack_id === stack.id);
-      // Stack first (the row's ✓ keys off the stack name, so it flips back at once), then the
-      // members. Done here rather than through deleteHabit's empty-stack detection because
-      // these calls land in one tick and the ref that detection consults syncs between renders.
-      void deleteStack(stack.id);
-      for (const m of members) void deleteHabit(m.id);
-    },
-    [stacks, habits, deleteStack, deleteHabit],
-  );
+  const addPreset = (preset: SunnahPreset) => {
+    if (!scoped) {
+      void createHabit(toCreate(preset));
+      return;
+    }
+    const found = habitByName.get(normalizeName(preset.name));
+    if (!found) {
+      void createHabitInStack(toCreate(preset), stack.id);
+      return;
+    }
+    // The habit already exists — move it in rather than duplicate. Pulling it out of another
+    // stack is the one side effect not visible from here, so that case confirms with an Undo.
+    const fromStack = found.stack_id ? (stacks.find((s) => s.id === found.stack_id) ?? null) : null;
+    const restore = placementToRestore(habits, found.id);
+    void moveHabit(found.id, { toStackId: stack.id });
+    if (fromStack && restore) {
+      toast.show(`Moved from ${fromStack.name}`, 'success', {
+        label: 'Undo',
+        onPress: () => void moveHabit(found.id, restore),
+      });
+    }
+  };
 
-  // The starter set, minus anything already added.
-  const starterRemaining = useMemo(
-    () => essentialPresets.filter((p) => !existing.has(normalizeName(p.name))),
-    [essentialPresets, existing],
-  );
+  const removePreset = (preset: SunnahPreset) => {
+    const habit = habitByName.get(normalizeName(preset.name));
+    if (!habit) return;
+    if (scoped) {
+      // Un-member, never delete: a habit added here by mistake survives as a lone row the user
+      // can still see on Today. Keep the shell — this screen belongs to that stack.
+      void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
+    } else {
+      void deleteHabit(habit.id);
+    }
+  };
 
-  // Routines visible under the current chip + search term (the two are ANDed).
-  const visibleRoutines = useMemo(() => {
-    if (filter !== 'all' && filter !== 'routines') return [];
-    return routines.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.detail.toLowerCase().includes(q),
-    );
-  }, [routines, filter, q]);
+  // "Add another" (the trailing ＋ on an already-added row): a second, independent copy for a
+  // habit you want in more than one place — a page of Qurʾān in both Morning and Evening. Names
+  // carry the app's habit identity (the editors reject a collision), so the copy takes the next
+  // free "… 2"/"… 3" — distinct on Today, and one tap from a rename via the toast. Plain screen
+  // only: inside a stack the same tap means "put the existing one in this stack".
+  const addAnother = async (preset: SunnahPreset) => {
+    const name = dedupeName(preset.name, existing);
+    const [created] = await createHabits([{ ...toCreate(preset), name }]);
+    if (!created) return; // createHabits already surfaced the error
+    toast.show(`Added another “${preset.name}”`, 'success', {
+      label: 'Rename',
+      onPress: () => router.push({ pathname: '/habits/editor', params: { id: created.id } }),
+    });
+  };
+
+  // The starter plan: presets not yet added, grouped into the ready-made day-part stacks
+  // (Morning / Midday / Evening / Night, matching an existing same-named stack rather than
+  // creating a twin), plus the standalone tail.
+  const starterPlan = useMemo(() => buildStarterPlan(presets, existing, stacks), [presets, existing, stacks]);
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
   // categories drop out so a filtered view shows no bare headers.
@@ -154,73 +205,102 @@ export default function DiscoverScreen() {
   );
 
   const flatPresets = useMemo(() => categorySections.flatMap((s) => s.presets), [categorySections]);
-  const resultCount = visibleRoutines.length + flatPresets.length;
+  const resultCount = flatPresets.length;
+
+  // Scoped: the user's lone habits (in no stack), one tap from joining this one. Habits whose
+  // name matches a library preset are left to their preset row (same tap, no double listing),
+  // so this section is effectively their custom habits. Search-filtered like the presets.
+  const presetNames = useMemo(() => new Set(presets.map((p) => normalizeName(p.name))), [presets]);
+  const loneHabits = scoped
+    ? habits.filter(
+        (h) =>
+          h.stack_id === null &&
+          !presetNames.has(normalizeName(h.name)) &&
+          (!searching || h.name.toLowerCase().includes(q)),
+      )
+    : [];
 
   // The virtualized list's data: one row per section card. The error banner is a row too
   // (only when there is an error, so no phantom cell + separator when there isn't).
   // No manual memo — the React Compiler caches this (and `renderRow` below) by its inputs.
   const rows: Row[] = [];
   if (error) rows.push({ type: 'banner' });
+  // Scoped: what you already have leads — pulling an existing habit in beats creating a twin.
+  if (loneHabits.length > 0) rows.push({ type: 'yourHabits', habits: loneHabits });
   if (searching) {
-    rows.push(resultCount === 0 ? { type: 'empty' } : { type: 'results' });
+    if (resultCount > 0) rows.push({ type: 'results' });
+    else if (loneHabits.length === 0) rows.push({ type: 'empty' });
   } else {
-    if (isDefault && starterRemaining.length > 0) rows.push({ type: 'starter' });
-    if (visibleRoutines.length > 0) rows.push({ type: 'routines' });
+    // Library-first: the curated Sunnah habits are why this screen exists, so they lead —
+    // the starter set for a fresh account, then the categories. Create-your-own closes the
+    // list as a quiet row: the from-scratch path stays one tap away without shouting over
+    // the library (and the empty-search state offers it too). The starter belongs to the
+    // plain screen only — inside a stack it would add habits *outside* it.
+    if (isDefault && !scoped && starterPlan.total > 0) rows.push({ type: 'starter' });
     for (const section of categorySections) rows.push({ type: 'category', ...section });
-    // The manual-entry door stays at the foot of every browse view (not just "All") — it is
-    // the screen's only create-your-own path now that the header no longer doubles the + glyph.
     rows.push({ type: 'create' });
   }
 
-  // Add a routine: create any missing member habits, then group them all in sequence.
-  // The new habits land on the Today list — usually below the fold — so a toast confirms the
-  // add where it happened, and its Undo removes exactly what this tap created (the stack plus
-  // only the habits that didn't already exist).
-  const addRoutine = useCallback(
-    async (routine: SunnahRoutine) => {
-      // The row is inert once added, but guard against a double-tap racing the state update —
-      // without this, two taps create two "On waking" stacks.
-      if (existingStacks.has(normalizeName(routine.name))) return;
-      const members = routinePresets(routine, presets);
-      if (members.length < 2) return;
-      const byName = new Map(habits.map((h) => [normalizeName(h.name), h]));
-      const missing = members.filter((p) => !byName.has(normalizeName(p.name)));
-      const created = missing.length > 0 ? await createHabits(missing.map(toCreate)) : [];
-      if (created.length !== missing.length) return; // a create failed — error already shown
-      for (const h of created) byName.set(normalizeName(h.name), h);
-      const orderedIds: string[] = [];
-      for (const p of members) {
-        const h = byName.get(normalizeName(p.name));
-        if (h) orderedIds.push(h.id);
+  // Add the starter stacks — one insert for every remaining habit (contiguous positions),
+  // then the grouping: each planned group becomes a new stack, or appends to the same-named
+  // one the user already has. Sequential awaits are safe — createHabits and createStack keep
+  // `habitsRef` authoritative between chained calls. The button isn't an `ExpandableAddRow`,
+  // so it fires the "commit" haptic itself, and the toast introduces where everything went,
+  // since it all lands below the fold on Today.
+  const addStarterSet = async () => {
+    const plan = starterPlan;
+    const inputs = [...plan.groups.flatMap((g) => g.presets), ...plan.lone].map(toCreate);
+    const created = await createHabits(inputs);
+    if (created.length === 0) return;
+    haptics.added();
+
+    // Map the fresh rows back to their groups by the same folded name used for dedupe.
+    const createdByName = new Map(created.map((h) => [normalizeName(h.name), h]));
+    const createdStackIds: string[] = [];
+    for (const group of plan.groups) {
+      const memberIds = group.presets
+        .map((p) => createdByName.get(normalizeName(p.name))?.id)
+        .filter((id): id is string => id !== undefined);
+      if (memberIds.length === 0) continue;
+      if (group.existingStackId) {
+        // Append to the user's own same-named stack (its membership didn't change during the
+        // insert — the new rows landed standalone), keeping their order ahead of the new tail.
+        const current = habits
+          .filter((h) => h.stack_id === group.existingStackId)
+          .sort((a, b) => a.position - b.position)
+          .map((h) => h.id);
+        await updateStack(group.existingStackId, { orderedMemberIds: [...current, ...memberIds] });
+      } else {
+        const newStackId = await createStack(group.name, memberIds);
+        if (newStackId) createdStackIds.push(newStackId);
       }
-      if (orderedIds.length < 2) return;
-      const stackId = await createStack(routine.name, orderedIds);
-      if (!stackId) return;
-      toast.show(`Added “${routine.name}” — ${orderedIds.length} habits`, 'success', {
+    }
+
+    const habitPart = `${created.length} essential${created.length === 1 ? '' : 's'}`;
+    const stackCount = createdStackIds.length;
+    toast.show(
+      stackCount > 0
+        ? `Added ${habitPart} in ${stackCount} stack${stackCount === 1 ? '' : 's'} — find them on Today`
+        : `Added your ${habitPart} — find them on Today`,
+      'success',
+      {
         label: 'Undo',
         onPress: () => {
-          void deleteStack(stackId);
+          // Shells first, then habits: deleting the habits first would trip each stack's
+          // empty-shell sweep against a ref that hasn't seen the previous delete yet, and
+          // could strand shells that now render as empty cards.
+          for (const createdStackId of createdStackIds) void deleteStack(createdStackId);
           for (const h of created) void deleteHabit(h.id);
         },
-      });
-    },
-    [habits, presets, existingStacks, createHabits, createStack, deleteStack, deleteHabit, toast],
-  );
-
-  // Add the starter set — same pattern: multi-add lands off-screen, so confirm with an Undo
-  // that deletes exactly the habits this tap created.
-  const addStarterSet = useCallback(async () => {
-    const created = await createHabits(starterRemaining.map(toCreate));
-    if (created.length === 0) return;
-    toast.show(`Added ${created.length} essential${created.length === 1 ? '' : 's'}`, 'success', {
-      label: 'Undo',
-      onPress: () => {
-        for (const h of created) void deleteHabit(h.id);
       },
-    });
-  }, [starterRemaining, createHabits, deleteHabit, toast]);
+    );
+  };
 
-  const goCreateHabit = () => router.push({ pathname: '/habits/editor', params: { id: 'new' } });
+  const goCreateHabit = () =>
+    router.push({
+      pathname: '/habits/editor',
+      params: stack ? { id: 'new', stackId: stack.id } : { id: 'new' },
+    });
 
   const renderRow = ({ item, index }: ListRenderItemInfo<Row>) => {
     // Every cell shares the side gutters; the first also restores the breathing room the
@@ -241,7 +321,7 @@ export default function DiscoverScreen() {
             <EmptyState
               icon="searchOff"
               title={`No matches for “${query.trim()}”`}
-              body="Try another word, or create your own.">
+              body={'Try another word, or create your own.'}>
               <AppButton
                 variant="secondary"
                 onPress={goCreateHabit}
@@ -252,32 +332,49 @@ export default function DiscoverScreen() {
           </View>
         );
       case 'results':
+        // Search flattens the categories into one card; the overline is a meta count, not a
+        // section, so it keeps the quiet label treatment.
         return (
           <View style={wrap}>
             <SettingsSection title={`${resultCount} result${resultCount === 1 ? '' : 's'}`}>
-              {visibleRoutines.map((routine) => (
-                <SunnahRoutineRow
-                  key={routine.id}
-                  routine={routine}
-                  added={existingStacks.has(normalizeName(routine.name))}
-                  onAdd={() => void addRoutine(routine)}
-                  onRemove={() => removeRoutine(routine)}
-                />
-              ))}
               {flatPresets.map((preset) => (
                 <SunnahPresetRow
                   key={preset.id}
                   preset={preset}
-                  added={existing.has(normalizeName(preset.name))}
-                  onAdd={() => void createHabit(toCreate(preset))}
+                  added={addedFor(preset)}
+                  onAdd={() => addPreset(preset)}
                   onRemove={() => removePreset(preset)}
+                  onAddAnother={scoped ? undefined : () => void addAnother(preset)}
+                />
+              ))}
+            </SettingsSection>
+          </View>
+        );
+      case 'yourHabits':
+        // Scoped only: lone habits you already have — one tap pulls one into the stack. The
+        // row leaving this section (it's a member now) is the confirmation, like a preset ✓.
+        return (
+          <View style={wrap}>
+            <SettingsSection title="Your habits">
+              {item.habits.map((habit) => (
+                <SettingsRow
+                  key={habit.id}
+                  icon="add"
+                  label={habit.name}
+                  sublabel={scheduleSummary(habit.schedule_days, habit.hijri_schedule)}
+                  onPress={() => {
+                    if (!stack) return;
+                    haptics.added();
+                    void moveHabit(habit.id, { toStackId: stack.id });
+                  }}
                 />
               ))}
             </SettingsSection>
           </View>
         );
       case 'starter':
-        // One-tap starter set for a new user — only in the default browse view.
+        // One-tap starter stacks for a new user — only in the default browse view, and the one
+        // accent element on the screen (everything below stays quiet).
         return (
           <View style={wrap}>
             <Surface padded pattern contentStyle={[styles.starter, { backgroundColor: theme.accentSubtle }]}>
@@ -285,65 +382,56 @@ export default function DiscoverScreen() {
                 New here? Start with the essentials
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                The moments already in your day: prayer times, morning and evening adhkār, and a
-                daily page of Qurʾān.
+                The moments already in your day — prayers, adhkār and a page of Qurʾān, grouped
+                into Morning, Midday, Evening and Night.
               </ThemedText>
               <AppButton
                 onPress={() => void addStarterSet()}
-                accessibilityLabel={`Add starter set of ${starterRemaining.length} habits`}
+                accessibilityLabel={`Add ${starterPlan.total} starter habits, grouped into stacks`}
                 style={styles.starterButton}>
-                Add starter set ({starterRemaining.length})
+                Add starter stacks ({starterPlan.total})
               </AppButton>
             </Surface>
           </View>
         );
-      case 'routines':
-        // Routines — ready-made stacks of habits that belong together as a sequence.
-        return (
-          <View style={wrap}>
-            <SettingsSection title="Routines" footer="You still complete each habit on its own.">
-              {visibleRoutines.map((routine) => (
-                <SunnahRoutineRow
-                  key={routine.id}
-                  routine={routine}
-                  added={existingStacks.has(normalizeName(routine.name))}
-                  onAdd={() => void addRoutine(routine)}
-                  onRemove={() => removeRoutine(routine)}
-                />
-              ))}
-            </SettingsSection>
-          </View>
-        );
       case 'category':
+        // A real heading (not the 14pt overline) so the eye can walk the library by section;
+        // it sits tight above its own card — closer to what it names than to what precedes it.
         return (
           <View style={wrap}>
-            <SettingsSection title={item.category.title}>
-              {item.presets.map((preset) => (
-                <SunnahPresetRow
-                  key={preset.id}
-                  preset={preset}
-                  added={existing.has(normalizeName(preset.name))}
-                  onAdd={() => void createHabit(toCreate(preset))}
-                  onRemove={() => removePreset(preset)}
-                />
-              ))}
-            </SettingsSection>
+            <View style={styles.section}>
+              <ThemedText type="heading" style={styles.sectionTitle}>
+                {item.category.title}
+              </ThemedText>
+              <SettingsSection>
+                {item.presets.map((preset) => (
+                  <SunnahPresetRow
+                    key={preset.id}
+                    preset={preset}
+                    added={addedFor(preset)}
+                    onAdd={() => addPreset(preset)}
+                    onRemove={() => removePreset(preset)}
+                    onAddAnother={scoped ? undefined : () => void addAnother(preset)}
+                  />
+                ))}
+              </SettingsSection>
+            </View>
           </View>
         );
       case 'create':
-        // Manual entry, surfaced as a fallback once the curated library has had its say
-        // (flexibility-after-failure); the header + offers it persistently too. Routines aren't
-        // built here — you make one on Today by dropping one habit onto another (or the swipe
-        // "Add to routine → New routine"), so this stays a single, focused habit-create door.
+        // The from-scratch door, deliberately last and quiet: the library above is the primary
+        // offer. In scoped mode the editor inherits the stack, so a custom habit lands inside
+        // it too. (Stacks themselves are made from the + menu, or by dropping one habit onto
+        // another on Today.)
         return (
           <View style={wrap}>
-            <SettingsSection title="Can't find it?">
+            <SettingsSection>
               <SettingsRow
                 icon="add"
                 label="Create your own habit"
-                showChevron
-                accessibilityLabel="Create your own habit"
+                sublabel="Name, schedule and reminder"
                 onPress={goCreateHabit}
+                showChevron
               />
             </SettingsSection>
           </View>
@@ -353,10 +441,11 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Standard header — the centered "Add Habit" title (set on the route) is enough. No
-          header +: this screen IS the add screen, and a second + one tap after the one that
-          opened it read as the same glyph meaning something new. Manual entry lives in the
-          "Can't find it?" section at the foot of every browse view and in the empty-search CTA. */}
+      {/* Standard header — the centered title (set on the route, overridden per-stack here) is
+          enough. No header +: this screen IS the add screen, and a second + one tap after the
+          one that opened it read as the same glyph meaning something new. The library leads the
+          body; the empty-search state and the closing row both offer create-your-own. */}
+      {stack ? <Stack.Screen options={{ title: `Add to ${stack.name}` }} /> : null}
 
       {/* The search field is the native nav-bar search (UISearchController on iOS / the
           SearchView on Android), not an in-body input — a true platform search experience.
@@ -412,11 +501,11 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  // Tight on purpose — this library stacks many short category cards, and the default screen
-  // gap read as a lot of dead air between them.
-  gap: { height: Spacing.two },
+  // Generous between sections so each group reads as one unit (proximity does the work the
+  // old uniform 8px column couldn't); within a section everything stays tight.
+  gap: { height: Spacing.four },
   rowWrap: { paddingHorizontal: Spacing.three },
-  firstRow: { paddingTop: Spacing.two },
+  firstRow: { paddingTop: Spacing.three },
   controls: {
     width: '100%',
     maxWidth: MaxContentWidth,
@@ -428,4 +517,8 @@ const styles = StyleSheet.create({
   },
   starter: { gap: Spacing.two },
   starterButton: { marginTop: Spacing.one, alignSelf: 'flex-start' },
+  // A category: its heading hugs the card it names (the inter-section gap above provides the
+  // separation from the previous group).
+  section: { gap: Spacing.two },
+  sectionTitle: { marginLeft: Spacing.one },
 });

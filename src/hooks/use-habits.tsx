@@ -21,7 +21,7 @@ import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
-import { isRoutineComplete } from '@/lib/progress';
+import { isStackComplete } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -135,7 +135,7 @@ type HabitsContextValue = {
   /** Step the viewed day by `delta` days (clamped). */
   stepDay: (delta: number) => void;
   createHabit: (input: HabitCreate) => Promise<void>;
-  /** Create several habits at once (Discover "starter set" / routines); returns the new rows. */
+  /** Create several habits at once (Discover "starter set"); returns the new rows. */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
   toggleHabit: (habitId: string) => Promise<void>;
   /** Step a count-goal habit's logged count for `viewDate` by `delta` (clamped to 0…target). */
@@ -148,20 +148,28 @@ type HabitsContextValue = {
    *  drag-reorder and its Move up/down accessibility actions (keep stack members contiguous;
    *  `lib/drag-order`'s unit helpers build a valid order). */
   reorderHabits: (orderedIds: string[]) => Promise<void>;
-  /** Create a stack from existing habits (in order). Returns the new stack id, or null. Pass `stackId`
-   *  to use a caller-minted id (so the card can be targeted the moment it appears — e.g. to animate a
-   *  drag-merge); otherwise one is generated. */
+  /** Create a stack from existing habits (in order) — or, with `[]`, an intentionally empty
+   *  stack (the "+ → New stack" flow) that waits on Today for its first member. Returns the new
+   *  stack id, or null. Pass `stackId` to use a caller-minted id (so the card can be targeted the
+   *  moment it appears — e.g. to animate a drag-merge); otherwise one is generated. */
   createStack: (name: string, orderedMemberIds: string[], stackId?: string) => Promise<string | null>;
   /** Rename a stack and/or set its full ordered membership. Empty membership deletes it. */
   updateStack: (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => Promise<void>;
   /** Delete a stack; its members survive as standalone habits. */
   deleteStack: (stackId: string) => Promise<void>;
-  /** Move one habit into a routine (`toStackId`), out to the top level (`null`), or to a new
-   *  slot within its routine — the single mutation behind the Today drag's drop and the tap
-   *  paths (the add-to-routine sheet, the member row's "Remove" swipe). `placement` defaults:
-   *  into a routine → appended last; out of one → right after its former card. Emptying a
-   *  routine deletes that now-memberless stack. */
-  moveHabit: (habitId: string, target: { toStackId: string | null; placement?: MovePlacement }) => Promise<void>;
+  /** Move one habit into a stack (`toStackId`), out to the top level (`null`), or to a new
+   *  slot within its stack — the single mutation behind the Today drag's drop and the tap
+   *  paths (the add-to-stack sheet, the member row's "Remove" swipe). `placement` defaults:
+   *  into a stack → appended last; out of one → right after its former card. Emptying a
+   *  stack deletes that now-memberless shell, unless `keepEmptyShell` (the stack-scoped Add
+   *  screen un-adds without pulling the stack out from under itself). */
+  moveHabit: (
+    habitId: string,
+    target: { toStackId: string | null; placement?: MovePlacement; keepEmptyShell?: boolean },
+  ) => Promise<void>;
+  /** Create a habit and land it in `stackId` (appended last) — the stack-scoped Add screen's
+   *  create path. Falls back to a standalone habit if the stack vanished mid-flight. */
+  createHabitInStack: (input: HabitCreate, stackId: string) => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
@@ -216,15 +224,15 @@ function celebrateIfDayComplete(
 }
 
 /**
- * Fire the routine-complete tail beat when ticking `habitId` seals its routine — every act the
+ * Fire the stack-complete tail beat when ticking `habitId` seals its stack — every act the
  * habit's stack has due today is now done — but only when it *doesn't* also close the whole day:
  * the day's `celebrate` owns that moment, so the two never double-buzz. The matching border flash on
  * the card is driven separately from the same `completed`/`skipped` state (see StackCard), reading
- * the same {@link isRoutineComplete} rule so the flash and the buzz can't disagree. A standalone
- * habit has no routine to seal, so it stays silent. `completed` is read pre-flip, so the just-ticked
+ * the same {@link isStackComplete} rule so the flash and the buzz can't disagree. A standalone
+ * habit has no stack to seal, so it stays silent. `completed` is read pre-flip, so the just-ticked
  * id is passed through as done — the same stale-read guard `celebrateIfDayComplete` uses.
  */
-function celebrateIfRoutineComplete(
+function celebrateIfStackComplete(
   habits: Habit[],
   skipped: Set<string>,
   completed: Set<string>,
@@ -234,9 +242,9 @@ function celebrateIfRoutineComplete(
 ): void {
   if (dayComplete) return; // the day's celebration owns the moment
   const stackId = habits.find((h) => h.id === habitId)?.stack_id ?? null;
-  if (!stackId) return; // not in a routine — nothing to seal
+  if (!stackId) return; // not in a stack — nothing to seal
   const members = habits.filter((h) => h.stack_id === stackId && scheduledOn(h, day));
-  if (isRoutineComplete(members, completed, skipped, habitId)) haptics.routineComplete();
+  if (isStackComplete(members, completed, skipped, habitId)) haptics.stackComplete();
 }
 
 export function HabitsProvider({ children }: { children: ReactNode }) {
@@ -544,7 +552,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } else {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
-        celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
+        celebrateIfStackComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       }
 
       try {
@@ -638,7 +646,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } else if (nowDone && !wasDone) {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
-        celebrateIfRoutineComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
+        celebrateIfStackComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
       } else {
         haptics.selection();
       }
@@ -901,7 +909,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           [...prev.filter((h) => !tempIds.has(h.id)), ...persisted].sort((a, b) => a.position - b.position),
         );
         // Keep the ref authoritative immediately, so an op chained right after (e.g.
-        // `createStack` when adding a routine) sees the new rows before the sync effect runs.
+        // `createStack` right after) sees the new rows before the sync effect runs.
         habitsRef.current = [...habitsRef.current.filter((h) => !tempIds.has(h.id)), ...persisted].sort(
           (a, b) => a.position - b.position,
         );
@@ -1073,7 +1081,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return null;
       const cleanName = name.trim();
       const memberIds = orderedMemberIds.filter((id) => !id.startsWith('temp-'));
-      if (!cleanName || memberIds.length === 0) return null;
+      if (!cleanName) return null;
+      // An explicitly-empty list creates an empty stack (the "+ → New stack" flow); a list
+      // that only *became* empty by filtering temp- ids still bails (nothing real to group).
+      if (orderedMemberIds.length > 0 && memberIds.length === 0) return null;
 
       try {
         await ensureUserRow();
@@ -1105,6 +1116,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         .filter((h): h is Habit => h !== null);
       setStacks((prev) => [...prev, stack]);
       setHabits(next);
+      // Keep the ref authoritative immediately (mirrors `createHabits`), so stack creates
+      // chained back-to-back (the starter stacks) each see the previous one's positions.
+      habitsRef.current = next;
 
       // DB writes, correctly ordered: the stack row must exist before members' stack_id FK points at it.
       try {
@@ -1112,6 +1126,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         if (insErr) throw insErr;
       } catch {
         setHabits(prevHabits);
+        habitsRef.current = prevHabits;
         setStacks(prevStacks);
         setError('Could not create that stack. Check your connection.');
         return null;
@@ -1120,6 +1135,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const ok = await persistGrouping(next, prevHabits);
       if (!ok) {
         // persistGrouping already rolled the habits back; undo the stack shell too (local + remote).
+        habitsRef.current = prevHabits;
         setStacks(prevStacks);
         void supabase.from('habit_stacks').delete().eq('id', stackId);
         setError('Could not create that stack. Check your connection.');
@@ -1214,12 +1230,16 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId, deleteStack, persistGrouping],
   );
 
-  // Move a single habit into a routine, out to the top level, or to a new slot within its
-  // routine — membership + full re-position in ONE optimistic update and one persisted batch
+  // Move a single habit into a stack, out to the top level, or to a new slot within its
+  // stack — membership + full re-position in ONE optimistic update and one persisted batch
   // (`orderAfterHabitMove` rebuilds the whole order with stack members kept contiguous). If the
-  // move empties the habit's former routine, that now-memberless stack is deleted.
+  // move empties the habit's former stack, that now-memberless shell is deleted (unless the
+  // caller asks to keep it — see `keepEmptyShell` on the context type).
   const moveHabit = useCallback(
-    async (habitId: string, target: { toStackId: string | null; placement?: MovePlacement }) => {
+    async (
+      habitId: string,
+      target: { toStackId: string | null; placement?: MovePlacement; keepEmptyShell?: boolean },
+    ) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
       const prevStacks = stacksRef.current;
@@ -1228,7 +1248,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const { toStackId } = target;
       if (toStackId && !prevStacks.some((s) => s.id === toStackId)) return; // stale drop target
       // Same stack with no explicit placement = already where it's going; WITH a placement it's
-      // a reorder within the routine (a legitimate move).
+      // a reorder within the stack (a legitimate move).
       if ((habit.stack_id ?? null) === toStackId && !target.placement) return;
 
       const fromStackId = habit.stack_id ?? null;
@@ -1251,7 +1271,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         .filter((h): h is Habit => h !== null);
       if (next.length !== prevHabits.length) return; // unknown id crept in — bail rather than corrupt
 
-      const emptyStackId = fromStackId && !next.some((h) => h.stack_id === fromStackId) ? fromStackId : null;
+      const emptyStackId =
+        !target.keepEmptyShell && fromStackId && !next.some((h) => h.stack_id === fromStackId)
+          ? fromStackId
+          : null;
 
       setHabits(next);
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
@@ -1263,12 +1286,26 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
       if (emptyStackId) {
         const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
-        // The move itself stands; a failed shell delete just leaves the empty routine in place
+        // The move itself stands; a failed shell delete just leaves the empty stack in place
         // (it still exists in the DB) — the next emptying move will retry the cleanup.
         if (delErr) setStacks(prevStacks);
       }
     },
     [userId, persistGrouping],
+  );
+
+  // Create-into-a-stack is the two proven mutations chained (not a stack_id on the insert):
+  // `createHabits` syncs `habitsRef` on resolve, so the follow-up move sees the fresh row, and
+  // `moveHabit` keeps the position space contiguous. The one-frame standalone hop sits behind
+  // the Add modal, so it is never visible on Today.
+  const createHabitInStack = useCallback(
+    async (input: HabitCreate, stackId: string) => {
+      const [habit] = await createHabits([input]);
+      if (!habit) return; // createHabits already surfaced the error
+      if (!stacksRef.current.some((s) => s.id === stackId)) return; // stack gone — habit stays standalone
+      await moveHabit(habit.id, { toStackId: stackId, placement: { type: 'member-append' } });
+    },
+    [createHabits, moveHabit],
   );
 
   const dismissError = useCallback(() => setError(null), []);
@@ -1305,6 +1342,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       updateStack,
       deleteStack,
       moveHabit,
+      createHabitInStack,
     };
   }, [
     habits,
@@ -1333,6 +1371,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     updateStack,
     deleteStack,
     moveHabit,
+    createHabitInStack,
   ]);
 
   return <HabitsContext value={value}>{children}</HabitsContext>;

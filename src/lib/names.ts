@@ -25,17 +25,25 @@ export const otherNames = <T extends { id: string; name: string }>(items: T[], i
   items.filter((item) => item.id !== id).map((item) => normalizeName(item.name));
 
 /**
- * A fresh routine's placeholder name for the drop-one-habit-onto-another gesture: the routine is
- * created instantly (no name prompt — see the ⋯ → Rename affordance), so it needs a sensible
- * default. Deduped against existing stacks so repeated merges read "New routine", "New routine 2",
- * "New routine 3" … rather than colliding (createStack does not dedupe names itself).
+ * Append the smallest numeric suffix that makes `base` unique against `taken` (a set of names
+ * already folded through {@link normalizeName}): "Qurʾān" → "Qurʾān 2" → "Qurʾān 3" …. Returns
+ * `base` untouched when it's already free. The one differentiator shared by the drop-to-stack
+ * default name and Discover's "Add another" copy, so a duplicate never trips the editors'
+ * name-uniqueness guard (there's no DB constraint — the app keeps names distinct itself).
  */
-export const defaultRoutineName = (stacks: { id: string; name: string }[]) => {
-  const base = 'New routine';
-  const taken = new Set(otherNames(stacks));
+export const dedupeName = (base: string, taken: Set<string>): string => {
   if (!taken.has(normalizeName(base))) return base;
   for (let n = 2; ; n++) {
     const candidate = `${base} ${n}`;
     if (!taken.has(normalizeName(candidate))) return candidate;
   }
 };
+
+/**
+ * A fresh stack's placeholder name for the drop-one-habit-onto-another gesture: the stack is
+ * created instantly (no name prompt — see the ⋯ → Rename affordance), so it needs a sensible
+ * default. Deduped against existing stacks so repeated merges read "New stack", "New stack 2",
+ * "New stack 3" … rather than colliding (createStack does not dedupe names itself).
+ */
+export const defaultStackName = (stacks: { id: string; name: string }[]) =>
+  dedupeName('New stack', new Set(otherNames(stacks)));

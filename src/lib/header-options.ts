@@ -36,12 +36,28 @@ export function stackHeaderOptions(theme: { background: string; text: string }) 
 /**
  * Native-Stack options for a modal sheet. iOS modals don't get the glass large-title
  * treatment, so their nav bar renders white in dark mode unless explicitly tinted — so we
- * theme it here. Shared by every modal route (the habit & stack editors).
+ * theme it here. Shared by every modal route (the habit editor, stack rename).
  */
 export function modalHeaderOptions(theme: { background: string; text: string }) {
   return {
     presentation: 'modal' as const,
     headerStyle: { backgroundColor: theme.background },
     headerTintColor: theme.text,
+  };
+}
+
+/**
+ * Native-Stack options for a bottom sheet sized to its content — the compact sheet-of-rows
+ * idiom (add-to-stack, stack-manage, the habit-stacking guide). No nav bar: the sheet carries
+ * its own title; the grabber or a swipe-down dismisses it.
+ */
+export function formSheetOptions(theme: { background: string }) {
+  return {
+    presentation: 'formSheet' as const,
+    headerShown: false,
+    sheetAllowedDetents: 'fitToContents' as const,
+    sheetGrabberVisible: true,
+    sheetCornerRadius: 24,
+    contentStyle: { backgroundColor: theme.background },
   };
 }

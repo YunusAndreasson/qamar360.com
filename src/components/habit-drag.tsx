@@ -40,9 +40,9 @@ import { haptics } from '@/lib/haptics';
  * The Today list's unified drag — one long-press vocabulary for organising habits, in the
  * Reminders/Things mould:
  *
- *  - lift a standalone habit and drop it *between* entries to reorder, or onto a routine
- *    card's body to join that routine (the card lights an accent ring);
- *  - lift a whole routine card and drop it between entries to reorder it as a unit;
+ *  - lift a standalone habit and drop it *between* entries to reorder, or onto a stack
+ *    card's body to join that stack (the card lights an accent ring);
+ *  - lift a whole stack card and drop it between entries to reorder it as a unit;
  *  - (member rows lift out of their card the same way — see `DraggableMemberRow`.)
  *
  * Norman's mapping rule shapes the feedback: a gap opening between entries always means
@@ -63,11 +63,11 @@ import { haptics } from '@/lib/haptics';
  *  (`DragGrid`) applies it, so the drag math and the layout can never disagree. */
 const DRAG_GRID_GAP = Spacing.two;
 
-/** The hairline separator between member rows inside a routine card (matches `RowSeparator`) —
+/** The hairline separator between member rows inside a stack card (matches `RowSeparator`) —
  *  the inter-row gap for an in-card reorder's settle math. */
 const MEMBER_GAP = StyleSheet.hairlineWidth;
 
-/** How long a press must hold before the row lifts (matches the old pickup feel). A routine
+/** How long a press must hold before the row lifts (matches the old pickup feel). A stack
  *  card holds a touch longer than its member rows, so on a member row the member's own gesture
  *  deterministically wins the race and the card lifts only from its header/edges. */
 const LIFT_HOLD_MS = 300;
@@ -84,7 +84,7 @@ const EDGE_SCROLL_MAX_V = 900;
  *  not a scale: scaling a card by a hair doesn't re-render it, it bitmap-scales the drawn card, so
  *  the text + hairline border + rounded corners get resampled into a faint grain. A shadow is drawn
  *  apart from the content, so the card stays crisp — and it previews the drag ghost's own lift. A
- *  member row (a bare row on a routine card, no surface to float) can't cast a clean shadow, so it
+ *  member row (a bare row on a stack card, no surface to float) can't cast a clean shadow, so it
  *  uses a faint dim instead — same intent, no resample. */
 const PRE_LIFT_DELAY_MS = 150;
 /** The pre-lift shadow at full bloom — gentler than the ghost's lift (the card hasn't left yet). */
@@ -95,7 +95,7 @@ const PRE_LIFT_ELEVATION = 6; // Android's shadow is elevation-driven
 /** A member row's grain-free pre-lift instead of the shadow — a barely-there dim as the hold arms. */
 const PRE_LIFT_DIM = 0.06;
 
-/** Drop-one-habit-onto-another to make a routine: a lone row must be *hovered* this long before the
+/** Drop-one-habit-onto-another to make a stack: a lone row must be *hovered* this long before the
  *  merge arms, so dragging a row past a neighbour to reorder never trips it (the iOS home-screen
  *  folder feel — a quick pass reorders, a deliberate hold combines). */
 const MERGE_DWELL_MS = 400;
@@ -147,7 +147,7 @@ type DragState = {
   // Layout registry (written from JS onLayout; read in worklets).
   frames: SharedValue<Record<string, Frame>>;
   order: SharedValue<OrderMeta[]>;
-  // In-card member reorder: a member dragged within its own routine reorders the siblings.
+  // In-card member reorder: a member dragged within its own stack reorders the siblings.
   memberFrames: SharedValue<Record<string, Frame>>; // member row grid frames, keyed member:<id>
   memberOrder: SharedValue<Record<string, string[]>>; // stackId → member keys in sequence
   reorderStackId: SharedValue<string | null>; // the card being reordered (null = not reordering)
@@ -202,11 +202,11 @@ export function HabitDragProvider({
   onDragActive: (key: string | null) => void;
   /** Commit a between-drop: move `draggedKey` before `beforeKey` (`''` = end of list). */
   onDropBetween: (draggedKey: string, beforeKey: string) => void;
-  /** Commit an into-drop: `draggedKey` joins routine `stackId`. */
+  /** Commit an into-drop: `draggedKey` joins stack `stackId`. */
   onDropInto: (draggedKey: string, stackId: string) => void;
   /** Commit an in-card reorder: move member `draggedKey` to compact `index` within `stackId`. */
   onDropReorder: (draggedKey: string, stackId: string, index: number) => void;
-  /** Commit a merge: fold habit `draggedKey` and lone habit `targetHabitId` into a new routine. */
+  /** Commit a merge: fold habit `draggedKey` and lone habit `targetHabitId` into a new stack. */
   onDropMerge: (draggedKey: string, targetHabitId: string) => void;
   children: ReactNode;
 }) {
@@ -279,7 +279,7 @@ export function HabitDragProvider({
     if (hoveredStackId.get() !== null) hoveredStackId.set(null);
     // A lone habit over another lone habit: reorder until the dwell timer arms the merge. While
     // unarmed the gap opens at `betweenIndex` (reordering still works); once armed the gaps shut,
-    // the target row pops + rings, and release folds the two into a new routine. (`dwellMs` is
+    // the target row pops + rings, and release folds the two into a new stack. (`dwellMs` is
     // accumulated in the frame callback, where the frame delta is in scope.)
     if (slot.kind === 'merge') {
       if (dwellMs.get() >= MERGE_DWELL_MS) {
@@ -420,7 +420,7 @@ export function HabitDragProvider({
     frame.setActive(false);
     onDragActive(null);
   };
-  // Two lone habits folded into a new routine (same protocol as finishInto — runs from the ghost's
+  // Two lone habits folded into a new stack (same protocol as finishInto — runs from the ghost's
   // melt completion, so the drop is felt as the ghost lands, and a cancelled-and-replayed melt can't
   // re-commit). The screen's onDropMerge creates the stack; here we just clear the drag.
   const finishMerge = (draggedKey: string, targetHabitId: string) => {
@@ -492,8 +492,8 @@ export function DragGrid({ style, children }: { style?: StyleProp<ViewStyle>; ch
 }
 
 /**
- * Wraps a top-level entry (a standalone habit row or a whole routine card): a deliberate hold
- * lifts it, entries around it spring aside to show where it would land, and a routine card
+ * Wraps a top-level entry (a standalone habit row or a whole stack card): a deliberate hold
+ * lifts it, entries around it spring aside to show where it would land, and a stack card
  * glows when a habit would join it. Also draws that glow (the accent ring) on stack entries.
  */
 export function DraggableEntry({
@@ -587,7 +587,7 @@ export function DraggableEntry({
       if (draggingKey.get() !== entryKey) return;
       const armedHabit = mergeArmedHabitId.get();
       if (armedHabit !== null && kind === 'habit') {
-        // Drop onto the armed habit → a new routine. The ghost melts into the target (same beat as
+        // Drop onto the armed habit → a new stack. The ghost melts into the target (same beat as
         // joining a card), then the merge commits. finished-guarded so a replayed melt can't recommit.
         committed.set(true);
         ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
@@ -600,7 +600,7 @@ export function DraggableEntry({
       }
       const hovered = hoveredStackId.get();
       if (hovered !== null && kind === 'habit') {
-        // Join the glowing routine: the ghost melts into the card, then the move commits.
+        // Join the glowing stack: the ghost melts into the card, then the move commits.
         // Completion callbacks only act when the animation genuinely finished — a cancelled
         // settle re-fires with finished=false and must never (re-)commit.
         committed.set(true);
@@ -701,8 +701,8 @@ export function DraggableEntry({
 }
 
 /**
- * Wraps a member row inside a routine card so it can be lifted OUT: drop it between top-level
- * entries to detach it there, or onto another routine card to move it across. Its own card's
+ * Wraps a member row inside a stack card so it can be lifted OUT: drop it between top-level
+ * entries to detach it there, or onto another stack card to move it across. Its own card's
  * body means "never mind" (the ghost floats home). Insertion-only mode: no top-level slot is
  * vacated, so `dragIndex`/`insertIndex` use the `-1` sentinel and entries only ever part to
  * make room. Tolerates a missing provider (a `StackCard` can render outside the Today grid —
@@ -812,7 +812,7 @@ function MemberRowDrag({
       if (draggingKey.get() !== entryKey) return;
       const hovered = hoveredStackId.get();
       if (hovered !== null) {
-        // Crossed into another routine: melt into its card, then commit the move.
+        // Crossed into another stack: melt into its card, then commit the move.
         committed.set(true);
         ghostLift.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
         ghostOpacity.set(
@@ -914,7 +914,7 @@ function MemberRowDrag({
           member's RESTING grid position. `measure()` returns the on-screen frame with transforms
           applied (reanimated docs), so if the displacement lived here, a reorder's settling
           translateY would pollute `memberFrames` — the in-card reorder would then resolve against
-          drifted positions (why it felt more fragile inside a routine than at the top level, where
+          drifted positions (why it felt more fragile inside a stack than at the top level, where
           frames come from transform-free `onLayout`). The displacement rides the inner view. */}
       <Animated.View ref={ref} onLayout={registerFrame}>
         <Animated.View style={style}>{children}</Animated.View>
@@ -923,7 +923,7 @@ function MemberRowDrag({
   );
 }
 
-/** The accent "drop here to join" ring a routine card shows while a habit hovers over it. */
+/** The accent "drop here to join" ring a stack card shows while a habit hovers over it. */
 function DropRing({ stackId }: { stackId: string }) {
   const { hoveredStackId } = useDrag();
   const theme = useTheme();

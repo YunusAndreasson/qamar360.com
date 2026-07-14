@@ -22,7 +22,7 @@ import {
 
 const GAP = 8;
 const ROW = 56; // a lone habit row
-const CARD = 180; // a routine card
+const CARD = 180; // a stack card
 const MEMBER_SEP = 1; // the hairline between member rows inside a card (a clean number for the math)
 
 /** A five-entry day list: row, card, row, card, row — mixed heights, gap-spaced from y=0. */
@@ -101,7 +101,7 @@ describe('resolveDropSlot', () => {
   const sMemberFrames: Record<string, Frame> = { 'member:m1': { y: 100, h: 50 }, 'member:m2': { y: 150, h: 50 } };
   const NO_MEMBERS: Record<string, string[]> = {};
 
-  it('a habit over a card body drops into that routine', () => {
+  it('a habit over a card body drops into that stack', () => {
     expect(resolveDropSlot(cardBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0)).toEqual({
       kind: 'into',
       stackId: 'S',
@@ -113,7 +113,7 @@ describe('resolveDropSlot', () => {
     expect(result.kind).toBe('between');
   });
 
-  it('a routine card never drops into another routine', () => {
+  it('a stack card never drops into another stack', () => {
     const result = resolveDropSlot(cardBodyY, order, frames, 'stack:T', 'stack', 'T', CARD + GAP, NO_MEMBERS, {}, 0);
     expect(result.kind).toBe('between');
   });
@@ -127,7 +127,7 @@ describe('resolveDropSlot', () => {
     });
   });
 
-  it("a member over another card's body joins that routine", () => {
+  it("a member over another card's body joins that stack", () => {
     // stack:T spans y=316..496; body 348..464.
     expect(resolveDropSlot(400, order, frames, 'member:m', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW)).toEqual({
       kind: 'into',
@@ -188,7 +188,7 @@ describe('resolveDropSlot', () => {
 });
 
 describe('in-card member reorder', () => {
-  // One routine card (into-body y=32..168), three 50px member rows measured inside it.
+  // One stack card (into-body y=32..168), three 50px member rows measured inside it.
   const order: OrderMeta[] = [{ key: 'stack:S', kind: 'stack', stackId: 'S' }];
   const frames: Record<string, Frame> = { 'stack:S': { y: 0, h: 200 } };
   const memberOrder = { S: ['member:m1', 'member:m2', 'member:m3'] };
@@ -387,12 +387,12 @@ describe('moveUnit', () => {
 });
 
 describe('orderAfterHabitMove', () => {
-  it('into a routine, appended', () => {
+  it('into a stack, appended', () => {
     const { orderedIds } = orderAfterHabitMove(habitsFixture(), 'a', 'S', { type: 'member-append' });
     expect(orderedIds).toEqual(['s1', 's2', 'a', 'b', 't1', 'c']);
   });
 
-  it('into a routine at a member index (the Undo restore path)', () => {
+  it('into a stack at a member index (the Undo restore path)', () => {
     const { orderedIds } = orderAfterHabitMove(habitsFixture(), 'a', 'S', {
       type: 'member-index',
       index: 1,
@@ -400,7 +400,7 @@ describe('orderAfterHabitMove', () => {
     expect(orderedIds).toEqual(['s1', 'a', 's2', 'b', 't1', 'c']);
   });
 
-  it('reorders within the same routine via member-index', () => {
+  it('reorders within the same stack via member-index', () => {
     const { orderedIds } = orderAfterHabitMove(habitsFixture(), 's2', 'S', {
       type: 'member-index',
       index: 0,
@@ -469,7 +469,7 @@ describe('orderAfterHabitMove', () => {
 });
 
 describe('placementToRestore', () => {
-  it('a member restores to its index among its routine\'s members', () => {
+  it('a member restores to its index among its stack\'s members', () => {
     expect(placementToRestore(habitsFixture(), 's2')).toEqual({
       toStackId: 'S',
       placement: { type: 'member-index', index: 1 },

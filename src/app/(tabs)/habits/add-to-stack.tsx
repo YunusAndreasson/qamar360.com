@@ -16,14 +16,15 @@ import { placementToRestore } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 
 /**
- * "Add to routine" — a native form sheet raised from a lone habit's trailing-swipe `Routine`
- * action (see {@link HabitRow}). It's the tap-first counterpart to the Today list's drag: pick
- * an existing routine to drop this habit into, or start a new routine seeded with it. Membership
- * change goes through {@link useHabits.moveHabit} (the same mutation the drag commits), with an
- * Undo on the confirmation toast. Presented `fitToContents` so the sheet is exactly as tall as its
- * options — configured in the habits stack layout.
+ * "Add to stack" — a native form sheet raised from a lone habit's trailing-swipe `Stack` action
+ * (see {@link HabitRow}). It's the tap-first counterpart to the Today list's drag: pick an
+ * existing stack to drop this habit into. (New stacks aren't made here — you start one by
+ * dropping one habit onto another, so the swipe action only appears once a stack exists.)
+ * Membership change goes through {@link useHabits.moveHabit} (the same mutation the drag
+ * commits), with an Undo on the confirmation toast. Presented `fitToContents` so the sheet is
+ * exactly as tall as its options — configured in the habits stack layout.
  */
-export default function AddToRoutineScreen() {
+export default function AddToStackScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show } = useToast();
@@ -32,14 +33,14 @@ export default function AddToRoutineScreen() {
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
 
-  // Each routine with its current member count for the sub-line. Recomputed from `habits`, so an
+  // Each stack with its current member count for the sub-line. Recomputed from `habits`, so an
   // add elsewhere stays in sync. (No useMemo — the React Compiler memoizes derived values.)
-  const routines = stacks.map((s) => ({
+  const options = stacks.map((s) => ({
     stack: s,
     memberCount: habits.filter((h) => h.stack_id === s.id).length,
   }));
 
-  const addToRoutine = (stackId: string, name: string) => {
+  const addToStack = (stackId: string, name: string) => {
     if (!habit) return;
     // Capture where the habit sits BEFORE the move, so Undo can put it back exactly there.
     const restore = placementToRestore(habits, habit.id);
@@ -54,44 +55,32 @@ export default function AddToRoutineScreen() {
     router.back();
   };
 
-  // Hand off to the stack editor, seeded with this habit, to name and build a fresh routine.
-  // `replace` (not push) so the editor's Save/Cancel returns to the list, not back to this sheet.
-  const createRoutine = () => {
-    if (!habit) return;
-    router.replace({ pathname: '/habits/stack-editor', params: { id: 'new', seed: habit.id } });
-  };
-
-  // A habit deleted (or already grouped) while the sheet is up has nothing to add here — close.
+  // A habit deleted (or already grouped) while the sheet is up has nothing to add here — and
+  // with no stacks left (the last one deleted elsewhere) there is nothing to add *to*. Close.
+  const stale = !habit || habit.stack_id != null || stacks.length === 0;
   useEffect(() => {
-    if (!habit || habit.stack_id != null) router.back();
-  }, [habit, router]);
-  if (!habit || habit.stack_id != null) return null;
+    if (stale) router.back();
+  }, [stale, router]);
+  if (stale) return null;
 
   return (
     <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.four }]}>
       <View style={styles.header}>
-        <ThemedText type="heading">Add to routine</ThemedText>
+        <ThemedText type="heading">Add to stack</ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
           {habit.name}
         </ThemedText>
       </View>
 
       <Surface>
-        <PickerRow
-          icon="addLink"
-          label="New routine"
-          sublabel="Start a routine with this habit"
-          accent
-          onPress={createRoutine}
-        />
-        {routines.map(({ stack, memberCount }) => (
+        {options.map(({ stack, memberCount }, i) => (
           <Fragment key={stack.id}>
-            <RowSeparator />
+            {i > 0 ? <RowSeparator /> : null}
             <PickerRow
               icon="link"
               label={stack.name}
               sublabel={`${memberCount} ${memberCount === 1 ? 'habit' : 'habits'}`}
-              onPress={() => addToRoutine(stack.id, stack.name)}
+              onPress={() => addToStack(stack.id, stack.name)}
             />
           </Fragment>
         ))}
@@ -105,13 +94,11 @@ function PickerRow({
   icon,
   label,
   sublabel,
-  accent,
   onPress,
 }: {
   icon: IconName;
   label: string;
   sublabel: string;
-  accent?: boolean;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -123,9 +110,9 @@ function PickerRow({
       accessibilityLabel={label}
       accessibilityHint={sublabel}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
-      <AppIcon name={icon} size={22} color={accent ? theme.accent : theme.textSecondary} />
+      <AppIcon name={icon} size={22} color={theme.textSecondary} />
       <View style={styles.rowText}>
-        <ThemedText type="rowTitle" numberOfLines={1} themeColor={accent ? 'accent' : undefined}>
+        <ThemedText type="rowTitle" numberOfLines={1}>
           {label}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>

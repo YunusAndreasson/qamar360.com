@@ -17,7 +17,7 @@ type Props = {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   /** Play the spring-in on mount. When false the wrapper is inert (born at full size) — so every
-   *  routine card can wear the wrapper, but only the one just merged actually animates. */
+   *  stack card can wear the wrapper, but only the one just merged actually animates. */
   active?: boolean;
 };
 
@@ -25,7 +25,7 @@ type Props = {
 const START_SCALE = 0.96;
 
 /**
- * A mount animation for a freshly created routine card: it fades in and gently springs up to full
+ * A mount animation for a freshly created stack card: it fades in and gently springs up to full
  * size, so two habits dropped onto each other visibly *coalesce* into one card instead of snapping
  * into existence. Paired with the drag ghost melting into the target, this reads as a merge.
  *

@@ -1,9 +1,9 @@
 /**
  * Drag-to-organise — pure interaction math for the Today list's unified drag.
  *
- * One long-press drag vocabulary: lift a standalone habit, a routine card, or a member row;
- * gaps open between top-level entries to mean "drop between" (reorder / move out), a routine
- * card's inner body lights up to mean "drop into" (join that routine). These helpers do all
+ * One long-press drag vocabulary: lift a standalone habit, a stack card, or a member row;
+ * gaps open between top-level entries to mean "drop between" (reorder / move out), a stack
+ * card's inner body lights up to mean "drop into" (join that stack). These helpers do all
  * of the geometry and ordering for that gesture as plain functions:
  *
  *  - geometry (worklet-tagged, called per-frame on the UI thread): where would the drop land,
@@ -23,10 +23,10 @@
  * spaces coincide and an insertion is purely additive ("insertion-only" mode).
  */
 
-/** What a top-level entry is: a lone habit row, or a routine (stack) card. */
+/** What a top-level entry is: a lone habit row, or a stack (stack) card. */
 export type EntryKind = 'habit' | 'stack';
 
-/** What is being dragged: a top-level entry, or a member row inside a routine card. */
+/** What is being dragged: a top-level entry, or a member row inside a stack card. */
 export type DragKind = 'habit' | 'stack' | 'member';
 
 /** A top-level entry in render order. `key` is `habit:<id>` / `stack:<id>`. */
@@ -38,12 +38,12 @@ export type Frame = { y: number; h: number };
 /** Where a drop would land right now. */
 export type DropSlot =
   | { kind: 'between'; index: number } // compact-space insertion index at top level
-  | { kind: 'into'; stackId: string } // join this routine (appended)
-  | { kind: 'reorder'; stackId: string; index: number } // reorder within own routine (compact member index)
-  | { kind: 'merge'; habitId: string; betweenIndex: number } // hover a lone habit → candidate new routine; betweenIndex = the reorder it falls back to before the merge arms
+  | { kind: 'into'; stackId: string } // join this stack (appended)
+  | { kind: 'reorder'; stackId: string; index: number } // reorder within own stack (compact member index)
+  | { kind: 'merge'; habitId: string; betweenIndex: number } // hover a lone habit → candidate new stack; betweenIndex = the reorder it falls back to before the merge arms
   | { kind: 'none' }; // no meaning here → cancel (float home)
 
-/** A routine card's "into" zone is its frame inset top and bottom by 20% of its height
+/** A stack card's "into" zone is its frame inset top and bottom by 20% of its height
  *  (clamped 12–32 px); the bands outside the inset mean "between", so a drop just above or
  *  below a card reorders rather than joins — the two meanings never overlap. */
 const INTO_INSET_MIN = 12;
@@ -60,7 +60,7 @@ function intoInset(height: number): number {
  * one `slotSize` higher (its slot has closed). When `draggedKey` isn't in `keys` (a member drag
  * over the top-level list, or null), nothing is removed and the midpoints are the measured ones.
  * Keyed rather than `OrderMeta`-based so the same math serves both the top-level entry list and a
- * routine card's inner member list (a member reordering within its own card).
+ * stack card's inner member list (a member reordering within its own card).
  */
 export function compactMidpointsForKeys(
   keys: string[],
@@ -114,15 +114,15 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
  * Resolve where the ghost (centred at `centerY`, original/grid coordinates) would drop.
  * "Into" zones are checked first, against original frames: while a card is hovered the gaps
  * are closed, which puts every entry back at its measured position — so the zone and the visual
- * card agree exactly in the state where the ring shows. A routine card itself can only be
+ * card agree exactly in the state where the ring shows. A stack card itself can only be
  * reordered (never nested). A member over its OWN card's body reorders *within* that card:
  * `memberOrder[ownStackId]` (its members' keys in sequence) + `memberFrames` (their grid frames)
  * resolve a compact insertion index among the siblings, compacted by `memberSlot` (the dragged
  * member's own height). Its top/bottom bands still fall through to "between", so a member can be
- * dropped directly above or below its own routine to detach there.
+ * dropped directly above or below its own stack to detach there.
  *
  * A lone habit dragged over another lone habit's body resolves to "merge" (fold the two into a new
- * routine) — the same body-inset zone as a card's "into", carrying the `between` index it falls back
+ * stack) — the same body-inset zone as a card's "into", carrying the `between` index it falls back
  * to so the row stays reorderable until the merge arms (the dwell timer lives in the gesture layer,
  * not here). Only habit-over-habit merges; a member or a card over a lone habit stays "between".
  */
@@ -291,8 +291,8 @@ export type Unit = { key: string; stackId: string | null; habitIds: string[] };
 
 /** Where a moved habit lands (see {@link orderAfterHabitMove}). */
 export type MovePlacement =
-  | { type: 'member-index'; index: number } // at this index within the target routine
-  | { type: 'member-append' } // last in the target routine
+  | { type: 'member-index'; index: number } // at this index within the target stack
+  | { type: 'member-append' } // last in the target stack
   | { type: 'before-unit'; key: string | null } // top level, before this unit (null = end)
   | { type: 'after-unit'; key: string }; // top level, right after this unit
 
@@ -347,8 +347,8 @@ export function flattenUnits(units: Unit[]): string[] {
 /**
  * The move that puts `habitId` back exactly where it sits right now — captured BEFORE a move so
  * the confirmation toast's Undo can reverse it. A member restores to its index among its
- * routine's members; a standalone habit restores to just before the unit that follows it.
- * (If the move is about to empty the habit's routine, the caller must instead recreate the
+ * stack's members; a standalone habit restores to just before the unit that follows it.
+ * (If the move is about to empty the habit's stack, the caller must instead recreate the
  * deleted stack via `createStack` — a fresh id, since nothing references the old one.)
  */
 export function placementToRestore(
@@ -371,7 +371,7 @@ export function placementToRestore(
 }
 
 /**
- * The full habit order + membership after moving one habit into a routine (`toStackId`) or out
+ * The full habit order + membership after moving one habit into a stack (`toStackId`) or out
  * to the top level (`null`), landing per `placement`. Pulls the habit out of its current unit
  * first (dropping that unit if it empties — the caller deletes the actual emptied stack).
  * If `placement` names the just-emptied unit (`after-unit` of the habit's own former stack —

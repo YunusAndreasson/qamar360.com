@@ -27,6 +27,8 @@ export const Icons = {
   // ── Stacks / links ─────────────────────────────────────────────────────
   link: { sf: 'link', material: 'link' },
   addLink: { sf: 'link.badge.plus', material: 'add-link' },
+  stack: { sf: 'square.stack.3d.up', material: 'layers' },
+  openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   addCircle: { sf: 'plus.circle', material: 'add-circle-outline' },
   // ── Habit actions ──────────────────────────────────────────────────────
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },

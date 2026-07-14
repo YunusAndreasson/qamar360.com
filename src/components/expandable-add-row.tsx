@@ -19,6 +19,9 @@ type Props = {
   onAdd: () => void;
   /** When added, makes the row tappable to undo the add. Omitting it leaves "added" inert. */
   onRemove?: () => void;
+  /** When added, a trailing "＋" adds a second, independent copy (auto-differentiated name).
+   *  Omit it (e.g. the stack-scoped screen, which manages membership, not existence) to hide it. */
+  onAddAnother?: () => void;
   /** Accessible name for the row body (item name + schedule/summary). */
   rowAccessibilityLabel: string;
   expandHint: string;
@@ -29,10 +32,11 @@ type Props = {
 
 /**
  * A Discover library row: tap it to add — or to remove, once added — the same tap-to-toggle idiom
- * as a `HabitRow` checklist item, so an already-added item is never a dead end. A small trailing
- * chevron reveals the "why"/"what's inside" without touching the add state, so there's exactly one
- * add control per row (never a second one behind the chevron). Backs both {@link SunnahPresetRow}
- * and {@link SunnahRoutineRow}.
+ * as a `HabitRow` checklist item, so an already-added item is never a dead end. Once added, an
+ * optional trailing "＋" (see `onAddAnother`) adds a second, independent copy — the escape hatch
+ * for habits you want in more than one place (a page of Qurʾān in both your Morning and Evening
+ * stacks). A small trailing chevron reveals the "why"/"what's inside" without touching the add
+ * state, so the row body stays a single add control. Backs {@link SunnahPresetRow}.
  */
 export function ExpandableAddRow({
   title,
@@ -40,6 +44,7 @@ export function ExpandableAddRow({
   added,
   onAdd,
   onRemove,
+  onAddAnother,
   rowAccessibilityLabel,
   expandHint,
   collapseHint = 'Collapse details',
@@ -103,6 +108,25 @@ export function ExpandableAddRow({
             </ThemedText>
           </View>
         </Pressable>
+        {/* Added → a quiet accent "＋" to add another independent copy (its own row on Today,
+            with an auto-differentiated name). Its own hit area, apart from the row's remove tap. */}
+        {added && onAddAnother ? (
+          <Pressable
+            onPress={() => {
+              haptics.added();
+              onAddAnother();
+            }}
+            hitSlop={8}
+            android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+            accessibilityRole="button"
+            accessibilityLabel={`Add another ${title}`}
+            accessibilityHint="Adds a second copy you can rename or place in another stack"
+            style={({ pressed }) => [styles.addAnother, pressed && styles.pressed]}>
+            <View style={[styles.addAnotherBadge, { backgroundColor: theme.accentSubtle }]}>
+              <AppIcon name="add" size={18} color={theme.accent} />
+            </View>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={toggleExpand}
           hitSlop={8}
@@ -152,6 +176,22 @@ const styles = StyleSheet.create({
   },
   labels: { flex: 1, gap: Spacing.half },
   title: { flexShrink: 1 },
+  // The "add another" tap area — sits between the row body and the expand chevron.
+  addAnother: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.one,
+  },
+  // A slightly smaller echo of the leading add-badge, reading as the row's one call to action
+  // once the primary state has receded to a bare check.
+  addAnotherBadge: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+  },
   // Its own small hit area, clearly set apart from the (much larger) add target.
   expandButton: {
     minHeight: 48,

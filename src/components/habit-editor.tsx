@@ -69,8 +69,6 @@ type Props = {
   joinableStacks?: { id: string; name: string }[];
   /** Add this habit to an existing stack. Editing only. */
   onJoinStack?: (stackId: string) => void;
-  /** Start a new stack seeded with this habit. Editing only — also enables the STACK section. */
-  onNewStack?: () => void;
   /** Edit the stack this habit already belongs to. Editing only. */
   onEditStack?: () => void;
   onClose: () => void;
@@ -90,7 +88,6 @@ export function HabitEditorForm({
   stackName,
   joinableStacks,
   onJoinStack,
-  onNewStack,
   onEditStack,
   onClose,
   onCreate,
@@ -463,8 +460,10 @@ export function HabitEditorForm({
         </View>
       ) : null}
 
-      {/* Stack (editing only) — group this habit into a sequence with others. */}
-      {onNewStack ? (
+      {/* Stack (editing only) — this habit's grouping: edit the stack it's in, or join an
+          existing one. Hidden when there's nothing to show or join — new stacks aren't made
+          here; you start one on Today by dropping one habit onto another. */}
+      {!isNew && (stackName || (joinableStacks?.length ?? 0) > 0) ? (
         <>
           <FieldLabel>STACK</FieldLabel>
           {stackName ? (
@@ -487,7 +486,7 @@ export function HabitEditorForm({
               </ThemedText>
             </Pressable>
           ) : (
-            // Not grouped — a tappable picker: join an existing stack, or start a new one.
+            // Not grouped — a tappable picker: join one of the existing stacks.
             <View style={[styles.stackGroup, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
               <Pressable
                 // Disclosure of the stack picker — clear visual feedback, no haptic.
@@ -504,9 +503,8 @@ export function HabitEditorForm({
                   {stackPickerOpen ? 'Close' : 'Add to a stack'}
                 </ThemedText>
               </Pressable>
-              {stackPickerOpen ? (
-                <>
-                  {(joinableStacks ?? []).map((s) => (
+              {stackPickerOpen
+                ? (joinableStacks ?? []).map((s) => (
                     <Pressable
                       key={s.id}
                       onPress={() => onJoinStack?.(s.id)}
@@ -523,24 +521,8 @@ export function HabitEditorForm({
                         {s.name}
                       </ThemedText>
                     </Pressable>
-                  ))}
-                  <Pressable
-                    onPress={onNewStack}
-                    android_ripple={{ color: theme.backgroundSelected }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Start a new stack with this habit"
-                    style={({ pressed }) => [
-                      styles.stackOption,
-                      { borderTopColor: theme.border },
-                      pressed && styles.stackRowPressed,
-                    ]}>
-                    <AppIcon name="addLink" size={22} color={theme.accent} />
-                    <ThemedText type="smallBold" themeColor="accent">
-                      New Stack…
-                    </ThemedText>
-                  </Pressable>
-                </>
-              ) : null}
+                  ))
+                : null}
             </View>
           )}
         </>

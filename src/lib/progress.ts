@@ -46,18 +46,18 @@ export function ringMetrics(size: number, strokeWidth: number, fraction: number)
 }
 
 /**
- * Whether a routine (stack) has just been sealed — every act it has due today is done, and it's a
- * genuine *group* (≥2 acts due), so a routine with a single act scheduled today reads as a plain
- * tick rather than a milestone. Skipped members are excused — out of the routine's "open" set, the
+ * Whether a stack has just been sealed — every act it has due today is done, and it's a
+ * genuine *group* (≥2 acts due), so a stack with a single act scheduled today reads as a plain
+ * tick rather than a milestone. Skipped members are excused — out of the stack's "open" set, the
  * same way {@link computeProgress} and the day-complete rule drop an excused act. `justCompletedId`
  * lets the completion handler count the id it is ticking as done before its optimistic state has
  * propagated (mirroring the day-complete seam's stale-read guard); the card omits it, since by the
  * time it re-renders its `completed` set already reflects the tick.
  *
- * The single source of truth for "routine complete" — the card's border flash and the synced
+ * The single source of truth for "stack complete" — the card's border flash and the synced
  * completion haptic both read it, so the flash and the buzz can never disagree.
  */
-export function isRoutineComplete(
+export function isStackComplete(
   members: { id: string }[],
   completed: Set<string>,
   skipped: Set<string>,

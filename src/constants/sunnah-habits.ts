@@ -115,9 +115,11 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'prayer-in-congregation',
     categoryId: 'salah',
     name: 'Pray in congregation',
-    detail: 'Pray at least one of the five daily prayers in congregation (jamāʿah) — with at least one other person, at the masjid wherever you can.',
+    detail: 'Pray each of the five daily prayers in congregation (jamāʿah) — with at least one other person, at the masjid wherever you can. Count each prayer you make in jamāʿah.',
     evidence: 'Prayer in congregation is twenty-seven times superior to prayer alone (Bukhari 645, Muslim 650).',
     defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 5,
+    targetUnit: 'prayers',
   },
 
   // ── Sunnah & nafl prayers ────────────────────────────────────────────────
@@ -133,8 +135,48 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'rawatib-12',
     categoryId: 'sunnah-prayers',
     name: 'Pray the 12 rawātib rakʿah',
-    detail: 'Pray the twelve confirmed Sunnah rakʿahs across the day: 2 before Fajr, 4 before & 2 after Dhuhr, 2 after Maghrib, 2 after ʿIshāʾ.',
+    detail: 'Pray the twelve confirmed Sunnah rakʿahs across the day: 2 before Fajr, 4 before & 2 after Dhuhr, 2 after Maghrib, 2 after ʿIshāʾ. Prefer the per-prayer habits below if you’d rather track each one on its own.',
     evidence: 'Whoever prays twelve rakʿahs in a day and night, a house is built for him in Paradise (Muslim 728).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'sunnah-before-dhuhr',
+    categoryId: 'sunnah-prayers',
+    name: 'Four rakʿah before Dhuhr',
+    detail: 'Pray the four confirmed Sunnah rakʿah before the obligatory Dhuhr prayer.',
+    evidence: 'Among the twelve confirmed rawātib — four before Dhuhr (Muslim 728; Tirmidhi 415, ṣaḥīḥ); the Prophet ﷺ would not leave four before Dhuhr (Bukhari 1182).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'sunnah-after-dhuhr',
+    categoryId: 'sunnah-prayers',
+    name: 'Two rakʿah after Dhuhr',
+    detail: 'Pray the two confirmed Sunnah rakʿah after the obligatory Dhuhr prayer.',
+    evidence: 'Among the twelve confirmed rawātib — two after Dhuhr (Muslim 728; Tirmidhi 415, ṣaḥīḥ).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'sunnah-before-asr',
+    categoryId: 'sunnah-prayers',
+    name: 'Four rakʿah before ʿAṣr',
+    detail: 'Pray four rakʿah before the obligatory ʿAṣr prayer — a recommended (not confirmed) Sunnah, prayed as two pairs.',
+    evidence: 'May Allāh have mercy on a man who prays four rakʿah before ʿAṣr (Abu Dawud 1271; Tirmidhi 430, ḥasan).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'sunnah-after-maghrib',
+    categoryId: 'sunnah-prayers',
+    name: 'Two rakʿah after Maghrib',
+    detail: 'Pray the two confirmed Sunnah rakʿah after the obligatory Maghrib prayer, at home where you can.',
+    evidence: 'Among the twelve confirmed rawātib — two after Maghrib (Muslim 728; Tirmidhi 415, ṣaḥīḥ).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'sunnah-after-isha',
+    categoryId: 'sunnah-prayers',
+    name: 'Two rakʿah after ʿIshāʾ',
+    detail: 'Pray the two confirmed Sunnah rakʿah after the obligatory ʿIshāʾ prayer, before your Witr.',
+    evidence: 'Among the twelve confirmed rawātib — two after ʿIshāʾ (Muslim 728; Tirmidhi 415, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
@@ -173,7 +215,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'tahiyyat-al-masjid',
     categoryId: 'sunnah-prayers',
     name: 'Two rakʿah on entering the masjid',
-    detail: 'On entering the masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down — each time you enter, not a fixed daily count.',
+    detail: 'On any day you enter a masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down — each time you enter. On a day you don’t go, skip it.',
     evidence: 'When one of you enters the masjid, let him pray two rakʿah before sitting (Bukhari 444, Muslim 714).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -260,17 +302,21 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'tasbih-after-salah',
     categoryId: 'dhikr',
     name: 'Tasbīḥ ×33 after each prayer',
-    detail: 'After each obligatory prayer, say SubḥānAllāh, Alḥamdulillāh and Allāhu Akbar 33 times each, then complete the hundred with: lā ilāha illā Allāh waḥdahu lā sharīka lah, lahu-l-mulku wa lahu-l-ḥamd wa huwa ʿalā kulli shayʾin qadīr.',
+    detail: 'After each obligatory prayer, say SubḥānAllāh, Alḥamdulillāh and Allāhu Akbar 33 times each, then complete the hundred with: lā ilāha illā Allāh waḥdahu lā sharīka lah, lahu-l-mulku wa lahu-l-ḥamd wa huwa ʿalā kulli shayʾin qadīr. Count each of the five prayers you complete it after.',
     evidence: 'Whoever says them after every prayer, his sins are forgiven though they be like the foam of the sea (Muslim 597).',
     defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 5,
+    targetUnit: 'prayers',
   },
   {
     id: 'ayat-al-kursi',
     categoryId: 'dhikr',
     name: 'Āyat al-Kursī after each prayer',
-    detail: 'Recite Āyat al-Kursī (Qurʾān 2:255) after each obligatory prayer.',
+    detail: 'Recite Āyat al-Kursī (Qurʾān 2:255) after each obligatory prayer. Count each of the five prayers you recite it after.',
     evidence: 'Whoever recites it after every prayer, nothing keeps him from Paradise but death (an-Nasāʾī, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 5,
+    targetUnit: 'prayers',
   },
   {
     id: 'istighfar-100',
@@ -318,7 +364,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'dua-entering-masjid',
     categoryId: 'dhikr',
     name: 'Duʿāʾ entering & leaving the masjid',
-    detail: 'Enter saying Allāhumma-ftaḥ lī abwāba raḥmatik; leave saying Allāhumma innī asʾaluka min faḍlik.',
+    detail: 'On a day you go to the masjid, enter saying Allāhumma-ftaḥ lī abwāba raḥmatik and leave saying Allāhumma innī asʾaluka min faḍlik. On a day you don’t go, skip it.',
     evidence: 'The Prophet ﷺ taught this on entering and leaving the masjid (Muslim 713).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -326,7 +372,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'kaffarat-al-majlis',
     categoryId: 'dhikr',
     name: 'Seal a gathering',
-    detail: 'Before leaving a sitting, say the expiation of the gathering (kaffārat al-majlis): Subḥānaka-llāhumma wa biḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk.',
+    detail: 'On any day you sit with others, before you leave say the expiation of the gathering (kaffārat al-majlis): Subḥānaka-llāhumma wa biḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk. On a day with no gathering, skip it.',
     evidence: 'Whoever says it when leaving a gathering, what occurred in it is forgiven (Tirmidhi 3433, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -646,6 +692,31 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   },
 ];
 
+/** One starter stack: a named group of presets added together, in this order. */
+export type StarterStack = {
+  /** The stack's name as created — plain English day-parts, per house style. */
+  name: string;
+  /** Preset ids (see `SUNNAH_PRESETS`) in stack sequence order. */
+  presetIds: string[];
+};
+
+/**
+ * The starter set, grouped by the moments of the day it anchors to — added as ready-made
+ * stacks so a new user's very first screen already demonstrates the app's core idea. Ids
+ * resolve against the live catalog at add time (a missing id just drops out), and presets the
+ * user already has are skipped, so a partial re-run only fills the gaps.
+ */
+export const STARTER_STACKS: StarterStack[] = [
+  { name: 'Morning', presetIds: ['dua-on-waking', 'fajr-on-time', 'morning-adhkar'] },
+  { name: 'Midday', presetIds: ['dhuhr-on-time', 'asr-on-time'] },
+  { name: 'Evening', presetIds: ['evening-adhkar', 'maghrib-on-time'] },
+  { name: 'Night', presetIds: ['isha-on-time', 'quran-daily-page', 'sleeping-adhkar'] },
+];
+
+/** Starter presets with no time-of-day home (event-driven) — added standalone, after the
+ *  stacks, so the first run also shows what a lone habit looks like. */
+export const STARTER_STANDALONE_PRESET_IDS = ['answer-the-adhan'];
+
 /** Short weekday names indexed 0=Sun … 6=Sat, for schedule summaries. */
 const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -660,68 +731,3 @@ export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null
   return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ') || 'No days';
 }
 
-/**
- * A curated "stack" — a natural sequence of Sunnah habits that belong together. Adding one
- * creates any missing member habits, then groups them in order (see `createStack`). Purely a
- * presentation grouping; each habit is still completed individually.
- */
-export type SunnahRoutine = {
-  /** Stable key. */
-  id: string;
-  /** The stored stack name. */
-  name: string;
-  /** One-line description shown in Discover. */
-  detail: string;
-  /** Member preset ids, in sequence order. */
-  presetIds: string[];
-};
-
-export const SUNNAH_ROUTINES: SunnahRoutine[] = [
-  {
-    id: 'fajr-routine',
-    name: 'Fajr routine',
-    detail: 'Anchor the dawn sequence to waking for Fajr: two rakʿah before Fajr, the Fajr prayer on time, then the morning adhkār.',
-    presetIds: ['sunnah-before-fajr', 'fajr-on-time', 'morning-adhkar'],
-  },
-  {
-    id: 'before-sleep-routine',
-    name: 'Before sleep',
-    detail: 'A Sunnah wind-down: evening adhkār, Witr, Surah al-Mulk, the three Quls, sleeping upon wuḍūʾ, then the sleeping duʿāʾ.',
-    presetIds: ['evening-adhkar', 'witr', 'surah-al-mulk', 'three-quls-sleep', 'sleep-on-wudu', 'sleeping-adhkar'],
-  },
-  {
-    id: 'waking-routine',
-    name: 'On waking',
-    detail: 'Start the day on the Sunnah: the duʿāʾ on waking, the last ten verses of Āl ʿImrān, then the miswāk.',
-    presetIds: ['dua-on-waking', 'al-imran-last-ten', 'miswak'],
-  },
-  {
-    id: 'wudu-routine',
-    name: 'After wuḍūʾ',
-    detail: 'Seal each wuḍūʾ: the shahādatayn duʿāʾ, then two rakʿah before your mind wanders.',
-    presetIds: ['dua-after-wudu', 'two-rakah-after-wudu'],
-  },
-  {
-    id: 'masjid-routine',
-    name: 'At the masjid',
-    detail: 'Arriving for congregation: answer the adhān, the masjid-entry duʿāʾ, greet the masjid with two rakʿah, then pray in congregation.',
-    presetIds: ['answer-the-adhan', 'dua-entering-masjid', 'tahiyyat-al-masjid', 'prayer-in-congregation'],
-  },
-  {
-    id: 'gathering-routine',
-    name: 'In a gathering',
-    detail: 'The adab of sitting with people: spread the salām, offer a good word, then seal it with kaffārat al-majlis.',
-    presetIds: ['spread-salam', 'good-word', 'kaffarat-al-majlis'],
-  },
-];
-
-/**
- * Resolve a routine's preset ids to its member presets, in sequence order, against the given
- * preset library. Takes `presets` explicitly (rather than closing over `SUNNAH_PRESETS`) so it
- * works over whichever catalog is live — the one fetched from Supabase or the bundled fallback.
- */
-export function routinePresets(routine: SunnahRoutine, presets: SunnahPreset[]): SunnahPreset[] {
-  return routine.presetIds
-    .map((id) => presets.find((p) => p.id === id))
-    .filter((p): p is SunnahPreset => p != null);
-}

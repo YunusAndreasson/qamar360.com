@@ -35,31 +35,31 @@ type Props = {
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
   onDelete: (id: string) => void;
-  /** Open the "add to routine" picker for this habit. Only wired for standalone (ungrouped)
-   *  rows — a stack member already belongs to a routine, so the action is omitted there.
-   *  (The drag offers the same move: drop the row onto a routine card.) */
-  onAddToRoutine?: (habit: Habit) => void;
-  /** Detach this habit from its routine (back to standalone). The mirror of `onAddToRoutine`:
+  /** Open the "add to stack" picker for this habit. Only wired for standalone (ungrouped)
+   *  rows — a stack member already belongs to one, so the action is omitted there.
+   *  (The drag offers the same move: drop the row onto a stack card.) */
+  onAddToStack?: (habit: Habit) => void;
+  /** Detach this habit from its stack (back to standalone). The mirror of `onAddToStack`:
    *  wired only for stack members — the explicit swipe counterpart to dragging the member row
    *  out of its card. */
-  onRemoveFromRoutine?: (habit: Habit) => void;
+  onRemoveFromStack?: (habit: Habit) => void;
   /** Screen-reader reorder (exposed as Move up / Move down accessibility actions — the
    *  non-visual equivalent of the drag): a standalone row moves in the day list, a member row
-   *  moves within its routine. */
+   *  moves within its stack. */
   onMove?: (habit: Habit, delta: -1 | 1) => void;
-  /** Screen-reader "start a routine with the next habit" — the gesture-free equivalent of dropping
-   *  this lone habit onto the one below it. Wired (standalone rows only) only when a lone-habit
+  /** Screen-reader "stack with the next habit" — the gesture-free equivalent of dropping this
+   *  lone habit onto the one below it. Wired (standalone rows only) only when a lone-habit
    *  neighbour exists, so the action never no-ops. */
   onGroupWithNext?: (habit: Habit) => void;
   /** A lone top-level habit (not a stack member): give it its own tappable card surface.
-   *  Standalone rows long-press-drag to reorder or to drop onto a routine card. */
+   *  Standalone rows long-press-drag to reorder or to drop onto a stack card. */
   standalone?: boolean;
 };
 
 // Staggered reveal — each trailing action fades/slides in left-to-right as the panel
-// opens, keyed by its slot so Skip leads and Delete lands last. `routine` slots between
+// opens, keyed by its slot so Skip leads and Delete lands last. `stack` slots between
 // Edit and Delete (standalone rows only), so Skip/Edit/Delete keep their original timing.
-const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, routine: 0.16, delete: 0.2 } as const;
+const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, stack: 0.16, delete: 0.2 } as const;
 
 // The one open swipe panel across every row (module-scoped: rows live in different cards and
 // lists but share one screen). Opening a second panel closes the first — the Reminders/Mail
@@ -119,7 +119,7 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToRoutine, onRemoveFromRoutine, onMove, onGroupWithNext, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToStack, onRemoveFromStack, onMove, onGroupWithNext, standalone }: Props) {
   const theme = useTheme();
 
   // The swipeable's handle (for the single-open rule) and whether its panel is showing — the
@@ -143,6 +143,13 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
   // The completion fraction that fills the leading moon ring (the same unit the Progress grid
   // uses): a count goal waxes by `count ÷ target`; a binary habit is a full moon when done.
   const fraction = isCount && target ? clamp01(count / target) : done ? 1 : 0;
+
+  // When a count goal is met the whole stepper recedes to echo the struck-through label: its
+  // button rings drop from the live `controlTrack` to the quiet card hairline (controlTrack is
+  // actually *brighter* than the disabled glyph tone on the dark card, so leaving it would make
+  // the ring outshine its own muted contents), and its readout/− glyph go to `textDisabled`. The
+  // − stays live for a correction — muted, not disabled. The + is already `textDisabled` here.
+  const stepBorderColor = done ? theme.border : theme.controlTrack;
 
   // The confirmation "pop" on the leading mark when a habit is completed — the shared
   // spring the Discover add-badge uses too (see use-confirm-pop for the mount-skip and
@@ -200,24 +207,24 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         }}
         accessibilityLabel={`Edit ${habit.name}`}
       />
-      {/* The routine "organise" swipe action, accent-tinted against the neutral Skip/Edit blocks:
-          a lone habit is *added* to a routine (picker) — the discoverable counterpart of dropping it
+      {/* The stack "organise" swipe action, accent-tinted against the neutral Skip/Edit blocks:
+          a lone habit is *added* to a stack (picker) — the discoverable counterpart of dropping it
           onto a card. Removing a member is drag-only now (drag the row out of its card); screen
-          readers keep the row's "Remove from routine" action, so no Remove button clutters the swipe. */}
-      {standalone && onAddToRoutine ? (
+          readers keep the row's "Remove from stack" action, so no Remove button clutters the swipe. */}
+      {standalone && onAddToStack ? (
         <SwipeAction
           progress={progress}
-          kind="routine"
-          label="Routine"
+          kind="stack"
+          label="Stack"
           icon="addLink"
           backgroundColor={theme.accentSubtle}
           foregroundColor={theme.accent}
           rippleColor={theme.backgroundElement}
           onPress={() => {
             swipeable.close();
-            onAddToRoutine(habit);
+            onAddToStack(habit);
           }}
-          accessibilityLabel={`Add ${habit.name} to a routine`}
+          accessibilityLabel={`Add ${habit.name} to a stack`}
         />
       ) : null}
       <SwipeAction
@@ -272,14 +279,14 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
         accessibilityHint={
           isCount
             ? standalone
-              ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a routine. Swipe left to add to a routine, skip, edit, or delete.'
-              : 'Use the stepper to log progress. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
+              ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a stack. Swipe left to add to a stack, skip, edit, or delete.'
+              : 'Use the stepper to log progress. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete.'
             : standalone
-              ? 'Activates to toggle done. Hold and drag to reorder, drop onto a routine, or drop onto another habit to combine them. Swipe left to add to a routine, skip, edit, or delete.'
-              : 'Activates to toggle done. Hold and drag to move it out of its routine. Swipe left to remove from routine, skip, edit, or delete.'
+              ? 'Activates to toggle done. Hold and drag to reorder, drop onto a stack, or drop onto another habit to stack the two. Swipe left to add to a stack, skip, edit, or delete.'
+              : 'Activates to toggle done. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete.'
         }
         // Everything the drag can do, as screen-reader actions (full parity — a drag gesture
-        // is invisible to TalkBack/VoiceOver): reorder via Move up/down, and the routine
+        // is invisible to TalkBack/VoiceOver): reorder via Move up/down, and the stack
         // membership change appropriate to the row.
         accessibilityActions={[
           ...(onMove
@@ -288,10 +295,10 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
                 { name: 'moveDown', label: 'Move down' },
               ]
             : []),
-          ...(standalone && onAddToRoutine ? [{ name: 'addToRoutine', label: 'Add to routine' }] : []),
-          ...(standalone && onGroupWithNext ? [{ name: 'groupWithNext', label: 'Start a routine with next habit' }] : []),
-          ...(!standalone && onRemoveFromRoutine
-            ? [{ name: 'removeFromRoutine', label: 'Remove from routine' }]
+          ...(standalone && onAddToStack ? [{ name: 'addToStack', label: 'Add to stack' }] : []),
+          ...(standalone && onGroupWithNext ? [{ name: 'groupWithNext', label: 'Stack with next habit' }] : []),
+          ...(!standalone && onRemoveFromStack
+            ? [{ name: 'removeFromStack', label: 'Remove from stack' }]
             : []),
         ]}
         onAccessibilityAction={(event) => {
@@ -302,14 +309,14 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
             case 'moveDown':
               onMove?.(habit, 1);
               break;
-            case 'addToRoutine':
-              onAddToRoutine?.(habit);
+            case 'addToStack':
+              onAddToStack?.(habit);
               break;
             case 'groupWithNext':
               onGroupWithNext?.(habit);
               break;
-            case 'removeFromRoutine':
-              onRemoveFromRoutine?.(habit);
+            case 'removeFromStack':
+              onRemoveFromStack?.(habit);
               break;
           }
         }}
@@ -353,10 +360,13 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               accessibilityRole="button"
               accessibilityLabel={`Remove one from ${habit.name}`}
               accessibilityState={{ disabled: count <= 0 }}
-              style={[styles.stepButton, { borderColor: theme.controlTrack }]}>
-              <AppIcon name="remove" size={18} color={count <= 0 ? theme.textDisabled : theme.text} />
+              style={[styles.stepButton, { borderColor: stepBorderColor }]}>
+              <AppIcon name="remove" size={18} color={count <= 0 || done ? theme.textDisabled : theme.text} />
             </PressableScale>
-            <ThemedText type="smallBold" numberOfLines={1} style={styles.stepCount}>
+            <ThemedText
+              type="smallBold"
+              numberOfLines={1}
+              style={[styles.stepCount, done && { color: theme.textDisabled }]}>
               {count}/{target}
               {habit.target_unit ? ` ${habit.target_unit}` : ''}
             </ThemedText>
@@ -367,7 +377,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               accessibilityRole="button"
               accessibilityLabel={`Add one to ${habit.name}`}
               accessibilityState={{ disabled: count >= (target ?? 0) }}
-              style={[styles.stepButton, { borderColor: theme.controlTrack }]}>
+              style={[styles.stepButton, { borderColor: stepBorderColor }]}>
               <AppIcon name="add" size={18} color={count >= (target ?? 0) ? theme.textDisabled : theme.accent} />
             </PressableScale>
           </View>
@@ -460,8 +470,8 @@ function propsEqual(a: Props, b: Props): boolean {
     a.onSkip === b.onSkip &&
     a.onEdit === b.onEdit &&
     a.onDelete === b.onDelete &&
-    a.onAddToRoutine === b.onAddToRoutine &&
-    a.onRemoveFromRoutine === b.onRemoveFromRoutine &&
+    a.onAddToStack === b.onAddToStack &&
+    a.onRemoveFromStack === b.onRemoveFromStack &&
     a.onMove === b.onMove &&
     a.onGroupWithNext === b.onGroupWithNext
   );

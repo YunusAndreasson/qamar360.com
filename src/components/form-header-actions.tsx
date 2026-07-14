@@ -25,6 +25,17 @@ export function headerSaveAction(onSave: () => void, canSave: boolean, label = '
   };
 }
 
+/**
+ * A plain dismiss button for a modal that has nothing to save — e.g. the Discover sheet, where
+ * adds commit instantly. Left-aligned like every other modal's dismiss (the editors' "Cancel"),
+ * so the app's sheets all close from the same place.
+ */
+export function headerCloseAction(onClose: () => void, label = 'Close') {
+  return function HeaderClose() {
+    return <HeaderCancelButton onCancel={onClose} label={label} />;
+  };
+}
+
 export function formHeaderActions({ onCancel, onSave, canSave, saveLabel, cancelLabel }: Props) {
   return {
     headerLeft: headerCancelAction(onCancel, cancelLabel),

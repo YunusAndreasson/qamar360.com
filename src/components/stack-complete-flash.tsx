@@ -15,7 +15,7 @@ import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * The border flash a routine card gives the instant its last open act is ticked — the whole group
+ * The border flash a stack card gives the instant its last open act is ticked — the whole group
  * sealed. It reuses the drag "drop ring" shape (a 2px border overlaying the card's rounded rect),
  * but in the warm `complete` tone — the same colour the completing habit's ring settles into — and
  * as a one-shot bloom-and-fade rather than the drag ring's hover cross-fade.
@@ -23,19 +23,19 @@ import { useTheme } from '@/hooks/use-theme';
  * The bloom is on the shared `Tick` clock (constants/motion), so it reads as one motion with the
  * completing tick: the border lights to full as the last habit's ring sweeps shut (`Tick.sweep`),
  * holds through the check draw, then cross-fades out on the ring's own settle window — it lights,
- * then rests. That same `Tick.sweep` is when `haptics.routineComplete`'s tail beat lands, so the
+ * then rests. That same `Tick.sweep` is when `haptics.stackComplete`'s tail beat lands, so the
  * flash and the buzz hit together. The haptic lives in use-habits (one source of truth), so this
  * layer is purely visual and never buzzes. Reduce Motion: no flash — every row already showing its
  * done mark says the group is finished.
  */
-export function RoutineCompleteFlash({ complete }: { complete: boolean }) {
+export function StackCompleteFlash({ complete }: { complete: boolean }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const flash = useSharedValue(0);
 
   // Fire only on the false→true edge — the moment of sealing — mirroring CompletionRing's
   // `wasComplete` guard: a card that loads already-complete, or re-renders while still complete,
-  // never flashes. Born at `complete` so the first run is a no-op for an already-sealed routine.
+  // never flashes. Born at `complete` so the first run is a no-op for an already-sealed stack.
   const wasComplete = useRef(complete);
   useEffect(() => {
     const was = wasComplete.current;

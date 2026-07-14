@@ -2,8 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 
 import { HabitEditorForm } from '@/components/habit-editor';
-import { useHabits } from '@/hooks/use-habits';
-import { useRoutineActions } from '@/hooks/use-routine-actions';
+import { type HabitCreate, useHabits } from '@/hooks/use-habits';
+import { useStackActions } from '@/hooks/use-stack-actions';
 import { otherNames } from '@/lib/names';
 
 /**
@@ -13,24 +13,27 @@ import { otherNames } from '@/lib/names';
  */
 export default function HabitEditorScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const { habits, stacks, createHabit, updateHabit, deleteHabit, updateStack } = useHabits();
+  const { id, stackId } = useLocalSearchParams<{ id?: string; stackId?: string }>();
+  const { habits, stacks, createHabit, createHabitInStack, updateHabit, deleteHabit, updateStack } = useHabits();
 
   const isNew = !id || id === 'new';
   const habit = isNew ? null : (habits.find((h) => h.id === id) ?? null);
 
+  // Opened from the stack-scoped Add screen: the new habit lands straight in that stack.
+  // If the stack vanished mid-flow, fall back to a plain create — the habit still exists.
+  const targetStack = isNew && stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
+  const onCreate = targetStack ? (input: HabitCreate) => createHabitInStack(input, targetStack.id) : createHabit;
+
   // The stack this habit belongs to (if any) + handlers for the editor's STACK picker:
-  // edit the current stack, join an existing one, or start a new one seeded with this habit.
+  // edit the current stack, or join an existing one. (New stacks are made on Today, by
+  // dropping one habit onto another — not from this form.)
   const stackName = habit?.stack_id ? (stacks.find((s) => s.id === habit.stack_id)?.name ?? null) : null;
   const joinableStacks = useMemo(
     () => (habit && !habit.stack_id ? stacks.map((s) => ({ id: s.id, name: s.name })) : []),
     [habit, stacks],
   );
-  const onNewStack = habit
-    ? () => router.push({ pathname: '/habits/stack-editor', params: { id: 'new', seed: habit.id } })
-    : undefined;
-  const openRoutineActions = useRoutineActions();
-  const onEditStack = habit && habit.stack_id ? () => openRoutineActions(habit.stack_id!) : undefined;
+  const openStackActions = useStackActions();
+  const onEditStack = habit && habit.stack_id ? () => openStackActions(habit.stack_id!) : undefined;
   const onJoinStack = habit
     ? (stackId: string) => {
         const memberIds = habits
@@ -61,10 +64,9 @@ export default function HabitEditorScreen() {
       stackName={stackName}
       joinableStacks={joinableStacks}
       onJoinStack={onJoinStack}
-      onNewStack={onNewStack}
       onEditStack={onEditStack}
       onClose={() => router.back()}
-      onCreate={createHabit}
+      onCreate={onCreate}
       onSave={updateHabit}
       onDelete={deleteHabit}
     />

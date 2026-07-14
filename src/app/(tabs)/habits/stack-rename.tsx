@@ -8,7 +8,7 @@ import { useHabits } from '@/hooks/use-habits';
 import { normalizeName, otherNames } from '@/lib/names';
 
 /**
- * Rename a routine — a one-field modal reached from the manage sheet's Rename action. A name-only
+ * Rename a stack — a one-field modal reached from the manage menu's Rename action. A name-only
  * `updateStack` patch (never an empty member list, which would delete the stack). The full-screen
  * modal is the right home for a focused text field, so the keyboard never has to live in the sheet.
  */
@@ -20,7 +20,7 @@ export default function StackRenameScreen() {
   const stack = stacks.find((s) => s.id === id) ?? null;
   const [name, setName] = useState(stack?.name ?? '');
 
-  // Other routines' folded names — a rename can't collide with one (same fold as the create form).
+  // Other stacks' folded names — a rename can't collide with one (same fold the habits use).
   const existingNames = useMemo(() => otherNames(stacks, id), [stacks, id]);
   const trimmed = name.trim();
   const isDuplicate = trimmed.length > 0 && existingNames.includes(normalizeName(trimmed));
@@ -33,7 +33,7 @@ export default function StackRenameScreen() {
     router.back();
   };
 
-  // Renaming a routine that no longer exists (deleted elsewhere): back out.
+  // Renaming a stack that no longer exists (deleted elsewhere): back out.
   useEffect(() => {
     if (id && !stack) router.back();
   }, [id, stack, router]);
@@ -43,7 +43,7 @@ export default function StackRenameScreen() {
     <FormScreen>
       <Stack.Screen
         options={{
-          title: 'Rename routine',
+          title: 'Rename stack',
           headerTitleAlign: 'center',
           ...formHeaderActions({ onCancel: () => router.back(), onSave: save, canSave }),
         }}
@@ -53,11 +53,11 @@ export default function StackRenameScreen() {
         label="NAME"
         value={name}
         onChangeText={setName}
-        placeholder="e.g. Morning routine"
+        placeholder="e.g. After Fajr"
         autoCapitalize="sentences"
         autoFocus
-        accessibilityLabel="Routine name"
-        error={isDuplicate ? 'You already have a routine with this name.' : undefined}
+        accessibilityLabel="Stack name"
+        error={isDuplicate ? 'You already have a stack with this name.' : undefined}
       />
     </FormScreen>
   );

@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { AppButton } from '@/components/app-button';
@@ -22,7 +22,7 @@ import { Icons } from '@/constants/icons';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
-import { useRoutineActions } from '@/hooks/use-routine-actions';
+import { useStackActions } from '@/hooks/use-stack-actions';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, scheduledOn } from '@/lib/dates';
 import {
@@ -34,8 +34,9 @@ import {
   type OrderMeta,
 } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
+import { markStackCreated, useStackEverCreated } from '@/lib/hints';
 import { newId } from '@/lib/id';
-import { defaultRoutineName } from '@/lib/names';
+import { defaultStackName } from '@/lib/names';
 
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
@@ -128,11 +129,22 @@ export default function HabitsScreen() {
     for (const [stackId, members] of membersByStack) {
       const sorted = [...members].sort((a, b) => a.position - b.position);
       const first = sorted[0];
-      if (!first) continue; // a stack always has ≥1 member, but keep the index access honest
+      if (!first) continue; // a populated stack always has ≥1 member, but keep the index access honest
       out.push({ type: 'stack', stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
     }
+    // A stack with no members at all ("+ → New stack", waiting on its first habit) has no
+    // position to inherit; it holds the end of the list, showing its "Add your first habit"
+    // row. A stack whose members are merely hidden by the day filter stays hidden, as before —
+    // the distinction is drawn against ALL habits, not just the day's.
+    const stacksWithMembers = new Set<string>();
+    for (const h of habits) if (h.stack_id) stacksWithMembers.add(h.stack_id);
+    for (const s of stacks) {
+      if (!stacksWithMembers.has(s.id)) {
+        out.push({ type: 'stack', stack: s, members: [], sortKey: Number.MAX_SAFE_INTEGER });
+      }
+    }
     return out.sort((a, b) => a.sortKey - b.sortKey);
-  }, [visibleHabits, stacks]);
+  }, [visibleHabits, habits, stacks]);
 
   const canGoBack = viewDate > minViewDate;
   const canGoForward = viewDate < today;
@@ -150,22 +162,29 @@ export default function HabitsScreen() {
     [router],
   );
 
-  // Tapping a routine card's header opens the native "manage routine" menu (rename / delete) —
+  // Tapping a stack card's header opens the native "manage stack" menu (rename / delete) —
   // an iOS action sheet or an Android bottom sheet. Composing its members is all drag on the card.
-  const openRoutineActions = useRoutineActions();
+  const openStackActions = useStackActions();
 
-  // A lone habit's "Add to routine" swipe action → the routine picker sheet (seeded with it).
-  const openAddToRoutine = useCallback(
-    (habit: Habit) => router.push({ pathname: '/habits/add-to-routine', params: { habitId: habit.id } }),
+  // A lone habit's "Add to stack" swipe action → the stack picker sheet (seeded with it).
+  const openAddToStack = useCallback(
+    (habit: Habit) => router.push({ pathname: '/habits/add-to-stack', params: { habitId: habit.id } }),
+    [router],
+  );
+
+  // The empty stack card's "Add your first habit" row → the Add screen scoped to that stack
+  // (presets, "your habits", and "create your own" all land inside it).
+  const openAddHabits = useCallback(
+    (stackId: string) => router.push({ pathname: '/habits/discover', params: { stackId } }),
     [router],
   );
 
   const { show: showToast } = useToast();
 
-  // Commit "join a routine" (the drag's drop-onto-a-card and the picker sheet both land here
+  // Commit "join a stack" (the drag's drop-onto-a-card and the picker sheet both land here
   // via moveHabit). The restore is captured BEFORE the move so the toast's Undo puts the habit
   // back exactly where it was (user control & freedom — a slip is one tap from undone).
-  const addHabitToRoutine = useCallback(
+  const addHabitToStack = useCallback(
     (habitId: string, stackId: string) => {
       const stack = stacks.find((s) => s.id === stackId);
       const restore = placementToRestore(habits, habitId);
@@ -180,10 +199,10 @@ export default function HabitsScreen() {
     [habits, stacks, moveHabit, showToast],
   );
 
-  // Commit "leave a routine" — the member row's "Remove" swipe (default placement: right after
+  // Commit "leave a stack" — the member row's "Remove" swipe (default placement: right after
   // its former card) and the drag-out (an explicit drop slot). Removing the last member deletes
-  // the routine, so that Undo recreates it (a fresh id — nothing references the old one).
-  const removeFromRoutine = useCallback(
+  // the stack, so that Undo recreates it (a fresh id — nothing references the old one).
+  const removeFromStack = useCallback(
     (habit: Habit, placement?: MovePlacement) => {
       const stack = stacks.find((s) => s.id === habit.stack_id);
       const restore = placementToRestore(habits, habit.id);
@@ -202,11 +221,11 @@ export default function HabitsScreen() {
     [habits, stacks, moveHabit, createStack, showToast],
   );
 
-  // The routine just created by a drag-merge — the only card that gets the coalesce spring-in (kept
+  // The stack just created by a drag-merge — the only card that gets the coalesce spring-in (kept
   // set until the next merge; overwriting it lets the previous card, long settled, unwrap seamlessly).
   const [coalescingStackId, setCoalescingStackId] = useState<string | null>(null);
 
-  // Drop one habit onto another → a brand-new routine holding both. Created instantly with a default
+  // Drop one habit onto another → a brand-new stack holding both. Created instantly with a default
   // name (rename later from the card's ⋯ menu); the drop target hosts the new card at its slot and the
   // dragged habit joins after it. Undo deletes the fresh stack and restores the exact prior order —
   // createStack pulls the pair adjacent, so a bare delete would leave them regrouped where they landed.
@@ -218,9 +237,9 @@ export default function HabitsScreen() {
       // card animates its spring-in on its very first mount (only this card — not every card on load).
       const stackId = newId();
       setCoalescingStackId(stackId);
-      const created = await createStack(defaultRoutineName(stacks), [targetId, draggedId], stackId);
+      const created = await createStack(defaultStackName(stacks), [targetId, draggedId], stackId);
       if (!created) return;
-      showToast('Routine created', 'success', {
+      showToast('Stack created', 'success', {
         label: 'Undo',
         onPress: () => {
           void deleteStack(created);
@@ -264,7 +283,7 @@ export default function HabitsScreen() {
       const anchor = beforeKey === '' ? null : beforeKey;
       if (draggedKey.startsWith('member:')) {
         const habit = habits.find((h) => h.id === draggedKey.slice('member:'.length));
-        if (habit) removeFromRoutine(habit, { type: 'before-unit', key: anchor });
+        if (habit) removeFromStack(habit, { type: 'before-unit', key: anchor });
         return;
       }
       const units = buildUnits(habits);
@@ -273,19 +292,19 @@ export default function HabitsScreen() {
       haptics.selection();
       void reorderHabits(flattenUnits(next));
     },
-    [habits, removeFromRoutine, reorderHabits],
+    [habits, removeFromStack, reorderHabits],
   );
 
-  // A drop onto a glowing routine card: a standalone habit or another card's member joins it.
+  // A drop onto a glowing stack card: a standalone habit or another card's member joins it.
   const onDropInto = useCallback(
     (draggedKey: string, stackId: string) => {
       const habitId = draggedKey.slice(draggedKey.indexOf(':') + 1);
-      addHabitToRoutine(habitId, stackId);
+      addHabitToStack(habitId, stackId);
     },
-    [addHabitToRoutine],
+    [addHabitToStack],
   );
 
-  // A drop settled inside the member's own card: reorder within the routine. The gesture resolves
+  // A drop settled inside the member's own card: reorder within the stack. The gesture resolves
   // an insertion index among the *visible* members; translate it to an index in the *full* member
   // list so members hidden by the day filter keep their relative order (the same reason
   // `moveRowForA11y` works off the unfiltered `habits`).
@@ -308,7 +327,7 @@ export default function HabitsScreen() {
 
   // Screen-reader reorder (the Move up / Move down accessibility actions — everything the drag
   // can do without the gesture). Top-level entries step over their visible neighbour; a member
-  // steps within its routine's sequence.
+  // steps within its stack's sequence.
   const moveEntryForA11y = useCallback(
     (entryKey: string, delta: -1 | 1) => {
       const visible = entries.map((e) => (e.type === 'stack' ? `stack:${e.stack.id}` : `habit:${e.habit.id}`));
@@ -354,18 +373,29 @@ export default function HabitsScreen() {
   );
 
   // The gesture-free twin of drop-onto-a-habit: a screen-reader action on a lone row that folds it
-  // with the immediately-following lone habit into a new routine (a stack neighbour is already served
-  // by "Add to routine"). Passed to a row only when that neighbour exists, so the action never no-ops.
+  // with the immediately-following lone habit into a new stack (a stack-card neighbour is already
+  // served by "Add to stack"). Passed to a row only when that neighbour exists, so the action never
+  // no-ops.
   const groupWithNext = useCallback(
     (habit: Habit) => {
       const at = entries.findIndex((e) => e.type === 'habit' && e.habit.id === habit.id);
       const next = at === -1 ? undefined : entries[at + 1];
       if (!next || next.type !== 'habit') return;
       void mergeHabits(next.habit.id, habit.id);
-      AccessibilityInfo.announceForAccessibility('Routine created');
+      AccessibilityInfo.announceForAccessibility('Stack created');
     },
     [entries, mergeHabits],
   );
+
+  // The one-shot "drag to stack" teaching pill: shown while this install has never had a stack
+  // (persisted, so deleting your only stack doesn't resurrect the lesson) and the viewed day
+  // actually offers the gesture (≥2 lone rows to fold together). Retired the moment any stack
+  // exists — created by drag, the a11y action, or synced in from another device.
+  const everHadStack = useStackEverCreated();
+  useEffect(() => {
+    if (stacks.length > 0) markStackCreated();
+  }, [stacks.length]);
+  const stackHintVisible = !everHadStack && stacks.length === 0 && entries.length >= 2;
 
   return (
     <>
@@ -384,13 +414,13 @@ export default function HabitsScreen() {
               {Platform.OS !== 'ios' ? (
                 <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
               ) : null}
-              {/* One door to add: the Add screen leads with "create your
-                  own" and the curated Sunnah library below it. */}
+              {/* One door to add: the sheet forks to a habit (the curated Sunnah
+                  library, with "create your own" closing it) or a new stack. */}
               <HeaderIconButton
                 icon={Icons.add}
                 color={theme.accent}
                 accessibilityLabel="Add habit or stack"
-                onPress={() => router.push('/habits/discover')}
+                onPress={() => router.push('/habits/add-menu')}
               />
             </HeaderActions>
           ),
@@ -428,6 +458,7 @@ export default function HabitsScreen() {
           keyboardShouldPersistTaps="handled">
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+          {stackHintVisible ? <StackingHint /> : null}
           {entries.length === 0 ? (
             <HabitsEmptyState
               hasHabits={habits.length > 0}
@@ -446,9 +477,9 @@ export default function HabitsScreen() {
               onDropReorder={onDropReorder}
               onDropMerge={onDropMerge}>
               {/* One long-press drag vocabulary (hold ~a beat, then move): a lone habit reorders
-                  through the gaps, joins the routine card it's dropped onto (accent ring), or —
-                  held over another lone habit — folds the two into a new routine (that row rings
-                  and pops); a routine card reorders as one unit, members in tow. The dragged item
+                  through the gaps, joins the stack card it's dropped onto (accent ring), or —
+                  held over another lone habit — folds the two into a new stack (that row rings
+                  and pops); a stack card reorders as one unit, members in tow. The dragged item
                   floats as a ghost above the grid while its original holds the empty slot. Swipe
                   actions and the picker sheet remain as the explicit, screen-reader-friendly routes. */}
               <DragGrid>
@@ -472,10 +503,11 @@ export default function HabitsScreen() {
                           onSkip={skipHabit}
                           onEdit={openEditor}
                           onDelete={deleteHabit}
-                          onEditStack={openRoutineActions}
-                          onRemoveFromRoutine={removeFromRoutine}
+                          onEditStack={openStackActions}
+                          onRemoveFromStack={removeFromStack}
                           onMove={moveStackForA11y}
                           onMoveHabit={moveRowForA11y}
+                          onAddHabits={openAddHabits}
                         />
                       </CoalesceIn>
                     </DraggableEntry>
@@ -496,10 +528,12 @@ export default function HabitsScreen() {
                         onSkip={skipHabit}
                         onEdit={openEditor}
                         onDelete={deleteHabit}
-                        onAddToRoutine={openAddToRoutine}
+                        // The picker only helps once a stack exists to join — hidden otherwise
+                        // (the first stack is made by dragging, which the teaching pill points at).
+                        onAddToStack={stacks.length > 0 ? openAddToStack : undefined}
                         onMove={moveRowForA11y}
-                        // Screen-reader "make a routine from these two" — offered only when the next
-                        // row is also a lone habit (the drag gesture's gesture-free equivalent).
+                        // Screen-reader "stack these two" — offered only when the next row is
+                        // also a lone habit (the drag gesture's gesture-free equivalent).
                         onGroupWithNext={entries[index + 1]?.type === 'habit' ? groupWithNext : undefined}
                         standalone
                       />
@@ -539,7 +573,7 @@ function HabitsDragGhost({
 }) {
   if (!dragEntryKey) return null;
   // A member being pulled out of its card floats as a card of its own (`standalone` wraps the
-  // row in a Surface) — it reads as "this is leaving the routine" while it travels.
+  // row in a Surface) — it reads as "this is leaving the stack" while it travels.
   if (dragEntryKey.startsWith('member:')) {
     const habitId = dragEntryKey.slice('member:'.length);
     const member = entries.flatMap((e) => (e.type === 'stack' ? e.members : [])).find((h) => h.id === habitId);
@@ -579,7 +613,7 @@ function HabitsDragGhost({
           onEdit={noop}
           onDelete={noop}
           onEditStack={noop}
-          onRemoveFromRoutine={noop}
+          onRemoveFromStack={noop}
         />
       ) : (
         <HabitRow
@@ -642,12 +676,41 @@ function UpcomingHint({ habits }: { habits: Habit[] }) {
     <View
       accessibilityRole="text"
       accessibilityLabel={`Tomorrow: ${label}`}
-      style={[styles.upcoming, { backgroundColor: theme.accentSubtle }]}>
+      style={[styles.hintPill, { backgroundColor: theme.accentSubtle }]}>
       <AppIcon name="moon" size={16} color={theme.accent} />
-      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.upcomingText}>
+      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.hintText}>
         Tomorrow · {label}
       </ThemedText>
     </View>
+  );
+}
+
+/**
+ * The one-shot habit-stacking teaching pill — the same quiet accent pill as {@link UpcomingHint},
+ * but tappable: it names the gesture (the app's only invisible affordance) and opens the short
+ * habit-stacking guide for the why. Gated by the caller until the first stack ever exists.
+ */
+function StackingHint() {
+  const theme = useTheme();
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => router.push('/habits/stacking-info')}
+      accessibilityRole="button"
+      accessibilityLabel="Tip: drag one habit onto another to stack them"
+      accessibilityHint="Opens a short guide to habit stacking"
+      style={({ pressed }) => [
+        styles.hintPill,
+        styles.stackHint,
+        { backgroundColor: theme.accentSubtle },
+        pressed && { opacity: 0.7 },
+      ]}>
+      <AppIcon name="stack" size={16} color={theme.accent} />
+      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.hintText}>
+        Drag one habit onto another to stack them
+      </ThemedText>
+      <AppIcon name="chevronRight" size={14} color={theme.accent} />
+    </Pressable>
   );
 }
 
@@ -677,7 +740,7 @@ function HabitsEmptyState({
     <EmptyState
       art={<MoonEmblem />}
       title="Start your first habit"
-      body="Pick one from the Sunnah library, or create your own.">
+      body={'Pick one from the Sunnah library, or create your\u00A0own.'}>
       <BrowseHabitsButton />
       <AppButton variant="secondary" onPress={onAdd} accessibilityLabel="Add your own habit" hitSlop={8}>
         Add your own
@@ -700,7 +763,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
-  upcoming: {
+  // The quiet accent pill above the list — shared by the "tomorrow" heads-up and the stacking
+  // teaching hint, so the two read as one vocabulary when both show.
+  hintPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
@@ -710,7 +775,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  upcomingText: { flex: 1 },
+  // The tappable variant meets the 44pt target the read-only pill doesn't need.
+  stackHint: { minHeight: 44 },
+  hintText: { flex: 1 },
   listContent: {
     paddingBottom: BottomTabInset + Spacing.four,
     width: '100%',

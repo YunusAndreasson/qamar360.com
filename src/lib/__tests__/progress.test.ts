@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isRoutineComplete, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit } from '@/lib/progress';
+import { clamp01, computeProgress, isStackComplete, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -30,29 +30,29 @@ describe('toDegrees', () => {
   });
 });
 
-describe('isRoutineComplete', () => {
+describe('isStackComplete', () => {
   const members = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
   const set = (...ids: string[]) => new Set(ids);
 
   it('is true only once every open member is done', () => {
-    expect(isRoutineComplete(members, set('a', 'b'), set())).toBe(false);
-    expect(isRoutineComplete(members, set('a', 'b', 'c'), set())).toBe(true);
+    expect(isStackComplete(members, set('a', 'b'), set())).toBe(false);
+    expect(isStackComplete(members, set('a', 'b', 'c'), set())).toBe(true);
   });
 
   it('counts the just-ticked habit as done (the seam reads a stale set)', () => {
     // a & b already done, c is being ticked now — its optimistic state has not propagated yet.
-    expect(isRoutineComplete(members, set('a', 'b'), set(), 'c')).toBe(true);
+    expect(isStackComplete(members, set('a', 'b'), set(), 'c')).toBe(true);
   });
 
   it('treats skipped members as excused, not as blockers', () => {
-    // c skipped; a & b done → the routine is complete (skipped drops out of the open set).
-    expect(isRoutineComplete(members, set('a', 'b'), set('c'))).toBe(true);
+    // c skipped; a & b done → the stack is complete (skipped drops out of the open set).
+    expect(isStackComplete(members, set('a', 'b'), set('c'))).toBe(true);
   });
 
   it('needs at least two open acts — a single act due today is a plain tick, not a milestone', () => {
-    expect(isRoutineComplete(members, set('a'), set('b', 'c'))).toBe(false); // only one open, done
-    expect(isRoutineComplete([{ id: 'a' }], set('a'), set())).toBe(false); // lone member
-    expect(isRoutineComplete([], set(), set())).toBe(false); // empty
+    expect(isStackComplete(members, set('a'), set('b', 'c'))).toBe(false); // only one open, done
+    expect(isStackComplete([{ id: 'a' }], set('a'), set())).toBe(false); // lone member
+    expect(isStackComplete([], set(), set())).toBe(false); // empty
   });
 });
 

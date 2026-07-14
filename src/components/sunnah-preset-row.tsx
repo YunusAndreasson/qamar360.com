@@ -11,14 +11,17 @@ type Props = {
   onAdd: () => void;
   /** Remove the already-added habit — wires the row as a tap-to-undo. */
   onRemove?: () => void;
+  /** Add a second, independent copy (auto-differentiated name) — the trailing "＋" once added. */
+  onAddAnother?: () => void;
 };
 
 /**
  * One Sunnah preset inside a {@link SettingsSection} card. A thin wrapper over
- * {@link ExpandableAddRow}: tap the row to add (or remove) it; a trailing chevron expands to
- * reveal the "what counts as done" detail and the Sunnah evidence.
+ * {@link ExpandableAddRow}: tap the row to add (or remove) it — or, once added, tap the trailing
+ * "＋" to add another independent copy; a trailing chevron expands to reveal the "what counts as
+ * done" detail and the Sunnah evidence.
  */
-export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
+export function SunnahPresetRow({ preset, added, onAdd, onRemove, onAddAnother }: Props) {
   const summary = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
 
   return (
@@ -28,6 +31,7 @@ export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
       added={added}
       onAdd={onAdd}
       onRemove={onRemove}
+      onAddAnother={onAddAnother}
       rowAccessibilityLabel={`${preset.name}. ${summary}.`}
       expandHint="Show details">
       <ThemedText type="small">{preset.detail}</ThemedText>

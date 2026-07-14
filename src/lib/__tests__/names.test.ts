@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { normalizeName, otherNames } from '@/lib/names';
+import { dedupeName, normalizeName, otherNames } from '@/lib/names';
 
 describe('normalizeName', () => {
   it('trims and lower-cases', () => {
@@ -36,5 +36,29 @@ describe('otherNames', () => {
       { id: 'b', name: 'Evening adhkār' },
     ];
     expect(otherNames(items, 'a')).toEqual(['evening adhkar']);
+  });
+});
+
+describe('dedupeName', () => {
+  it('returns the base untouched when it is free', () => {
+    expect(dedupeName('Read a page of Qurʾān', new Set())).toBe('Read a page of Qurʾān');
+  });
+
+  it('appends the smallest free numeric suffix (starting at 2)', () => {
+    const taken = new Set([normalizeName('Read a page of Qurʾān')]);
+    expect(dedupeName('Read a page of Qurʾān', taken)).toBe('Read a page of Qurʾān 2');
+  });
+
+  it('skips suffixes already taken', () => {
+    const taken = new Set(
+      ['Qurʾān', 'Qurʾān 2', 'Qurʾān 3'].map(normalizeName),
+    );
+    expect(dedupeName('Qurʾān', taken)).toBe('Qurʾān 4');
+  });
+
+  it('matches the taken set through the same diacritic folding (no near-duplicate slips by)', () => {
+    // A plain-saved "Read 1 page of Quran" must block the diacritical preset name.
+    const taken = new Set([normalizeName('Read 1 page of Quran')]);
+    expect(dedupeName('Read 1 page of Qurʾān', taken)).toBe('Read 1 page of Qurʾān 2');
   });
 });

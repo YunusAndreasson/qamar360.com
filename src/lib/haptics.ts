@@ -105,15 +105,15 @@ export const haptics = {
     }
   },
   /**
-   * Every act in a routine was completed — the group seals. A lesser milestone than the whole day,
+   * Every act in a stack was completed — the group seals. A lesser milestone than the whole day,
    * so it's a single tail beat, not the moon-weighted {@link celebrate} sequence: the ticking act
    * has already fired its crisp Rigid {@link completed}, and a beat later — timed to `Tick.sweep`,
    * landing as the card's border blooms to full and the last ring sweeps shut — a single rounder
    * Medium pulse marks the group settling together. Heftier than one tick, lighter than the day's
-   * close. When sealing the routine also closes the whole day, the day's {@link celebrate} owns the
+   * close. When sealing the stack also closes the whole day, the day's {@link celebrate} owns the
    * moment instead (gated in use-habits), so the two never double up.
    */
-  routineComplete: () =>
+  stackComplete: () =>
     setTimeout(
       () =>
         run(

@@ -1,13 +1,14 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 
+import { headerCloseAction } from '@/components/form-header-actions';
 import { TabStack } from '@/components/tab-stack';
 import { useTheme } from '@/hooks/use-theme';
-import { modalHeaderOptions, transparentScreen } from '@/lib/header-options';
+import { formSheetOptions, modalHeaderOptions, transparentScreen } from '@/lib/header-options';
 
 /**
  * The Today tab's native Stack, laid over the shared fixed sky (see {@link TabStack}).
  * `HabitsProvider` lives at the (tabs) root (so the tab bar's badge shares this state); the
- * editor/stack-editor modal routes here are its descendants, so they keep the same habit state
+ * editor modal and sheet routes here are its descendants, so they keep the same habit state
  * and the list survives a round-trip to the sheet.
  *
  * `headerLargeTitle` is set per-screen (on `index`, in its body), not here — leaving it in
@@ -15,47 +16,34 @@ import { modalHeaderOptions, transparentScreen } from '@/lib/header-options';
  */
 export default function HabitsStackLayout() {
   const theme = useTheme();
+  const router = useRouter();
   return (
     <TabStack>
       {/* Transparent so the fixed sky behind the stack shows through the (transparent) list. */}
       <Stack.Screen name="index" options={transparentScreen} />
-      {/* The single add entry: search/filter the curated Sunnah library or create your own —
-          a pushed sub-screen (native back) with a centered "Add Habit" title and a native
-          search bar; the pinned chips sit below it. */}
-      <Stack.Screen name="discover" options={{ title: 'Add Habit' }} />
+      {/* The "+" fork: habit or stack — a compact form sheet whose two rows explain the choice. */}
+      <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
+      {/* Add a habit: search/filter the curated Sunnah library or create your own — a native
+          modal sheet (from the bottom, the same idiom as the editor it sits beside in the empty
+          state), with a centered "Add Habit" title, a native search bar, and a left-aligned
+          Close; the pinned chips sit below it. With a `stackId` param it adds into that stack. */}
+      <Stack.Screen
+        name="discover"
+        options={{ ...modalHeaderOptions(theme), title: 'Add Habit', headerLeft: headerCloseAction(() => router.back()) }}
+      />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
-      {/* Create a routine (a named group of habits) — a native modal sheet. */}
-      <Stack.Screen name="stack-editor" options={modalHeaderOptions(theme)} />
-      {/* Rename a routine — the one-field modal the manage sheet's Rename action opens. */}
+      {/* Name a new (empty) stack — the one-field modal the add menu's "New stack" opens. */}
+      <Stack.Screen name="stack-new" options={modalHeaderOptions(theme)} />
+      {/* Rename a stack — the one-field modal the manage menu's Rename action opens. */}
       <Stack.Screen name="stack-rename" options={modalHeaderOptions(theme)} />
-      {/* "Add to routine" picker for a lone habit — a native form sheet sized to its content
-          (a short list of routines), dismissed by the grabber or a swipe-down. No nav bar: the
-          sheet carries its own compact title. */}
-      <Stack.Screen
-        name="add-to-routine"
-        options={{
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
-          sheetGrabberVisible: true,
-          sheetCornerRadius: 24,
-          contentStyle: { backgroundColor: theme.background },
-        }}
-      />
-      {/* "Manage routine" (rename / delete) for a routine card — the same fitToContents bottom
-          sheet idiom as "Add to routine", raised by tapping the card header. */}
-      <Stack.Screen
-        name="stack-manage"
-        options={{
-          presentation: 'formSheet',
-          headerShown: false,
-          sheetAllowedDetents: 'fitToContents',
-          sheetGrabberVisible: true,
-          sheetCornerRadius: 24,
-          contentStyle: { backgroundColor: theme.background },
-        }}
-      />
+      {/* "Add to stack" picker for a lone habit — a native form sheet sized to its content
+          (a short list of existing stacks). */}
+      <Stack.Screen name="add-to-stack" options={formSheetOptions(theme)} />
+      {/* "Manage stack" (rename / delete) for a stack card — raised by tapping the card header. */}
+      <Stack.Screen name="stack-manage" options={formSheetOptions(theme)} />
+      {/* The habit-stacking guide — a short educational sheet, opened from the Today hint. */}
+      <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />
     </TabStack>
   );
 }

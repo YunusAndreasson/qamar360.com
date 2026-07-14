@@ -27,7 +27,7 @@ registerHooks({
   },
 });
 
-const { SUNNAH_CATEGORIES, SUNNAH_PRESETS, SUNNAH_ROUTINES } = await import('@/constants/sunnah-habits');
+const { SUNNAH_CATEGORIES, SUNNAH_PRESETS } = await import('@/constants/sunnah-habits');
 const { HIJRI_MONTHS } = await import('@/lib/dates');
 
 // ── SQL literal helpers ────────────────────────────────────────────────────
@@ -68,19 +68,10 @@ out.push(
 );
 out.push('');
 
-out.push('insert into public.routines (id, name, detail, sort_order) values');
-out.push(SUNNAH_ROUTINES.map((r, i) => `  (${q(r.id)}, ${q(r.name)}, ${q(r.detail)}, ${i})`).join(',\n'));
-out.push('on conflict (id) do update set name = excluded.name, detail = excluded.detail, sort_order = excluded.sort_order;');
-out.push('');
-
-// Membership is fully rebuilt so a removed member never lingers.
-const members = SUNNAH_ROUTINES.flatMap((r) =>
-  r.presetIds.map((pid, pos) => `  (${q(r.id)}, ${q(pid)}, ${pos})`),
-);
-out.push('delete from public.routine_presets;');
-out.push('insert into public.routine_presets (routine_id, preset_id, position) values');
-out.push(members.join(',\n') + ';');
-out.push('');
+// The mobile app no longer offers prebuilt routines (stacks are made on Today by dragging),
+// so the seed stopped managing public.routines / routine_presets. The tables and their rows
+// stay dormant because the web app still reads them; drop them in a migration together with
+// the web-side removal.
 
 out.push('insert into public.hijri_months (month, name) values');
 out.push(HIJRI_MONTHS.map((n, i) => `  (${i + 1}, ${q(n)})`).join(',\n'));
@@ -95,6 +86,5 @@ mkdirSync(path.dirname(outPath), { recursive: true });
 writeFileSync(outPath, out.join('\n'), 'utf8');
 console.log(
   `Wrote ${path.relative(process.cwd(), outPath)}: ` +
-    `${SUNNAH_CATEGORIES.length} categories, ${SUNNAH_PRESETS.length} presets, ` +
-    `${SUNNAH_ROUTINES.length} routines, ${members.length} routine members, ${HIJRI_MONTHS.length} months.`,
+    `${SUNNAH_CATEGORIES.length} categories, ${SUNNAH_PRESETS.length} presets, ${HIJRI_MONTHS.length} months.`,
 );

@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
@@ -11,6 +12,7 @@ import { SettingsSection } from '@/components/settings-section';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
@@ -181,6 +183,14 @@ export default function SettingsScreen() {
 
       {/* About */}
       <SettingsSection title="About">
+        {/* The habit-stacking guide — the same sheet the Today hint opens, findable here after
+            that one-shot hint has retired. */}
+        <SettingsRow
+          icon="stack"
+          label="Habit stacking"
+          onPress={() => router.push('/settings/stacking-info')}
+          showChevron
+        />
         <SettingsRow
           icon="privacy"
           label="Privacy Policy"
@@ -224,16 +234,17 @@ export default function SettingsScreen() {
           credit is a single whisper-quiet link to the projects page, not a section. */}
       <View style={styles.footer}>
         <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
-          qamar360 · {version}
+          {APP_NAME} · {version}
         </ThemedText>
         <Pressable
           onPress={() => void WebBrowser.openBrowserAsync(Links.maker)}
           accessibilityRole="link"
           accessibilityLabel="Made by Yunus Andreasson, opens andreassonphoto.com"
-          style={({ pressed }) => (pressed ? styles.footerPressed : undefined)}>
+          style={({ pressed }) => [styles.makerLink, pressed && styles.footerPressed]}>
           <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
             Made by Yunus Andreasson
           </ThemedText>
+          <AppIcon name="openInNew" size={13} color={theme.textSecondary} />
         </Pressable>
       </View>
     </AppScreen>
@@ -256,4 +267,5 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center', gap: Spacing.half, paddingTop: Spacing.two },
   footerText: { textAlign: 'center' },
   footerPressed: { opacity: Pressed.dim },
+  makerLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
 });

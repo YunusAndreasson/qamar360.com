@@ -15,11 +15,12 @@ import { confirmDestructive } from '@/lib/alerts';
 import { haptics } from '@/lib/haptics';
 
 /**
- * "Manage routine" — a native bottom sheet raised by tapping a routine card's header (the ⋯). It
- * holds the only two things you can't do to a routine by direct manipulation on Today: rename it,
- * or delete it (members are added/removed/reordered by dragging the card). Presented `fitToContents`
- * from the habits stack layout — the same compact sheet-of-rows as "Add to routine". Rename hands
- * off to a one-field modal so no keyboard has to live inside the sheet.
+ * "Manage stack" — a native bottom sheet raised by tapping a stack card's header (the ⋯). It
+ * holds the things you can't do to a stack by direct manipulation on Today: add habits to it,
+ * rename it, or delete it (members are removed/reordered by dragging the card). Presented
+ * `fitToContents` from the habits stack layout — the same compact sheet-of-rows as "Add to
+ * stack". Add habits and Rename hand off to their own modals so no keyboard or list has to
+ * live inside the sheet.
  */
 export default function StackManageScreen() {
   const router = useRouter();
@@ -29,8 +30,13 @@ export default function StackManageScreen() {
 
   const stack = stacks.find((s) => s.id === id) ?? null;
 
-  // `replace` (not push) so the rename modal's Save/Cancel returns to the list, not back to this
-  // sheet — the same handoff "Add to routine" uses to reach the create form.
+  // `replace` (not push) so the next modal's Save/Close returns to the list, not back to
+  // this sheet.
+  const addHabits = () => {
+    if (!stack) return;
+    router.replace({ pathname: '/habits/discover', params: { stackId: stack.id } });
+  };
+
   const rename = () => {
     if (!stack) return;
     router.replace({ pathname: '/habits/stack-rename', params: { id: stack.id } });
@@ -41,7 +47,7 @@ export default function StackManageScreen() {
     // Deleting drops the stack from state; the effect below backs the sheet out (don't also
     // router.back() here, or it pops twice).
     confirmDestructive({
-      title: 'Delete routine',
+      title: 'Delete stack',
       message: `Delete “${stack.name}”? The habits stay; only the grouping is removed.`,
       onConfirm: () => {
         haptics.removed();
@@ -50,7 +56,7 @@ export default function StackManageScreen() {
     });
   };
 
-  // Managing a routine that no longer exists (deleted here or elsewhere): close.
+  // Managing a stack that no longer exists (deleted here or elsewhere): close.
   useEffect(() => {
     if (id && !stack) router.back();
   }, [id, stack, router]);
@@ -63,14 +69,16 @@ export default function StackManageScreen() {
           {stack.name}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Routine
+          Stack
         </ThemedText>
       </View>
 
       <Surface>
+        <ActionRow icon="add" label="Add habits" onPress={addHabits} />
+        <RowSeparator />
         <ActionRow icon="edit" label="Rename" onPress={rename} />
         <RowSeparator />
-        <ActionRow icon="delete" label="Delete routine" danger onPress={confirmDelete} />
+        <ActionRow icon="delete" label="Delete stack" danger onPress={confirmDelete} />
       </Surface>
     </View>
   );
