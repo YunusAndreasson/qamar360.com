@@ -457,6 +457,22 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
+    id: 'family-time',
+    categoryId: 'character',
+    name: 'Spend time with family',
+    detail: 'Give your family unhurried time today — sit, talk, play, or share something together, with your phone away.',
+    evidence: 'The best of you is the best to his family, and I am the best of you to my family (Tirmidhi 3895, ḥasan ṣaḥīḥ).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'read-beneficial',
+    categoryId: 'character',
+    name: 'Read something beneficial',
+    detail: 'Read for a little while today — even a few pages of beneficial knowledge that helps your dīn or your life.',
+    evidence: 'Whoever follows a path in search of knowledge, Allāh makes easy for him thereby a path to Paradise (Muslim 2699).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
     id: 'miswak',
     categoryId: 'character',
     name: 'Use the miswāk / clean teeth',
@@ -547,6 +563,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
+    id: 'exercise-daily',
+    categoryId: 'wellbeing',
+    name: 'Move your body',
+    detail: 'Get 20–30 minutes of deliberate exercise today — a brisk walk, a run, training, or a sport — enough to raise your heart rate.',
+    evidence: 'The strong believer is better and more beloved to Allāh than the weak believer, though there is good in both (Muslim 2664).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
     id: 'hydrate-water',
     categoryId: 'wellbeing',
     name: 'Drink 6–8 cups of water',
@@ -585,8 +609,8 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'honey-daily',
     categoryId: 'wellbeing',
-    name: 'Take a spoon of honey',
-    detail: 'Take a spoon of honey today — on its own or stirred into warm water.',
+    name: 'Drink honey water',
+    detail: 'Stir a spoon of honey into a glass of warm water and drink it — ideally in the morning, on an empty stomach.',
     evidence: 'In it is healing for people (Qurʾān 16:69); the Prophet ﷺ recommended honey for a stomach ailment (Bukhari 5684, Muslim 2217).',
     defaultSchedule: DAILY_SCHEDULE,
   },
