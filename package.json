@@ -37,6 +37,8 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
+    "colorjs.io": "^0.7.0",
+    "culori": "^4.0.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.0",
     "eslint-import-resolver-typescript": "3.10.1",
@@ -52,6 +54,7 @@
   "scripts": {
     "start": "expo start",
     "version:hijri": "node scripts/hijri-version.mjs",
+    "gen:palette": "node scripts/gen-palette.mjs",
     "seed:catalog": "node scripts/seed-catalog.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -72,6 +75,7 @@
       "<rootDir>/src/**/*.test.ts"
     ],
     "moduleNameMapper": {
+      "\\.css$": "<rootDir>/jest.css-stub.js",
       "^@/(.*)$": "<rootDir>/src/$1"
     }
   },

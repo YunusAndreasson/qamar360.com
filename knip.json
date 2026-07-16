@@ -3,10 +3,16 @@
   "entry": [
     "src/app/**/*.{ts,tsx}",
     "babel.config.js",
-    "plugins/**/*.js"
+    "plugins/**/*.js",
+    "scripts/**/*.mjs"
   ],
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignore": ["src/lib/database.types.ts", "web/**"],
+  "project": [
+    "src/**/*.{ts,tsx}"
+  ],
+  "ignore": [
+    "src/lib/database.types.ts",
+    "web/**"
+  ],
   "ignoreDependencies": [
     "@jest/globals",
     "@babel/types",

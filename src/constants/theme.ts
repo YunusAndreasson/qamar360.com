@@ -6,104 +6,111 @@ import '@/global.css';
 
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
+import { palette } from '@/constants/palette';
+
+// "Mission control under a night sky" — an instrument panel lit by one moon. The values live
+// in generated Radix-style 12-step scales (src/constants/palette.ts, authored in OKLCH by
+// scripts/gen-palette.mjs); this block is the app's public vocabulary — 24 semantic roles
+// aliased onto scale steps. Components read ONLY these roles via `useTheme()`, never raw steps.
+// The panel neutrals carry a deliberate indigo night-sky cast. A single steel `accent` — deep
+// lapis on the light page, luminous ice against the dark sky — is spent sparingly on what's
+// live or interactive (an active ring, a link, the one primary action). `complete` + `glow`
+// are the moon turning on when a day or month is finished, and they are WARM: bronze-gold in
+// daylight, champagne moonglow at night. Two temperatures carry two meanings — cold steel =
+// working, warm gold = done — so a good state is never a same-hue guess (manuscript logic:
+// lapis ground, gold leaf). Light and dark are the same panel, day side and night side.
 export const Colors = {
-  // "Mission control" — a near-greyscale instrument panel lit by one moon. The UI is true cool
-  // neutrals (no blue tint); a single pale-steel `accent` is spent sparingly on what's live or
-  // interactive (an active ring, a link, the one primary action) and reads as cold telemetry.
-  // The one warm note in the whole app is `complete` + `glow`: the moon turning on when a day or
-  // month is finished. Two temperatures carry two meanings — cool steel = working, warm silver =
-  // done — so a good state is never a same-hue guess. Light and dark are the same panel, lit or not.
   light: {
-    text: '#141619',
-    textSecondary: '#5C6065',
-    textDisabled: '#95999E',
+    text: palette.light.night[12],
+    textSecondary: palette.light.night[11],
+    textDisabled: palette.light.night[7],
     // Light mode flips to the Linear/Notion model: white cards lifted by a soft shadow over a
-    // faint neutral page (not a tint of the page). `Elevation` does the lifting, not a fill step.
-    background: '#F6F6F7',
+    // faint neutral page (not a tint of the page). `Elevation` does the lifting, not a fill step —
+    // the card whites are deliberate literals, whiter than night step 1 (Radix's white-card model).
+    background: palette.light.night[2],
     backgroundElement: '#FFFFFF',
     // A raised surface for a focused overlay (modal / celebration card) sitting on a scrim. On the
     // light page the element white already reads as lifted, so it matches `backgroundElement`; the
     // dark side lightens it (a dark-theme elevation overlay) so the panel clears its scrim.
     backgroundElevated: '#FFFFFF',
-    backgroundSelected: '#EDEEEF',
-    border: '#E3E4E6',
+    backgroundSelected: palette.light.night[3],
+    border: palette.light.night[4],
     // A faint top edge so an elevated card reads as lit from above (paired with `Elevation`).
-    topHighlight: 'rgba(255,255,255,0.7)',
-    // Deep steel — the pale-steel accent needs real depth to carry contrast on white.
-    accent: '#355070',
-    accentText: '#FFFFFF',
+    topHighlight: palette.light.whiteA[11],
+    // Deep steel — the accent needs real depth to carry contrast on white.
+    accent: palette.light.steel[9],
+    accentText: palette.light.steel.contrast,
     // Tonal "selected" wash — replaces the old saturated-accent fill so a chosen chip reads as
     // lit, not blocked-in.
-    accentSubtle: '#E7EEF5',
+    accentSubtle: palette.light.steel[3],
     // The Progress data-viz tracks — a moon-ring's unfilled remainder, the year baseline. These are
-    // informational (the value reads from the filled arc, not the rim), so they stay quiet. An
-    // *interactive* control's outline is a different bar — see `controlTrack`.
-    accentTrack: '#CBD3DC',
-    accentTrackMuted: '#E5EAF0',
-    accentTrackStrong: '#77889D',
+    // informational (the value reads from the filled arc, not the rim), so they stay quiet on the
+    // steel border steps (4/6/8). An *interactive* control's outline is a different bar — see
+    // `controlTrack`.
+    accentTrack: palette.light.steel[6],
+    accentTrackMuted: palette.light.steel[4],
+    accentTrackStrong: palette.light.steel[8],
     // Outline for interactive hollow controls — the checklist's tap-to-complete ring, the count
-    // stepper buttons. Clears ≥3:1 on the card so the affordance reads (the faint data-viz tracks
-    // above don't, and shouldn't be reused here).
-    controlTrack: '#868D96',
-    // Hairline colour for the geometric ornament layer — a neutral cool steel so the lattice reads
-    // as faint "telemetry" etching, only ever drawn at low opacity (ornament/*).
-    pattern: '#44505F',
-    // The moon / completion silver — cool moonlight, dark enough to read on the light page.
-    // Differentiated from in-progress by brightness + glow (not warmth). Completion *visuals* only
-    // (lit moon disc, closed ring, the done check), never text.
-    complete: '#506175',
+    // stepper buttons. Night step 8 is the Radix "strong border" slot: clears ≥3:1 on the card so
+    // the affordance reads (the faint data-viz tracks above don't, and shouldn't be reused here).
+    controlTrack: palette.light.night[8],
+    // Hairline colour for the geometric ornament layer — faint "telemetry" etching, only ever
+    // drawn at low opacity (ornament/*).
+    pattern: palette.light.night[11],
+    // The moon / completion light — warm bronze-gold, dark enough to read on the light page.
+    // Completion *visuals* only (lit moon disc, closed ring, the done check), never body text.
+    complete: palette.light.moon[9],
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
-    glow: '#AAB9CA',
-    danger: '#D43240',
-    dangerText: '#FFFFFF',
-    dangerSubtle: '#F7E6E5',
-    rippleOnFill: '#FFFFFF33',
+    glow: palette.light.moon[6],
+    danger: palette.light.ember[9],
+    dangerText: palette.light.ember.contrast,
+    dangerSubtle: palette.light.ember[3],
+    rippleOnFill: palette.light.whiteA[7],
     // The darkened app behind a focused overlay (the celebration card). One value both sides:
     // the moment is deliberately night-like even on the light page.
-    scrim: 'rgba(0,0,0,0.7)',
+    scrim: palette.light.blackA[11],
   },
-  // "Mission control" — night side. `background` is a near-black cool neutral; keep it in sync with
-  // the native splash / adaptive-icon background (app.json) so launch flows seamlessly into the app.
+  // Night side. `background` is night step 1; keep it in sync with the native splash /
+  // adaptive-icon background (app.json) so launch flows seamlessly into the app.
   dark: {
-    text: '#EDEEEF',
-    textSecondary: '#9CA0A6',
-    textDisabled: '#5C6168',
-    // Kept identical to the native splash / adaptive-icon background (app.json) so launch flows
-    // seamlessly into the app.
-    background: '#08090C',
-    backgroundElement: '#141619',
+    text: palette.dark.night[12],
+    textSecondary: palette.dark.night[11],
+    textDisabled: palette.dark.night[7],
+    // Kept identical to the native splash / adaptive-icon background (app.json).
+    background: palette.dark.night[1],
+    backgroundElement: palette.dark.night[2],
     // Raised surface for a focused overlay on a scrim — a dark-theme elevation overlay: lifted well
-    // above `backgroundElement` so a modal/celebration card reads as a distinct panel against the
-    // darkened app behind it (the near-black element fill would otherwise vanish into the scrim).
-    // Deliberately a clear slate lift (not a hair above black): #262B33 still blended into the scrim.
-    backgroundElevated: '#3A414E',
-    backgroundSelected: '#202427',
-    border: '#292D31',
+    // above `backgroundElement` (night step 6, off-label as an elevation fill) so a modal/
+    // celebration card reads as a distinct panel against the darkened app behind it (the near-black
+    // element fill would otherwise vanish into the scrim). Deliberately a clear slate lift (not a
+    // hair above black): #262B33 still blended into the scrim.
+    backgroundElevated: palette.dark.night[6],
+    backgroundSelected: palette.dark.night[3],
+    border: palette.dark.night[4],
     // A whisper of light on the card's top edge — the Linear "lit from above" hairline.
-    topHighlight: 'rgba(255,255,255,0.06)',
-    // Pale steel — luminous against deep space, but desaturated so it reads as instrument light,
-    // not a candy blue. Spent sparingly: active rings, links, the one primary action.
-    accent: '#99B2D1',
-    accentText: '#0A0B0D',
-    accentSubtle: '#181D24',
-    accentTrack: '#2E3743',
-    accentTrackMuted: '#191E23',
-    accentTrackStrong: '#6B7C91',
+    topHighlight: palette.dark.whiteA[3],
+    // Luminous against deep space, but desaturated so it reads as instrument light, not a candy
+    // blue. Spent sparingly: active rings, links, the one primary action.
+    accent: palette.dark.steel[9],
+    accentText: palette.dark.steel.contrast,
+    accentSubtle: palette.dark.steel[3],
+    accentTrack: palette.dark.steel[6],
+    accentTrackMuted: palette.dark.steel[4],
+    accentTrackStrong: palette.dark.steel[8],
     // See light note — an interactive control outline that clears ≥3:1 on the dark card.
-    controlTrack: '#69737F',
-    // Neutral cool steel — faint etched-telemetry lines against deep space. See light note.
-    pattern: '#77828F',
-    // Cool luminous moonlight — the moon glowing against deep space, and the completion silver.
-    // A real moon reads cool silver-white, not warm; "done" is set apart by brightness + glow (it's
-    // far brighter than the muted steel of in-progress), not by temperature.
-    complete: '#E5EBF3',
-    glow: '#EAEFF6',
-    danger: '#FF5E63',
-    dangerText: '#0A0B0D',
-    dangerSubtle: '#2A1414',
-    rippleOnFill: '#FFFFFF33',
+    controlTrack: palette.dark.night[8],
+    // Faint etched-telemetry lines against deep space. See light note.
+    pattern: palette.dark.night[9],
+    // Champagne moonglow — the moon glowing warm against the indigo sky. "Done" is set apart by
+    // both brightness AND temperature (warm gold vs the cold steel of in-progress).
+    complete: palette.dark.moon[9],
+    glow: palette.dark.moon[10],
+    danger: palette.dark.ember[9],
+    dangerText: palette.dark.ember.contrast,
+    dangerSubtle: palette.dark.ember[3],
+    rippleOnFill: palette.dark.whiteA[7],
     // See light note — the same night falls over the dark page.
-    scrim: 'rgba(0,0,0,0.7)',
+    scrim: palette.dark.blackA[11],
   },
 } as const;
 
