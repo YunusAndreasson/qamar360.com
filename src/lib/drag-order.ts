@@ -421,6 +421,11 @@ export function orderAfterHabitMove(
   if (placement.type === 'before-unit' && placement.key !== null) {
     const i = remaining.findIndex((u) => u.key === placement.key);
     if (i !== -1) at = i;
+    // The anchor can be the habit's OWN just-emptied unit: dragging a stack's last member into
+    // the gap just above its own card anchors on that card, which lifting the member dissolved.
+    // Land at the dissolved unit's slot (same fallback as after-unit) — without it the habit
+    // teleported to the end of the list.
+    else if (droppedUnit?.key === placement.key) at = Math.min(droppedUnit.index, remaining.length);
   } else if (placement.type === 'after-unit') {
     const i = remaining.findIndex((u) => u.key === placement.key);
     if (i !== -1) at = i + 1;

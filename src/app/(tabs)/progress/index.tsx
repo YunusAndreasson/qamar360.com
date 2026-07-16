@@ -1,3 +1,4 @@
+import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
@@ -24,6 +25,21 @@ export default function ProgressScreen() {
   }
 
   if (habitsCount === 0) {
+    // A FAILED first load also lands here with zero habits — that's a network problem, not a
+    // fresh account, and the moons copy would misread it. Worse, this branch mounts no
+    // refreshControl, so the error's "pull down to try again" would be impossible. Offer an
+    // explicit retry instead (mirrors the Habits screen's load-failed state).
+    if (error) {
+      return (
+        <AppScreen transparent centered>
+          <EmptyState icon="cloudOff" title="Couldn't load your progress" body={error}>
+            <AppButton onPress={() => void refresh()} accessibilityLabel="Try loading again">
+              Try again
+            </AppButton>
+          </EmptyState>
+        </AppScreen>
+      );
+    }
     return (
       <AppScreen transparent>
         <EmptyState

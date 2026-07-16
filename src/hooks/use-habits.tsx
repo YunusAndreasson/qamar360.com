@@ -75,6 +75,10 @@ const COMPLETION_CONFLICT = 'habit_id,completed_at';
  *  retryable error instead of spinning forever. Mirrors AuthProvider's `initialized` net. */
 const LOAD_TIMEOUT_MS = 12000;
 
+/** Trailing delay before persisting the cold-start snapshot — long enough to sit out a burst
+ *  of stepper taps, short enough that a quick tick-and-background still gets cached. */
+const SNAPSHOT_DEBOUNCE_MS = 400;
+
 /** Tonight's moon illumination (0–1) for a given local date, so the day-complete haptic can carry
  *  the weight of the moon. `undefined` when the runtime has no Islamic calendar (the haptic then
  *  falls back to its default beat). */
@@ -87,16 +91,22 @@ function moonLitFor(iso: string): number | undefined {
 
 /**
  * Rewrite the full habit id order so `orderedMemberIds` sit contiguously (in the given
- * order) at the slot of the earliest current member, preserving the order of the rest.
- * Keeps a stack's members adjacent in the single `position` space.
+ * order) at the slot of the FIRST ordered member, preserving the order of the rest.
+ * Keeps a stack's members adjacent in the single `position` space. Anchoring on the first
+ * ordered member (not the earliest-positioned one) is what lets a drag-merge host the new
+ * card at the drop target's slot — the target leads `orderedMemberIds` — instead of
+ * teleporting it up to the dragged habit's old slot on a downward merge. For an existing
+ * stack (whose members are already contiguous) the two anchors coincide.
  */
 function groupedOrder(habits: Habit[], orderedMemberIds: string[]): string[] {
   const order = [...habits].sort((a, b) => a.position - b.position).map((h) => h.id);
   const memberSet = new Set(orderedMemberIds);
   const rest = order.filter((id) => !memberSet.has(id));
-  const firstIdx = order.findIndex((id) => memberSet.has(id));
-  const anchor = firstIdx === -1 ? rest.length : firstIdx;
   const members = orderedMemberIds.filter((id) => order.includes(id));
+  // `anchor` indexes the ORIGINAL order, then slices `rest`: only the non-members before it
+  // survive the slice, so members between the anchor and list top collapse into the group.
+  const anchorIdx = members.length > 0 ? order.indexOf(members[0]!) : -1;
+  const anchor = anchorIdx === -1 ? rest.length : anchorIdx;
   return [...rest.slice(0, anchor), ...members, ...rest.slice(anchor)];
 }
 
@@ -400,18 +410,29 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // load above revalidates it). Tagged with `viewDate` — the day these completion sets belong
   // to — so the seed is only trusted next launch when it's still today (see habits-cache).
   // Skipped while the first load is still in flight, so we never cache the empty pre-seed state.
+  // Written on a trailing timer, not in the commit itself: the write is a synchronous
+  // full-payload stringify + SQLite setItem, and every tick/step lands here — deferring it keeps
+  // that cost out of the interaction's frame and coalesces a burst of taps into one write. A
+  // snapshot dropped by an unmount mid-window is fine: it's a best-effort cache, revalidated on
+  // every launch.
+  // Also skipped while an error is up: a failed day-switch refetch leaves the completion sets
+  // blanked, and caching that would seed the next cold start with "nothing done" for a day
+  // that has real ticks. Best-effort — the next clean commit writes the snapshot again.
   useEffect(() => {
-    if (loading || !userId) return;
-    writeHabitsSnapshot({
-      userId,
-      day: viewDate,
-      habits,
-      stacks,
-      completed: [...completed],
-      skipped: [...skipped],
-      counts: [...counts],
-    });
-  }, [loading, userId, viewDate, habits, stacks, completed, skipped, counts]);
+    if (loading || !userId || error) return;
+    const timer = setTimeout(() => {
+      writeHabitsSnapshot({
+        userId,
+        day: viewDate,
+        habits,
+        stacks,
+        completed: [...completed],
+        skipped: [...skipped],
+        counts: [...counts],
+      });
+    }, SNAPSHOT_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [loading, userId, error, viewDate, habits, stacks, completed, skipped, counts]);
 
   // Refetch completions when the viewed day changes (the mount load covers the first day).
   const didMount = useRef(false);
@@ -467,9 +488,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const syncReminders = useEffectEvent(() => {
     void rescheduleAll(reminders);
   });
+  // Gated on `loading`: the first commit renders with `habits = []` whenever the snapshot seed
+  // is rejected (every new-day launch), and syncing THAT would cancel every scheduled OS
+  // reminder before the load lands — durably, if the load then fails. Sync only from loaded
+  // (or seeded) state; the `loading` flip re-runs the effect once the real habits are in.
   useEffect(() => {
+    if (loading) return;
     syncReminders();
-  }, [reminderSignature]);
+  }, [loading, reminderSignature]);
 
   const remainingToday = useMemo(
     () => habits.filter((h) => scheduledOn(h, today) && !completed.has(h.id) && !skipped.has(h.id)).length,
@@ -482,9 +508,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     void setAppBadgeCount(userId ? remainingToday : 0);
   }, [userId, remainingToday]);
 
+  // Unmount = leaving the authed tree (sign-out): zero the badge AND cancel the scheduled
+  // reminders, so the previous user's habit-named notifications don't keep firing on the
+  // sign-in screen (each would also re-set the badge this cleanup just cleared). The next
+  // sign-in's provider rebuilds its own schedule once its load lands.
   useEffect(
     () => () => {
       void setAppBadgeCount(0);
+      void rescheduleAll([]);
     },
     [],
   );
@@ -820,8 +851,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           void supabase.from('habits').delete().eq('id', (data as Habit).id);
           return;
         }
-        // Swap the temp row for the persisted one (real id).
-        setHabits((prev) => prev.map((h) => (h.id === tempId ? (data as Habit) : h)));
+        // Swap the temp row for the persisted one (real id) — but keep the LIVE position: a
+        // reorder made while the insert was in flight moved the temp row (locally only; temp
+        // ids are never persisted), and the server row still carries the stale insert-time
+        // position. Swapping that in wholesale would snap the habit back to its old slot.
+        const server = data as Habit;
+        const livePosition = habitsRef.current.find((h) => h.id === tempId)?.position ?? server.position;
+        const swapped = livePosition === server.position ? server : { ...server, position: livePosition };
+        setHabits((prev) => prev.map((h) => (h.id === tempId ? swapped : h)));
+        if (livePosition !== server.position) {
+          void supabase.from('habits').update({ position: livePosition }).eq('id', server.id);
+        }
       } catch {
         cancelledTempIds.current.delete(tempId);
         setHabits((prev) => prev.filter((h) => h.id !== tempId));
@@ -932,6 +972,70 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } catch {
         setHabits((list) => list.map((h) => (h.id === habitId ? prev : h)));
         setError('Could not save your changes. Check your connection.');
+        return;
+      }
+
+      // A target_count change must reconcile the viewed day's already-logged count, or the
+      // day's row goes stale: lowering the target to (or below) the logged count left the row
+      // 'partial' forever — full ring, unstruck label, day uncompletable (the + is disabled at
+      // the clamp) — and raising it left a 'done' row below its new target. Mirrors
+      // adjustHabitCount's write; silent (an edit, not a tick — no haptics, no celebration).
+      if (patch.target_count === undefined) return;
+      const day = viewDateRef.current;
+      const newTarget = patch.target_count;
+      const count = countsRef.current.get(habitId) ?? 0;
+      if (skippedRef.current.has(habitId)) return; // excused for the day — nothing to reconcile
+      if (newTarget == null) {
+        // Count goal → binary: the running count no longer means anything on the row.
+        if (count > 0) {
+          setCounts((prevCounts) => {
+            const next = new Map(prevCounts);
+            next.delete(habitId);
+            return next;
+          });
+        }
+        return;
+      }
+      if (count <= 0) return; // nothing logged today — nothing to reconcile
+      const clamped = Math.min(count, newTarget);
+      const nowDone = clamped >= newTarget;
+      const wasDone = completedRef.current.has(habitId);
+      if (clamped === count && nowDone === wasDone) return; // row already consistent
+      if (clamped !== count) {
+        setCounts((prevCounts) => new Map(prevCounts).set(habitId, clamped));
+      }
+      if (nowDone !== wasDone) {
+        setCompleted((prevDone) => {
+          const next = new Set(prevDone);
+          if (nowDone) next.add(habitId);
+          else next.delete(habitId);
+          return next;
+        });
+      }
+      try {
+        await upsertCompletion({
+          habit_id: habitId,
+          user_id: userId,
+          completed_at: day,
+          count: clamped,
+          status: nowDone ? 'done' : 'partial',
+        });
+      } catch {
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          if (clamped !== count) {
+            setCounts((prevCounts) => new Map(prevCounts).set(habitId, count));
+          }
+          if (nowDone !== wasDone) {
+            setCompleted((prevDone) => {
+              const next = new Set(prevDone);
+              if (wasDone) next.add(habitId);
+              else next.delete(habitId);
+              return next;
+            });
+          }
+        }
+        setError(UPDATE_ERROR);
       }
     },
     [userId],
@@ -1145,9 +1249,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const prevStacks = stacksRef.current;
       if (!prevStacks.some((s) => s.id === stackId)) return;
 
-      // Optimistic: drop the stack; members revert to standalone.
+      // Optimistic: drop the stack; members revert to standalone. The ref is synced
+      // immediately (mirrors createStack/createHabits) so an op chained right after — the
+      // merge toast's Undo runs deleteStack + reorderHabits back-to-back — reads the cleared
+      // stack_ids instead of re-stamping the deleted stack's id from the stale ref (which left
+      // a phantom unit that silently swallowed drag-reorders until the next refetch).
+      const next = prevHabits.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h));
       setStacks((prev) => prev.filter((s) => s.id !== stackId));
-      setHabits((prev) => prev.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h)));
+      setHabits(next);
+      habitsRef.current = next;
 
       try {
         const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', stackId);
@@ -1155,6 +1265,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         // Members' stack_id is cleared by the FK (on delete set null).
       } catch {
         setHabits(prevHabits);
+        habitsRef.current = prevHabits;
         setStacks(prevStacks);
         setError('Could not delete that stack. Check your connection.');
       }

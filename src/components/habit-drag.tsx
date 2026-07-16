@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, type ReactNode } from 'react';
+import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -150,6 +150,11 @@ type DragState = {
   // In-card member reorder: a member dragged within its own stack reorders the siblings.
   memberFrames: SharedValue<Record<string, Frame>>; // member row grid frames, keyed member:<id>
   memberOrder: SharedValue<Record<string, string[]>>; // stackId → member keys in sequence
+  /** JS-side registry of each member row's re-measurer, so a lift can refresh every member
+   *  frame at once (their own onLayout misses card-level shifts — see MemberRowDrag). */
+  memberMeasurers: Map<string, () => void>;
+  /** Re-run every registered member measurer (called via scheduleOnRN at member-drag start). */
+  remeasureMembers: () => void;
   reorderStackId: SharedValue<string | null>; // the card being reordered (null = not reordering)
   memberDragIndex: SharedValue<number>; // dragged member's index within its card
   memberInsertIndex: SharedValue<number>; // live target compact index within the card
@@ -244,6 +249,16 @@ export function HabitDragProvider({
   const memberInsertIndex = useSharedValue(-1);
   const scrollOffset = useScrollOffset(scrollRef);
   const reduceMotion = useReducedMotion();
+
+  // Member rows re-register their measurer every render; a member drag's start sweeps the whole
+  // registry so every member frame is fresh in grid coordinates. A member's own onLayout only
+  // fires when its layout changes RELATIVE TO ITS CARD — when the card itself shifts in the grid
+  // (an entry above reordered, deleted, or auto-collapsed on completion), the stored grid Ys
+  // drift silently and an in-card reorder would resolve against rows that are no longer there.
+  const [memberMeasurers] = useState(() => new Map<string, () => void>());
+  const remeasureMembers = () => {
+    for (const fn of memberMeasurers.values()) fn();
+  };
 
   /** A light tick as the open gap moves or a card starts/stops glowing — drag feedback. */
   const hoverTick = () => haptics.selection();
@@ -468,8 +483,8 @@ export function HabitDragProvider({
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, mergeArmedHabitId, dwellMs,
     dwellKey, ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
     grabY, lastTranslationY, pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
-    minOffset, frames, order, memberFrames, memberOrder, reorderStackId, memberDragIndex,
-    memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
+    minOffset, frames, order, memberFrames, memberOrder, memberMeasurers, remeasureMembers,
+    reorderStackId, memberDragIndex, memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
     onDragActive: setDragActive, finishBetween, finishInto, finishReorder, finishMerge, hoverTick,
   };
 
@@ -501,12 +516,17 @@ export function DraggableEntry({
   index,
   kind,
   stackId,
+  draggable = true,
   children,
 }: {
   entryKey: string;
   index: number;
   kind: EntryKind;
   stackId: string | null;
+  /** False disables the lift (the empty "Add your first habit" card: a memberless stack has no
+   *  unit in the order math, so every drop of it would silently snap back — don't offer the
+   *  gesture). The entry still registers its frame and accepts into-drops. */
+  draggable?: boolean;
   children: ReactNode;
 }) {
   const {
@@ -534,6 +554,7 @@ export function DraggableEntry({
   };
 
   const pan = Gesture.Pan()
+    .enabled(draggable)
     .activateAfterLongPress(holdMs)
     .shouldCancelWhenOutside(false)
     // The pre-lift swell: eased in over the back half of the hold, wiped the instant the
@@ -735,8 +756,9 @@ function MemberRowDrag({
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId, ownStackId, slotSize,
     committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted, grabY, lastTranslationY,
     pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop, minOffset, order, frames,
-    memberFrames, memberOrder, reorderStackId, memberDragIndex, memberInsertIndex,
-    scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween, finishInto, finishReorder,
+    memberFrames, memberOrder, memberMeasurers, remeasureMembers, reorderStackId, memberDragIndex,
+    memberInsertIndex, scrollOffset, scrollRef, reduceMotion, onDragActive, finishBetween,
+    finishInto, finishReorder,
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
@@ -761,6 +783,18 @@ function MemberRowDrag({
       });
     });
   };
+
+  // onLayout above only fires when this row moves relative to its CARD — when the card itself
+  // shifts in the grid (a stack above auto-collapses, an entry is reordered/removed), the stored
+  // grid Y goes stale with no signal here. So every row keeps its measurer registered with the
+  // provider, and a member drag's start sweeps them all — frames are fresh by the time any drop
+  // could resolve. Re-registered each render (no dep array) so the latest closure is always held.
+  useEffect(() => {
+    memberMeasurers.set(entryKey, registerFrame);
+    return () => {
+      if (memberMeasurers.get(entryKey) === registerFrame) memberMeasurers.delete(entryKey);
+    };
+  });
 
   const pan = Gesture.Pan()
     .activateAfterLongPress(LIFT_HOLD_MS)
@@ -800,6 +834,10 @@ function MemberRowDrag({
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
+      // Refresh EVERY member row's grid frame: their onLayout misses card-level shifts (a stack
+      // above collapsing, entries reordered), and an in-card reorder resolving against drifted
+      // frames commits the wrong index. Lift-to-drop is hundreds of ms — plenty for the sweep.
+      scheduleOnRN(remeasureMembers);
       scheduleOnRN(onDragActive, entryKey);
       scheduleOnRN(haptics.pickup);
     })

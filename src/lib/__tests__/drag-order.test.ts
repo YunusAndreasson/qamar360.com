@@ -441,6 +441,16 @@ describe('orderAfterHabitMove', () => {
     expect(orderedIds).toEqual(['a', 's1', 's2', 'b', 't1', 'c']);
   });
 
+  it('last member dropped just above its own card also lands at the emptied slot', () => {
+    // The drag's between-drop above the card anchors before-unit on the card itself — a unit
+    // that lifting the last member just dissolved. Must land at its slot, not the list end.
+    const { orderedIds } = orderAfterHabitMove(habitsFixture(), 't1', null, {
+      type: 'before-unit',
+      key: 'stack:T',
+    });
+    expect(orderedIds).toEqual(['a', 's1', 's2', 'b', 't1', 'c']);
+  });
+
   it('unknown anchor falls back to the end', () => {
     const { orderedIds } = orderAfterHabitMove(habitsFixture(), 'a', null, {
       type: 'before-unit',

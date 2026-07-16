@@ -190,16 +190,27 @@ export default function HabitsScreen() {
   const addHabitToStack = useCallback(
     (habitId: string, stackId: string) => {
       const stack = stacks.find((s) => s.id === stackId);
+      const habit = habits.find((h) => h.id === habitId);
       const restore = placementToRestore(habits, habitId);
+      // Moving a stack's last member OUT deletes the emptied source stack, so this Undo can't
+      // just move the habit back (moveHabit's stale-target guard would silently no-op on the
+      // vanished id) — it recreates the stack around the habit instead, mirroring
+      // removeFromStack's Undo (a fresh id: nothing references the old one).
+      const sourceStack = habit?.stack_id ? stacks.find((s) => s.id === habit.stack_id) : undefined;
+      const wasOnlyMember =
+        !!sourceStack && habits.filter((h) => h.stack_id === sourceStack.id).length === 1;
       haptics.added();
       void moveHabit(habitId, { toStackId: stackId });
       if (!stack || !restore) return;
       showToast(`Added to ${stack.name}`, 'success', {
         label: 'Undo',
-        onPress: () => void moveHabit(habitId, restore),
+        onPress: () => {
+          if (wasOnlyMember) void createStack(sourceStack.name, [habitId]);
+          else void moveHabit(habitId, restore);
+        },
       });
     },
-    [habits, stacks, moveHabit, showToast],
+    [habits, stacks, moveHabit, createStack, showToast],
   );
 
   // Commit "leave a stack" — the member row's "Remove" swipe (default placement: right after
@@ -234,6 +245,12 @@ export default function HabitsScreen() {
   // createStack pulls the pair adjacent, so a bare delete would leave them regrouped where they landed.
   const mergeHabits = useCallback(
     async (draggedId: string, targetId: string) => {
+      // A row whose insert is still in flight has no server id to group: createStack would
+      // filter the temp id and leave a one-member "stack", and the Undo's captured order
+      // (holding the temp id) would no-op after the temp→real swap. Bail — the rows stay put,
+      // and the merge works the moment the insert lands. (Every other mutation guards temp
+      // ids the same way.)
+      if (draggedId.startsWith('temp-') || targetId.startsWith('temp-')) return;
       const prevOrder = flattenUnits(buildUnits(habits));
       haptics.added();
       // Pre-mint the stack id and mark it coalescing BEFORE createStack stamps it into state, so the
@@ -493,7 +510,11 @@ export default function HabitsScreen() {
                       entryKey={`stack:${entry.stack.id}`}
                       index={index}
                       kind="stack"
-                      stackId={entry.stack.id}>
+                      stackId={entry.stack.id}
+                      // The empty "Add your first habit" card holds the list's end and has no
+                      // unit in the order math — every drop of it would snap back, so don't
+                      // offer the lift. (It still accepts habits dropped ONTO it, as always.)
+                      draggable={entry.members.length > 0}>
                       <CoalesceIn active={coalescingStackId === entry.stack.id}>
                         <StackCard
                           stack={entry.stack}

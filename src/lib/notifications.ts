@@ -116,17 +116,38 @@ export async function setAppBadgeCount(count: number): Promise<void> {
   }
 }
 
+/** Monotonic run counter for {@link rescheduleAll} — a newer call supersedes queued/running ones. */
+let rescheduleEpoch = 0;
+/** Tail of the reschedule queue — runs execute strictly one at a time (never rejects). */
+let rescheduleQueue: Promise<void> = Promise.resolve();
+
 /**
  * Cancel all scheduled reminders and rebuild them from `habits`. Best-effort and a
  * no-op when notifications are unavailable; never throws into the caller.
+ *
+ * Runs are serialized (queued) and superseded by epoch. Without this, two overlapping runs
+ * interleave — run B's cancel-all lands mid-way through run A's schedule loop, then A resumes
+ * and arms its remaining STALE notifications after B's fresh set — leaving duplicate or
+ * wrong-time reminders armed. The queue makes overlap impossible; the epoch makes a
+ * superseded run (queued, or in progress when a newer call arrives) yield promptly, and the
+ * newest run's own cancel-all sweeps anything an interrupted run had already armed.
  */
-export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
+export function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
+  if (!N) return Promise.resolve();
+  const epoch = ++rescheduleEpoch;
+  const run = rescheduleQueue.then(() => (epoch === rescheduleEpoch ? rebuildSchedule(habits, epoch) : undefined));
+  rescheduleQueue = run;
+  return run;
+}
+
+async function rebuildSchedule(habits: RemindableHabit[], epoch: number): Promise<void> {
   if (!N) return;
   try {
     await N.cancelAllScheduledNotificationsAsync();
     const now = new Date();
     const todayISO = todayLocalISO(now);
     for (const habit of habits) {
+      if (epoch !== rescheduleEpoch) return; // superseded — the newer run owns the schedule
       const time = parseReminderTime(habit.reminder_time);
       if (!time) continue;
 
@@ -134,6 +155,7 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
       if (habit.hijri_schedule) {
         let armed = 0;
         for (let i = 0; i <= HIJRI_HORIZON_DAYS && armed < HIJRI_MAX_OCCURRENCES; i += 1) {
+          if (epoch !== rescheduleEpoch) return;
           const dayISO = addDaysISO(todayISO, i);
           if (!scheduledOn(habit, dayISO)) continue;
           const when = localDate(dayISO, time.hour, time.minute);
@@ -149,6 +171,7 @@ export async function rescheduleAll(habits: RemindableHabit[]): Promise<void> {
 
       // Weekly habits: one recurring trigger per scheduled weekday.
       for (const day of habit.schedule_days) {
+        if (epoch !== rescheduleEpoch) return;
         await N.scheduleNotificationAsync({
           content: { title: habit.name, body: `Time for ${habit.name}`, badge: weeklyDueCount(habits, day) },
           trigger: {

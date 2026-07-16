@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
@@ -39,7 +39,7 @@ const SUBMIT_LABELS: Record<Mode, string> = {
 
 export default function SignInScreen() {
   const theme = useTheme();
-  const { signIn, signUp, signInWithApple, signInWithGoogle, resetPassword, verifyRecovery, updatePassword } =
+  const { signIn, signUp, signInWithApple, signInWithGoogle, resetPassword, verifyRecovery, updatePassword, signOut } =
     useAuth();
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
@@ -58,7 +58,10 @@ export default function SignInScreen() {
     setError(null);
     setNotice(null);
     setCode('');
-    if (next === 'sign-in' || next === 'sign-up') setPassword('');
+    // Always cleared: the same state backs the sign-in password AND the reset flow's "new
+    // password", so a leftover (mistyped) sign-in password carried into 'forgot' → 'reset'
+    // could silently become the account's new password.
+    setPassword('');
     setMode(next);
   }
 
@@ -95,6 +98,7 @@ export default function SignInScreen() {
       } else if (mode === 'forgot') {
         await resetPassword(email.trim());
         setNotice('We emailed you a 6-digit code. Enter it below with your new password.');
+        setPassword(''); // the "New password" field must start empty (see goTo)
         setMode('reset');
       } else {
         // reset
@@ -103,7 +107,20 @@ export default function SignInScreen() {
           return;
         }
         await verifyRecovery(email.trim(), code.trim());
-        await updatePassword(password);
+        // Verifying the OTP created a session, which flips the root gate and unmounts this
+        // screen — so a failure here can't surface through setError (it would land on an
+        // unmounted form and the user would sail into the app believing the password changed,
+        // with only the recovery session to their name). Alert survives the unmount; signing
+        // out drops the half-recovered session back onto a fresh sign-in screen to retry.
+        try {
+          await updatePassword(password);
+        } catch (e) {
+          Alert.alert('Password not updated', e instanceof Error ? e.message : 'Please try again.');
+          // Best-effort: if the sign-out itself fails (offline), the user stays signed in via
+          // the recovery session — the Alert has already told them the password didn't change.
+          await signOut().catch(() => undefined);
+          return;
+        }
         setNotice('Password updated. Sign in with your new password.');
         setCode('');
         setPassword('');
