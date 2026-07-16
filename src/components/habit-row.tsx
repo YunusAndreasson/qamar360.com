@@ -361,7 +361,7 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
               accessibilityLabel={`Remove one from ${habit.name}`}
               accessibilityState={{ disabled: count <= 0 }}
               style={[styles.stepButton, { borderColor: stepBorderColor }]}>
-              <AppIcon name="remove" size={18} color={count <= 0 || done ? theme.textDisabled : theme.text} />
+              <AppIcon name="remove" size={18} color={count <= 0 || done ? theme.textDisabled : theme.accent} />
             </PressableScale>
             <ThemedText
               type="smallBold"
