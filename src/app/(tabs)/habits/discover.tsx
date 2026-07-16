@@ -18,7 +18,6 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { placementToRestore } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 import { dedupeName, normalizeName } from '@/lib/names';
 import { buildStarterPlan } from '@/lib/starter';
@@ -72,9 +71,10 @@ const SectionGap = () => <View style={styles.gap} />;
  *
  * With a `stackId` param (the empty card's "Add your first habit" and the ⋯ menu's "Add
  * habits") the same screen adds *into* that stack: the title says so, rows answer "in this
- * stack?" rather than "exists?", adds land as members (existing lone habits move in instead of
- * duplicating), the ✓ tap un-members rather than deletes, and a "Your habits" section offers
- * the lone habits you already have.
+ * stack?" rather than "exists?", adds land as members (a loose habit you already have moves in;
+ * one already in another stack is copied here as its own row, never pulled out of it), the ✓ tap
+ * un-members rather than deletes, and a "Your habits" section offers the lone habits you already
+ * have.
  */
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -132,6 +132,21 @@ export default function DiscoverScreen() {
     return scoped ? habit?.stack_id === stack.id : habit !== undefined;
   };
 
+  // Copy a preset into the scoped stack as a fresh, independent row — used when the same habit
+  // already lives in another stack, so we add a second one here instead of moving the original
+  // out. Mirrors "Add another": the copy takes the next free "… 2"/"… 3" name, and the toast
+  // offers a one-tap rename.
+  const addCopyIntoStack = async (preset: SunnahPreset, targetStackId: string) => {
+    const name = dedupeName(preset.name, existing);
+    const [created] = await createHabits([{ ...toCreate(preset), name }]);
+    if (!created) return; // createHabits already surfaced the error
+    await moveHabit(created.id, { toStackId: targetStackId, placement: { type: 'member-append' } });
+    toast.show(`Added another “${preset.name}”`, 'success', {
+      label: 'Rename',
+      onPress: () => router.push({ pathname: '/habits/editor', params: { id: created.id } }),
+    });
+  };
+
   const addPreset = (preset: SunnahPreset) => {
     if (!scoped) {
       void createHabit(toCreate(preset));
@@ -139,20 +154,21 @@ export default function DiscoverScreen() {
     }
     const found = habitByName.get(normalizeName(preset.name));
     if (!found) {
+      // Not a habit anywhere yet — create it straight into this stack.
       void createHabitInStack(toCreate(preset), stack.id);
       return;
     }
-    // The habit already exists — move it in rather than duplicate. Pulling it out of another
-    // stack is the one side effect not visible from here, so that case confirms with an Undo.
-    const fromStack = found.stack_id ? (stacks.find((s) => s.id === found.stack_id) ?? null) : null;
-    const restore = placementToRestore(habits, found.id);
-    void moveHabit(found.id, { toStackId: stack.id });
-    if (fromStack && restore) {
-      toast.show(`Moved from ${fromStack.name}`, 'success', {
-        label: 'Undo',
-        onPress: () => void moveHabit(found.id, restore),
-      });
+    if (found.stack_id === stack.id) return; // already a member here (the ✓ tap handles removal)
+    if (found.stack_id === null) {
+      // A loose habit you already have — organize it into this stack. Non-destructive: it wasn't
+      // in a stack, so nothing gets quietly emptied.
+      void moveHabit(found.id, { toStackId: stack.id });
+      return;
     }
+    // It already lives in another stack: add an independent copy here rather than pull the
+    // original out of that stack. Each copy is its own row (the app's model, and the ＋ "Add
+    // another"), so filling this stack never silently empties another.
+    void addCopyIntoStack(preset, stack.id);
   };
 
   const removePreset = (preset: SunnahPreset) => {
