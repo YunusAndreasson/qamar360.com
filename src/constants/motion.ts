@@ -45,3 +45,13 @@ export const Tick = {
   settleDelay: 440,
   settle: 240,
 } as const;
+
+/**
+ * A stack card collapsing shut once its group is sealed. `duration` is the app's layout-
+ * transition idiom (`slow`, monotonic — a spring would overshoot the measured height and
+ * reveal empty space below the last row). `lead` delays the auto-collapse until the
+ * `StackCompleteFlash` has fully rested (`Tick.settleDelay + Tick.settle`), so the card
+ * folds away *out of* the seal rather than stepping on it — the collapse rides the seal
+ * haptic instead of adding its own. Manual expand/collapse uses no lead.
+ */
+export const Collapse = { duration: Duration.slow, lead: Tick.settleDelay + Tick.settle } as const;
