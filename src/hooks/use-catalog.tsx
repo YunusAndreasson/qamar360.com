@@ -1,6 +1,6 @@
 import 'expo-sqlite/localStorage/install';
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import {
   SUNNAH_CATEGORIES,
@@ -28,11 +28,6 @@ import { supabase } from '@/lib/supabase';
 type Catalog = {
   categories: SunnahCategory[];
   presets: SunnahPreset[];
-};
-
-type CatalogContextValue = Catalog & {
-  /** Where the current data came from — bundled fallback, cache, or a fresh fetch. */
-  source: 'bundled' | 'cache' | 'network';
 };
 
 // v2: the catalog dropped its prebuilt routines (stacks are made on Today by dragging), so the
@@ -99,22 +94,19 @@ async function fetchCatalog(): Promise<Catalog> {
   };
 }
 
-const CatalogContext = createContext<CatalogContextValue | null>(null);
+const CatalogContext = createContext<Catalog | null>(null);
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
   // First paint from cache if we have it, else the bundled constants — never an empty catalog.
-  const [state, setState] = useState<{ catalog: Catalog; source: CatalogContextValue['source'] }>(() => {
-    const cached = readCache();
-    return cached ? { catalog: cached, source: 'cache' } : { catalog: BUNDLED, source: 'bundled' };
-  });
+  const [catalog, setCatalog] = useState<Catalog>(() => readCache() ?? BUNDLED);
 
   useEffect(() => {
     let cancelled = false;
     fetchCatalog()
-      .then((catalog) => {
+      .then((fresh) => {
         if (cancelled) return;
-        writeCache(catalog);
-        setState({ catalog, source: 'network' });
+        writeCache(fresh);
+        setCatalog(fresh);
       })
       .catch(() => {
         // Offline / unreachable: keep whatever we already painted (cache or bundled).
@@ -124,15 +116,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value = useMemo<CatalogContextValue>(
-    () => ({
-      ...state.catalog,
-      source: state.source,
-    }),
-    [state],
-  );
-
-  return <CatalogContext value={value}>{children}</CatalogContext>;
+  return <CatalogContext value={catalog}>{children}</CatalogContext>;
 }
 
 export function useCatalog() {

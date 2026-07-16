@@ -19,11 +19,17 @@ export const Spring = {
 } satisfies Record<string, WithSpringConfig>;
 
 /** Timing durations (ms) for fades and layout transitions. `orbit` is the Progress
- *  screen's signature ring sweep — slower and more deliberate than a UI transition. */
-export const Duration = { fast: 140, base: 200, slow: 320, orbit: 900 } as const;
+ *  screen's signature ring sweep — slower and more deliberate than a UI transition;
+ *  `tally` is a number counting up to its value (the celebration degrees readout);
+ *  `pulse` is one half-cycle of a skeleton shimmer; `breath` one half-cycle of the
+ *  hero moon's ambient breathing — the two repeating loops, named so the app's only
+ *  infinite animations stay part of the vocabulary. */
+export const Duration = { fast: 140, base: 200, slow: 320, tally: 600, orbit: 900, pulse: 800, breath: 4200 } as const;
 
-/** Scale targets. `press`/`glyph` shrink on touch; `pop` is the check confirmation. */
-export const Scale = { press: 0.97, glyph: 0.92, pop: 1.12 } as const;
+/** Scale targets. `press`/`glyph` shrink on touch; `pop` is the check confirmation;
+ *  `enter` is where an arriving surface starts before settling to 1 (a new stack card
+ *  coalescing, the celebration card rising). */
+export const Scale = { press: 0.97, glyph: 0.92, pop: 1.12, enter: 0.96 } as const;
 
 /**
  * The tick — the habit check's choreography, on one clock (ms from the tap) so the ring

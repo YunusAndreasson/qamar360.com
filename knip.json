@@ -3,8 +3,7 @@
   "entry": [
     "src/app/**/*.{ts,tsx}",
     "babel.config.js",
-    "plugins/**/*.js",
-    "scripts/**/*.js"
+    "plugins/**/*.js"
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": ["src/lib/database.types.ts", "web/**"],

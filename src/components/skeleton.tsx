@@ -7,16 +7,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { Duration } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
-
 type Props = {
-  width?: DimensionValue;
   height?: number;
   radius?: number;
-  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -26,7 +23,7 @@ type Props = {
  * rather than "nothing yet" — the Linear/Notion default. The pulse is dropped under
  * Reduce Motion (the muted block alone still says "loading"; HIG: substitute, don't soften).
  */
-export function Skeleton({ width = '100%', height = 16, radius = Radius.control, style }: Props) {
+export function Skeleton({ height = 16, radius = Radius.control }: Props) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(0);
@@ -37,7 +34,7 @@ export function Skeleton({ width = '100%', height = 16, radius = Radius.control,
       return;
     }
     // 0 → 1 → 0 … a slow breathing fade; `true` auto-reverses each cycle.
-    pulse.set(withRepeat(withTiming(1, { duration: 800 }), -1, true));
+    pulse.set(withRepeat(withTiming(1, { duration: Duration.pulse }), -1, true));
   }, [pulse, reduceMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({ opacity: 0.4 + pulse.get() * 0.4 }));
@@ -47,7 +44,7 @@ export function Skeleton({ width = '100%', height = 16, radius = Radius.control,
       // Decorative only — a screen reader announces the real content once it loads.
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[{ width, height, borderRadius: radius, backgroundColor: theme.backgroundElement }, animatedStyle, style]}
+      style={[{ width: '100%', height, borderRadius: radius, backgroundColor: theme.backgroundElement }, animatedStyle]}
     />
   );
 }

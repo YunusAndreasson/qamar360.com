@@ -20,7 +20,7 @@ export function StackingGuide() {
   return (
     <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
       <View style={styles.header}>
-        <AppIcon name="stack" size={22} color={theme.accent} />
+        <AppIcon name="stack" color={theme.accent} />
         <ThemedText type="heading">Habit stacking</ThemedText>
       </View>
 

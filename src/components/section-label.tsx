@@ -1,7 +1,7 @@
 import { StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Tracking } from '@/constants/theme';
 
 /**
  * The uppercase caption that labels a grouped-list section (the inset-grouped idiom used by
@@ -18,7 +18,5 @@ export function SectionLabel({ children, style }: { children: string; style?: St
 }
 
 const styles = StyleSheet.create({
-  // Positive tracking on the uppercase overline — caps read tight and cramped at their native
-  // spacing; a little extra makes the group label read as a deliberate label, not shouting body.
-  label: { marginLeft: Spacing.three, letterSpacing: 0.6 },
+  label: { marginLeft: Spacing.three, letterSpacing: Tracking.overline },
 });

@@ -44,8 +44,9 @@ export function FadeInView({ children, style, duration = Duration.base, delay = 
       opacity.set(1);
       return;
     }
-    // Matches withTiming's default in-out easing, keeping the fade's feel unchanged.
-    opacity.set(withDelay(delay, withTiming(1, { duration, easing: Easing.inOut(Easing.quad) })));
+    // Decelerate in — the app's one "appear" easing (the coalesce card and the celebration
+    // overlay fade the same way), so every entrance lands with the same character.
+    opacity.set(withDelay(delay, withTiming(1, { duration, easing: Easing.out(Easing.quad) })));
   }, [reduceMotion, opacity, delay, duration]);
 
   const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));

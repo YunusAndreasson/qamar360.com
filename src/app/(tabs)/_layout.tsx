@@ -5,7 +5,6 @@ import { Platform } from 'react-native';
 import { FontWeight } from '@/constants/theme';
 import { HabitsProvider, useHabits } from '@/hooks/use-habits';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
-import { scheduledOn } from '@/lib/dates';
 
 const { Trigger } = NativeTabs;
 
@@ -29,13 +28,9 @@ function Tabs() {
   // appearance override too — otherwise it stays on the system theme.
   const colors = useTheme();
   const scheme = useEffectiveScheme();
-  const { habits, completed, skipped, today } = useHabits();
-
-  // Acts still open today: scheduled for today, not yet done, not excused — the same "open"
-  // set the day-complete haptic uses. Drives the native badge on the Habits tab.
-  const remaining = habits.filter(
-    (h) => scheduledOn(h, today) && !completed.has(h.id) && !skipped.has(h.id),
-  ).length;
+  // The hook's own "open today" count — the same number it puts on the OS app-icon badge,
+  // so the tab badge and the home-screen badge can never disagree.
+  const { remainingToday } = useHabits();
 
   return (
     <NativeTabs
@@ -61,7 +56,7 @@ function Tabs() {
       indicatorColor={colors.backgroundSelected}>
       <Trigger name="habits">
         {/* How many acts are still open today — a quiet nudge from any tab. Hidden at zero. */}
-        {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
+        {remainingToday > 0 ? <Trigger.Badge>{String(remainingToday)}</Trigger.Badge> : null}
         <Trigger.Label>Habits</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="sun.max.fill" />

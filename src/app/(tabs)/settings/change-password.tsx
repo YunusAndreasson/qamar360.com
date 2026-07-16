@@ -56,12 +56,8 @@ export default function ChangePasswordScreen() {
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
       bottomInset={false}>
-      <Stack.Screen
-        options={{
-          title: 'Change password',
-          headerRight: headerSaveAction(() => void save(), canSave),
-        }}
-      />
+      {/* Title comes from the settings layout registration; only the live Save action is local. */}
+      <Stack.Screen options={{ headerRight: headerSaveAction(() => void save(), canSave) }} />
 
       <FormField
         label="NEW PASSWORD"

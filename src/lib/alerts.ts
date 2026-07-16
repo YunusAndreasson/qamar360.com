@@ -10,18 +10,16 @@ export function confirmDestructive({
   title,
   message,
   confirmLabel = 'Delete',
-  cancelLabel = 'Cancel',
   onConfirm,
 }: {
   title: string;
   message: string;
   /** The destructive button's label (defaults to "Delete"; e.g. "Reset"). */
   confirmLabel?: string;
-  cancelLabel?: string;
   onConfirm: () => void;
 }) {
   Alert.alert(title, message, [
-    { text: cancelLabel, style: 'cancel' },
+    { text: 'Cancel', style: 'cancel' },
     { text: confirmLabel, style: 'destructive', onPress: onConfirm },
   ]);
 }

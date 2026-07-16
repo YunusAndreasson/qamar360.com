@@ -14,17 +14,18 @@ import { AppIcon } from '@/components/app-icon';
 import { FadeInView } from '@/components/fade-in-view';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
-import { BottomTabInset, Elevation, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, Elevation, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { haptics } from '@/lib/haptics';
 
-type Variant = 'default' | 'success' | 'danger';
+type Variant = 'success' | 'danger';
 /** An optional trailing action (e.g. "Undo") — pressing it runs the handler and dismisses. */
 type ToastAction = { label: string; onPress: () => void };
 type ToastItem = { id: number; message: string; variant: Variant; action?: ToastAction };
 
 type ToastContextValue = {
   /** Show a brief, self-dismissing confirmation. Replaces any toast already on screen. */
-  show: (message: string, variant?: Variant, action?: ToastAction) => void;
+  show: (message: string, variant: Variant, action?: ToastAction) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -42,7 +43,6 @@ const VISIBLE_MS = 3200;
 const VISIBLE_ACTION_MS = 6000;
 
 const ICONS: Record<Variant, IconName> = {
-  default: 'info',
   success: 'success',
   danger: 'danger',
 };
@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const idRef = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback((message: string, variant: Variant = 'default', action?: ToastAction) => {
+  const show = useCallback((message: string, variant: Variant, action?: ToastAction) => {
     if (timer.current) clearTimeout(timer.current);
     const id = (idRef.current += 1);
     setToast({ id, message, variant, action });
@@ -82,9 +82,8 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
   const insets = useSafeAreaInsets();
 
   // No green in the palette — a success ("done") toast wears the warm `complete` moonlight, the
-  // same positive note the completion rings use; danger stays red; everything else is accent.
-  const tint =
-    toast.variant === 'success' ? theme.complete : toast.variant === 'danger' ? theme.danger : theme.accent;
+  // same positive note the completion rings use; danger stays red.
+  const tint = toast.variant === 'success' ? theme.complete : theme.danger;
 
   return (
     <View
@@ -105,6 +104,9 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
           {toast.action ? (
             <Pressable
               onPress={() => {
+                // The action reverses a commit that just buzzed ("Undo") — the soft release
+                // counter-texture, so un-committing is felt as clearly as committing was.
+                haptics.undo();
                 toast.action?.onPress();
                 onDismiss();
               }}
@@ -143,5 +145,5 @@ const styles = StyleSheet.create({
   // flex-row measure/layout mismatch as `heading`'s trailing caption — the tail glyph wraps to
   // a clipped second line); `flex-end` keeps the label on the toast's right padding.
   action: { paddingLeft: Spacing.two, paddingVertical: Spacing.one, minWidth: 56, alignItems: 'flex-end' },
-  actionPressed: { opacity: 0.6 },
+  actionPressed: { opacity: Pressed.dim },
 });

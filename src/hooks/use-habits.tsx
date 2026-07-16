@@ -123,8 +123,9 @@ type HabitsContextValue = {
   minViewDate: string;
   /** Whether `viewDate` is today. */
   isToday: boolean;
-  /** Whether the stepper can go further back. */
-  canGoBack: boolean;
+  /** Habits still open (scheduled, unticked, unskipped) for the real today — the tab badge and
+   *  the OS app-icon badge read this same number, so the two can never disagree. */
+  remainingToday: number;
   dismissError: () => void;
   /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus). */
   refresh: () => Promise<void>;
@@ -132,8 +133,6 @@ type HabitsContextValue = {
   reload: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
-  /** Step the viewed day by `delta` days (clamped). */
-  stepDay: (delta: number) => void;
   createHabit: (input: HabitCreate) => Promise<void>;
   /** Create several habits at once (Discover "starter set"); returns the new rows. */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
@@ -506,13 +505,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const min = addDaysISO(max, -BACKFILL_DAYS);
     setViewDateState(iso > max ? max : iso < min ? min : iso);
   }, []);
-
-  const stepDay = useCallback(
-    (delta: number) => {
-      setViewDate(addDaysISO(viewDateRef.current, delta));
-    },
-    [setViewDate],
-  );
 
   const toggleHabit = useCallback(
     async (habitId: string) => {
@@ -1324,12 +1316,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       viewDate,
       minViewDate: min,
       isToday: viewDate === today,
-      canGoBack: viewDate > min,
+      remainingToday,
       dismissError,
       refresh,
       reload,
       setViewDate,
-      stepDay,
       createHabit,
       createHabits,
       toggleHabit,
@@ -1354,11 +1345,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     error,
     today,
     viewDate,
+    remainingToday,
     dismissError,
     refresh,
     reload,
     setViewDate,
-    stepDay,
     createHabit,
     createHabits,
     toggleHabit,

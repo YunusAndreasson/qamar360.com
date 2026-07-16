@@ -56,7 +56,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   useEffect(() => {
     breath.set(reduceMotion
       ? 0
-      : withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true));
+      : withRepeat(withTiming(1, { duration: Duration.breath, easing: Easing.inOut(Easing.sin) }), -1, true));
   }, [reduceMotion, breath]);
   const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * 0.07 }));
 

@@ -1,7 +1,7 @@
 {
   "name": "qamar360",
   "main": "expo-router/entry",
-  "version": "1448.1.17",
+  "version": "1448.2.2",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -51,7 +51,6 @@
   },
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "version:hijri": "node scripts/hijri-version.mjs",
     "seed:catalog": "node scripts/seed-catalog.mjs",
     "android": "expo run:android",

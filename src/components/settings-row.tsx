@@ -6,18 +6,14 @@ import type { IconName } from '@/constants/icons';
 import { Disabled, Pressed, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-import type { ReactNode } from 'react';
-
 type Props = {
   /** Leading glyph (semantic name from the icon registry). */
   icon?: IconName;
   label: string;
   /** Secondary line under the label. */
   sublabel?: string;
-  /** Right-aligned muted value (e.g. a version number). Ignored when `trailing` is set. */
+  /** Right-aligned muted value (e.g. a version number). */
   value?: string;
-  /** Custom right-side node (e.g. a `<Switch>`). Overrides `value` and the chevron. */
-  trailing?: ReactNode;
   /** Show a chevron — for rows that navigate to another screen. */
   showChevron?: boolean;
   onPress?: () => void;
@@ -38,7 +34,6 @@ export function SettingsRow({
   label,
   sublabel,
   value,
-  trailing,
   showChevron,
   onPress,
   destructive,
@@ -52,7 +47,7 @@ export function SettingsRow({
 
   const content = (
     <>
-      {icon ? <AppIcon name={icon} size={22} color={iconColor} /> : null}
+      {icon ? <AppIcon name={icon} color={iconColor} /> : null}
       <View style={styles.labels}>
         <ThemedText type="rowTitle" style={{ color: labelColor }} numberOfLines={1}>
           {label}
@@ -65,14 +60,12 @@ export function SettingsRow({
       </View>
       {busy ? (
         <ActivityIndicator color={iconColor} />
-      ) : trailing ? (
-        trailing
       ) : value ? (
         <ThemedText type="small" themeColor="textSecondary">
           {value}
         </ThemedText>
       ) : showChevron ? (
-        <AppIcon name="chevronRight" size={22} color={theme.textSecondary} />
+        <AppIcon name="chevronRight" color={theme.textSecondary} />
       ) : null}
     </>
   );

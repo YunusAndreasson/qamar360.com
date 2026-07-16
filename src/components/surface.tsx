@@ -6,7 +6,6 @@ import { useTheme } from '@/hooks/use-theme';
 
 type Props = ViewProps & {
   padded?: boolean;
-  compact?: boolean;
   /**
    * Faint flower-of-life watermark behind the content (clipped by the card radius). Off by
    * default: the ambient texture lives on the screen backdrop, so plain cards stay clean and
@@ -31,14 +30,13 @@ export function Surface({
   style,
   contentStyle,
   padded,
-  compact,
   pattern = false,
   patternVariant = 'card',
   children,
   ...props
 }: Props) {
   const theme = useTheme();
-  const radius = compact ? Radius.control : Radius.card;
+  const radius = Radius.card;
   return (
     // Outer: the elevation shadow + the card's position. No `overflow: hidden` here — that would
     // clip the shadow away on iOS. Opaque backing so the shadow has a shape to cast.

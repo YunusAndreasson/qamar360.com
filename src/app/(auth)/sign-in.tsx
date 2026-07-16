@@ -9,7 +9,6 @@ import { BrandHero } from '@/components/brand/brand-hero';
 import { FormField } from '@/components/form-field';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { APP_NAME } from '@/constants/app';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
@@ -124,7 +123,7 @@ export default function SignInScreen() {
   const showSocial = socialAuthAvailable && (mode === 'sign-in' || mode === 'sign-up');
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Same lunar-sky backdrop every other screen carries — the auth screen is no exception. */}
       <GeometricBackdrop variant="screen" />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -257,7 +256,7 @@ export default function SignInScreen() {
       </SafeAreaView>
       </ScrollView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </View>
   );
 }
 

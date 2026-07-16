@@ -7,9 +7,12 @@ import { Icons, type IconName } from '@/constants/icons';
 type Props = {
   /** Semantic icon name from the {@link Icons} registry. */
   name: IconName;
-  /** Point size. The Material glyph keeps its exact prior size on Android; the SF Symbol renders
-   *  at the same point size on iOS (optical scale differs slightly — tune per call if needed). */
-  size: number;
+  /** Point size. Defaults to 22 — the app's standard in-content glyph (row leaders, editor and
+   *  settings glyphs); pass a size only where the context is denser (inline chevrons, chip
+   *  glyphs) or grander (feature marks, empty-state heroes). The Material glyph keeps its exact
+   *  size on Android; the SF Symbol renders at the same point size on iOS (optical scale
+   *  differs slightly — tune per call if needed). */
+  size?: number;
   color: string;
   style?: StyleProp<ViewStyle>;
 };
@@ -19,7 +22,7 @@ type Props = {
  * the same native convention the tab bar and nav headers use. Always prefer this over importing a
  * raw `MaterialIcons`, so an icon is native to whichever OS it renders on.
  */
-export function AppIcon({ name, size, color, style }: Props) {
+export function AppIcon({ name, size = 22, color, style }: Props) {
   const glyph = Icons[name];
   return Platform.OS === 'ios' ? (
     <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" style={style} />

@@ -21,7 +21,6 @@ export function HeaderIconButton({
   accessibilityLabel,
   onPress,
   disabled = false,
-  hidden = false,
   style,
 }: {
   icon: IconGlyph;
@@ -29,20 +28,18 @@ export function HeaderIconButton({
   accessibilityLabel: string;
   onPress: () => void;
   disabled?: boolean;
-  hidden?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <PressableScale
       onPress={onPress}
-      disabled={disabled || hidden}
+      disabled={disabled}
       scaleTo={Scale.glyph}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled: disabled || hidden }}
-      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      accessibilityState={{ disabled }}
       hitSlop={10}
-      style={[styles.button, style, hidden && styles.hidden]}>
+      style={[styles.button, style]}>
       {Platform.OS === 'ios' ? (
         <SymbolView name={icon.sf} size={22} tintColor={color} type="monochrome" />
       ) : (
@@ -57,5 +54,4 @@ const styles = StyleSheet.create({
   // cluster off the screen edge without pushing the trailing icon inward.
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingRight: Spacing.half },
   button: { paddingVertical: Spacing.half, paddingHorizontal: Spacing.two },
-  hidden: { opacity: 0 },
 });

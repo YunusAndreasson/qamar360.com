@@ -67,6 +67,10 @@ export const haptics = {
   added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Confirm),
   /** A just-added curated habit was removed again — the soft "release" counterpart to {@link added}. */
   removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Reject),
+  /** A toast's Undo reversed the commit that just buzzed — the same Soft "release" texture as
+   *  {@link removed}/{@link uncompleted}, its own name so call sites read by intent: every
+   *  committed change that confirms with a haptic un-commits with its counter-texture. */
+  undo: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Toggle_Off),
   /**
    * The day's last open habit was completed — the ring closes. The single celebratory moment, and
    * it carries the weight of tonight's moon (`illumination` 0–1): the quietest tap on a new-moon

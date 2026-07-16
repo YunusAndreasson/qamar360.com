@@ -7,7 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'destructive' | 'neutral';
+type Variant = 'primary' | 'secondary' | 'destructive';
 
 type Props = Omit<PressableProps, 'children' | 'style'> & {
   children: ReactNode;
@@ -26,18 +26,14 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       ? theme.accent
       : variant === 'destructive'
         ? theme.dangerSubtle
-        : variant === 'neutral'
-          ? theme.backgroundElement
-          : 'transparent';
+        : 'transparent';
   const color = isDisabled
     ? theme.textDisabled
     : variant === 'primary'
       ? theme.accentText
       : variant === 'destructive'
         ? theme.danger
-        : variant === 'neutral'
-          ? theme.text
-          : theme.textSecondary;
+        : theme.textSecondary;
 
   return (
     <PressableScale
@@ -45,13 +41,7 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       accessibilityState={{ disabled: isDisabled, busy: !!busy }}
       disabled={isDisabled}
       android_ripple={{ color: variant === 'primary' ? theme.rippleOnFill : theme.backgroundSelected }}
-      style={[
-        styles.button,
-        variant === 'secondary' && styles.secondary,
-        variant === 'neutral' && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border },
-        { backgroundColor },
-        style,
-      ]}
+      style={[styles.button, variant === 'secondary' && styles.secondary, { backgroundColor }, style]}
       {...props}>
       {busy ? (
         <ActivityIndicator color={color} />

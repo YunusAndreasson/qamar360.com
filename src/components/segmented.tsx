@@ -1,9 +1,12 @@
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/app-icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
+import { Spring } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
@@ -16,11 +19,20 @@ export type SegmentedOption<T extends string> = {
   accessibilityLabel?: string;
 };
 
+// The track's inner inset and the gap between segments — one value, so the thumb's
+// travel math stays in lockstep with the flex layout it shadows.
+const PAD = Spacing.half;
+const GAP = Spacing.half;
+
 /**
- * The app's one segmented control — an iOS-style recessed track with a raised "thumb" on the
+ * The app's one segmented control — an iOS-style recessed track with a raised "thumb" under the
  * selected segment, themed to the cards and accent. Every mutually-exclusive mode choice
  * (Settings' appearance, the editor's goal and repeat) uses this same shape, so a segmented
  * choice reads identically everywhere instead of two controls speaking two languages.
+ *
+ * The thumb is one shared surface that *slides* to the chosen segment (`Spring.settle`, the
+ * app's landing spring) — the motion the `selection` haptic confirms, so touch and eye get the
+ * same event. It lands instantly on first layout (no mount travel) and under Reduce Motion.
  *
  * In this palette a raised surface is always the lighter tone (cards lift off the page), so the
  * thumb is `backgroundElement` in light / `backgroundSelected` in dark, sitting on the tone just
@@ -40,12 +52,43 @@ export function Segmented<T extends string>({
 }) {
   const theme = useTheme();
   const isDark = useEffectiveScheme() === 'dark';
+  const reduceMotion = useReducedMotion();
 
   const trackColor = isDark ? theme.backgroundElement : theme.backgroundSelected;
   const thumbColor = isDark ? theme.backgroundSelected : theme.backgroundElement;
 
+  const [trackWidth, setTrackWidth] = useState(0);
+  const count = options.length;
+  const segmentWidth = trackWidth > 0 && count > 0 ? (trackWidth - PAD * 2 - GAP * (count - 1)) / count : 0;
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  const targetX = PAD + index * (segmentWidth + GAP);
+
+  // The thumb's left edge. Springs between segments on a value change; jumps when the
+  // geometry itself changes (first measure, rotation) or under Reduce Motion.
+  const x = useSharedValue(targetX);
+  const prevSegmentWidth = useRef(0);
+  useEffect(() => {
+    if (segmentWidth <= 0) return;
+    const remeasured = prevSegmentWidth.current !== segmentWidth;
+    prevSegmentWidth.current = segmentWidth;
+    if (remeasured || reduceMotion) x.set(targetX);
+    else x.set(withSpring(targetX, Spring.settle));
+  }, [targetX, segmentWidth, reduceMotion, x]);
+  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
+
   return (
-    <View style={[styles.track, { backgroundColor: trackColor, borderColor: theme.border }, style]}>
+    <View
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      style={[styles.track, { backgroundColor: trackColor, borderColor: theme.border }, style]}>
+      {segmentWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.thumb, { width: segmentWidth, backgroundColor: thumbColor }, thumbStyle]}
+        />
+      ) : null}
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -60,7 +103,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected }}
             accessibilityLabel={option.accessibilityLabel ?? option.label}
             android_ripple={{ color: theme.backgroundSelected }}
-            style={[styles.segment, selected && [styles.segmentSelected, { backgroundColor: thumbColor }]]}>
+            style={styles.segment}>
             {option.icon ? (
               <AppIcon name={option.icon} size={16} color={selected ? theme.accent : theme.textSecondary} />
             ) : null}
@@ -77,8 +120,8 @@ export function Segmented<T extends string>({
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    padding: Spacing.half,
-    gap: Spacing.half,
+    padding: PAD,
+    gap: GAP,
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -92,5 +135,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two + Spacing.half,
     borderRadius: Radius.control + Spacing.half,
   },
-  segmentSelected: Elevation.thumb,
+  // The one raised surface the segments share — slid, never re-parented, so the lift is
+  // continuous. Inset vertically by the track padding; horizontal travel is `translateX`.
+  thumb: {
+    ...Elevation.thumb,
+    position: 'absolute',
+    top: PAD,
+    bottom: PAD,
+    borderRadius: Radius.control + Spacing.half,
+  },
 });

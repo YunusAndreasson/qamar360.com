@@ -136,7 +136,7 @@ export function ExpandableAddRow({
           accessibilityLabel={`${title} details`}
           accessibilityHint={expanded ? collapseHint : expandHint}
           style={({ pressed }) => [styles.expandButton, pressed && styles.pressed]}>
-          <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={22} color={theme.textSecondary} />
+          <AppIcon name={expanded ? 'expandLess' : 'expandMore'} color={theme.textSecondary} />
         </Pressable>
       </View>
 

@@ -19,6 +19,7 @@ import { useConfirmPop } from '@/hooks/use-confirm-pop';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
+import { haptics } from '@/lib/haptics';
 import { clamp01 } from '@/lib/progress';
 
 type Props = {
@@ -165,7 +166,12 @@ function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onS
     confirmDestructive({
       title: 'Delete habit',
       message: `Delete “${habit.name}”? This can’t be undone.`,
-      onConfirm: () => onDelete(habit.id),
+      onConfirm: () => {
+        // The soft "release" on confirm — matches deleting a stack, so destruction always
+        // confirms with the same texture.
+        haptics.removed();
+        onDelete(habit.id);
+      },
     });
 
   const renderRightActions = (

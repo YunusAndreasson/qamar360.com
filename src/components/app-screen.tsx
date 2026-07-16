@@ -1,4 +1,4 @@
-import { ActivityIndicator, ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -10,16 +10,7 @@ type Props = Omit<ScrollViewProps, 'contentContainerStyle'> & {
   children?: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
   centered?: boolean;
-  loading?: boolean;
   bottomInset?: boolean;
-  /**
-   * A header pinned to the top of the scroll as a real sticky `ScrollView` header — so it stays a
-   * descendant of the single tracked scroll view. Rendered as an outside-the-scroll sibling instead,
-   * such controls sit un-inset at the screen's true top (behind the native header) and get flashed
-   * over the header by react-native-screens mid-transition. Use for controls that must not scroll
-   * away (e.g. the Discover filter chips).
-   */
-  stickyHeader?: ReactNode;
   /** Faint flower-of-life sky anchored to the top of the screen, behind the content. */
   backdrop?: boolean;
   /**
@@ -35,11 +26,9 @@ export function AppScreen({
   children,
   contentStyle,
   centered,
-  loading,
   bottomInset = true,
   transparent = false,
   backdrop = !transparent,
-  stickyHeader,
   style,
   ...props
 }: Props) {
@@ -52,34 +41,23 @@ export function AppScreen({
   // it. So in the default (opaque) mode the backdrop lives *inside* the ScrollView, behind
   // the (padded, max-width) content but full-bleed across the un-padded scroll container.
   // In `transparent` mode the parent stack paints a fixed sky behind the screen, and this
-  // ScrollView is see-through over it. Loading is rendered inside too, so the root view is
-  // always the ScrollView.
+  // ScrollView is see-through over it.
   return (
     <ScrollView
       style={[styles.container, transparent ? styles.transparent : { backgroundColor: theme.background }, style]}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.scrollContent}
-      // The backdrop (when present) is an absolutely-positioned child at index 0, so the sticky
-      // header is the next index. Both stay descendants of this one tracked ScrollView.
-      stickyHeaderIndices={stickyHeader ? [backdrop ? 1 : 0] : undefined}
       {...props}>
       {backdrop ? <GeometricBackdrop variant="screen" /> : null}
-      {stickyHeader}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.textSecondary} />
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.content,
-            bottomInset && styles.bottomInset,
-            centered && styles.centered,
-            contentStyle,
-          ]}>
-          {children}
-        </View>
-      )}
+      <View
+        style={[
+          styles.content,
+          bottomInset && styles.bottomInset,
+          centered && styles.centered,
+          contentStyle,
+        ]}>
+        {children}
+      </View>
     </ScrollView>
   );
 }
@@ -87,7 +65,6 @@ export function AppScreen({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   transparent: { backgroundColor: 'transparent' },
-  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   // flexGrow so the inner content can fill the viewport when `centered`, and so short
   // screens still scroll-track the large title.
   scrollContent: { flexGrow: 1 },

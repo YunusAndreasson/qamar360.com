@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    minHeight: 52,
+    minHeight: 56, // exactly a member row's height (HabitRow), so the wait state doesn't sit shorter
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },

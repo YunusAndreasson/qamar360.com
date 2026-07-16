@@ -9,7 +9,6 @@ type Props = {
   onSave: () => void;
   canSave: boolean;
   saveLabel?: string;
-  cancelLabel?: string;
 };
 
 function headerCancelAction(onCancel?: () => void, label = 'Cancel') {
@@ -36,9 +35,9 @@ export function headerCloseAction(onClose: () => void, label = 'Close') {
   };
 }
 
-export function formHeaderActions({ onCancel, onSave, canSave, saveLabel, cancelLabel }: Props) {
+export function formHeaderActions({ onCancel, onSave, canSave, saveLabel }: Props) {
   return {
-    headerLeft: headerCancelAction(onCancel, cancelLabel),
+    headerLeft: headerCancelAction(onCancel),
     headerRight: headerSaveAction(onSave, canSave, saveLabel),
   };
 }

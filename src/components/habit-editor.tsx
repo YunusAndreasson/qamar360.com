@@ -245,8 +245,15 @@ export function HabitEditorForm({
       goalMode === 'count'
         ? { target_count: targetCount, target_unit: unit.trim() || null }
         : { target_count: null, target_unit: null };
-    if (habit) onSave(habit.id, { name: trimmedName, reminder_time, ...fields, ...goalFields });
-    else onCreate({ name: trimmedName, reminder_time, ...fields, ...goalFields });
+    if (habit) {
+      // Editing in place is an adjustment, not a new commit — silent, like renaming a stack.
+      onSave(habit.id, { name: trimmedName, reminder_time, ...fields, ...goalFields });
+    } else {
+      onCreate({ name: trimmedName, reminder_time, ...fields, ...goalFields });
+      // The same crisp "commit" as creating a stack or adding from Discover — every way a
+      // habit enters the list confirms with one texture.
+      haptics.added();
+    }
     onClose();
   };
 
@@ -258,7 +265,12 @@ export function HabitEditorForm({
     confirmDestructive({
       title: 'Delete habit',
       message: `Delete “${habit.name}”? This can’t be undone.`,
-      onConfirm: () => onDelete(habit.id),
+      onConfirm: () => {
+        // The soft "release" — the counterpart of deleting a stack, so destruction always
+        // confirms with the same texture.
+        haptics.removed();
+        onDelete(habit.id);
+      },
     });
   };
 
@@ -477,7 +489,7 @@ export function HabitEditorForm({
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
                 pressed && styles.stackRowPressed,
               ]}>
-              <AppIcon name="link" size={22} color={theme.accent} />
+              <AppIcon name="link" color={theme.accent} />
               <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                 {stackName}
               </ThemedText>
@@ -495,7 +507,7 @@ export function HabitEditorForm({
                 accessibilityState={{ expanded: stackPickerOpen }}
                 accessibilityLabel="Add to a stack"
                 style={({ pressed }) => [styles.stackHeaderRow, pressed && styles.stackRowPressed]}>
-                <AppIcon name="link" size={22} color={theme.accent} />
+                <AppIcon name="link" color={theme.accent} />
                 <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                   Not in a stack
                 </ThemedText>
@@ -516,7 +528,7 @@ export function HabitEditorForm({
                         { borderTopColor: theme.border },
                         pressed && styles.stackRowPressed,
                       ]}>
-                      <AppIcon name="add" size={22} color={theme.accent} />
+                      <AppIcon name="add" color={theme.accent} />
                       <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
                         {s.name}
                       </ThemedText>

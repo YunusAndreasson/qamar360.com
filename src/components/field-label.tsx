@@ -1,7 +1,7 @@
 import { StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Tracking } from '@/constants/theme';
 
 /**
  * The muted uppercase caption above a field or group inside an editor form. Flush-left,
@@ -17,7 +17,5 @@ export function FieldLabel({ children, style }: { children: string; style?: Styl
 }
 
 const styles = StyleSheet.create({
-  // Match SectionLabel's uppercase tracking so form captions and grouped-list captions read as the
-  // same overline treatment.
-  label: { marginTop: Spacing.two, letterSpacing: 0.6 },
+  label: { marginTop: Spacing.two, letterSpacing: Tracking.overline },
 });

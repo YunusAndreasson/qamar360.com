@@ -58,6 +58,9 @@ export const Colors = {
     dangerText: '#FFFFFF',
     dangerSubtle: '#F7E6E5',
     rippleOnFill: '#FFFFFF33',
+    // The darkened app behind a focused overlay (the celebration card). One value both sides:
+    // the moment is deliberately night-like even on the light page.
+    scrim: 'rgba(0,0,0,0.7)',
   },
   // "Mission control" — night side. `background` is a near-black cool neutral; keep it in sync with
   // the native splash / adaptive-icon background (app.json) so launch flows seamlessly into the app.
@@ -99,6 +102,8 @@ export const Colors = {
     dangerText: '#0A0B0D',
     dangerSubtle: '#2A1414',
     rippleOnFill: '#FFFFFF33',
+    // See light note — the same night falls over the dark page.
+    scrim: 'rgba(0,0,0,0.7)',
   },
 } as const;
 
@@ -208,6 +213,11 @@ export const Spacing = {
   six: 64,
 } as const;
 
+/** Letter-spacing beyond what a `Typography` style carries. `overline` is the positive tracking
+ *  on the small uppercase captions ({@link SectionLabel}, {@link FieldLabel}) — caps read tight
+ *  and cramped at native spacing; a little extra makes them read as deliberate labels. */
+export const Tracking = { overline: 0.6 } as const;
+
 /** Corner-radius scale — keep surfaces consistent instead of hand-picking per component. */
 export const Radius = {
   /** Inputs, chips, small pills. */
@@ -218,6 +228,9 @@ export const Radius = {
   banner: 12,
   /** Cards and grouped-list surfaces. */
   card: 14,
+  /** A focused overlay panel (the celebration card) — a step softer than a card, since it
+   *  floats free of the layout grid. */
+  overlay: 20,
   /** Fully rounded — circular tap targets (add pills, day pills, steppers, monogram). */
   full: 999,
 } as const;

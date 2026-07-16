@@ -1,4 +1,4 @@
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ProgressCircle } from '@/components/progress-circle';
 import { ThemedText } from '@/components/themed-text';
@@ -30,8 +30,6 @@ type Props = {
   phase?: { illumination: number; waxing: boolean };
   /** Disc diameter; defaults to {@link DEFAULT_MOON_SIZE}. */
   size?: number;
-  /** Sizing supplied by the parent grid (e.g. a fixed column width). */
-  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -47,7 +45,6 @@ export function ProgressCell({
   whiteDay = false,
   phase,
   size = DEFAULT_MOON_SIZE,
-  style,
 }: Props) {
   const theme = useTheme();
   // Today wins (you-are-here accent); then a White Day glows in moonlight; otherwise muted/normal.
@@ -59,7 +56,7 @@ export function ProgressCell({
         ? theme.complete
         : theme.textSecondary;
   return (
-    <View style={[styles.cell, { height: size + LABEL_BAND }, style]}>
+    <View style={[styles.cell, { height: size + LABEL_BAND }]}>
       <ProgressCircle fraction={fraction} size={size} strokeWidth={RING_STROKE} active={active} muted={muted} phase={phase} />
       <ThemedText
         type={active || whiteDay ? 'smallCompactBold' : 'smallCompact'}

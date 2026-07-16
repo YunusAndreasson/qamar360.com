@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Duration, Spring } from '@/constants/motion';
+import { Duration, Scale, Spring } from '@/constants/motion';
 
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -22,7 +22,7 @@ type Props = {
 };
 
 /** The card starts a touch small and springs up to full size — the "two rows becoming one" beat. */
-const START_SCALE = 0.96;
+const START_SCALE = Scale.enter;
 
 /**
  * A mount animation for a freshly created stack card: it fades in and gently springs up to full

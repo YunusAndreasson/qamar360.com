@@ -16,8 +16,8 @@ import { MoonPhase } from '@/components/moon-phase';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { HeroGlow } from '@/components/ornament/hero-glow';
 import { ThemedText } from '@/components/themed-text';
-import { Duration, Tick } from '@/constants/motion';
-import { Elevation, Spacing } from '@/constants/theme';
+import { Duration, Scale, Tick } from '@/constants/motion';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { loadProgress, type MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
@@ -55,9 +55,9 @@ const MOON_SIZE = 96;
 const GLOW_SIZE = 184;
 // A firmer modal scrim than the old 0.5: at 0.5 the app behind stayed clearly legible, so the
 // card — a near-black elevated surface on a near-black theme — didn't announce itself (you could
-// miss the moment). 0.64 recedes the app so the lit card + moon read as a distinct foreground layer
-// (still short of an opaque blackout — the night sky behind stays sensed, not erased).
-const SCRIM = 'rgba(0,0,0,0.7)';
+// miss the moment). `theme.scrim` (0.7) recedes the app so the lit card + moon read as a distinct
+// foreground layer (still short of an opaque blackout — the night sky behind stays sensed, not
+// erased). Applied inline from the theme, where the value is shared with any future overlay.
 
 export function DayCompleteProvider({ children }: { children: ReactNode }) {
   const [celebration, setCelebration] = useState<{ id: number; day: string; doneToday: string[] } | null>(null);
@@ -166,7 +166,7 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
   const scrimStyle = useAnimatedStyle(() => ({ opacity: exit.get() }));
   const cardStyle = useAnimatedStyle(() => ({
     opacity: exit.get(),
-    transform: [{ scale: 0.96 + 0.04 * enter.get() }],
+    transform: [{ scale: Scale.enter + (1 - Scale.enter) * enter.get() }],
   }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: beat.get() }));
 
@@ -181,7 +181,10 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
           sit above the navigator), which on the scrim painted it OVER the card, veiling the whole
           celebration in 70% black. The scrim must sit BEHIND the card: no zIndex, so document order
           (scrim first, card second) puts the card on top. */}
-      <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle]} pointerEvents="none" />
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }, scrimStyle]}
+        pointerEvents="none"
+      />
       <Animated.View
         style={[
           styles.card,
@@ -247,7 +250,7 @@ function DegreesReadout({ target, reduceMotion }: { target: number; reduceMotion
     let start: number | null = null;
     function step(ts: number) {
       if (start == null) start = ts;
-      const p = Math.min(1, (ts - start) / 600);
+      const p = Math.min(1, (ts - start) / Duration.tally);
       const eased = 1 - Math.pow(1 - p, 3);
       setAnimated(Math.round(target * eased));
       if (p < 1) raf = requestAnimationFrame(step);
@@ -273,7 +276,6 @@ function DegreesReadout({ target, reduceMotion }: { target: number; reduceMotion
 
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 200 },
-  scrim: { backgroundColor: SCRIM },
   center: { alignItems: 'center', justifyContent: 'center' },
   card: {
     width: '86%',
@@ -282,13 +284,13 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingVertical: Spacing.five,
     paddingHorizontal: Spacing.four,
-    borderRadius: 20,
+    borderRadius: Radius.overlay,
     borderWidth: 1,
     overflow: 'visible',
     zIndex: 1, // above the scrim (which now has no zIndex) — the card must never sit behind the veil
   },
   // Clips the seed-of-life ground to the card's rounded corners without clipping the card's shadow.
-  backdropClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, overflow: 'hidden' },
+  backdropClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: Radius.overlay, overflow: 'hidden' },
   moon: { width: MOON_SIZE, height: MOON_SIZE, alignItems: 'center', justifyContent: 'center' },
   headline: { textAlign: 'center' },
   stats: { alignItems: 'center', gap: Spacing.one },

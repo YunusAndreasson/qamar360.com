@@ -19,7 +19,7 @@ import { StackCard } from '@/components/stack-card';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
@@ -152,6 +152,9 @@ export default function HabitsScreen() {
   const stepViewDate = useCallback(
     (delta: number) => {
       if ((delta < 0 && !canGoBack) || (delta > 0 && !canGoForward)) return;
+      // A discrete step through the day series — the same `selection` semantic as tapping a
+      // day cell on Progress, so moving through time feels identical on both screens.
+      haptics.selection();
       setViewDate(addDaysISO(viewDate, delta));
     },
     [canGoBack, canGoForward, setViewDate, viewDate],
@@ -703,7 +706,7 @@ function StackingHint() {
         styles.hintPill,
         styles.stackHint,
         { backgroundColor: theme.accentSubtle },
-        pressed && { opacity: 0.7 },
+        pressed && { opacity: Pressed.dim },
       ]}>
       <AppIcon name="stack" size={16} color={theme.accent} />
       <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.hintText}>
