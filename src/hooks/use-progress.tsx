@@ -81,18 +81,29 @@ export function useProgress(): ProgressData {
     todayRef.current = today;
   }, [today]);
 
+  // Concurrent callers (the mount preload, a focus refetch, pull-to-refresh) share one request:
+  // each fetch is two queries plus a whole-year recompute on landing, so overlapping identical
+  // pulls are pure waste — the one already in flight is milliseconds old and just as fresh.
+  const inFlight = useRef<Promise<void> | null>(null);
   const fetchData = useCallback(async () => {
     if (!userId) return;
+    if (inFlight.current) return inFlight.current;
     const day = todayLocalISO();
-    try {
-      const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
-      setToday(day);
-      setHabits(rows);
-      setCompletions(comps);
-      setError(null);
-    } catch {
-      setError('Could not load your progress. Pull down to try again.');
-    }
+    const work = (async () => {
+      try {
+        const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
+        setToday(day);
+        setHabits(rows);
+        setCompletions(comps);
+        setError(null);
+      } catch {
+        setError('Could not load your progress. Pull down to try again.');
+      } finally {
+        inFlight.current = null;
+      }
+    })();
+    inFlight.current = work;
+    return work;
   }, [userId]);
 
   // Preload on mount. Under NativeTabs every tab screen is mounted eagerly (all tabs

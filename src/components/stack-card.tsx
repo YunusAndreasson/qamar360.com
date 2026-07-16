@@ -217,7 +217,6 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
           {showBody ? (
             <View onLayout={onContentLayout}>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <View>
               {members.length === 0 ? (
                 // A brand-new stack waiting on its first member ("+ → New stack"): the next step
                 // lives inside the card itself. Accent-tinted like the header — an invitation, not
@@ -264,7 +263,6 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
                   </View>
                 ))
               )}
-            </View>
             </View>
           ) : null}
         </Animated.View>

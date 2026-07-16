@@ -84,6 +84,14 @@ function getHijriFormatter(): Intl.DateTimeFormat | null {
   return hijriFormatter;
 }
 
+/** Per-day cache of the Umm al-Qura parts. The progress math sweeps whole Hijri years day by
+ *  day for every habit, and the toggle path re-asks for the same day per Hijri habit — each
+ *  miss costs an Intl `formatToParts`, the single most expensive call in that loop. A day's
+ *  parts never change, so the cache is a pure lookup. Cleared wholesale past the cap (several
+ *  years of distinct days) — a leak guard that in practice never fires. */
+const hijriPartsCache = new Map<string, { day: number; month: number; year: number; monthName: string } | null>();
+const HIJRI_PARTS_CACHE_MAX = 4000;
+
 /**
  * Numeric Umm al-Qura (Hijri) parts for a `YYYY-MM-DD` day, plus the month name,
  * for month math.
@@ -97,6 +105,9 @@ export function hijriParts(
 ): { day: number; month: number; year: number; monthName: string } | null {
   const fmt = getHijriFormatter();
   if (!fmt) return null;
+  const hit = hijriPartsCache.get(iso);
+  if (hit !== undefined) return hit;
+  let result: { day: number; month: number; year: number; monthName: string } | null = null;
   try {
     const date = localDate(iso);
     const parts = fmt.formatToParts(date);
@@ -104,12 +115,15 @@ export function hijriParts(
     const day = Number(pick('day'));
     const month = Number(pick('month'));
     const year = Number(pick('year'));
-    if (!day || !month || !year) return null;
-    const monthName = HIJRI_MONTHS[month - 1] ?? '';
-    return { day, month, year, monthName };
+    if (day && month && year) {
+      result = { day, month, year, monthName: HIJRI_MONTHS[month - 1] ?? '' };
+    }
   } catch {
-    return null;
+    result = null;
   }
+  if (hijriPartsCache.size >= HIJRI_PARTS_CACHE_MAX) hijriPartsCache.clear();
+  hijriPartsCache.set(iso, result);
+  return result;
 }
 
 /**
@@ -188,6 +202,19 @@ function hijriScheduleMatches(hs: HijriSchedule, p: { day: number; month: number
 /** The minimal habit shape {@link scheduledOn} needs — `Habit` satisfies it structurally. */
 type Schedulable = { created_at: string | null; schedule_days: number[]; hijri_schedule?: HijriSchedule | null };
 
+/** created_at timestamp → its local `YYYY-MM-DD`, cached: {@link scheduledOn} runs per
+ *  habit × day across whole-year sweeps, and each miss re-parses the same timestamp into a
+ *  `Date`. Bounded by the number of distinct habits, so no cap needed. */
+const createdDayCache = new Map<string, string>();
+function createdDayISO(createdAt: string): string {
+  let day = createdDayCache.get(createdAt);
+  if (day === undefined) {
+    day = todayLocalISO(new Date(createdAt));
+    createdDayCache.set(createdAt, day);
+  }
+  return day;
+}
+
 /**
  * Whether a habit "counts" on day `D`: it must already have existed (created on or
  * before `D`, or creation unknown) *and* `D` must fall on its schedule — its Hijri
@@ -195,7 +222,7 @@ type Schedulable = { created_at: string | null; schedule_days: number[]; hijri_s
  * Single source of truth for the Habits-screen filter, progress math, and reminders.
  */
 export function scheduledOn(habit: Schedulable, dayISO: string): boolean {
-  const created = habit.created_at ? todayLocalISO(new Date(habit.created_at)) : null;
+  const created = habit.created_at ? createdDayISO(habit.created_at) : null;
   if (created != null && created > dayISO) return false; // didn't exist yet
   if (habit.hijri_schedule) {
     const parts = hijriParts(dayISO);
