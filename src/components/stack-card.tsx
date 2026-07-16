@@ -140,31 +140,30 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
   // A light "movement" tick for a hand toggle — the disclosure-adjacent haptic (never a heavier
   // impact; those stay reserved for the completion seal). Auto-collapse stays silent: it rides the
   // stack's existing seal beat.
-  const expand = () => {
-    haptics.selection();
-    setCollapsed(false);
-  };
   const toggleCollapsed = () => {
     haptics.selection();
     setCollapsed((c) => !c);
   };
 
-  const doneCount = members.filter((m) => completed.has(m.id)).length;
-
   return (
     <View>
       <Surface>
         <View style={styles.headerRow}>
+          {/* Tapping the title folds / unfolds the stack — the same gesture in either state, so the
+              tap never changes meaning. Managing it (rename / delete / add habits) lives on the
+              trailing "⋯". An empty card has nothing to fold: its header opens manage instead. */}
           <PressableScale
-            onPress={collapsed ? expand : () => onEditStack(stack.id)}
+            onPress={collapsible ? toggleCollapsed : () => onEditStack(stack.id)}
             android_ripple={{ color: theme.backgroundSelected }}
             accessibilityRole="button"
             accessibilityLabel={`${stack.name} stack${stackComplete ? ', completed' : ''}${collapsed ? ', collapsed' : ''}`}
-            accessibilityState={{ expanded: !collapsed }}
+            accessibilityState={collapsible ? { expanded: !collapsed } : undefined}
             accessibilityHint={
-              collapsed
-                ? 'Activates to expand the stack.'
-                : 'Activates to manage the stack — rename or delete it. Hold and drag to reorder the whole stack.'
+              !collapsible
+                ? 'Activates to manage the stack. Hold and drag to reorder it.'
+                : collapsed
+                  ? 'Activates to expand the stack. Hold and drag to reorder it.'
+                  : 'Activates to collapse the stack. Hold and drag to reorder it.'
             }
             accessibilityActions={
               onMove
@@ -178,7 +177,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
               if (event.nativeEvent.actionName === 'moveUp') onMove?.(stack.id, -1);
               if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
             }}
-            style={[styles.header, !collapsible && styles.headerPadRight]}>
+            style={styles.header}>
             {/* A leading stack glyph in the same 32-wide slot a member row gives its completion ring,
                 so the icon sits directly above the circles below and the title lines up with the row
                 titles. Accent-tinted while the group is live; greyed to the done tone once sealed, so
@@ -193,33 +192,20 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
               numberOfLines={1}>
               {stack.name}
             </ThemedText>
-            {/* Folded → a quiet summary so a collapsed stack still reads at a glance: a check + the
-                done count when sealed, else a done/total progress numeral. */}
-            {collapsed ? (
-              <View style={styles.summary}>
-                {stackComplete ? <AppIcon name="check" size={16} color={theme.complete} /> : null}
-                <ThemedText type="small" themeColor="textSecondary">
-                  {stackComplete ? `${doneCount}` : `${doneCount}/${members.length}`}
-                </ThemedText>
-              </View>
-            ) : null}
           </PressableScale>
-          {/* A trailing disclosure chevron — its own tap target and a11y button (a sibling, not
-              nested, so a screen reader reaches it independently of the header). It replaces the old
-              "⋯": tapping the header body still opens the manage sheet (or expands, when folded). */}
-          {collapsible ? (
-            <Pressable
-              onPress={toggleCollapsed}
-              hitSlop={8}
-              android_ripple={{ color: theme.backgroundSelected, borderless: true }}
-              accessibilityRole="button"
-              accessibilityLabel={`${collapsed ? 'Expand' : 'Collapse'} ${stack.name} stack`}
-              accessibilityState={{ expanded: !collapsed }}
-              accessibilityHint={collapsed ? 'Expands the stack' : 'Collapses the stack'}
-              style={({ pressed }) => [styles.chevron, pressed && { opacity: Pressed.dim }]}>
-              <AppIcon name={collapsed ? 'expandMore' : 'expandLess'} size={22} color={theme.textDisabled} />
-            </Pressable>
-          ) : null}
+          {/* The manage affordance — a quiet "⋯" opening rename / delete / add-habits, reachable in
+              any state (its own tap target + a11y button, a sibling so a screen reader gets it apart
+              from the header's fold toggle). */}
+          <Pressable
+            onPress={() => onEditStack(stack.id)}
+            hitSlop={8}
+            android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+            accessibilityRole="button"
+            accessibilityLabel={`Manage ${stack.name} stack`}
+            accessibilityHint="Rename, delete, or add habits."
+            style={({ pressed }) => [styles.manage, pressed && { opacity: Pressed.dim }]}>
+            <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
+          </Pressable>
         </View>
 
         {/* The body folds shut when the stack seals (or is hand-collapsed): an overflow-clipped
@@ -307,11 +293,6 @@ const styles = StyleSheet.create({
     paddingLeft: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  // When there's no trailing chevron (the empty "Add your first habit" card), the header owns the
-  // right padding the chevron would otherwise provide.
-  headerPadRight: {
-    paddingRight: Spacing.three,
-  },
   // Leading glyph slot — the same 32-wide box a HabitRow gives its completion ring, so the
   // stack icon centers on the circles below it.
   leading: {
@@ -322,14 +303,8 @@ const styles = StyleSheet.create({
   // Sized to the member rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
   // habits it holds; the accent tint + semibold weight (not a smaller size) mark it as the header.
   title: { flex: 1, fontWeight: FontWeight.semibold },
-  // A folded stack's at-a-glance state, sitting between the title and the chevron.
-  summary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
-  // The disclosure chevron's tap area; its own right-edge padding stands in for the header's.
-  chevron: {
+  // The trailing "⋯" manage button's tap area; its own right-edge padding stands in for the header's.
+  manage: {
     paddingLeft: Spacing.two,
     paddingRight: Spacing.three,
     paddingVertical: Spacing.two,
