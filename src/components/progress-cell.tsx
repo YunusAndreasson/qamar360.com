@@ -5,11 +5,14 @@ import { ThemedText } from '@/components/themed-text';
 import { DenseLabelScale } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** Disc diameter when the caller doesn't override it. */
+/** Disc diameter when the caller doesn't override it — the month grid's moon size. */
 const DEFAULT_MOON_SIZE = 42;
 const RING_STROKE = 3;
 /** Headroom under the disc for the caption, so cells share one baseline rhythm. */
 const LABEL_BAND = 16;
+/** A default-size cell's full height (disc + caption band) — the grid's row unit, exported so
+ *  the month grid's scrub math can map a touch's y to a row without re-deriving the layout. */
+export const CELL_HEIGHT = DEFAULT_MOON_SIZE + LABEL_BAND;
 
 type Props = {
   /** Caption under the disc (a weekday abbreviation or a day/month number). */

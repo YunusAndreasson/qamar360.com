@@ -125,7 +125,7 @@ export type MonthProgress = {
 };
 
 /** One Hijri month of the current year, for the "This year" bars. */
-type YearMonth = {
+export type YearMonth = {
   /** 1-based Hijri month number (1 = Muharram … 12 = Dhul-Hijjah). */
   month: number;
   /** Hijri month name, e.g. "Rajab". */
@@ -147,6 +147,21 @@ export type YearProgress = {
   months: YearMonth[];
 };
 
+/**
+ * The improvement trend, read off COMPLETE Hijri months only: how many consecutive closed
+ * months (ending with the most recent one) rose strictly, whole-month rate over whole-month
+ * rate. The current, in-progress month is excluded — its month-to-date rate measured against
+ * closed months would read as a dip at every month's start. One increase is noise, not a
+ * direction, so `risingMonths` is 0 or ≥ 3. There is deliberately no falling counterpart —
+ * silence, not shame (the same negative space as {@link import('./celebration').celebrationCopy}).
+ */
+export type TrendSummary = {
+  /** Consecutive complete Hijri months whose rates strictly rise; 0 (no trend) or ≥ 3. */
+  risingMonths: number;
+  /** Name of the Hijri month the ascent began (the run's first month), or null without a run. */
+  sinceMonthName: string | null;
+};
+
 /** Everything the Progress screen derives from the raw rows. */
 export type ProgressDerived = {
   habitsCount: number;
@@ -154,6 +169,8 @@ export type ProgressDerived = {
   month: MonthProgress | null;
   /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
   year: YearProgress | null;
+  /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
+  trend: TrendSummary | null;
 };
 
 /**
@@ -312,5 +329,31 @@ export function computeProgress(
     if (months.length === 12) year = { year: yearStart.year, months };
   }
 
-  return { habitsCount: habits.length, month, year };
+  // The improvement trend: walk BACK from this month across closed months (crossing the Hijri
+  // year boundary — the year strip above can't power this, it restarts every Muḥarram), collecting
+  // each one's whole-month rate until the first month with nothing scheduled (before tracking
+  // began) or the window's honest capacity (the fetch pulls ~a year). Then count the strictly
+  // rising run from the most recent closed month backward.
+  let trend: TrendSummary | null = null;
+  if (thisRange) {
+    const rates: { rate: number; monthName: string }[] = []; // newest complete month first
+    let cursor = addDaysISO(thisRange.start, -1); // the last day of the previous month
+    for (let back = 0; back < 12; back += 1) {
+      const range = hijriMonthRange(cursor);
+      if (!range) break;
+      const tally = tallyRange(range.start, range.end);
+      if (tally.possible === 0) break; // nothing was ever scheduled — before tracking began
+      rates.push({ rate: tally.done / tally.possible, monthName: range.monthName });
+      cursor = addDaysISO(range.start, -1);
+    }
+    // Strict `>` — rates are exact rationals, and a plateau is not a rise.
+    let increases = 0;
+    while (increases + 1 < rates.length && rates[increases]!.rate > rates[increases + 1]!.rate) increases += 1;
+    trend =
+      increases >= 2
+        ? { risingMonths: increases + 1, sinceMonthName: rates[increases]!.monthName }
+        : { risingMonths: 0, sinceMonthName: null };
+  }
+
+  return { habitsCount: habits.length, month, year, trend };
 }

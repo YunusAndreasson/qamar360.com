@@ -9,7 +9,8 @@ export function ProgressSkeleton() {
     <View style={styles.root}>
       <Skeleton height={300} radius={Radius.card} />
       <Skeleton height={168} radius={Radius.card} />
-      <Skeleton height={120} radius={Radius.card} />
+      {/* The year card: header + readout line + the 120-tall chart and its axis. */}
+      <Skeleton height={176} radius={Radius.card} />
     </View>
   );
 }

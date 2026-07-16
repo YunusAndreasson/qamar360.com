@@ -20,6 +20,7 @@ import { Duration, Scale, Tick } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { loadProgress, type MonthProgress } from '@/hooks/use-progress';
+import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { celebrationCopy } from '@/lib/celebration';
 import { hijriMonthRange, hijriParts } from '@/lib/dates';
@@ -218,7 +219,7 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 
         {statsReady && copy.degrees != null ? (
           <FadeInView delay={Duration.base} style={styles.stats}>
-            <DegreesReadout target={copy.degrees} reduceMotion={reduceMotion} />
+            <DegreesReadout target={copy.degrees} />
             {copy.daysLeftLabel ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.paceText}>
                 {copy.daysLeftLabel}
@@ -234,33 +235,12 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 
 /**
  * The big "247°" readout, isolated so its count-up re-renders only this text — the moon/backdrop SVG
- * siblings stay still. A short JS rAF ramp (easeOut), started after the beat; Reduce Motion shows the
- * final number at once.
+ * siblings stay still. The stats block only appears once the fetch resolves — already after the
+ * beat — so the {@link useTallyUp} ramp starts on mount (the fade-in reveals it) rather than
+ * sitting at 0; Reduce Motion shows the final number at once (the hook gates itself).
  */
-function DegreesReadout({ target, reduceMotion }: { target: number; reduceMotion: boolean }) {
-  // The count-up value. Reduce Motion renders `target` directly (derived below), so state is only
-  // ever driven for the animated path — no synchronous setState-in-effect for the reduced case.
-  const [animated, setAnimated] = useState(0);
-
-  useEffect(() => {
-    if (reduceMotion) return; // reduced motion renders `target` directly (see `shown`)
-    // The stats block only appears once the fetch resolves — already after the beat — so the count-up
-    // starts on mount (the fade-in reveals it) rather than sitting at 0.
-    let raf = requestAnimationFrame(step);
-    let start: number | null = null;
-    function step(ts: number) {
-      if (start == null) start = ts;
-      const p = Math.min(1, (ts - start) / Duration.tally);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setAnimated(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(step);
-    }
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [target, reduceMotion]);
-
-  const shown = reduceMotion ? target : animated;
+function DegreesReadout({ target }: { target: number }) {
+  const shown = useTallyUp(target, Duration.tally);
 
   return (
     <View style={styles.center}>

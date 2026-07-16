@@ -12,7 +12,7 @@ import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, year } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, year, trend } = useProgress();
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -32,7 +32,10 @@ export default function ProgressScreen() {
     if (error) {
       return (
         <AppScreen transparent centered>
-          <EmptyState icon="cloudOff" title="Couldn't load your progress" body={error}>
+          {/* Not `body={error}`: the hook's one error string says "pull down to try again",
+              which is impossible here (no refreshControl on this branch) and would repeat the
+              title. Name the fix this branch actually offers. */}
+          <EmptyState icon="cloudOff" title="Couldn't load your progress" body="Check your connection, then try again.">
             <AppButton onPress={() => void refresh()} accessibilityLabel="Try loading again">
               Try again
             </AppButton>
@@ -45,7 +48,7 @@ export default function ProgressScreen() {
         <EmptyState
           art={<MoonEmblem />}
           title="Your moons will rise here"
-          body="Add a habit on Today and complete it — each day fills a moon across your month.">
+          body="Add a habit and complete it — each day fills a moon across your month.">
           <BrowseHabitsButton />
         </EmptyState>
       </AppScreen>
@@ -60,7 +63,7 @@ export default function ProgressScreen() {
 
       <MonthMoons month={month} />
 
-      <YearTrend year={year} />
+      <YearTrend year={year} trend={trend} />
     </AppScreen>
   );
 }

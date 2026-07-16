@@ -5,12 +5,12 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type YearProgress } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { MonthDay, MonthProgress, YearProgress } from '@/lib/progress';
+export type { MonthDay, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
 
 /**
  * How far back we pull completions — covers this Hijri year so far. The query
@@ -58,6 +58,8 @@ type ProgressData = {
   month: MonthProgress | null;
   /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
   year: YearProgress | null;
+  /** The rising-months statement for the year card, or `null` if the calendar is unavailable. */
+  trend: TrendSummary | null;
 };
 
 /**
@@ -97,7 +99,7 @@ export function useProgress(): ProgressData {
         setCompletions(comps);
         setError(null);
       } catch {
-        setError('Could not load your progress. Pull down to try again.');
+        setError("Couldn't load your progress. Pull down to try again.");
       } finally {
         inFlight.current = null;
       }

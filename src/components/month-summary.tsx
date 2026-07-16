@@ -19,6 +19,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { MonthProgress } from '@/hooks/use-progress';
+import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
 import { clamp01, toDegrees } from '@/lib/progress';
@@ -44,11 +45,14 @@ const TAIL_OUT = 16;
 const SVG_SIZE = ORBIT_SIZE + TAIL_OUT * 2;
 const RING_CENTER = SVG_SIZE / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+// The tail tick's shared geometry — the ring marker and the metrics-row legend glyph both draw
+// from these numbers, so the two renderings of "last month reached here" can never drift apart
+// (they had: the old CSS-triangle legend was 8×7 against the ring's 10×10).
+const TICK_LENGTH = 10;
+const TICK_HALF_BASE = 5;
 
 /** Month-to-date progress wrapped around the real moon for today's Hijri date. */
 export function MonthSummary({ month }: { month: MonthProgress | null }) {
-  const theme = useTheme();
-
   // Tonight's moon breathes — a very slow, shallow luminance dip, like the calm of dhikr, so the
   // "you are here" moon reads as alive rather than merely lit. Reduce Motion holds it at full.
   const reduceMotion = useReducedMotion();
@@ -98,9 +102,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         </View>
 
         <View style={styles.metrics}>
-          <ThemedText type="display">
-            {thisDegrees}°
-          </ThemedText>
+          <HeroDegrees degrees={thisDegrees} />
           <View style={styles.pace}>
             {hasPrevious ? (
               <>
@@ -108,20 +110,17 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
                     so the line on the ring reads unmistakably as "last month". Only shown
                     when the ring actually has a tick (last month had some pace by this day),
                     so the legend never references a mark that isn't there. */}
-                {previousRate > 0 ? (
-                  <View style={[styles.legendTick, { borderTopColor: theme.textSecondary }]} />
-                ) : null}
-                {/* "this day last month", not "last month" — the number is last month's pace by
-                    this same day, and the shorter label read as last month's final total. */}
-                <ThemedText type="small" themeColor="textSecondary">
-                  this day last month
-                </ThemedText>
-                <ThemedText type="defaultBold" themeColor="textSecondary">
-                  {previousDegrees}°
+                {previousRate > 0 ? <LegendTick /> : null}
+                {/* "This day last month", not "last month" — the number is last month's pace by
+                    this same day, and the shorter label read as last month's final total. One
+                    quiet smallCompact run (the screen-wide readout voice, middot-joined), so the
+                    hero holds exactly one bold datum: the degrees above. */}
+                <ThemedText type="smallCompact" themeColor="textSecondary">
+                  This day last month · {previousDegrees}°
                 </ThemedText>
               </>
             ) : (
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="smallCompact" themeColor="textSecondary">
                 Your first month
               </ThemedText>
             )}
@@ -129,6 +128,27 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         </View>
       </View>
     </StatCard>
+  );
+}
+
+/**
+ * The hero readout, isolated so the tally's ~60fps re-renders touch only this text — the
+ * orbit/moon SVG siblings stay still. Tallied over `Duration.orbit` with the sweep's own
+ * easing, so the number and the arc land on the same frame: one instrument, not two animations.
+ */
+function HeroDegrees({ degrees }: { degrees: number }) {
+  const shown = useTallyUp(degrees, Duration.orbit);
+  return <ThemedText type="display">{shown}°</ThemedText>;
+}
+
+/** The orbit's "last month" tail tick as an inline legend glyph — drawn from the same
+ *  `TICK_*` geometry as the ring marker, pointing down at the reading beside it. */
+function LegendTick() {
+  const theme = useTheme();
+  return (
+    <Svg width={TICK_HALF_BASE * 2} height={TICK_LENGTH} viewBox={`0 0 ${TICK_HALF_BASE * 2} ${TICK_LENGTH}`}>
+      <Polygon points={`${TICK_HALF_BASE},${TICK_LENGTH} 0,0 ${TICK_HALF_BASE * 2},0`} fill={theme.textSecondary} />
+    </Svg>
   );
 }
 
@@ -172,13 +192,12 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
   const tanY = markerX;
   const rimR = RING_RADIUS + RING_STROKE / 2;
   const tipR = rimR + 1; // tip kisses the outer rim, pointing in at the spot
-  const baseR = rimR + 11; // body sits just outside the rim
-  const halfBase = 5;
+  const baseR = tipR + TICK_LENGTH; // body sits just outside the rim
   const markerTip = `${RING_CENTER + tipR * markerX},${RING_CENTER + tipR * markerY}`;
   const baseCx = RING_CENTER + baseR * markerX;
   const baseCy = RING_CENTER + baseR * markerY;
-  const markerBaseA = `${baseCx + halfBase * tanX},${baseCy + halfBase * tanY}`;
-  const markerBaseB = `${baseCx - halfBase * tanX},${baseCy - halfBase * tanY}`;
+  const markerBaseA = `${baseCx + TICK_HALF_BASE * tanX},${baseCy + TICK_HALF_BASE * tanY}`;
+  const markerBaseB = `${baseCx - TICK_HALF_BASE * tanX},${baseCy - TICK_HALF_BASE * tanY}`;
 
   return (
     <Svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={styles.ring}>
@@ -237,14 +256,4 @@ const styles = StyleSheet.create({
   moon: { alignItems: 'center', justifyContent: 'center' },
   metrics: { alignItems: 'center', gap: Spacing.one },
   pace: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  // A small downward caret echoing the orbit's "last month" marker.
-  legendTick: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 4,
-    borderRightWidth: 4,
-    borderTopWidth: 7,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-  },
 });

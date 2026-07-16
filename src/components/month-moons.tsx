@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,19 +9,21 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { PressableScale } from '@/components/pressable-scale';
-import { ProgressCell } from '@/components/progress-cell';
+import { CELL_HEIGHT, ProgressCell } from '@/components/progress-cell';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { ThemedText } from '@/components/themed-text';
-import { Duration, Scale } from '@/constants/motion';
+import { StatReadout } from '@/components/stat-readout';
+import { Duration, PageEnter, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { MonthDay, MonthProgress } from '@/hooks/use-progress';
 import { haptics } from '@/lib/haptics';
 import { moonIllumination } from '@/lib/moon';
 import { toDegrees } from '@/lib/progress';
 
-const MOON_SIZE = 42;
+/** Moons per row — also the divisor for the scrub gesture's column math. */
+const GRID_COLUMNS = 6;
 /** Per-cell entrance offset → a gentle wax across the grid as it appears. */
 const STAGGER_MS = 14;
 
@@ -65,51 +68,61 @@ function MonthMoonsBody({ month }: { month: MonthProgress }) {
   const [focusedDayNum, setFocusedDayNum] = useState(month.dayOfMonth);
   const focused = month.days.find((d) => d.day === focusedDayNum) ?? null;
 
+  // Scrubbing: drag a finger across the moons and the readout follows day by day, a selection
+  // tick ratcheting at each crossing — the tap interaction, made continuous. The pan needs 12pt
+  // of HORIZONTAL travel to claim the touch and fails on 12pt of vertical, so page scrolling and
+  // plain taps pass through untouched. Day math mirrors the grid's layout (GRID_COLUMNS across,
+  // CELL_HEIGHT + rowGap down); a gap band reads as the row above it.
+  const gridWidth = useSharedValue(0);
+  const scrubDay = useSharedValue(0); // 0 = not scrubbing; else the last day the ratchet fired for
+  const dayCount = month.days.length;
+  const scrubTick = () => haptics.selection();
+  const scrubTo = (x: number, y: number) => {
+    'worklet';
+    const w = gridWidth.get();
+    if (w <= 0) return;
+    const col = Math.min(GRID_COLUMNS - 1, Math.max(0, Math.floor(x / (w / GRID_COLUMNS))));
+    const row = Math.floor(y / (CELL_HEIGHT + Spacing.three));
+    if (row < 0) return; // above the grid — keep the current reading
+    const index = row * GRID_COLUMNS + col;
+    if (index >= dayCount) return; // past the partial last row / below the grid — keep it
+    const day = index + 1;
+    if (scrubDay.get() === day) return; // ratchet: fire only when the finger crosses a new day
+    scrubDay.set(day);
+    scheduleOnRN(setFocusedDayNum, day);
+    scheduleOnRN(scrubTick);
+  };
+  const scrub = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-12, 12])
+    .onStart((e) => scrubTo(e.x, e.y))
+    .onUpdate((e) => scrubTo(e.x, e.y))
+    .onFinalize(() => scrubDay.set(0)); // next scrub re-ticks even if it lands on the same day
+
   return (
     <StatCard>
+      {/* No trailing month name: the hero card directly above already carries "<Month> <Year> H"
+          large, and the readout line names the month again — a third naming was noise. */}
       <View style={styles.head}>
-        <StatCardHeader title="This month" trailing={month.monthName} />
-        {focused ? <MonthReadout day={focused} monthName={month.monthName} /> : null}
+        <StatCardHeader title="This month" />
+        {focused ? <StatReadout text={dayReadout(focused, month.monthName)} refreshKey={focused.day} /> : null}
       </View>
 
-      <View style={styles.grid}>
-        {month.days.map((d, i) => (
-          <MoonDay
-            key={d.day}
-            day={d}
-            index={i}
-            monthLength={month.monthLength}
-            monthName={month.monthName}
-            onFocus={setFocusedDayNum}
-          />
-        ))}
-      </View>
+      <GestureDetector gesture={scrub}>
+        <View style={styles.grid} onLayout={(e) => gridWidth.set(e.nativeEvent.layout.width)}>
+          {month.days.map((d, i) => (
+            <MoonDay
+              key={d.day}
+              day={d}
+              index={i}
+              monthLength={month.monthLength}
+              monthName={month.monthName}
+              onFocus={setFocusedDayNum}
+            />
+          ))}
+        </View>
+      </GestureDetector>
     </StatCard>
-  );
-}
-
-/** The live reading of the focused day: a quiet subtitle that refresh-fades when it changes. */
-function MonthReadout({ day, monthName }: { day: MonthDay; monthName: string }) {
-  const reduceMotion = useReducedMotion();
-  // Born at rest (opacity 1); a barely-there dip→rise signals the value refreshed. Reduce Motion
-  // swaps the text with no fade — substitute, don't soften, the way the rest of the screen gates.
-  const fade = useSharedValue(1);
-  useEffect(() => {
-    if (reduceMotion) {
-      fade.set(1);
-      return;
-    }
-    fade.set(0.4);
-    fade.set(withTiming(1, { duration: Duration.base, easing: Easing.inOut(Easing.quad) }));
-  }, [day.day, reduceMotion, fade]);
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.get() }));
-
-  return (
-    <Animated.View style={fadeStyle}>
-      <ThemedText type="smallCompact" themeColor="textSecondary" numberOfLines={1}>
-        {dayReadout(day, monthName)}
-      </ThemedText>
-    </Animated.View>
   );
 }
 
@@ -130,14 +143,17 @@ function MoonDay({
   const { illumination, waxing } = moonIllumination(d.day, monthLength);
 
   // Each cell fades and lifts in, offset by its position so the grid reads as a soft wax across
-  // the month on appear. Reduce Motion shows it already settled.
+  // the month on appear — starting on the page cascade's grid beat, so the wave begins as the
+  // hero orbit establishes. Reduce Motion shows it already settled.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
     if (reduceMotion) {
       enter.set(1);
       return;
     }
-    enter.set(withDelay(index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Easing.out(Easing.cubic) })));
+    enter.set(
+      withDelay(PageEnter.grid + index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Easing.out(Easing.cubic) })),
+    );
   }, [reduceMotion, enter, index]);
   const enterStyle = useAnimatedStyle(() => ({
     opacity: enter.get(),
@@ -163,7 +179,6 @@ function MoonDay({
           active={d.state === 'today'}
           muted={d.state === 'future'}
           whiteDay={isWhiteDay(d.day)}
-          size={MOON_SIZE}
         />
       </PressableScale>
     </Animated.View>
@@ -173,5 +188,5 @@ function MoonDay({
 const styles = StyleSheet.create({
   head: { gap: Spacing.two },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: Spacing.three },
-  cell: { width: '16.666%' },
+  cell: { width: `${100 / GRID_COLUMNS}%` },
 });
