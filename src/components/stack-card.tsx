@@ -63,8 +63,8 @@ type Props = {
  * When a tick resolves every act the stack has due today, its border flashes the "done"
  * tone (see {@link StackCompleteFlash}) with a synced haptic — the group sealing — and
  * then the card folds itself shut into a quiet grey bar: a finished group recedes so the
- * day's remaining work rises. The bar taps open again; a trailing chevron folds it (and
- * any stack, done or not, can be tucked away by hand).
+ * day's remaining work rises. The bar taps open again — the title tap toggles the fold
+ * either way (and any stack, done or not, can be tucked away by hand).
  */
 function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, onRemoveFromStack, onMove, onMoveHabit, onAddHabits, isCurrentChapter }: Props) {
   const theme = useTheme();
@@ -187,13 +187,13 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
             style={styles.header}>
             {/* A leading stack glyph in the same 32-wide slot a member row gives its completion ring,
                 so the icon sits directly above the circles below and the title lines up with the row
-                titles. Accent-tinted while the group is live; greyed to the done tone once sealed, so
-                the header recedes alongside its struck-through rows. While this stack is the day's
+                titles. Accent-tinted while the group is live — the card's one cold-steel note —
+                greyed to the done tone once sealed, so the header recedes alongside its muted
+                rows. While this stack is the day's
                 current chapter, the sun rests in the slot instead (see LeadingGlyph). */}
             <LeadingGlyph sun={sunResident} complete={stackComplete} />
             <ThemedText
               type="rowTitle"
-              themeColor="accent"
               style={[styles.title, stackComplete && { color: theme.textDisabled }]}
               numberOfLines={1}>
               {stack.name}
@@ -336,6 +336,9 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingLeft: Spacing.three,
     paddingVertical: Spacing.two,
+    // The card's primary control (fold/unfold) meets the 44pt target while staying
+    // shorter than the 56pt member rows, so the header still reads as the compact tier.
+    minHeight: 44,
   },
   // Leading glyph slot — the same 32-wide box a HabitRow gives its completion ring, so the
   // stack icon centers on the circles below it.
@@ -351,7 +354,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // Sized to the member rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
-  // habits it holds; the accent tint + semibold weight (not a smaller size) mark it as the header.
+  // habits it holds; the semibold weight + accent leading glyph (not a smaller size, not a tint —
+  // accent stays reserved for interactive points) mark it as the header.
   title: { flex: 1, fontWeight: FontWeight.semibold },
   // The trailing "⋯" manage button's tap area; its own right-edge padding stands in for the header's.
   manage: {

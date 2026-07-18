@@ -34,7 +34,7 @@ const checkLengthFor = (size: number) =>
  * Open is a quiet hollow ring (the row's press highlight shows through). A count goal fills the
  * ring partway in the accent steel, the arc gliding between fractions as the stepper ticks. At
  * rest, done does NOT stay lit: the ring closes around a small check, both in `textDisabled` —
- * the exact muted tone of the struck-through label — so a finished habit recedes as one quiet
+ * the exact muted tone of the receded label — so a finished habit recedes as one quiet
  * unit. A check, not a filled dot: ring-with-dot reads as a radio button's "selected", and a
  * solid disc reads as a moon (which belongs to Progress).
  *

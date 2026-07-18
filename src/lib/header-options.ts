@@ -6,7 +6,16 @@ import { Platform } from 'react-native';
  * transparent (AppScreen `transparent`, or a transparent list) — and stays the screen's first
  * descendant, so the native large title still collapses on scroll.
  */
-export const transparentScreen = { contentStyle: { backgroundColor: 'transparent' } };
+export const transparentScreen = {
+  contentStyle: { backgroundColor: 'transparent' },
+  // Android's compact header is otherwise tinted opaque (stackHeaderOptions), capping the
+  // fixed sky with a hard seam right where the overhead glow is richest; a sky-backed root
+  // lets the sky continue behind the bar instead — the parity of iOS's at-rest transparent
+  // large-title bar. The header stays in-flow (NOT headerTransparent), so content still
+  // starts below the bar and no manual insets appear. Scoped here — not in
+  // stackHeaderOptions — so pushed opaque screens keep their themed bar seam-free.
+  ...(Platform.OS === 'android' ? { headerStyle: { backgroundColor: 'transparent' } } : null),
+};
 
 /**
  * Native-Stack header options, themed per platform.

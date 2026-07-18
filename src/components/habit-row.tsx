@@ -145,7 +145,7 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
   // uses): a count goal waxes by `count ÷ target`; a binary habit is a full moon when done.
   const fraction = isCount && target ? clamp01(count / target) : done ? 1 : 0;
 
-  // When a count goal is met the whole stepper recedes to echo the struck-through label: its
+  // When a count goal is met the whole stepper recedes alongside the muted label: its
   // button rings drop from the live `controlTrack` to the quiet card hairline (controlTrack is
   // actually *brighter* than the disabled glyph tone on the dark card, so leaving it would make
   // the ring outshine its own muted contents), and its readout/− glyph go to `textDisabled`. The
@@ -346,11 +346,12 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
         <ThemedText
           type="rowTitle"
           numberOfLines={2}
-          // Done is struck through; skipped is merely muted (no strikethrough — it's
-          // excused, not finished, and reads differently from a completed act).
+          // Done recedes to the disabled tone and nothing more — the ring's check already
+          // says it, and a strike is a deletion mark, not rest. Skipped sits one tone
+          // brighter (excused, not finished — a state apart, told by its glyph).
           style={[
             styles.label,
-            done && { color: theme.textDisabled, textDecorationLine: 'line-through' },
+            done && { color: theme.textDisabled },
             skipped && { color: theme.textSecondary },
           ]}>
           {habit.name}
@@ -370,7 +371,7 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
               <AppIcon name="remove" size={18} color={count <= 0 || done ? theme.textDisabled : theme.accent} />
             </PressableScale>
             <ThemedText
-              type="smallBold"
+              type="small"
               numberOfLines={1}
               style={[styles.stepCount, done && { color: theme.textDisabled }]}>
               {count}/{target}

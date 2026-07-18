@@ -41,6 +41,12 @@ import { newId } from '@/lib/id';
 import { defaultStackName } from '@/lib/names';
 import { asDayPart } from '@/lib/sun';
 
+// The scroll's bottom inset — one constant shared by the layout and the drag layer's
+// auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
+// ends on a deliberate rest where the full sky reappears, completing the step scale
+// (card gap 8 → zone break 16 → closing exhale 32).
+const LIST_BOTTOM_INSET = BottomTabInset + Spacing.five;
+
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
   if (viewDate === addDaysISO(today, -1)) return 'Yesterday';
@@ -489,8 +495,9 @@ export default function HabitsScreen() {
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
           {isToday ? <HijriDateLine iso={displayDateISO} /> : null}
-          <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
+          {/* Directly under the Hijri line, so the two calendar whispers read as one almanac. */}
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+          <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           {stackHintVisible ? <StackingHint /> : null}
           {entries.length === 0 ? (
             <HabitsEmptyState
@@ -503,7 +510,7 @@ export default function HabitsScreen() {
               scrollRef={scrollRef}
               order={orderMeta}
               memberOrder={memberOrder}
-              contentBottomInset={BottomTabInset + Spacing.four}
+              contentBottomInset={LIST_BOTTOM_INSET}
               onDragActive={onDragActive}
               onDropBetween={onDropBetween}
               onDropInto={onDropInto}
@@ -515,7 +522,7 @@ export default function HabitsScreen() {
                   and pops); a stack card reorders as one unit, members in tow. The dragged item
                   floats as a ghost above the grid while its original holds the empty slot. Swipe
                   actions and the picker sheet remain as the explicit, screen-reader-friendly routes. */}
-              <DragGrid>
+              <DragGrid style={styles.gridBreath}>
                 {entries.map((entry, index) =>
                   entry.type === 'stack' ? (
                     <DraggableEntry
@@ -721,7 +728,9 @@ function DateStepperButtons({
     <>
       <HeaderIconButton
         icon={Icons.chevronLeft}
-        color={canGoBack ? theme.accent : theme.textSecondary}
+        // Disabled speaks the disabled vocabulary (textDisabled, like a maxed stepper "+") —
+        // textSecondary is a reading tone, and a dead control must not outrank live metadata.
+        color={canGoBack ? theme.accent : theme.textDisabled}
         accessibilityLabel="Previous day"
         disabled={!canGoBack}
         onPress={() => onStep(-1)}
@@ -740,17 +749,18 @@ function DateStepperButtons({
   );
 }
 
-/** A quiet "the night before" pill listing Hijri acts that begin tomorrow. */
+/**
+ * A quiet "the night before" line listing Hijri acts that begin tomorrow. Read-only, so it
+ * wears the almanac's reading tone (the Hijri line's family), not the accent-pill costume —
+ * that dress is the checklist's "tappable" vocabulary, and a notice must not promise a tap.
+ */
 function UpcomingHint({ habits }: { habits: Habit[] }) {
   const theme = useTheme();
   const label = habits.length === 1 && habits[0] ? habits[0].name : `${habits.length} Sunnah acts`;
   return (
-    <View
-      accessibilityRole="text"
-      accessibilityLabel={`Tomorrow: ${label}`}
-      style={[styles.hintPill, { backgroundColor: theme.accentSubtle }]}>
-      <AppIcon name="moon" size={16} color={theme.accent} />
-      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.hintText}>
+    <View accessibilityRole="text" accessibilityLabel={`Tomorrow: ${label}`} style={styles.almanacLine}>
+      <AppIcon name="moon" size={14} color={theme.textSecondary} />
+      <ThemedText type="small" numberOfLines={1} themeColor="textSecondary" style={styles.hintText}>
         Tomorrow · {label}
       </ThemedText>
     </View>
@@ -758,9 +768,10 @@ function UpcomingHint({ habits }: { habits: Habit[] }) {
 }
 
 /**
- * The one-shot habit-stacking teaching pill — the same quiet accent pill as {@link UpcomingHint},
- * but tappable: it names the gesture (the app's only invisible affordance) and opens the short
- * habit-stacking guide for the why. Gated by the caller until the first stack ever exists.
+ * The one-shot habit-stacking teaching pill — the strip's one accent pill, the tappable
+ * costume the read-only almanac lines deliberately don't wear: it names the gesture (the
+ * app's only invisible affordance) and opens the short habit-stacking guide for the why.
+ * Gated by the caller until the first stack ever exists.
  */
 function StackingHint() {
   const theme = useTheme();
@@ -773,7 +784,6 @@ function StackingHint() {
       accessibilityHint="Opens a short guide to habit stacking"
       style={({ pressed }) => [
         styles.hintPill,
-        styles.stackHint,
         { backgroundColor: theme.accentSubtle },
         pressed && { opacity: Pressed.dim },
       ]}>
@@ -838,27 +848,40 @@ const styles = StyleSheet.create({
   // Sits directly under the collapsing large title, aligned to the banner/list margin — a
   // subtitle, not a section: no uppercase, no extra weight.
   hijriLine: { marginHorizontal: Spacing.three, marginTop: Spacing.one, marginBottom: Spacing.one },
-  // The quiet accent pill above the list — shared by the "tomorrow" heads-up and the stacking
-  // teaching hint, so the two read as one vocabulary when both show.
+  // A read-only almanac whisper under the Hijri date — same type, tone, and left edge, so
+  // the calendar lines read as one family on one meridian.
+  almanacLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.one,
+    marginBottom: Spacing.one,
+  },
+  // The strip's one accent pill — the tappable stacking hint. Button radius (not control)
+  // for a 44pt tappable surface: the rounder corner keeps kinship with the cards, and the
+  // minHeight meets the tap target.
   hintPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
     marginHorizontal: Spacing.three,
     marginBottom: Spacing.one,
-    borderRadius: Radius.control,
+    borderRadius: Radius.button,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
+    minHeight: 44,
   },
-  // The tappable variant meets the 44pt target the read-only pill doesn't need.
-  stackHint: { minHeight: 44 },
   hintText: { flex: 1 },
   listContent: {
-    paddingBottom: BottomTabInset + Spacing.four,
+    paddingBottom: LIST_BOTTOM_INSET,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
+  // One deliberate zone break between the almanac strip and the day's checklist — the strip
+  // keeps its tight 4pt beats internally; the sky breathes at this single 16pt step.
+  gridBreath: { paddingTop: Spacing.three },
   // Only when the list is empty: match the top offset AppScreen gives the Progress empty state
   // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
   // instead of jumping a notch when you switch between them. The populated list keeps its flush top.

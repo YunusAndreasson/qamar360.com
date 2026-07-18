@@ -16,5 +16,7 @@ export function HabitsSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  root: { gap: Spacing.two },
+  // paddingTop mirrors the loaded list's zone break above its first card (gridBreath), so
+  // the swap from skeleton to content doesn't jump the column.
+  root: { gap: Spacing.two, paddingTop: Spacing.three },
 });
