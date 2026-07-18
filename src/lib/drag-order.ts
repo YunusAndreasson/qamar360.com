@@ -205,6 +205,29 @@ export function keyAtCompactIndex(
   return null;
 }
 
+/**
+ * Translate an in-card reorder — resolved among a stack's *visible* members — into a
+ * `member-index` placement over its *full* member list, so members hidden by the day filter keep
+ * their relative order (the same reason the accessibility reorder works off the unfiltered habits).
+ *
+ * `visibleIndex` is the compact drop index the gesture resolves: the count of remaining visible
+ * members above the ghost, with the dragged member already removed. `visibleMemberIds` and
+ * `fullMemberIds` are the visible and full member id lists in order, both *including* the dragged
+ * habit (this function drops it). The result is the index of the visible "insert-before" anchor
+ * within the full list — or the end of the full list when the drop lands past the last visible
+ * member (append). Clamped to ≥ 0 so a not-yet-synced anchor never yields a negative splice index.
+ */
+export function fullMemberIndexForVisibleDrop(
+  visibleMemberIds: string[],
+  fullMemberIds: string[],
+  draggedId: string,
+  visibleIndex: number,
+): number {
+  const beforeId = visibleMemberIds.filter((id) => id !== draggedId)[visibleIndex];
+  const rest = fullMemberIds.filter((id) => id !== draggedId);
+  return beforeId === undefined ? rest.length : Math.max(0, rest.indexOf(beforeId));
+}
+
 /** Where the gap at compact `insertIndex` begins (grid coordinates) for a list of entries (by
  *  `key`) — the ghost's settle target. Past the last entry it is one `gap` below the compact
  *  list. Keyed so it serves both the top-level list and a card's inner member list (see

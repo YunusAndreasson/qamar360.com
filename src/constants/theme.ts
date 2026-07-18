@@ -10,7 +10,7 @@ import { palette } from '@/constants/palette';
 
 // "Mission control under a night sky" — an instrument panel lit by one moon. The values live
 // in generated Radix-style 12-step scales (src/constants/palette.ts, authored in OKLCH by
-// scripts/gen-palette.mjs); this block is the app's public vocabulary — 24 semantic roles
+// scripts/gen-palette.mjs); this block is the app's public vocabulary — 25 semantic roles
 // aliased onto scale steps. Components read ONLY these roles via `useTheme()`, never raw steps.
 // The panel neutrals carry a deliberate indigo night-sky cast. A single steel `accent` — deep
 // lapis on the light page, luminous ice against the dark sky — is spent sparingly on what's
@@ -57,11 +57,20 @@ export const Colors = {
     // Hairline colour for the geometric ornament layer — faint "telemetry" etching, only ever
     // drawn at low opacity (ornament/*).
     pattern: palette.light.night[11],
+    // A star as a point of light (ornament/star-field) — cool and pale, never the warm gold of
+    // `glow`/`complete` (that temperature means "done"). Decorative-only, always at low opacity
+    // like `pattern`; deliberately sub-contrast, so no contract line. By day the sky holds no
+    // stars — light mode uses a dim step and the component crushes it further.
+    starlight: palette.light.night[9],
     // The moon / completion light — warm bronze-gold, dark enough to read on the light page.
     // Completion *visuals* only (lit moon disc, closed ring, the done check), never body text.
     complete: palette.light.moon[9],
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
     glow: palette.light.moon[6],
+    // The resting sun glyph on the current chapter's stack — a deliberate literal (like the
+    // card whites): amber-ochre, clearly more *orange* than the bronze-gold `complete`, so the
+    // sun's presence can never read as achievement (warm gold means DONE; this is just daylight).
+    sun: '#B8783C',
     danger: palette.light.ember[9],
     dangerText: palette.light.ember.contrast,
     dangerSubtle: palette.light.ember[3],
@@ -101,10 +110,15 @@ export const Colors = {
     controlTrack: palette.dark.night[8],
     // Faint etched-telemetry lines against deep space. See light note.
     pattern: palette.dark.night[9],
+    // See light note — the palest night step: a cool point of light against deep space.
+    starlight: palette.dark.night[12],
     // Champagne moonglow — the moon glowing warm against the indigo sky. "Done" is set apart by
     // both brightness AND temperature (warm gold vs the cold steel of in-progress).
     complete: palette.dark.moon[9],
     glow: palette.dark.moon[10],
+    // See light note. On the night side it is the star-field's warm-anchor cream (STAR_WARM) —
+    // the sun glyph carries the same temperature as the sky's warm stars, not the moon's gold.
+    sun: '#F2D8B8',
     danger: palette.dark.ember[9],
     dangerText: palette.dark.ember.contrast,
     dangerSubtle: palette.dark.ember[3],
@@ -167,11 +181,6 @@ export const Typography = {
     fontSize: 16,
     lineHeight: 24,
     fontWeight: FontWeight.semibold,
-  },
-  defaultBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: FontWeight.bold,
   },
   // A list-row's primary label — one iOS-body step (17pt) above `default`, so a habit / stack
   // member / settings row title reads as the row's content against its 14pt `small` meta. Keeps

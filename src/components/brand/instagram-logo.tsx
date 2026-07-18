@@ -5,7 +5,7 @@ import Svg, { Path } from 'react-native-svg';
  * palette wants a single-tone mark, not the brand gradient. A dedicated brand asset, like
  * {@link GoogleLogo}: third-party logos never go in the `Icons` registry.
  */
-export function InstagramLogo({ size = 20, color = '#000' }: { size?: number; color?: string }) {
+export function InstagramLogo({ size, color }: { size: number; color: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

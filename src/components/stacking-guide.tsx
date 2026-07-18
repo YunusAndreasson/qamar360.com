@@ -24,29 +24,24 @@ export function StackingGuide() {
         <ThemedText type="heading">Habit stacking</ThemedText>
       </View>
 
-      <ThemedText type="default" themeColor="textSecondary">
+      <ThemedText type="default">
         The easiest way to grow a new habit is to attach it to one you already keep. The habit you
         never miss becomes the cue for the one you’re building: after I pray Fajr, I read one page.
       </ThemedText>
-      <ThemedText type="default" themeColor="textSecondary">
+      <ThemedText type="default">
         Psychologists call these if–then plans “implementation intentions” — deciding the when in
         advance roughly doubles follow-through. Atomic Habits made the idea famous as habit
         stacking.
       </ThemedText>
-      <ThemedText type="default" themeColor="textSecondary">
+      <ThemedText type="default">
         And you already have the strongest anchors there are: the five daily prayers — fixed
         moments spread through every day. A stack tied to one of them almost keeps itself.
       </ThemedText>
-
-      <View style={styles.tryIt}>
-        <ThemedText type="smallBold" themeColor="accent">
-          Try it
-        </ThemedText>
-        <ThemedText type="default">
-          On Today, drag one habit onto another and hold for a beat — they fold into a stack. Drop
-          more habits onto the card to grow the sequence, in the order you’ll do them.
-        </ThemedText>
-      </View>
+      <ThemedText type="default">
+        <ThemedText type="defaultSemiBold">Try it. </ThemedText>
+        On Today, drag one habit onto another and hold for a beat — they fold into a stack. Drop
+        more habits onto the card to grow the sequence, in the order you’ll do them.
+      </ThemedText>
     </View>
   );
 }
@@ -64,5 +59,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  tryIt: { gap: Spacing.one },
 });

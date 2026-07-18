@@ -22,6 +22,7 @@ import { newId } from '@/lib/id';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
 import { isStackComplete } from '@/lib/progress';
+import type { DayPart } from '@/lib/sun';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -160,10 +161,19 @@ type HabitsContextValue = {
   /** Create a stack from existing habits (in order) — or, with `[]`, an intentionally empty
    *  stack (the "+ → New stack" flow) that waits on Today for its first member. Returns the new
    *  stack id, or null. Pass `stackId` to use a caller-minted id (so the card can be targeted the
-   *  moment it appears — e.g. to animate a drag-merge); otherwise one is generated. */
-  createStack: (name: string, orderedMemberIds: string[], stackId?: string) => Promise<string | null>;
-  /** Rename a stack and/or set its full ordered membership. Empty membership deletes it. */
-  updateStack: (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => Promise<void>;
+   *  moment it appears — e.g. to animate a drag-merge); otherwise one is generated. `dayPart`
+   *  anchors the stack to a chapter of the solar day (the Today sun glyph rests on it). */
+  createStack: (
+    name: string,
+    orderedMemberIds: string[],
+    opts?: { stackId?: string; dayPart?: DayPart | null },
+  ) => Promise<string | null>;
+  /** Rename a stack, re-anchor its day part, and/or set its full ordered membership. Empty
+   *  membership deletes it. `dayPart` present-and-null is an explicit clear (absent = untouched). */
+  updateStack: (
+    stackId: string,
+    patch: { name?: string; orderedMemberIds?: string[]; dayPart?: DayPart | null },
+  ) => Promise<void>;
   /** Delete a stack; its members survive as standalone habits. */
   deleteStack: (stackId: string) => Promise<void>;
   /** Move one habit into a stack (`toStackId`), out to the top level (`null`), or to a new
@@ -1173,7 +1183,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createStack = useCallback(
-    async (name: string, orderedMemberIds: string[], presetStackId?: string): Promise<string | null> => {
+    async (
+      name: string,
+      orderedMemberIds: string[],
+      opts?: { stackId?: string; dayPart?: DayPart | null },
+    ): Promise<string | null> => {
       if (!userId) return null;
       const cleanName = name.trim();
       const memberIds = orderedMemberIds.filter((id) => !id.startsWith('temp-'));
@@ -1197,8 +1211,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // insert below reuses this id. This keeps drag-to-merge instant: the two rows fold into a card
       // the moment the ghost lands, instead of flashing back to standalone during the insert. A caller
       // that pre-minted the id (to target the card as it appears) passes it through.
-      const stackId = presetStackId ?? newId();
-      const stack: HabitStack = { id: stackId, user_id: userId, name: cleanName, created_at: null, updated_at: null };
+      const stackId = opts?.stackId ?? newId();
+      const stack: HabitStack = {
+        id: stackId,
+        user_id: userId,
+        name: cleanName,
+        day_part: opts?.dayPart ?? null,
+        created_at: null,
+        updated_at: null,
+      };
 
       // Pull members together (in order) and stamp their stack_id, optimistically.
       const orderIds = groupedOrder(prevHabits, memberIds);
@@ -1218,7 +1239,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       // DB writes, correctly ordered: the stack row must exist before members' stack_id FK points at it.
       try {
-        const { error: insErr } = await supabase.from('habit_stacks').insert({ id: stackId, user_id: userId, name: cleanName });
+        const { error: insErr } = await supabase
+          .from('habit_stacks')
+          .insert({ id: stackId, user_id: userId, name: cleanName, day_part: opts?.dayPart ?? null });
         if (insErr) throw insErr;
       } catch {
         setHabits(prevHabits);
@@ -1274,13 +1297,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const updateStack = useCallback(
-    async (stackId: string, patch: { name?: string; orderedMemberIds?: string[] }) => {
+    async (stackId: string, patch: { name?: string; orderedMemberIds?: string[]; dayPart?: DayPart | null }) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
       const prevStacks = stacksRef.current;
       if (!prevStacks.some((s) => s.id === stackId)) return;
 
       const newName = patch.name?.trim();
+      // `dayPart` present-and-null is an explicit un-anchor; absent leaves the anchor alone.
+      const hasDayPart = 'dayPart' in patch;
       const memberIds = patch.orderedMemberIds?.filter((id) => !id.startsWith('temp-'));
 
       // No members left → the stack is meaningless; delete it.
@@ -1289,8 +1314,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (newName) {
-        setStacks((prev) => prev.map((s) => (s.id === stackId ? { ...s, name: newName } : s)));
+      const rowPatch: { name?: string; day_part?: DayPart | null } = {};
+      if (newName) rowPatch.name = newName;
+      if (hasDayPart) rowPatch.day_part = patch.dayPart ?? null;
+      const hasRowPatch = Boolean(newName) || hasDayPart;
+
+      if (hasRowPatch) {
+        setStacks((prev) => prev.map((s) => (s.id === stackId ? { ...s, ...rowPatch } : s)));
       }
 
       let next = prevHabits;
@@ -1316,9 +1346,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        if (newName) {
-          const { error: nameErr } = await supabase.from('habit_stacks').update({ name: newName }).eq('id', stackId);
-          if (nameErr) throw nameErr;
+        if (hasRowPatch) {
+          const { error: rowErr } = await supabase.from('habit_stacks').update(rowPatch).eq('id', stackId);
+          if (rowErr) throw rowErr;
         }
         if (memberIds && !(await persistGrouping(next, prevHabits))) {
           setStacks(prevStacks);

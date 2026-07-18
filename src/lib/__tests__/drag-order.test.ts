@@ -7,6 +7,7 @@ import {
   displacementFor,
   edgeScrollVelocity,
   flattenUnits,
+  fullMemberIndexForVisibleDrop,
   insertionIndexFor,
   keyAtCompactIndex,
   moveUnit,
@@ -228,6 +229,41 @@ describe('in-card member reorder', () => {
     expect(slotTopForKeys(memberOrder.S, memberFrames, 'member:m1', SLOT, 1, MEMBER_SEP)).toBe(140 - SLOT);
     // Past the end sits one separator below the last compacted row.
     expect(slotTopForKeys(memberOrder.S, memberFrames, 'member:m1', SLOT, 2, MEMBER_SEP)).toBe(140 - SLOT + 50 + MEMBER_SEP);
+  });
+});
+
+describe('fullMemberIndexForVisibleDrop', () => {
+  // The gesture resolves a compact drop index among the VISIBLE members (dragged one removed);
+  // this maps it to a member-index over the FULL list so day-hidden members keep their order.
+  it('with no hidden members the visible drop is the full index', () => {
+    // Full/visible = [m1, m2, m3]; drag m2. The index is over the dragged-removed list [m1, m3]
+    // (as `orderAfterHabitMove`'s member-index inserts), so "before m3" is index 1, not 2.
+    expect(fullMemberIndexForVisibleDrop(['m1', 'm2', 'm3'], ['m1', 'm2', 'm3'], 'm2', 0)).toBe(0); // before m1
+    expect(fullMemberIndexForVisibleDrop(['m1', 'm2', 'm3'], ['m1', 'm2', 'm3'], 'm2', 1)).toBe(1); // before m3
+  });
+
+  it('a drop past the last visible member appends to the full list', () => {
+    expect(fullMemberIndexForVisibleDrop(['m1', 'm2', 'm3'], ['m1', 'm2', 'm3'], 'm2', 2)).toBe(2);
+  });
+
+  it('a leading hidden member shifts the anchor down in the full list', () => {
+    // Full [m1(hidden), m2, m3]; visible [m2, m3]. Drag m2 → rest full {m1, m3}.
+    // Drop before visible m3 → anchor m3 sits at full index 1.
+    expect(fullMemberIndexForVisibleDrop(['m2', 'm3'], ['m1', 'm2', 'm3'], 'm2', 0)).toBe(1);
+    // Drop past the end → append after m1, m3 → index 2.
+    expect(fullMemberIndexForVisibleDrop(['m2', 'm3'], ['m1', 'm2', 'm3'], 'm2', 1)).toBe(2);
+  });
+
+  it('a hidden member between two visible ones keeps its slot when reordering around it', () => {
+    // Full [m2, m1(hidden), m3]; visible [m2, m3]. Drag m3 → rest full {m2, m1}.
+    // Drop before visible m2 → anchor m2 at full index 0.
+    expect(fullMemberIndexForVisibleDrop(['m2', 'm3'], ['m2', 'm1', 'm3'], 'm3', 0)).toBe(0);
+    // Drop past the end → append after m2, m1 → index 2.
+    expect(fullMemberIndexForVisibleDrop(['m2', 'm3'], ['m2', 'm1', 'm3'], 'm3', 1)).toBe(2);
+  });
+
+  it('an empty visible list (all hidden) appends', () => {
+    expect(fullMemberIndexForVisibleDrop([], ['m1', 'm2'], 'x', 0)).toBe(2);
   });
 });
 

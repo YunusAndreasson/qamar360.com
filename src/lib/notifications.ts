@@ -110,7 +110,7 @@ export async function ensurePermission(): Promise<boolean> {
 export async function setAppBadgeCount(count: number): Promise<void> {
   if (!N) return;
   try {
-    await N.setBadgeCountAsync(Math.max(0, count));
+    await N.setBadgeCountAsync(count);
   } catch {
     // Some Android launchers do not support badges, and permission can be denied on iOS.
   }

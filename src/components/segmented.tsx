@@ -133,7 +133,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     minHeight: 44,
     paddingVertical: Spacing.two + Spacing.half,
-    borderRadius: Radius.control + Spacing.half,
+    // Concentric with the track: its radius minus the inset the thumb sits in, so the thumb's
+    // corners run parallel to the track's rather than bowing a touch tighter inside them.
+    borderRadius: Radius.card - PAD,
   },
   // The one raised surface the segments share — slid, never re-parented, so the lift is
   // continuous. Inset vertically by the track padding; horizontal travel is `translateX`.
@@ -142,6 +144,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: PAD,
     bottom: PAD,
-    borderRadius: Radius.control + Spacing.half,
+    // Concentric with the track: its radius minus the inset the thumb sits in, so the thumb's
+    // corners run parallel to the track's rather than bowing a touch tighter inside them.
+    borderRadius: Radius.card - PAD,
   },
 });

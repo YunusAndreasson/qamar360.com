@@ -6,7 +6,7 @@ import Svg, { Path } from 'react-native-svg';
  * is a dedicated brand asset — the app's `AppIcon`/`Icons` registry holds only SF Symbols / Material
  * glyphs, never third-party logos. Used inside the "Continue with Google" button.
  */
-export function GoogleLogo({ size = 20 }: { size?: number }) {
+export function GoogleLogo({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48">
       <Path

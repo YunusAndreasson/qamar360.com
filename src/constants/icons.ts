@@ -30,7 +30,6 @@ export const Icons = {
   stack: { sf: 'square.stack.3d.up', material: 'layers' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
-  addCircle: { sf: 'plus.circle', material: 'add-circle-outline' },
   // ── Habit actions ──────────────────────────────────────────────────────
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },
   undo: { sf: 'arrow.uturn.backward', material: 'undo' },
@@ -49,7 +48,6 @@ export const Icons = {
   notificationsOff: { sf: 'bell.slash', material: 'notifications-off' },
   lock: { sf: 'lock', material: 'lock-outline' },
   signOut: { sf: 'rectangle.portrait.and.arrow.right', material: 'logout' },
-  info: { sf: 'info.circle', material: 'info-outline' },
   privacy: { sf: 'hand.raised.fill', material: 'privacy-tip' },
   document: { sf: 'doc.text', material: 'description' },
   help: { sf: 'questionmark.circle', material: 'help-outline' },

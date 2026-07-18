@@ -11,10 +11,10 @@ type Props = {
   saveLabel?: string;
 };
 
-function headerCancelAction(onCancel?: () => void, label = 'Cancel') {
+function headerCancelAction(onCancel?: () => void) {
   if (!onCancel) return undefined;
   return function HeaderCancel() {
-    return <HeaderCancelButton onCancel={onCancel} label={label} />;
+    return <HeaderCancelButton onCancel={onCancel} label="Cancel" />;
   };
 }
 
@@ -29,9 +29,9 @@ export function headerSaveAction(onSave: () => void, canSave: boolean, label = '
  * adds commit instantly. Left-aligned like every other modal's dismiss (the editors' "Cancel"),
  * so the app's sheets all close from the same place.
  */
-export function headerCloseAction(onClose: () => void, label = 'Close') {
+export function headerCloseAction(onClose: () => void) {
   return function HeaderClose() {
-    return <HeaderCancelButton onCancel={onClose} label={label} />;
+    return <HeaderCancelButton onCancel={onClose} label="Close" />;
   };
 }
 

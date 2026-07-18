@@ -16,7 +16,7 @@ import { RowSeparator } from '@/components/row-separator';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Collapse } from '@/constants/motion';
+import { Collapse, Duration } from '@/constants/motion';
 import { FontWeight, Pressed, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -47,6 +47,10 @@ type Props = {
   onMoveHabit?: (habit: Habit, delta: -1 | 1) => void;
   /** Open the stack-scoped Add screen — the empty card's "Add your first habit" row. */
   onAddHabits?: (stackId: string) => void;
+  /** This stack is the day's current chapter (its `day_part` matches the real sun's) — the
+   *  resting sun glyph shows in the header. Computed once in the screen from `useSunCycle`;
+   *  never read from a context here (that would bypass the memo below). */
+  isCurrentChapter?: boolean;
 };
 
 /**
@@ -62,13 +66,16 @@ type Props = {
  * day's remaining work rises. The bar taps open again; a trailing chevron folds it (and
  * any stack, done or not, can be tucked away by hand).
  */
-function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, onRemoveFromStack, onMove, onMoveHabit, onAddHabits }: Props) {
+function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, onRemoveFromStack, onMove, onMoveHabit, onAddHabits, isCurrentChapter }: Props) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   // The whole group sealed — every act the stack has due today is done. Drives the one-shot border
   // flash, the greyed "done" header tone, and the auto-collapse; the synced completion haptic is
   // fired from the toggle seam in use-habits.
   const stackComplete = isStackComplete(members, completed, skipped);
+  // The sun rests here only while the stack is still open: a sealed stack keeps its greyed
+  // glyph — the recede is the stronger statement than the visit.
+  const sunResident = !!isCurrentChapter && !stackComplete;
   // Any non-empty stack can be folded away by hand; a sealed one folds itself. The empty
   // "Add your first habit" card has nothing to collapse.
   const collapsible = members.length > 0;
@@ -156,7 +163,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
             onPress={collapsible ? toggleCollapsed : () => onEditStack(stack.id)}
             android_ripple={{ color: theme.backgroundSelected }}
             accessibilityRole="button"
-            accessibilityLabel={`${stack.name} stack${stackComplete ? ', completed' : ''}${collapsed ? ', collapsed' : ''}`}
+            accessibilityLabel={`${stack.name} stack${stackComplete ? ', completed' : ''}${sunResident ? ', current time of day' : ''}${collapsed ? ', collapsed' : ''}`}
             accessibilityState={collapsible ? { expanded: !collapsed } : undefined}
             accessibilityHint={
               !collapsible
@@ -181,10 +188,9 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
             {/* A leading stack glyph in the same 32-wide slot a member row gives its completion ring,
                 so the icon sits directly above the circles below and the title lines up with the row
                 titles. Accent-tinted while the group is live; greyed to the done tone once sealed, so
-                the header recedes alongside its struck-through rows. */}
-            <View style={styles.leading}>
-              <AppIcon name="stack" size={26} color={stackComplete ? theme.textDisabled : theme.accent} />
-            </View>
+                the header recedes alongside its struck-through rows. While this stack is the day's
+                current chapter, the sun rests in the slot instead (see LeadingGlyph). */}
+            <LeadingGlyph sun={sunResident} complete={stackComplete} />
             <ThemedText
               type="rowTitle"
               themeColor="accent"
@@ -274,6 +280,46 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
   );
 }
 
+/**
+ * The header's leading glyph slot — the stack icon, visited by the sun. While this stack is the
+ * day's current chapter the sun glyph rests here in its place (the one warm, non-gold note on
+ * the checklist: the same star-cream as the sky's warm anchors, never the completion gold). The
+ * two icons cross-fade only on an actual arrival/departure — a card that MOUNTS with the sun
+ * already resident shows it at rest, no animation (the `wasResident` edge guard, mirroring
+ * StackCompleteFlash) — so day-steps, drags and list churn never replay the transition. The
+ * slot keeps its fixed 32-width in every state: card height never changes, so the drag grid's
+ * measured frames stay valid.
+ */
+function LeadingGlyph({ sun, complete }: { sun: boolean; complete: boolean }) {
+  const theme = useTheme();
+  const reduceMotion = useReducedMotion();
+  // Born at rest at the current value; animated only on the resident-flips-edge below.
+  const presence = useSharedValue(sun ? 1 : 0);
+  const wasResident = useRef(sun);
+  useEffect(() => {
+    if (wasResident.current === sun) return;
+    wasResident.current = sun;
+    if (reduceMotion) {
+      presence.set(sun ? 1 : 0);
+      return;
+    }
+    presence.set(withTiming(sun ? 1 : 0, { duration: Duration.slow, easing: Easing.inOut(Easing.quad) }));
+  }, [sun, reduceMotion, presence]);
+  const stackStyle = useAnimatedStyle(() => ({ opacity: 1 - presence.get() }));
+  const sunStyle = useAnimatedStyle(() => ({ opacity: presence.get() }));
+
+  return (
+    <View style={styles.leading}>
+      <Animated.View style={stackStyle}>
+        <AppIcon name="stack" size={26} color={complete ? theme.textDisabled : theme.accent} />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.leadingOverlay, sunStyle]} pointerEvents="none">
+        <AppIcon name="sun" size={24} color={theme.sun} />
+      </Animated.View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   // A bare `Surface` card (radius/border/bg come from Surface) — no margins: the drag grid
   // measures the bare item, so spacing comes from the grid's `gap` + its padding.
@@ -295,6 +341,12 @@ const styles = StyleSheet.create({
   // stack icon centers on the circles below it.
   leading: {
     width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Centers the resting sun over the stack glyph inside the fixed slot (it overlays, never
+  // widens — see LeadingGlyph).
+  leadingOverlay: {
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -332,10 +384,14 @@ const styles = StyleSheet.create({
 // commits. Compare the rendered stack fields, the members by the fields their rows read, and the
 // day-state Sets + callbacks by identity (a tick swaps the Set identity, so completions still land).
 // The collapse/fold is local component state, not a prop, so it needs no entry here.
+// KEEP IN SYNC: any newly *rendered* stack field or prop must be compared here, or the card will
+// silently ignore its changes (`day_part`/`isCurrentChapter` drive the resting sun glyph).
 function stackPropsEqual(a: Props, b: Props): boolean {
   if (
     a.stack.id !== b.stack.id ||
     a.stack.name !== b.stack.name ||
+    a.stack.day_part !== b.stack.day_part ||
+    a.isCurrentChapter !== b.isCurrentChapter ||
     a.completed !== b.completed ||
     a.skipped !== b.skipped ||
     a.counts !== b.counts ||

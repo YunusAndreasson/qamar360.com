@@ -1,4 +1,5 @@
 import { DAILY_SCHEDULE, describeHijriSchedule, type HijriSchedule } from '@/lib/dates';
+import type { DayPart } from '@/lib/sun';
 
 /**
  * A curated, evidence-backed library of Sunnah habits, each worded as a SMART goal —
@@ -144,7 +145,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     categoryId: 'sunnah-prayers',
     name: 'Four rakʿah before Dhuhr',
     detail: 'Pray the four confirmed Sunnah rakʿah before the obligatory Dhuhr prayer.',
-    evidence: 'Among the twelve confirmed rawātib — four before Dhuhr (Muslim 728; Tirmidhi 415, ṣaḥīḥ); the Prophet ﷺ would not leave four before Dhuhr (Bukhari 1182).',
+    evidence: 'Among the twelve confirmed rawātib — four before Dhuhr (Muslim 728; Tirmidhi 415, ṣaḥīḥ); the Prophet ﷺ would never leave them (Bukhari 1182).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
@@ -207,7 +208,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'two-rakah-after-wudu',
     categoryId: 'sunnah-prayers',
     name: 'Two rakʿah after wuḍūʾ',
-    detail: 'After completing wuḍūʾ, pray two rakʿah with full presence, before your mind wanders.',
+    detail: 'After wuḍūʾ, pray two rakʿah with full presence, before your mind wanders.',
     evidence: 'Bilāl prayed two rakʿah after every wuḍūʾ; the Prophet ﷺ heard his footsteps in Paradise (Bukhari 1149, Muslim 2458).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -215,7 +216,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'tahiyyat-al-masjid',
     categoryId: 'sunnah-prayers',
     name: 'Two rakʿah on entering the masjid',
-    detail: 'On any day you enter a masjid, pray two rakʿah (taḥiyyat al-masjid) before you sit down — each time you enter. On a day you don’t go, skip it.',
+    detail: 'Whenever you enter a masjid, pray two rakʿah (taḥiyyat al-masjid) before sitting down. On a day you don’t go, skip it.',
     evidence: 'When one of you enters the masjid, let him pray two rakʿah before sitting (Bukhari 444, Muslim 714).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -233,7 +234,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'quran-daily-page',
     categoryId: 'quran',
     name: 'Read 1 page of Qurʾān',
-    detail: 'Read at least one page of the Qurʾān today (set your own larger portion if you wish).',
+    detail: 'Read at least one page of the Qurʾān today — set a larger portion if you wish.',
     evidence: 'Read the Qurʾān, for it will intercede for its companions on the Day of Resurrection (Muslim 804).',
     defaultSchedule: DAILY_SCHEDULE,
     essential: true,
@@ -242,23 +243,23 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'surah-al-mulk',
     categoryId: 'quran',
     name: 'Recite al-Mulk at night',
-    detail: 'Recite Surah al-Mulk (chapter 67) before sleeping.',
+    detail: 'Recite Sūrat al-Mulk (chapter 67) before sleeping.',
     evidence: 'A sūrah of thirty verses interceded for its companion until he was forgiven — al-Mulk (Tirmidhi 2891, ḥasan).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
     id: 'surah-al-kahf-friday',
     categoryId: 'quran',
-    name: 'Recite al-Kahf',
-    detail: 'Recite Surah al-Kahf (chapter 18) sometime on Friday (from Maghrib Thursday through Maghrib Friday).',
-    evidence: 'Whoever reads Surah al-Kahf on Friday has light between the two Fridays (al-Ḥākim/al-Bayhaqī, ṣaḥīḥ).',
+    name: 'Recite al-Kahf on Friday',
+    detail: 'Recite Sūrat al-Kahf (chapter 18) on Friday — any time from Maghrib Thursday to Maghrib Friday.',
+    evidence: 'Whoever reads Sūrat al-Kahf on Friday has light between the two Fridays (al-Ḥākim/al-Bayhaqī, ṣaḥīḥ).',
     defaultSchedule: [5],
   },
   {
     id: 'baqarah-last-verses',
     categoryId: 'quran',
     name: 'Last two verses of al-Baqarah',
-    detail: 'Recite the final two verses of Surah al-Baqarah (2:285–286) at night.',
+    detail: 'Recite the final two verses of Sūrat al-Baqarah (2:285–286) at night.',
     evidence: 'Whoever recites the last two verses of al-Baqarah at night, they suffice him (Bukhari 5009, Muslim 807).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -274,7 +275,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'al-imran-last-ten',
     categoryId: 'quran',
     name: 'Last ten āyāt of Āl ʿImrān',
-    detail: 'On rising in the night or for Fajr, recite the closing ten verses of Sūrat Āl ʿImrān (3:190–200).',
+    detail: 'On rising in the night, recite the closing passage of Sūrat Āl ʿImrān — from “Inna fī khalqi s-samāwāti wa-l-arḍ” (verse 190) to the sūrah’s end.',
     evidence: 'On waking the Prophet ﷺ recited the last ten verses of Āl ʿImrān (Bukhari 4569, Muslim 763).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -322,7 +323,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'istighfar-100',
     categoryId: 'dhikr',
     name: 'Istighfār ×100',
-    detail: "Seek Allāh's forgiveness (astaghfirullāh) at least 100 times through the day.",
+    detail: 'Seek Allāh’s forgiveness (astaghfirullāh) at least 100 times through the day.',
     evidence: 'I seek Allāh’s forgiveness and repent to Him a hundred times a day (Muslim 2702).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -347,7 +348,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'answer-the-adhan',
     categoryId: 'dhikr',
     name: 'Answer the adhān',
-    detail: "When you hear the call, repeat the muʾadhdhin's words, then ask Allāh to grant the Prophet ﷺ al-wasīlah (Allāhumma rabba hādhihi-d-daʿwati-t-tāmmah…).",
+    detail: 'When you hear the call, repeat the muʾadhdhin’s words, then ask Allāh to grant the Prophet ﷺ al-wasīlah (Allāhumma rabba hādhihi-d-daʿwati-t-tāmmah…).',
     evidence: 'Repeat what the muʾadhdhin says (Bukhari 611); whoever asks al-wasīlah for me after it, my intercession is due for him (Bukhari 614).',
     defaultSchedule: DAILY_SCHEDULE,
     essential: true,
@@ -390,7 +391,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'fast-mon-thu',
     categoryId: 'fasting',
     name: 'Sunnah fast',
-    detail: 'Fast from true dawn (Fajr) to sunset (Maghrib) on Mondays and Thursdays — no food, drink, or intimacy — having intended the fast beforehand.',
+    detail: 'Fast from true dawn (Fajr) to sunset (Maghrib) on Mondays and Thursdays — a voluntary fast the Prophet ﷺ kept regularly.',
     evidence: 'Deeds are presented on Mondays and Thursdays, and I like mine presented while fasting (Tirmidhi 747, ḥasan; Muslim 1162).',
     defaultSchedule: [1, 4],
   },
@@ -468,14 +469,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'read-beneficial',
     categoryId: 'character',
     name: 'Read something beneficial',
-    detail: 'Read for a little while today — even a few pages of beneficial knowledge that helps your dīn or your life.',
+    detail: 'Read a few pages of beneficial knowledge today — something that helps your dīn or your life.',
     evidence: 'Whoever follows a path in search of knowledge, Allāh makes easy for him thereby a path to Paradise (Muslim 2699).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
     id: 'miswak',
     categoryId: 'character',
-    name: 'Use the miswāk / clean teeth',
+    name: 'Clean your teeth (miswāk)',
     detail: 'Clean your teeth with the miswāk (or a brush) at least once today — ideally before a prayer or on waking.',
     evidence: 'Were it not a hardship, I would have ordered the siwāk at every prayer (Bukhari 887, Muslim 252).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -501,14 +502,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     categoryId: 'character',
     name: 'Name & praise Allāh over food',
     detail: 'Begin each meal with Bismillāh and end it with Alḥamdulillāh.',
-    evidence: "Mention Allāh's name when you eat (Abu Dawud 3767, Tirmidhi 1858, ḥasan ṣaḥīḥ); Allāh is pleased with the servant who praises Him for his food (Muslim 2734).",
+    evidence: 'Mention Allāh’s name when you eat (Abu Dawud 3767, Tirmidhi 1858, ḥasan ṣaḥīḥ); Allāh is pleased with the servant who praises Him for his food (Muslim 2734).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
     id: 'spread-salam',
     categoryId: 'character',
     name: 'Spread the salām',
-    detail: "Greet fellow Muslims with as-salāmu ʿalaykum — those you know and those you don't.",
+    detail: 'Greet fellow Muslims with as-salāmu ʿalaykum — those you know and those you don’t.',
     evidence: 'Spread salām among you and you will love one another and enter Paradise (Muslim 54).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -516,7 +517,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'dua-for-a-brother',
     categoryId: 'character',
     name: 'Duʿāʾ for someone in their absence',
-    detail: "Make a sincere duʿāʾ, by name, for a fellow Muslim who isn't present.",
+    detail: 'Make a sincere duʿāʾ, by name, for a fellow Muslim who isn’t present.',
     evidence: 'The duʿāʾ of a Muslim for his absent brother is answered; an angel says: and for you the same (Muslim 2733).',
     defaultSchedule: DAILY_SCHEDULE,
   },
@@ -573,7 +574,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'hydrate-water',
     categoryId: 'wellbeing',
-    name: 'Drink 6–8 cups of water',
+    name: 'Drink water',
     detail: 'Stay hydrated — aim for 6–8 cups across the day, drinking seated and in a few breaths rather than one gulp.',
     evidence: 'The Prophet ﷺ would drink in three breaths and forbade gulping in one (Muslim 2028).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -699,7 +700,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'vegetables',
     categoryId: 'wellbeing',
-    name: 'Eat 2 servings of vegetables',
+    name: 'Eat vegetables',
     detail: 'Eat at least two servings of vegetables today — add them to meals or have them as snacks.',
     evidence: 'Higher vegetable intake tracks with much lower risk of heart disease and early death — up to ~31% lower all-cause mortality near 800g a day of fruit and veg (Aune et al., Int. J. Epidemiol. 2017).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -736,6 +737,8 @@ export function isRepeatablePreset(preset: SunnahPreset): boolean {
 export type StarterStack = {
   /** The stack's name as created — plain English day-parts, per house style. */
   name: string;
+  /** The solar-day chapter the stack anchors to (the Today sun glyph rests on it). */
+  dayPart: DayPart;
   /** Preset ids (see `SUNNAH_PRESETS`) in stack sequence order. */
   presetIds: string[];
 };
@@ -747,10 +750,10 @@ export type StarterStack = {
  * user already has are skipped, so a partial re-run only fills the gaps.
  */
 export const STARTER_STACKS: StarterStack[] = [
-  { name: 'Morning', presetIds: ['dua-on-waking', 'fajr-on-time', 'morning-adhkar'] },
-  { name: 'Midday', presetIds: ['dhuhr-on-time', 'asr-on-time'] },
-  { name: 'Evening', presetIds: ['evening-adhkar', 'maghrib-on-time'] },
-  { name: 'Night', presetIds: ['isha-on-time', 'quran-daily-page', 'sleeping-adhkar'] },
+  { name: 'Morning', dayPart: 'morning', presetIds: ['dua-on-waking', 'fajr-on-time', 'morning-adhkar'] },
+  { name: 'Midday', dayPart: 'midday', presetIds: ['dhuhr-on-time', 'asr-on-time'] },
+  { name: 'Evening', dayPart: 'evening', presetIds: ['evening-adhkar', 'maghrib-on-time'] },
+  { name: 'Night', dayPart: 'night', presetIds: ['isha-on-time', 'quran-daily-page', 'sleeping-adhkar'] },
 ];
 
 /** Starter presets with no time-of-day home (event-driven) — added standalone, after the
@@ -768,6 +771,6 @@ const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null): string {
   if (hijri) return describeHijriSchedule(hijri);
   const sorted = [...schedule].sort((a, b) => a - b);
-  return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ') || 'No days';
+  return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ');
 }
 

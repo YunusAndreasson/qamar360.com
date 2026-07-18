@@ -74,9 +74,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const previousDegrees = toDegrees(previousRate);
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = hasPrevious
-    ? `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is at ${thisDegrees} degrees of the orbit; ${
-        month.previousMonthName || 'last month'
-      } had reached ${previousDegrees} degrees by the same day.`
+    ? `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is at ${thisDegrees} degrees of the orbit; ${month.previousMonthName} had reached ${previousDegrees} degrees by the same day.`
     : `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is ${thisDegrees} degrees complete.`;
 
   return (

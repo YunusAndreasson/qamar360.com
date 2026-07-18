@@ -14,12 +14,12 @@ const FAINT = 0.14;
 export function MoonPhase({
   illumination,
   waxing,
-  size = 160,
+  size,
   brightness = 1,
 }: {
   illumination: number;
   waxing: boolean;
-  size?: number;
+  size: number;
   /**
    * How brightly the moonlight reads (0–1). Below 1 dims only the lit moonlight while the base disc
    * stays fully opaque — so the moon can rest quiet behind a louder progress ring without turning

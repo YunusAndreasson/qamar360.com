@@ -18,8 +18,14 @@ export type CelebrationCopy = {
   paceLabel: string | null;
 };
 
-export function celebrationCopy(month: MonthProgress | null, day: string): CelebrationCopy {
-  const parts = hijriParts(day);
+/**
+ * @param hijriDay The day whose Hijri date labels the card — defaults to `day` (the tracking
+ *   day), but the caller passes the sunset-turned display day when celebrating after Maghrib:
+ *   the Islamic day has already begun, and the shown date honours that. Only the label shifts —
+ *   degrees / days-left / pace always describe the tracking `month`/`day`.
+ */
+export function celebrationCopy(month: MonthProgress | null, day: string, hijriDay: string = day): CelebrationCopy {
+  const parts = hijriParts(hijriDay);
   const hijriLabel = parts ? `${parts.day} ${parts.monthName} ${parts.year}` : null;
 
   if (!month) return { hijriLabel, degrees: null, daysLeftLabel: null, paceLabel: null };

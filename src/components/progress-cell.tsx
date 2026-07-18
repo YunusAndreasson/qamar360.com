@@ -20,15 +20,15 @@ type Props = {
   /** Completion 0–1, carried by the ring arc. */
   fraction: number;
   /** The "you are here" cell (today / current month): accent ring + accent bold label. */
-  active?: boolean;
+  active: boolean;
   /** Not yet reached (a future day/month): a fainter, dimmed moon. */
-  muted?: boolean;
+  muted: boolean;
   /**
    * A White Day (Ayyām al-Bīḍ, the 13th–15th) — the nights the moon is full and the Sunnah fast
    * falls. Marked by lighting the day-number in moonlight silver, so the grid's fullest moons and
    * the recommended fast read as one. Purely a calendar marker — never tied to completion.
    */
-  whiteDay?: boolean;
+  whiteDay: boolean;
   /** When set, the disc shows the true moon at this phase instead of a flat fill. */
   phase?: { illumination: number; waxing: boolean };
   /** Disc diameter; defaults to {@link DEFAULT_MOON_SIZE}. */
@@ -43,9 +43,9 @@ type Props = {
 export function ProgressCell({
   label,
   fraction,
-  active = false,
-  muted = false,
-  whiteDay = false,
+  active,
+  muted,
+  whiteDay,
   phase,
   size = DEFAULT_MOON_SIZE,
 }: Props) {

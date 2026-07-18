@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { celebrationCopy } from '@/lib/celebration';
-import { hijriParts } from '@/lib/dates';
+import { addDaysISO, hijriParts } from '@/lib/dates';
 import { toDegrees, type MonthProgress } from '@/lib/progress';
 
 /** A middle-of-the-month MonthProgress; override per case. */
@@ -50,6 +50,18 @@ describe('celebrationCopy', () => {
     const p = hijriParts(DAY);
     expect(p).not.toBeNull();
     expect(celebrationCopy(month(), DAY).hijriLabel).toBe(`${p!.day} ${p!.monthName} ${p!.year}`);
+  });
+
+  it('labels with the display day when it differs (post-Maghrib), while stats stay on the tracking day', () => {
+    // After the real sunset the Islamic day has turned: the label follows the display day…
+    const tomorrow = addDaysISO(DAY, 1);
+    const p = hijriParts(tomorrow);
+    expect(p).not.toBeNull();
+    const copy = celebrationCopy(month({ thisRate: 0.5, dayOfMonth: 15, monthLength: 30 }), DAY, tomorrow);
+    expect(copy.hijriLabel).toBe(`${p!.day} ${p!.monthName} ${p!.year}`);
+    // …but degrees and days-left still describe the tracking day's month.
+    expect(copy.degrees).toBe(toDegrees(0.5));
+    expect(copy.daysLeftLabel).toBe('15 days left');
   });
 
   it('degrades gracefully when there is no month data (keeps the Hijri date)', () => {

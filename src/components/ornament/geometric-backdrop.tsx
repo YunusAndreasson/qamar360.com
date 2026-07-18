@@ -1,31 +1,41 @@
 import { useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, G, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Svg, { Circle, Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { Meteors } from '@/components/ornament/meteors';
+import { StarField } from '@/components/ornament/star-field';
+import { Parallax } from '@/constants/motion';
+import { useMinuteTick } from '@/hooks/use-minute-tick';
+import { useSkyTilt, type SkyTilt } from '@/hooks/use-sky-tilt';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
+import { deviceLocation } from '@/lib/geo';
 import { flowerOfLife, type GCircle } from '@/lib/geometry';
-import { moonIllumination, moonPhasePath } from '@/lib/moon';
+import { moonIllumination } from '@/lib/moon';
+import { moonHorizontal, sunHorizontal } from '@/lib/sky';
+import { realSkyField, starField } from '@/lib/starfield';
+import { horizonTint, starVisibility, type DaylightStarsMode } from '@/lib/sun';
 
 /**
- * A faint flower-of-life field — the app's "ground" texture, built from the same compass
- * that draws every progress ring. Absolutely fills its parent and is non-interactive, so it
+ * The app's backdrop ornament. Absolutely fills its parent and is non-interactive, so it
  * sits behind content (render it first). The parent clips it: cards already use
  * `overflow: 'hidden'`, and the screen variant lives behind a transparent ScrollView.
  *
- * The whole field is lit as if by one moon high in the upper-right of the sky: every surface
- * blooms toward that source and falls away from it, so the app reads as one lit room.
- *
- *  - `screen` — a fine rosette field whose glow gathers in the upper-right and falls across the
- *    screen, so each screen reads as a calm lunar sky that content floats over.
- *  - `card`   — a fine, small-circle field. Its bloom + fade lean to the (upper-)right toward the
- *    same light, so the texture is strongest on the right and dissolves to the left, clearing the
- *    edge where a card's title/label sits. Kept small on purpose: large circles read as UI elements.
+ *  - `screen` — the night sky itself: the real stars overhead right now ({@link StarField}) under an
+ *    implied moon in the upper-right. The moon is felt, not seen — no drawn disc (the literal
+ *    moon lives on Progress); what marks it is the order it casts: a faint seed-of-life bloom
+ *    of construction circles gathered at that corner ({@link CornerBloom}), waxing gently with
+ *    the real lunar phase while the faint stars wash out beneath it — one light rises, the
+ *    others yield. "The moon generates the order."
+ *  - `card`   — a fine, small-circle flower-of-life field. Its bloom + fade lean to the
+ *    (upper-)right toward the same light, so the texture is strongest on the right and dissolves
+ *    to the left, clearing the edge where a card's title/label sits. Kept small on purpose:
+ *    large circles read as UI elements.
  *  - `hero`   — the large 7-circle seed of life, centred. Reserved for the Progress moon card,
  *    where the rosette blends with the moon disc sitting at its heart — the light source seen up close.
  *
- * A mask dissolves the field toward its edges so it never meets a hard clip line — a centred
- * `radial` fade for screen/hero, or a directional `linear` fade (right → left) for the card.
+ * A mask dissolves each lattice toward its edges so it never meets a hard clip line.
  */
 type Variant = 'screen' | 'card' | 'hero';
 
@@ -35,97 +45,163 @@ type Fade =
   | { kind: 'radial'; cx: string; cy: string; r: string; solid: number }
   | { kind: 'linear'; x1: string; y1: string; x2: string; y2: string; solid: number };
 
-type FieldConfig = {
-  vb: number;
-  circles: GCircle[];
-  strokeOpacity: number;
-  preserveAspectRatio: string;
-  fade: Fade;
-};
+// Both lattices share the same viewBox, aspect handling, and slice mode — only their circle
+// pattern and edge fade differ, so those are all the config carries.
+type FieldConfig = { circles: GCircle[]; fade: Fade };
 
-const SCREEN_VB = 440;
 const CARD_VB = 300;
+const ASPECT = 'xMidYMid slice';
 
-// One *core* opacity for both variants so the screen "sky" and the card watermark read as a
-// single, consistent texture (the two used to differ, 0.05 vs 0.06). Each circle's actual
-// opacity is this × its luminosity weight, so the field blooms at the heart and recedes —
-// the heart sits a touch brighter than the old flat field, the rim far fainter. Kept low enough
-// to whisper, but high enough that the rosette actually reads on both the deep-space and the
+// One *core* opacity for every lattice (cards, hero, the corner bloom) so the geometry reads
+// as a single, consistent etching wherever it appears. Each circle's actual opacity is this ×
+// its luminosity weight, so a field blooms at the heart and recedes. Kept low enough to
+// whisper, but high enough that the rosette actually reads on both the deep-space and the
 // near-white background (it had faded to near-invisible, especially in light mode).
 const STROKE_OPACITY = 0.12;
 
-const CONFIG: Record<Variant, FieldConfig> = {
-  // Finer than the hero: smaller circles + more rings cover the screen as quiet texture, with
-  // the glow gathered in the upper-right (the moon) and falling away across the screen.
-  screen: {
-    vb: SCREEN_VB,
-    circles: flowerOfLife(SCREEN_VB / 2, 88, 44, 3, { x: SCREEN_VB * 0.8, y: 36 }),
-    strokeOpacity: STROKE_OPACITY,
-    preserveAspectRatio: 'xMidYMin slice',
-    fade: { kind: 'radial', cx: '80%', cy: '8%', r: '98%', solid: 0.22 },
-  },
+const CONFIG: Record<'card' | 'hero', FieldConfig> = {
   // Tiny-circle texture, bloom focal in the upper-right (toward the same light) with a right→left
   // linear fade, so the field is strongest on the right and clears the left where text sits.
   card: {
-    vb: CARD_VB,
     circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 22, 4, { x: CARD_VB * 0.78, y: CARD_VB * 0.4 }),
-    strokeOpacity: STROKE_OPACITY,
-    preserveAspectRatio: 'xMidYMid slice',
     fade: { kind: 'linear', x1: '0%', y1: '0%', x2: '100%', y2: '0%', solid: 0.45 },
   },
   // The big seed-of-life that reads beautifully behind the Progress moon — left untouched.
   hero: {
-    vb: CARD_VB,
     circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 56, 1),
-    strokeOpacity: STROKE_OPACITY,
-    preserveAspectRatio: 'xMidYMid slice',
     fade: { kind: 'radial', cx: '50%', cy: '50%', r: '60%', solid: 0.2 },
   },
 };
 
-/**
- * The screen sky, lit by tonight's real moon. The corner glow is kept exactly where it sits —
- * only its *life* tracks the lunar phase: a faint ember tucked in the corner at the new moon,
- * waxing brighter and reaching a little further across the sky toward the full (laylat al-badr),
- * then hushing back. An average day lands at the field's tuned baseline, so the look stays the
- * one we like; the swing is gentle — felt over the Hijri month, not from one day to the next.
- */
-function lunarScreenConfig(illumination: number): FieldConfig {
-  const base = CONFIG.screen;
-  const intensity = 0.75 + 0.45 * illumination; // ~baseline at half-moon; dimmer → brighter
-  const reach = 88 + 22 * illumination; // % the glow reaches out of its corner
-  return {
-    ...base,
-    strokeOpacity: STROKE_OPACITY * intensity,
-    fade: base.fade.kind === 'radial' ? { ...base.fade, r: `${Math.round(reach)}%` } : base.fade,
-  };
+export function GeometricBackdrop({ variant }: { variant: Variant }) {
+  return variant === 'screen' ? <ScreenSky /> : <RosetteField variant={variant} />;
 }
 
-export function GeometricBackdrop({ variant }: { variant: Variant }) {
-  const theme = useTheme();
+/**
+ * The whole-screen sky, living through the real day: the overhead galactic glow, the stars, the
+ * corner order-bloom, a rare meteor, then the sun's horizon wash and the vignette. Two unseen
+ * lights govern the composition. Tonight's real moon brightens the bloom and drowns the faint
+ * stars and the glow; the real sun — computed for the same observer, once a minute — washes the
+ * stars out by day and hands them back tier by tier through the true twilight bands, while the
+ * horizon warms toward sunset and cools toward dawn ({@link sun.ts}). Neither light is ever
+ * drawn. The whole field also drifts a whisper with the phone's tilt ({@link useSkyTilt}), each
+ * layer at its own depth so the sky reads dimensional, not flat.
+ */
+function ScreenSky() {
   const scheme = useEffectiveScheme();
-  const uid = useId();
-  // Light mode still dims the lattice a little (dark-steel `pattern` lines on a white page read
-  // stronger than the pale lines on deep space), but only gently — the old 0.55 cut, on top of
-  // the low base opacity, faded the rosette to invisible in light mode.
+  // Light mode dims the ornament (dark-steel `pattern` lines on a white page read stronger
+  // than pale lines on deep space) — gently; a heavy cut fades it to invisible.
   const dim = scheme === 'light' ? 0.8 : 1;
-  // The whole-screen sky carries tonight's real moon: a faint phase-lit disc in the upper-right,
-  // plus a gentle wax/wane of the field's reach. Cards/hero keep their fixed motif.
-  const phase = useMemo(() => {
-    if (variant !== 'screen') return null;
+  const illumination = useMemo(() => {
     const iso = todayLocalISO();
     const parts = hijriParts(iso);
     const range = hijriMonthRange(iso);
-    if (!parts || !range) return null; // no Islamic calendar on this runtime — keep the static sky
-    return moonIllumination(parts.day, range.length);
-  }, [variant]);
-  const cfg = phase ? lunarScreenConfig(phase.illumination) : CONFIG[variant];
+    if (!parts || !range) return 0.5; // no Islamic calendar on this runtime — an average sky
+    return moonIllumination(parts.day, range.length).illumination;
+  }, []);
+  const tilt = useSkyTilt();
+
+  // Tonight's real sky over the observer (placed by timezone — no permission). Recomputed once a
+  // minute as the sky turns; the designed field is the graceful fallback if location or the
+  // astronomy ever throws, so the backdrop never breaks.
+  const location = useMemo(() => deviceLocation(), []);
+  const now = useMinuteTick();
+  const stars = useMemo(() => {
+    try {
+      const moon = moonHorizontal(now, location.lat, location.lon);
+      return realSkyField({ lat: location.lat, lon: location.lon, date: now, moon });
+    } catch {
+      return starField();
+    }
+  }, [location, now]);
+
+  // The real sun over the same observer, on the same minute clock. If the astronomy ever
+  // throws, the sky fails into full night — the backdrop's familiar look, never a blank.
+  let sun: { alt: number; az: number };
+  try {
+    sun = sunHorizontal(now, location.lat, location.lon);
+  } catch {
+    sun = { alt: -18, az: 180 };
+  }
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <OverheadGlow illumination={illumination} sunAlt={sun.alt} tilt={tilt} />
+      <StarField stars={stars} illumination={illumination} sunAlt={sun.alt} tilt={tilt} />
+      <CornerBloom illumination={illumination} dim={dim} tilt={tilt} />
+      <Meteors sunAlt={sun.alt} />
+      <HorizonTint sunAlt={sun.alt} sunAz={sun.az} />
+      <ScreenVignette />
+    </View>
+  );
+}
+
+// The overhead galactic glow — a broad, soft, cool dome of light gathered at the very top of the
+// sky. Diffuse and edgeless (never a disc, never the top-right implied moon): a lift of deep
+// indigo over the near-black base that fades to nothing by mid-screen. It washes out toward the
+// full moon like the faint stars beneath it, and — being night-sky light itself — fades in step
+// with the first stars as the real sun rises.
+const GLOW_COLOR = '#1E2A52';
+const GLOW_OPACITY = 0.08;
+const GLOW_LIGHT_DIM = 0.1;
+// Overscan so the glow's tilt drift never opens a gap at the top edge (it's the farthest, and
+// smallest-moving, layer — but the top is exactly where it's brightest).
+const GLOW_OVERSCAN = {
+  top: -Parallax.overscan,
+  left: -Parallax.overscan,
+  right: -Parallax.overscan,
+  bottom: -Parallax.overscan,
+} as const;
+
+function OverheadGlow({ illumination, sunAlt, tilt }: { illumination: number; sunAlt: number; tilt: SkyTilt }) {
+  const scheme = useEffectiveScheme();
+  const uid = useId();
+  const id = `bd-glow-${uid}`;
+  // Strongest at the new moon, washed toward the full — the same "moonlight drowns starlight"
+  // coupling the faint stars use — and gated by the sun on the bright tier's curve (with its
+  // dark-mode floor), so the dome arrives with the anchors, never before them.
+  const mode: DaylightStarsMode = scheme === 'dark' ? 'inspired' : 'literal';
+  const dim = scheme === 'light' ? GLOW_LIGHT_DIM : 1;
+  const peak = GLOW_OPACITY * (1 - 0.6 * illumination) * dim * starVisibility('bright', sunAlt, mode);
+  const drift = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tilt.shiftX.get() * Parallax.maxShift * Parallax.depth.glow },
+      { translateY: tilt.shiftY.get() * Parallax.maxShift * Parallax.depth.glow },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, GLOW_OVERSCAN, drift]} pointerEvents="none">
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <Defs>
+          {/* Stretched by the square→screen aspect into a wide, shallow overhead ellipse. */}
+          <RadialGradient id={id} cx="46%" cy="2%" r="72%">
+            <Stop offset="0" stopColor={GLOW_COLOR} stopOpacity={peak} />
+            <Stop offset="0.55" stopColor={GLOW_COLOR} stopOpacity={peak * 0.35} />
+            <Stop offset="1" stopColor={GLOW_COLOR} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** The card/hero lattice — a masked flower-of-life field, unchanged from the original ground
+ *  texture (the screen variant grew into {@link ScreenSky}). */
+function RosetteField({ variant }: { variant: 'card' | 'hero' }) {
+  const theme = useTheme();
+  const scheme = useEffectiveScheme();
+  const uid = useId();
+  // See ScreenSky — the same gentle light-mode dimming.
+  const dim = scheme === 'light' ? 0.8 : 1;
+  const cfg = CONFIG[variant];
   const gradId = `bd-grad-${uid}`;
   const maskId = `bd-mask-${uid}`;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg width="100%" height="100%" viewBox={`0 0 ${cfg.vb} ${cfg.vb}`} preserveAspectRatio={cfg.preserveAspectRatio}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${CARD_VB} ${CARD_VB}`} preserveAspectRatio={ASPECT}>
         <Defs>
           {cfg.fade.kind === 'linear' ? (
             // Directional dissolve: transparent at the start (left), ramping to solid for the
@@ -143,48 +219,91 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
             </RadialGradient>
           )}
           <Mask id={maskId}>
-            <Rect x="0" y="0" width={cfg.vb} height={cfg.vb} fill={`url(#${gradId})`} />
+            <Rect x="0" y="0" width={CARD_VB} height={CARD_VB} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
         <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
           {cfg.circles.map((c, i) => (
             // Per-circle opacity = base × luminosity weight: the lattice blooms at its heart
             // (the seed-of-life rosette) and dissolves outward, instead of a flat field.
-            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={cfg.strokeOpacity * c.w * dim} />
+            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={STROKE_OPACITY * c.w * dim} />
           ))}
         </G>
       </Svg>
-      {phase ? <SkyMoon illumination={phase.illumination} waxing={phase.waxing} dim={dim} /> : null}
-      {variant === 'screen' ? <ScreenTint /> : null}
-      {variant === 'screen' ? <ScreenVignette /> : null}
     </View>
   );
 }
 
 /**
- * The sky leans with the worship day — a whisper of horizon light that warms toward Maghrib (dusk)
- * and cools toward Fajr (dawn), fading to nothing at midday and in the depth of night (the cold mono
- * base). Those threshold hours are exactly the prayer times the app is built around. Kept ≤6% so it
- * is felt over hours, never seen as a tint.
+ * The order the unseen moon casts — a small seed-of-life lattice tucked into the upper-right,
+ * dissolving into the starfield within a third of the screen. Positioned as an absolute corner
+ * overlay (the old SkyMoon's slot) rather than inside the sliced star viewBox, so it hugs the
+ * physical corner on every screen aspect. Its life tracks the lunar phase: a faint ember at the
+ * new moon, waxing brighter toward the full (laylat al-badr), then hushing back — the inverse
+ * of the faint stars beneath it. Nothing here is drawn moon-shaped: no disc, no terminator.
  */
-function ScreenTint() {
+const BLOOM_SIZE = 280;
+// 19 construction circles (rings=2) in the old screen lattice's circle size, blooming from the
+// bloom's own heart — which the corner offsets below hang just off-screen, where the moon "is".
+const BLOOM_CIRCLES = flowerOfLife(BLOOM_SIZE / 2, BLOOM_SIZE / 2, 44, 2);
+
+function CornerBloom({ illumination, dim, tilt }: { illumination: number; dim: number; tilt: SkyTilt }) {
+  const theme = useTheme();
+  const uid = useId();
+  const gradId = `bloom-grad-${uid}`;
+  const maskId = `bloom-mask-${uid}`;
+  // ~Baseline at the half moon; a faint ember at the new, fullest reach at the badr.
+  const intensity = 0.75 + 0.45 * illumination;
+  // The implied moon-light is far — it barely drifts with the tilt (a small depth factor).
+  const drift = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tilt.shiftX.get() * Parallax.maxShift * Parallax.depth.bloom },
+      { translateY: tilt.shiftY.get() * Parallax.maxShift * Parallax.depth.bloom },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.bloom, drift]} pointerEvents="none">
+      <Svg width={BLOOM_SIZE} height={BLOOM_SIZE} viewBox={`0 0 ${BLOOM_SIZE} ${BLOOM_SIZE}`}>
+        <Defs>
+          <RadialGradient id={gradId} cx="50%" cy="50%" r="48%">
+            <Stop offset="0" stopColor="#fff" stopOpacity="1" />
+            <Stop offset="0.15" stopColor="#fff" stopOpacity="1" />
+            <Stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </RadialGradient>
+          <Mask id={maskId}>
+            <Rect x="0" y="0" width={BLOOM_SIZE} height={BLOOM_SIZE} fill={`url(#${gradId})`} />
+          </Mask>
+        </Defs>
+        <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
+          {BLOOM_CIRCLES.map((c, i) => (
+            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={STROKE_OPACITY * c.w * dim * intensity} />
+          ))}
+        </G>
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/**
+ * The sky leans with the worship day — a whisper of horizon light riding the *real* sun's
+ * altitude ({@link horizonTint}): golden hour kindles as the sun drops low, burns warmest at
+ * sunset (Maghrib), hands over to the blue hour through civil twilight, and mirrors cool-first
+ * around dawn (Fajr) — fading to nothing in full day and deep night (the cold mono base). Those
+ * thresholds are the sun positions the prayer day is built around, not clock hours. Kept ≤8% so
+ * it is felt over hours, never seen as a tint.
+ */
+function HorizonTint({ sunAlt, sunAz }: { sunAlt: number; sunAz: number }) {
   const uid = useId();
   const id = `bd-tint-${uid}`;
-  const now = new Date();
-  const hour = now.getHours() + now.getMinutes() / 60;
-  const dusk = Math.max(0, 1 - Math.abs(hour - 18.5) / 3.5); // warm, peaks ~Maghrib
-  const dawn = Math.max(0, 1 - Math.abs(hour - 5.5) / 3); // cool, peaks ~Fajr
-  const warm = dusk >= dawn;
-  const strength = warm ? dusk : dawn;
-  if (strength <= 0.02) return null; // midday / deep night: pure cold base, no wash
-  const color = warm ? '#E8C39A' : '#A9C2E8';
-  const opacity = 0.06 * strength;
+  const tint = horizonTint(sunAlt, sunAz);
+  if (!tint) return null; // full day / deep night: pure cold base, no wash
   return (
     <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
       <Defs>
         <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity={opacity} />
-          <Stop offset="0.55" stopColor={color} stopOpacity="0" />
+          <Stop offset="0" stopColor={tint.color} stopOpacity={tint.opacity} />
+          <Stop offset="0.55" stopColor={tint.color} stopOpacity="0" />
         </LinearGradient>
       </Defs>
       <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
@@ -216,31 +335,8 @@ function ScreenVignette() {
   );
 }
 
-/** The moon as the sky's ornament, not as the literal UI moon (that lives on Progress). It's hung
- *  faintly in the upper-right and drawn in the field's own compass-line language: a construction
- *  circle for the body with a thin terminator arc for tonight's phase — so the corner geometry
- *  quietly takes the moon's shape, waxing and waning across the Hijri month. An art representation. */
-const MOON_SIZE = 116;
-
-function SkyMoon({ illumination, waxing, dim }: { illumination: number; waxing: boolean; dim: number }) {
-  const theme = useTheme();
-  const r = MOON_SIZE / 2;
-  const opacity = 0.16 * dim;
-  return (
-    <View style={styles.skyMoon} pointerEvents="none">
-      <Svg width={MOON_SIZE} height={MOON_SIZE} viewBox={`0 0 ${MOON_SIZE} ${MOON_SIZE}`}>
-        {/* The body — one clean compass circle, in the sky's own line weight (never a filled disc). */}
-        <Circle cx={r} cy={r} r={r - 1} stroke={theme.pattern} strokeWidth={1} strokeOpacity={opacity} fill="none" />
-        {/* The terminator — a thin arc across the body that gives the corner tonight's phase. */}
-        {illumination > 0.03 && illumination < 0.97 ? (
-          <Path d={moonPhasePath(r, r, r - 1, illumination, waxing)} stroke={theme.pattern} strokeWidth={1} strokeOpacity={opacity} fill="none" />
-        ) : null}
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  // High in the top-right band — mostly clear of the content below, a moon in the sky.
-  skyMoon: { position: 'absolute', top: 6, right: 12 },
+  // Hung off the top-right corner so the bloom's bright heart sits just at the screen edge —
+  // ≈70dp in from the right, ≈64dp down: where the sky's light source "is".
+  bloom: { position: 'absolute', top: -76, right: -70, width: BLOOM_SIZE, height: BLOOM_SIZE },
 });

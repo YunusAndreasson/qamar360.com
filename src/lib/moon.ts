@@ -21,12 +21,11 @@ export function moonIllumination(dayOfMonth: number, monthLength: number): { ill
  * flat at the quarter — so it reads as a real phase, never a pie wedge.
  */
 export function moonPhasePath(cx: number, cy: number, r: number, illumination: number, waxing: boolean): string {
-  const f = illumination < 0 ? 0 : illumination > 1 ? 1 : illumination;
   const top = cy - r;
   const bottom = cy + r;
-  const rx = r * Math.abs(1 - 2 * f);
+  const rx = r * Math.abs(1 - 2 * illumination);
   // Waxing lights the right limb (outer arc sweeps right); waning mirrors to the left.
   const outerSweep = waxing ? 1 : 0;
-  const termSweep = waxing ? (f <= 0.5 ? 0 : 1) : f <= 0.5 ? 1 : 0;
+  const termSweep = waxing ? (illumination <= 0.5 ? 0 : 1) : illumination <= 0.5 ? 1 : 0;
   return `M ${cx} ${top} A ${r} ${r} 0 0 ${outerSweep} ${cx} ${bottom} A ${rx} ${r} 0 0 ${termSweep} ${cx} ${top} Z`;
 }

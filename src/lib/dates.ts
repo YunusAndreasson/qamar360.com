@@ -22,7 +22,7 @@ export function todayLocalISO(date = new Date()): string {
  * across a time zone.
  */
 export function localDate(iso: string, hour = 0, minute = 0): Date {
-  const [year = 1970, month = 1, day = 1] = iso.split('-').map(Number);
+  const [year, month, day] = iso.split('-').map(Number) as [number, number, number];
   return new Date(year, month - 1, day, hour, minute, 0, 0);
 }
 

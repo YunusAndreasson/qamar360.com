@@ -23,11 +23,13 @@ import { BottomTabInset, MaxContentWidth, Pressed, Radius, Spacing } from '@/con
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
+import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTheme } from '@/hooks/use-theme';
-import { addDaysISO, scheduledOn } from '@/lib/dates';
+import { addDaysISO, hijriParts, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
+  fullMemberIndexForVisibleDrop,
   moveUnit,
   placementToRestore,
   type MovePlacement,
@@ -37,6 +39,7 @@ import { haptics } from '@/lib/haptics';
 import { markStackCreated, useStackEverCreated } from '@/lib/hints';
 import { newId } from '@/lib/id';
 import { defaultStackName } from '@/lib/names';
+import { asDayPart } from '@/lib/sun';
 
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
@@ -146,6 +149,16 @@ export default function HabitsScreen() {
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, habits, stacks]);
 
+  // The live day-cycle chapter (updates only at real transitions — ~4× a day, never per minute).
+  // The sun rests on the FIRST stack in list order anchored to the current chapter, and only on
+  // the real today — a past day has no "now". Computed here once and passed down as a narrow
+  // boolean so a chapter turn re-renders exactly the two cards whose residency changed.
+  const { dayPart, displayDateISO } = useSunCycle();
+  const sunEntry = isToday
+    ? entries.find((e): e is Entry & { type: 'stack' } => e.type === 'stack' && asDayPart(e.stack.day_part) === dayPart)
+    : undefined;
+  const sunStackId = sunEntry?.stack.id ?? null;
+
   const canGoBack = viewDate > minViewDate;
   const canGoForward = viewDate < today;
 
@@ -205,7 +218,7 @@ export default function HabitsScreen() {
       showToast(`Added to ${stack.name}`, 'success', {
         label: 'Undo',
         onPress: () => {
-          if (wasOnlyMember) void createStack(sourceStack.name, [habitId]);
+          if (wasOnlyMember) void createStack(sourceStack.name, [habitId], { dayPart: asDayPart(sourceStack.day_part) });
           else void moveHabit(habitId, restore);
         },
       });
@@ -227,7 +240,7 @@ export default function HabitsScreen() {
       showToast(`Removed from ${stack.name}`, 'success', {
         label: 'Undo',
         onPress: () => {
-          if (wasOnlyMember) void createStack(stack.name, [habit.id]);
+          if (wasOnlyMember) void createStack(stack.name, [habit.id], { dayPart: asDayPart(stack.day_part) });
           else void moveHabit(habit.id, restore);
         },
       });
@@ -257,7 +270,7 @@ export default function HabitsScreen() {
       // card animates its spring-in on its very first mount (only this card — not every card on load).
       const stackId = newId();
       setCoalescingStackId(stackId);
-      const created = await createStack(defaultStackName(stacks), [targetId, draggedId], stackId);
+      const created = await createStack(defaultStackName(stacks), [targetId, draggedId], { stackId });
       if (!created) return;
       showToast('Stack created', 'success', {
         label: 'Undo',
@@ -332,14 +345,13 @@ export default function HabitsScreen() {
     (draggedKey: string, stackId: string, visibleIndex: number) => {
       const habitId = draggedKey.slice('member:'.length);
       const stackEntry = entries.find((e) => e.type === 'stack' && e.stack.id === stackId);
-      const visibleMembers = stackEntry && stackEntry.type === 'stack' ? stackEntry.members : [];
-      const beforeId = visibleMembers.map((m) => m.id).filter((id) => id !== habitId)[visibleIndex];
-      const fullIds = habits
+      const visibleMemberIds =
+        stackEntry && stackEntry.type === 'stack' ? stackEntry.members.map((m) => m.id) : [];
+      const fullMemberIds = habits
         .filter((h) => h.stack_id === stackId)
         .sort((a, b) => a.position - b.position)
-        .map((h) => h.id)
-        .filter((id) => id !== habitId);
-      const index = beforeId === undefined ? fullIds.length : Math.max(0, fullIds.indexOf(beforeId));
+        .map((h) => h.id);
+      const index = fullMemberIndexForVisibleDrop(visibleMemberIds, fullMemberIds, habitId, visibleIndex);
       void moveHabit(habitId, { toStackId: stackId, placement: { type: 'member-index', index } });
     },
     [entries, habits, moveHabit],
@@ -476,6 +488,7 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
+          {isToday ? <HijriDateLine iso={displayDateISO} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           {stackHintVisible ? <StackingHint /> : null}
@@ -517,6 +530,11 @@ export default function HabitsScreen() {
                       draggable={entry.members.length > 0}>
                       <CoalesceIn active={coalescingStackId === entry.stack.id}>
                         <StackCard
+                          // Remount on a day-step: a stack already done on the newly-viewed day
+                          // is born collapsed (a quiet grey bar) instead of animating the in-day
+                          // seal fold open→shut. The mount path is flash-free either way; an
+                          // in-day seal keeps the same key, so its fold still plays.
+                          key={viewDate}
                           stack={entry.stack}
                           members={entry.members}
                           completed={completed}
@@ -532,6 +550,7 @@ export default function HabitsScreen() {
                           onMove={moveStackForA11y}
                           onMoveHabit={moveRowForA11y}
                           onAddHabits={openAddHabits}
+                          isCurrentChapter={entry.stack.id === sunStackId}
                         />
                       </CoalesceIn>
                     </DraggableEntry>
@@ -570,6 +589,7 @@ export default function HabitsScreen() {
                   completed={completed}
                   skipped={skipped}
                   counts={counts}
+                  sunStackId={sunStackId}
                 />
               </DragGrid>
             </HabitDragProvider>
@@ -588,12 +608,16 @@ function HabitsDragGhost({
   completed,
   skipped,
   counts,
+  sunStackId,
 }: {
   dragEntryKey: string | null;
   entries: Entry[];
   completed: Set<string>;
   skipped: Set<string>;
   counts: Map<string, number>;
+  /** The current chapter's stack — the ghost carries the resting sun too (it mounts at rest,
+   *  so lifting the card never replays the glyph's arrival). */
+  sunStackId: string | null;
 }) {
   if (!dragEntryKey) return null;
   // A member being pulled out of its card floats as a card of its own (`standalone` wraps the
@@ -638,6 +662,7 @@ function HabitsDragGhost({
           onDelete={noop}
           onEditStack={noop}
           onRemoveFromStack={noop}
+          isCurrentChapter={entry.stack.id === sunStackId}
         />
       ) : (
         <HabitRow
@@ -657,6 +682,29 @@ function HabitsDragGhost({
 }
 
 const noop = () => {};
+
+/**
+ * The whisper of a Hijri date under the large "Today" title — the calendar the app is named
+ * for, finally on its main screen. It follows the ISLAMIC day, which begins at sunset: at the
+ * real local Maghrib the date quietly turns with the darkening sky (`useSunCycle`'s
+ * `displayDateISO` — display only; the tracking day stays midnight-bound). Never uppercased
+ * (casing mangles the diacritics), hidden on runtimes without the Islamic calendar, and shown
+ * only on the real today — a stepped-back day is a records view with no "now" in it.
+ */
+function HijriDateLine({ iso }: { iso: string }) {
+  const parts = hijriParts(iso);
+  if (!parts) return null;
+  const label = `${parts.day} ${parts.monthName} ${parts.year}`;
+  return (
+    <ThemedText
+      type="small"
+      themeColor="textSecondary"
+      style={styles.hijriLine}
+      accessibilityLabel={`Hijri date: ${label}`}>
+      {label}
+    </ThemedText>
+  );
+}
 
 /** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
 function DateStepperButtons({
@@ -787,6 +835,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
+  // Sits directly under the collapsing large title, aligned to the banner/list margin — a
+  // subtitle, not a section: no uppercase, no extra weight.
+  hijriLine: { marginHorizontal: Spacing.three, marginTop: Spacing.one, marginBottom: Spacing.one },
   // The quiet accent pill above the list — shared by the "tomorrow" heads-up and the stacking
   // teaching hint, so the two read as one vocabulary when both show.
   hintPill: {

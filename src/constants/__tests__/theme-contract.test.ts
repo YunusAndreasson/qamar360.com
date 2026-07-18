@@ -1,7 +1,7 @@
 /**
  * The colour contract — what the palette PROMISES, enforced.
  *
- * The 24 semantic roles in theme.ts alias onto generated Radix-style scales (palette.ts).
+ * The 25 semantic roles in theme.ts alias onto generated Radix-style scales (palette.ts).
  * Radix's scale guarantees are informal ("step 11/12 hold Lc 60/90 on step 2"); this suite makes
  * the ones this app relies on formal, against the roles components actually consume. Thresholds
  * are tight round numbers the current palette clears — when retuning curves in

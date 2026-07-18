@@ -65,7 +65,7 @@ export function SettingsRow({
           {value}
         </ThemedText>
       ) : showChevron ? (
-        <AppIcon name="chevronRight" color={theme.textSecondary} />
+        <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
       ) : null}
     </>
   );

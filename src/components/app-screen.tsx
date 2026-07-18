@@ -11,8 +11,6 @@ type Props = Omit<ScrollViewProps, 'contentContainerStyle'> & {
   contentStyle?: StyleProp<ViewStyle>;
   centered?: boolean;
   bottomInset?: boolean;
-  /** Faint flower-of-life sky anchored to the top of the screen, behind the content. */
-  backdrop?: boolean;
   /**
    * Render over a *fixed* backdrop supplied by the parent stack rather than painting an
    * opaque background: makes the scroll view see-through and (by default) drops the in-scroll
@@ -28,11 +26,13 @@ export function AppScreen({
   centered,
   bottomInset = true,
   transparent = false,
-  backdrop = !transparent,
   style,
   ...props
 }: Props) {
   const theme = useTheme();
+  // A fixed transparent screen leans on the parent stack's sky; the opaque default paints its
+  // own faint flower-of-life backdrop behind the content.
+  const backdrop = !transparent;
 
   // The ScrollView is returned as the screen's direct child — never wrapped in another
   // container at the route root. iOS large-title auto-inset and collapse-on-scroll only

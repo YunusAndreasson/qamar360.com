@@ -23,8 +23,8 @@ const PRESETS: SunnahPreset[] = [
 ];
 
 const STARTERS: StarterStack[] = [
-  { name: 'Morning', presetIds: ['waking', 'fajr', 'adhkar-am'] },
-  { name: 'Night', presetIds: ['isha', 'ghost-id'] }, // ghost-id is not in the catalog
+  { name: 'Morning', dayPart: 'morning', presetIds: ['waking', 'fajr', 'adhkar-am'] },
+  { name: 'Night', dayPart: 'night', presetIds: ['isha', 'ghost-id'] }, // ghost-id is not in the catalog
 ];
 const STANDALONE = ['adhan'];
 
@@ -34,6 +34,8 @@ describe('buildStarterPlan', () => {
   it('groups the remaining presets in stack order and counts the standalone tail', () => {
     const plan = buildStarterPlan(PRESETS, names(), [], STARTERS, STANDALONE);
     expect(plan.groups.map((g) => g.name)).toEqual(['Morning', 'Night']);
+    // The anchor rides along so a freshly created stack is stamped with its day part.
+    expect(plan.groups.map((g) => g.dayPart)).toEqual(['morning', 'night']);
     expect(plan.groups[0]!.presets.map((p) => p.id)).toEqual(['waking', 'fajr', 'adhkar-am']);
     // The id missing from the catalog just drops out — no crash, no phantom habit.
     expect(plan.groups[1]!.presets.map((p) => p.id)).toEqual(['isha']);

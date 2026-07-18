@@ -23,8 +23,10 @@ import { loadProgress, type MonthProgress } from '@/hooks/use-progress';
 import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { celebrationCopy } from '@/lib/celebration';
-import { hijriMonthRange, hijriParts } from '@/lib/dates';
+import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
+import { deviceLocation } from '@/lib/geo';
 import { moonIllumination } from '@/lib/moon';
+import { displayDateISO } from '@/lib/sun';
 
 /**
  * The day-complete celebration — a subtle, self-dismissing moonlit moment shown when the last
@@ -120,7 +122,18 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
     // doneToday is fixed for a given celebration (set once when it fires), so it never re-triggers.
   }, [user?.id, day, doneToday]);
 
-  const copy = celebrationCopy(month, day);
+  // The Hijri date on the card follows the ISLAMIC day, which begins at the real local sunset:
+  // an evening celebration (the common case) shows the date that has already turned with the
+  // sky. Computed once at mount — the overlay lives seconds, no tick — and only when the
+  // celebrated day IS today (retro-completing yesterday keeps yesterday's own label). The moon
+  // phase above deliberately stays on the tracking `day`: it depicts the day being sealed.
+  const [hijriDisplayDay] = useState(() => {
+    const now = new Date();
+    if (day !== todayLocalISO(now)) return day;
+    const { lat, lon } = deviceLocation();
+    return displayDateISO(now, lat, lon);
+  });
+  const copy = celebrationCopy(month, day, hijriDisplayDay);
 
   // `enter` blooms the scrim + card in (t=0). `beat` lands the glow bloom at t=Tick.sweep — the same
   // moment the celebrate haptic's Heavy tail fires, so the moon "lights up" on the buzz. `exit`

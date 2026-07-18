@@ -5,7 +5,7 @@ import Svg, { Path } from 'react-native-svg';
  * any size. Like {@link GoogleLogo}, third-party marks live as dedicated brand assets — never in the
  * app's `Icons` registry, which holds only SF Symbols / Material glyphs.
  */
-export function XLogo({ size = 20, color = '#000' }: { size?: number; color?: string }) {
+export function XLogo({ size, color }: { size: number; color: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

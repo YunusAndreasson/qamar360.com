@@ -15,6 +15,8 @@ import { normalizeName } from '@/lib/names';
 type StarterGroup = {
   /** The stack name to create — or that matched an existing stack (see `existingStackId`). */
   name: string;
+  /** The day-part anchor a freshly created stack is stamped with (an existing stack keeps its own). */
+  dayPart: StarterStack['dayPart'];
   /** A same-named stack the user already has: append there instead of creating a twin. */
   existingStackId: string | null;
   /** The presets still to add, in stack sequence order. */
@@ -52,7 +54,12 @@ export function buildStarterPlan(
     const groupPresets = remaining(starter.presetIds);
     if (groupPresets.length === 0) continue;
     const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(starter.name)) ?? null;
-    groups.push({ name: starter.name, existingStackId: twin?.id ?? null, presets: groupPresets });
+    groups.push({
+      name: starter.name,
+      dayPart: starter.dayPart,
+      existingStackId: twin?.id ?? null,
+      presets: groupPresets,
+    });
   }
   const lone = remaining(standaloneIds);
   const total = groups.reduce((n, g) => n + g.presets.length, 0) + lone.length;

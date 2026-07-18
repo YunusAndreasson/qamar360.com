@@ -73,7 +73,7 @@ function ChoiceCard({
             {sublabel}
           </ThemedText>
         </View>
-        <AppIcon name="chevronRight" size={18} color={theme.textSecondary} />
+        <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
       </Pressable>
     </Surface>
   );

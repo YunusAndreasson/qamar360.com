@@ -41,7 +41,7 @@ async function fetchProgressWindow(userId: string, today: string): Promise<{ hab
  *  ids the overlay already knows are done for `today` (it only fires once the day is complete) —
  *  overlaid via {@link withDoneToday} so the overlay's degrees don't undercount ticks that haven't
  *  yet reached the server, and so match the Progress tab. */
-export async function loadProgress(userId: string, today: string, doneToday: string[] = []): Promise<ProgressDerived> {
+export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<ProgressDerived> {
   const { habits, completions } = await fetchProgressWindow(userId, today);
   return computeProgress(habits, withDoneToday(completions, doneToday, today), today);
 }

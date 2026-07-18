@@ -11,10 +11,10 @@ import { haptics } from '@/lib/haptics';
 /**
  * "Manage stack" — a native bottom sheet raised by tapping a stack card's header (the ⋯). It
  * holds the things you can't do to a stack by direct manipulation on Today: add habits to it,
- * rename it, or delete it (members are removed/reordered by dragging the card). Presented
- * `fitToContents` from the habits stack layout — the same compact sheet-of-rows as "Add to
- * stack". Add habits and Rename hand off to their own modals so no keyboard or list has to
- * live inside the sheet.
+ * edit it (name + time-of-day anchor), or delete it (members are removed/reordered by dragging
+ * the card). Presented `fitToContents` from the habits stack layout — the same compact
+ * sheet-of-rows as "Add to stack". Add habits and Edit stack hand off to their own modals so
+ * no keyboard or list has to live inside the sheet.
  */
 export default function StackManageScreen() {
   const router = useRouter();
@@ -60,7 +60,7 @@ export default function StackManageScreen() {
       <Surface>
         <SheetRow icon="add" label="Add habits" onPress={addHabits} />
         <RowSeparator />
-        <SheetRow icon="edit" label="Rename" onPress={rename} />
+        <SheetRow icon="edit" label="Edit stack" onPress={rename} />
         <RowSeparator />
         <SheetRow icon="delete" label="Delete stack" danger onPress={confirmDelete} />
       </Surface>

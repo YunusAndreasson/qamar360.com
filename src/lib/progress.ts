@@ -257,7 +257,7 @@ export function computeProgress(
   let month: MonthProgress | null = null;
   const thisRange = hijriMonthRange(today);
   if (thisRange) {
-    const dayOfMonth = hijriParts(today)?.day ?? 1;
+    const dayOfMonth = hijriParts(today)!.day; // thisRange is non-null ⟹ hijriParts(today) is too
     // The ring measures progress through the WHOLE month: the numerator is acts completed
     // month-to-date, but the denominator is every act scheduled across the full month. So a
     // single perfect day is a small slice — 360° means the whole month is done, never "100%

@@ -28,7 +28,7 @@ type Props = {
   /** True when this habit is legitimately skipped (excused) for the viewed day. */
   skipped: boolean;
   /** For count-goal habits: the count logged for the viewed day (0 when nothing logged). */
-  count?: number;
+  count: number;
   onToggle: (id: string) => void;
   /** Step a count-goal habit's logged count for the viewed day by `delta` (±1). */
   onAdjust?: (id: string, delta: number) => void;
@@ -120,7 +120,7 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count = 0, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToStack, onRemoveFromStack, onMove, onGroupWithNext, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToStack, onRemoveFromStack, onMove, onGroupWithNext, standalone }: Props) {
   const theme = useTheme();
 
   // The swipeable's handle (for the single-open rule) and whether its panel is showing — the

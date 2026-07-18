@@ -20,15 +20,15 @@ export function ProgressCircle({
   fraction,
   size,
   strokeWidth,
-  active = false,
-  muted = false,
+  active,
+  muted,
   phase,
 }: {
   fraction: number;
   size: number;
   strokeWidth: number;
-  active?: boolean;
-  muted?: boolean;
+  active: boolean;
+  muted: boolean;
   /** When set, the interior shows the true moon at this phase instead of a flat disc. */
   phase?: { illumination: number; waxing: boolean };
 }) {
