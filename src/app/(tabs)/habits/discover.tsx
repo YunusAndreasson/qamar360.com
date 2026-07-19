@@ -287,7 +287,7 @@ export default function DiscoverScreen() {
           .map((h) => h.id);
         await updateStack(group.existingStackId, { orderedMemberIds: [...current, ...memberIds] });
       } else {
-        const newStackId = await createStack(group.name, memberIds, { dayPart: group.dayPart });
+        const newStackId = await createStack(group.name, memberIds, { moment: group.dayPart });
         if (newStackId) createdStackIds.push(newStackId);
       }
     }

@@ -1,13 +1,13 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 
-import { DayPartPicker } from '@/components/day-part-picker';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
+import { MomentPicker } from '@/components/moment-picker';
 import { useHabits } from '@/hooks/use-habits';
+import { momentOf, type MomentKey } from '@/lib/moments';
 import { normalizeName, otherNames } from '@/lib/names';
-import { asDayPart, type DayPart } from '@/lib/sun';
 
 /**
  * Edit a stack — its name and its time-of-day anchor — a small modal reached from the manage
@@ -23,22 +23,22 @@ export default function StackRenameScreen() {
 
   const stack = stacks.find((s) => s.id === id) ?? null;
   const [name, setName] = useState(stack?.name ?? '');
-  const [dayPart, setDayPart] = useState<DayPart | null>(() => asDayPart(stack?.day_part));
+  const [moment, setMoment] = useState<MomentKey | null>(() => (stack ? momentOf(stack) : null));
 
   // Other stacks' folded names — a rename can't collide with one (same fold the habits use).
   const existingNames = useMemo(() => otherNames(stacks, id), [stacks, id]);
   const trimmed = name.trim();
   const isDuplicate = trimmed.length > 0 && existingNames.includes(normalizeName(trimmed));
   const nameChanged = trimmed !== stack?.name;
-  const dayPartChanged = dayPart !== asDayPart(stack?.day_part);
+  const momentChanged = moment !== (stack ? momentOf(stack) : null);
   // Save only a real, non-colliding change — keeping the current name and anchor is a no-op.
-  const canSave = trimmed.length > 0 && !isDuplicate && (nameChanged || dayPartChanged);
+  const canSave = trimmed.length > 0 && !isDuplicate && (nameChanged || momentChanged);
 
   const save = () => {
     if (!canSave || !stack) return;
-    const patch: { name?: string; dayPart?: DayPart | null } = {};
+    const patch: { name?: string; moment?: MomentKey | null } = {};
     if (nameChanged) patch.name = trimmed;
-    if (dayPartChanged) patch.dayPart = dayPart;
+    if (momentChanged) patch.moment = moment;
     void updateStack(stack.id, patch);
     router.back();
   };
@@ -65,12 +65,11 @@ export default function StackRenameScreen() {
         onChangeText={setName}
         placeholder="e.g. After Fajr"
         autoCapitalize="sentences"
-        autoFocus
         accessibilityLabel="Stack name"
         error={isDuplicate ? 'You already have a stack with this name.' : undefined}
       />
 
-      <DayPartPicker value={dayPart} onChange={setDayPart} />
+      <MomentPicker value={moment} onChange={setMoment} />
     </FormScreen>
   );
 }

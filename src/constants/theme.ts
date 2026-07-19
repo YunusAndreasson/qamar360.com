@@ -130,15 +130,37 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-// The weight ramp: regular (400) body for a clean, modern read; medium (500) for the smaller 14pt
-// labels (optical compensation — small text carries a little more weight to hold its colour — and
-// it measures reliably on Android, where regular under-sizes the diacritic month names); semibold
-// (600) for emphasis + headings; bold (700) for the strongest accents and the display readout.
+// The weight ramp. The system-voiced 14pt tier uses medium (500) for optical compensation —
+// small text carries a little more weight to hold its colour, and it measures reliably on
+// Android, where regular under-sizes the diacritic month names. The Inter tiers ramp
+// regular (400) body → semibold (600) emphasis/headings → bold (700) display, mirroring the
+// pre-custom-font system ramp. Each weight token must equal the REAL weight of the font
+// file its variant references (font-contract.test.ts checks) — Android performs no weight
+// synthesis for runtime-registered families, so a mismatch would silently fake-bold.
 export const FontWeight = {
-  regular: '400',
   medium: '500',
   semibold: '600',
   bold: '700',
+} as const;
+
+/**
+ * The app face by ROLE, not family — Inter, the product-sans register of Linear/Notion
+ * (readability first; the 2026-07-18 Cormorant serif takeover was rejected on-device):
+ *
+ * - `display*` — the emphasis tier: hero degrees, the celebration headline, wordmark, nav titles.
+ * - `body*` — the reading tier: habit rows, body copy, card headings, the Hijri almanac lines.
+ *
+ * Values are expo-font family names = FontAssets keys = file basenames in assets/fonts/
+ * (font-contract.test.ts enforces all three ways). Swapping the face — wholesale or per-tier —
+ * is an edit to these strings and nothing else. The 14pt utility tier deliberately stays on
+ * the platform system font (no fontFamily): dense grids, tab bar, inputs and small labels
+ * keep native Dynamic Type polish, and UI chrome glyphs (✓) stay in the system voice.
+ */
+export const Face = {
+  displayBold: 'Inter-Bold',
+  displaySemiBold: 'Inter-SemiBold',
+  bodySemiBold: 'Inter-SemiBold',
+  body: 'Inter-Regular',
 } as const;
 
 /**
@@ -148,6 +170,18 @@ export const FontWeight = {
  */
 export const DenseLabelScale = 1.3;
 
+/**
+ * Dynamic Type cap for the display tiers (`display`, `subtitle`) — they sit in
+ * fixed-size compositions (the hero card, the celebration overlay) that a fully scaled
+ * 46pt readout would shatter. Generous (1.5×) rather than tight; applied centrally in
+ * {@link ThemedText}. Body and rows scale freely.
+ */
+export const HeroScale = 1.5;
+
+// Inter's optical size matches the system sans (x-height ≈ 0.55 em vs SF/Roboto ~0.52), so
+// every tier keeps the size it had on the system font. lineHeights lock row geometry (24pt
+// rows still center against the 28pt completion ring), and subtitle/display keep their
+// slight negative tracking — a geometric sans at display sizes wants the tighter fit.
 export const Typography = {
   small: {
     fontSize: 14,
@@ -172,48 +206,63 @@ export const Typography = {
     fontWeight: FontWeight.bold,
     fontVariant: ['tabular-nums'],
   },
+  // NOTE: the Inter variants set NO fontWeight — each Face file IS its weight (per-weight
+  // registration). On Android, fontWeight '700' next to a runtime-registered family buckets
+  // into the legacy BOLD style, misses the custom face (registered under NORMAL only) and
+  // silently falls back to Roboto — confirmed on-device 2026-07-18 (the hero degrees rendered
+  // in the fallback until display's fontWeight was dropped). font-contract.test.ts enforces
+  // the omission.
   default: {
+    fontFamily: Face.body,
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: FontWeight.regular,
   },
   defaultSemiBold: {
+    fontFamily: Face.bodySemiBold,
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: FontWeight.semibold,
   },
   // A list-row's primary label — one iOS-body step (17pt) above `default`, so a habit / stack
   // member / settings row title reads as the row's content against its 14pt `small` meta. Keeps
   // `default`'s 24pt leading so it still centers against the 28pt completion ring and 22pt icons.
   rowTitle: {
+    fontFamily: Face.body,
     fontSize: 17,
     lineHeight: 24,
-    fontWeight: FontWeight.regular,
   },
   // A card / section heading — one clear step above body, so titles (the Progress stat cards) read
   // as headings by both size and weight against the regular body. Sits below the native large nav
-  // title and the hero `display`. No negative tracking: at 18pt it's imperceptible, and on Android
+  // title and the hero `display`. No tracking: at 18pt it's imperceptible, and on Android
   // `letterSpacing` on a flex-row Text mis-measures the row and clips the sibling trailing caption
-  // (the month name). Tracking is reserved for `subtitle`/`display`, which sit alone in their row.
+  // (the month name).
   heading: {
+    fontFamily: Face.bodySemiBold,
     fontSize: 18,
     lineHeight: 24,
-    fontWeight: FontWeight.semibold,
+  },
+  // The almanac voice — the Hijri date lines ("15 Muḥarram 1448"), read not scanned: one quiet
+  // step above `small`, regular weight. Never use this for values that change under scrub/tally —
+  // instrument readouts stay `smallCompact` (tabular).
+  almanac: {
+    fontFamily: Face.body,
+    fontSize: 15,
+    lineHeight: 20,
   },
   // The wordmark / monogram tier. Tighter leading and a touch of negative tracking so a 32pt title
   // reads as set type, not scaled-up body.
   subtitle: {
+    fontFamily: Face.displaySemiBold,
     fontSize: 32,
     lineHeight: 38,
-    fontWeight: FontWeight.semibold,
     letterSpacing: -0.5,
   },
   // The instrument readout — the Progress hero's orbit degrees. Oversized, tightly tracked and
-  // tabular so it reads as a precise telemetry value, not body copy.
+  // tabular so it reads as a precise telemetry value, not body copy, and the tally ramp never
+  // jiggles horizontally.
   display: {
+    fontFamily: Face.displayBold,
     fontSize: 46,
     lineHeight: 50,
-    fontWeight: FontWeight.bold,
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
   },

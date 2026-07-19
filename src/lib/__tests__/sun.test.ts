@@ -7,6 +7,7 @@ import {
   asDayPart,
   DAY_PARTS,
   dayPartAt,
+  dayPartEndsAt,
   displayDateISO,
   horizonTint,
   starVisibility,
@@ -206,6 +207,52 @@ describe('dayPartAt', () => {
   });
 });
 
+describe('dayPartEndsAt', () => {
+  const MIN = 60_000;
+
+  it('closes each chapter exactly where the next one begins', () => {
+    // One instant per chapter, spread across the app's world: the boundary the search finds
+    // must be the same boundary dayPartAt banding sees — same part a minute before, a new
+    // part a minute after.
+    const probes: [Date, number, number][] = [
+      [new Date(Date.UTC(2026, 6, 18, 3, 30)), MECCA.lat, MECCA.lon], // morning
+      [new Date(Date.UTC(2026, 6, 18, 11, 0)), MECCA.lat, MECCA.lon], // midday
+      [new Date(Date.UTC(2026, 5, 21, 19, 45)), STOCKHOLM.lat, STOCKHOLM.lon], // evening
+      [new Date(Date.UTC(2026, 6, 18, 20, 0)), MECCA.lat, MECCA.lon], // night
+    ];
+    for (const [t, lat, lon] of probes) {
+      const part = dayPartAt(t, lat, lon);
+      const end = dayPartEndsAt(t, lat, lon);
+      expect(end.getTime()).toBeGreaterThan(t.getTime());
+      expect(dayPartAt(new Date(end.getTime() - MIN), lat, lon)).toBe(part);
+      expect(dayPartAt(new Date(end.getTime() + MIN), lat, lon)).not.toBe(part);
+    }
+  });
+
+  it('morning hands over to midday at solar noon', () => {
+    const end = dayPartEndsAt(new Date(Date.UTC(2026, 6, 18, 3, 30)), MECCA.lat, MECCA.lon);
+    expect(dayPartAt(new Date(end.getTime() + MIN), MECCA.lat, MECCA.lon)).toBe('midday');
+  });
+
+  it('night runs to the coming civil dawn, across midnight', () => {
+    const t = new Date(Date.UTC(2026, 6, 18, 20, 0)); // 23:00 in Mecca
+    const end = dayPartEndsAt(t, MECCA.lat, MECCA.lon);
+    expect(dayPartAt(new Date(end.getTime() + MIN), MECCA.lat, MECCA.lon)).toBe('morning');
+    expect(end.getTime() - t.getTime()).toBeLessThan(12 * 60 * MIN);
+  });
+
+  it('falls back to the wall-clock band edge on degenerate polar days', () => {
+    const t = new Date(Date.UTC(2026, 5, 21, 13, 0)); // Tromsø midnight sun — clock chapters
+    const end = dayPartEndsAt(t, TROMSO.lat, TROMSO.lon);
+    expect(end.getTime()).toBeGreaterThan(t.getTime());
+    // The clock band `t` sits in (11–17 local) closes at 17:00 — the bisection lands within
+    // its ~15s tolerance of it.
+    const bandEdge = new Date(t);
+    bandEdge.setHours(17, 0, 0, 0);
+    expect(Math.abs(end.getTime() - bandEdge.getTime())).toBeLessThanOrEqual(60_000);
+  });
+});
+
 describe('displayDateISO', () => {
   it('shows today until the real sunset, then tomorrow', () => {
     expect(displayDateISO(localDate('2026-07-18', 12, 0), STOCKHOLM.lat, STOCKHOLM.lon)).toBe('2026-07-18');
@@ -224,10 +271,16 @@ describe('displayDateISO', () => {
 });
 
 describe('sunCycleAt', () => {
-  it('bundles both derived values consistently', () => {
-    const cycle = sunCycleAt(localDate('2026-07-18', 15, 0), STOCKHOLM.lat, STOCKHOLM.lon);
+  it('bundles the derived values consistently', () => {
+    const at = localDate('2026-07-18', 15, 0);
+    const cycle = sunCycleAt(at, STOCKHOLM.lat, STOCKHOLM.lon);
     expect(cycle.dayPart).toBe('midday');
     expect(cycle.displayDateISO).toBe('2026-07-18');
+    // partEndsAt is the same boundary the banding sees: still midday now, not after it.
+    expect(cycle.partEndsAt.getTime()).toBeGreaterThan(at.getTime());
+    expect(dayPartAt(new Date(cycle.partEndsAt.getTime() + 60_000), STOCKHOLM.lat, STOCKHOLM.lon)).not.toBe(
+      cycle.dayPart,
+    );
   });
 });
 

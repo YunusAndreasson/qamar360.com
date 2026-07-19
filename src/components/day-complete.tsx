@@ -225,7 +225,7 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
           Alḥamdulillāh
         </ThemedText>
         {copy.hijriLabel ? (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="almanac" themeColor="textSecondary">
             {copy.hijriLabel}
           </ThemedText>
         ) : null}

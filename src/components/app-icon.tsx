@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { Platform, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
@@ -24,8 +25,11 @@ type Props = {
  */
 export function AppIcon({ name, size = 22, color, style }: Props) {
   const glyph = Icons[name];
-  return Platform.OS === 'ios' ? (
-    <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" style={style} />
+  if (Platform.OS === 'ios') {
+    return <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" style={style} />;
+  }
+  return 'materialCommunity' in glyph ? (
+    <MaterialCommunityIcons name={glyph.materialCommunity} size={size} color={color} style={style as StyleProp<TextStyle>} />
   ) : (
     <MaterialIcons name={glyph.material} size={size} color={color} style={style as StyleProp<TextStyle>} />
   );

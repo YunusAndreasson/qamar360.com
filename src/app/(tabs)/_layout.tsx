@@ -49,6 +49,9 @@ function Tabs() {
       badgeTextColor={colors.accentText}
       tintColor={colors.text}
       iconColor={{ default: colors.textSecondary, selected: colors.text }}
+      // Tab labels DELIBERATELY stay in the system font (NativeTabsLabelStyle does accept
+      // fontFamily): the tab bar is the one surface that should feel like the OS, not the
+      // app voice.
       labelStyle={{
         default: { color: colors.textSecondary },
         selected: { color: colors.text, fontWeight: FontWeight.semibold },

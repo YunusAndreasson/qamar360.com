@@ -428,8 +428,19 @@ export function orderAfterHabitMove(
   if (toStackId !== null) {
     const target = remaining.find((u) => u.key === `stack:${toStackId}`);
     if (!target) {
-      // A memberless stack has no unit; land the habit as that stack's first member, at the end.
-      remaining.push({ key: `stack:${toStackId}`, stackId: toStackId, habitIds: [habitId] });
+      // A memberless stack has no unit; birth it with the habit as its first member — at a
+      // caller-given top-level slot when the placement names one (the day-order landing of
+      // lib/moments.dayOrderPlacement), else at the end of the list.
+      const born: Unit = { key: `stack:${toStackId}`, stackId: toStackId, habitIds: [habitId] };
+      let bornAt = remaining.length;
+      if (placement.type === 'before-unit' && placement.key !== null) {
+        const i = remaining.findIndex((u) => u.key === placement.key);
+        if (i !== -1) bornAt = i;
+      } else if (placement.type === 'after-unit') {
+        const i = remaining.findIndex((u) => u.key === placement.key);
+        if (i !== -1) bornAt = i + 1;
+      }
+      remaining.splice(bornAt, 0, born);
     } else if (placement.type === 'member-index') {
       const at = Math.max(0, Math.min(target.habitIds.length, placement.index));
       target.habitIds = [...target.habitIds.slice(0, at), habitId, ...target.habitIds.slice(at)];

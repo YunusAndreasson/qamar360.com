@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import { Face } from '@/constants/theme';
+
 /**
  * Options for a tab's root screen so the stack's fixed sky (painted by `TabStack`) shows
  * through it: a transparent content background. The screen's scroll view must also be
@@ -32,11 +34,16 @@ export function stackHeaderOptions(theme: { background: string; text: string }) 
     // Theme the screen background so push/modal transitions never flash the
     // navigator's default (white) behind the app.
     contentStyle: { backgroundColor: theme.background },
+    // Screen titles join the app face — compact and large at the native default sizes
+    // (17 semibold / 34 bold), so the bars read native, just in Inter. The back-button
+    // label is deliberately left alone: styling `headerBackTitleStyle` disables iOS's
+    // space-aware back title.
+    headerTitleStyle: { fontFamily: Face.displaySemiBold, fontSize: 17, color: theme.text },
+    headerLargeTitleStyle: { fontFamily: Face.displayBold, fontSize: 34 },
     ...(Platform.OS === 'android'
       ? {
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,
-          headerTitleStyle: { color: theme.text },
         }
       : null),
   };
@@ -52,6 +59,8 @@ export function modalHeaderOptions(theme: { background: string; text: string }) 
     presentation: 'modal' as const,
     headerStyle: { backgroundColor: theme.background },
     headerTintColor: theme.text,
+    // Same title voice as stackHeaderOptions' compact bar.
+    headerTitleStyle: { fontFamily: Face.displaySemiBold, fontSize: 17, color: theme.text },
   };
 }
 

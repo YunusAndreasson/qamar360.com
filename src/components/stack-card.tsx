@@ -17,10 +17,11 @@ import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Collapse, Duration } from '@/constants/motion';
-import { FontWeight, Pressed, Spacing } from '@/constants/theme';
+import { Face, Pressed, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
+import { MOMENTS, momentOf, type MomentKey } from '@/lib/moments';
 import { isStackComplete } from '@/lib/progress';
 
 type Props = {
@@ -37,6 +38,8 @@ type Props = {
   onAdjust: (id: string, delta: number) => void;
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
+  /** Open a member's Insights (forwarded to each row's leading swipe). */
+  onStats: (habit: Habit) => void;
   onDelete: (id: string) => void;
   onEditStack: (stackId: string) => void;
   /** Detach a member back to standalone (the member row's "Remove from stack" swipe). */
@@ -47,10 +50,14 @@ type Props = {
   onMoveHabit?: (habit: Habit, delta: -1 | 1) => void;
   /** Open the stack-scoped Add screen — the empty card's "Add your first habit" row. */
   onAddHabits?: (stackId: string) => void;
-  /** This stack is the day's current chapter (its `day_part` matches the real sun's) — the
-   *  resting sun glyph shows in the header. Computed once in the screen from `useSunCycle`;
-   *  never read from a context here (that would bypass the memo below). */
+  /** This stack's moment is current (its band matches the real sun's, or its Friday matches
+   *  today) — its emblem lights up in the header. Computed once in the screen from
+   *  `useSunCycle`; never read from a context here (that would bypass the memo below). */
   isCurrentChapter?: boolean;
+  /** Preformatted local closing time of the current band ("21:47"), rendered as
+   *  "until 21:47" beside the title while the emblem is lit — so the lighting explains
+   *  itself. Only ever set on the lit sky-moment card (prayer moments carry no clock). */
+  currentChapterUntil?: string;
 };
 
 /**
@@ -66,16 +73,16 @@ type Props = {
  * day's remaining work rises. The bar taps open again — the title tap toggles the fold
  * either way (and any stack, done or not, can be tucked away by hand).
  */
-function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onDelete, onEditStack, onRemoveFromStack, onMove, onMoveHabit, onAddHabits, isCurrentChapter }: Props) {
+function StackCardBase({ stack, members, completed, skipped, counts, onToggle, onAdjust, onSkip, onEdit, onStats, onDelete, onEditStack, onRemoveFromStack, onMove, onMoveHabit, onAddHabits, isCurrentChapter, currentChapterUntil }: Props) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   // The whole group sealed — every act the stack has due today is done. Drives the one-shot border
   // flash, the greyed "done" header tone, and the auto-collapse; the synced completion haptic is
   // fired from the toggle seam in use-habits.
   const stackComplete = isStackComplete(members, completed, skipped);
-  // The sun rests here only while the stack is still open: a sealed stack keeps its greyed
-  // glyph — the recede is the stronger statement than the visit.
-  const sunResident = !!isCurrentChapter && !stackComplete;
+  // The emblem lights only while the stack is still open: a sealed stack keeps its greyed
+  // glyph — the recede is the stronger statement than the light.
+  const emblemLit = !!isCurrentChapter && !stackComplete;
   // Any non-empty stack can be folded away by hand; a sealed one folds itself. The empty
   // "Add your first habit" card has nothing to collapse.
   const collapsible = members.length > 0;
@@ -163,7 +170,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
             onPress={collapsible ? toggleCollapsed : () => onEditStack(stack.id)}
             android_ripple={{ color: theme.backgroundSelected }}
             accessibilityRole="button"
-            accessibilityLabel={`${stack.name} stack${stackComplete ? ', completed' : ''}${sunResident ? ', current time of day' : ''}${collapsed ? ', collapsed' : ''}`}
+            accessibilityLabel={`${stack.name} stack${stackComplete ? ', completed' : ''}${emblemLit ? `, current time of day${currentChapterUntil ? ` until ${currentChapterUntil}` : ''}` : ''}${collapsed ? ', collapsed' : ''}`}
             accessibilityState={collapsible ? { expanded: !collapsed } : undefined}
             accessibilityHint={
               !collapsible
@@ -185,19 +192,27 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
               if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
             }}
             style={styles.header}>
-            {/* A leading stack glyph in the same 32-wide slot a member row gives its completion ring,
-                so the icon sits directly above the circles below and the title lines up with the row
-                titles. Accent-tinted while the group is live — the card's one cold-steel note —
-                greyed to the done tone once sealed, so the header recedes alongside its muted
-                rows. While this stack is the day's
-                current chapter, the sun rests in the slot instead (see LeadingGlyph). */}
-            <LeadingGlyph sun={sunResident} complete={stackComplete} />
+            {/* The leading glyph in the same 32-wide slot a member row gives its completion ring,
+                so it sits directly above the circles below and the title lines up with the row
+                titles. An anchored stack wears its moment's emblem (lib/moments.ts) in a muted
+                tone — identity, never a "now" claim — and the current moment's emblem lights up
+                instead (see LeadingGlyph). An un-anchored stack keeps the accent stack icon;
+                every glyph greys once sealed, receding with its muted rows. */}
+            <LeadingGlyph moment={momentOf(stack)} lit={emblemLit} complete={stackComplete} />
             <ThemedText
               type="rowTitle"
               style={[styles.title, stackComplete && { color: theme.textDisabled }]}
               numberOfLines={1}>
               {stack.name}
             </ThemedText>
+            {/* Why the emblem is lit: the chapter's closing time. Quiet trailing meta inside the
+                same fold-toggle target. flexShrink 0 — Android clips trailing flex-row text
+                otherwise (the "Undo"→"Und" gotcha). */}
+            {emblemLit && currentChapterUntil ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.until}>
+                {`until ${currentChapterUntil}`}
+              </ThemedText>
+            ) : null}
           </PressableScale>
           {/* The manage affordance — a quiet "⋯" opening rename / delete / add-habits, reachable in
               any state (its own tap target + a11y button, a sibling so a screen reader gets it apart
@@ -261,6 +276,7 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
                         onAdjust={onAdjust}
                         onSkip={onSkip}
                         onEdit={onEdit}
+                        onStats={onStats}
                         onDelete={onDelete}
                         onRemoveFromStack={onRemoveFromStack}
                         onMove={onMoveHabit}
@@ -281,40 +297,51 @@ function StackCardBase({ stack, members, completed, skipped, counts, onToggle, o
 }
 
 /**
- * The header's leading glyph slot — the stack icon, visited by the sun. While this stack is the
- * day's current chapter the sun glyph rests here in its place (the one warm, non-gold note on
- * the checklist: the same star-cream as the sky's warm anchors, never the completion gold). The
- * two icons cross-fade only on an actual arrival/departure — a card that MOUNTS with the sun
- * already resident shows it at rest, no animation (the `wasResident` edge guard, mirroring
- * StackCompleteFlash) — so day-steps, drags and list churn never replay the transition. The
- * slot keeps its fixed 32-width in every state: card height never changes, so the drag grid's
- * measured frames stay valid.
+ * The header's leading glyph slot. An un-anchored stack shows the accent stack icon, as ever.
+ * An anchored stack wears its moment's emblem in the muted secondary tone — the emblem is
+ * *identity*, worn always (Night wears the moon at 8am and 11:30pm alike; "Going to bed" and
+ * "ʿIshāʾ" wear different moons), never a "now" claim — and while the stack's moment is
+ * current the emblem *lights up*: warm star-cream by day, starlight in the night band (never
+ * the completion gold — warmth must not read as achievement). Icon = meaning, light = now, so
+ * a lit moon at 11:30pm reads instantly. The lit overlay cross-fades only on an actual
+ * arrival/departure — a card that MOUNTS lit shows it at rest, no animation (the `wasLit`
+ * edge guard, mirroring StackCompleteFlash) — so day-steps, drags and list churn never replay
+ * the transition. The slot keeps its fixed 32-width in every state: card height never
+ * changes, so the drag grid's measured frames stay valid.
  */
-function LeadingGlyph({ sun, complete }: { sun: boolean; complete: boolean }) {
+function LeadingGlyph({ moment, lit, complete }: { moment: MomentKey | null; lit: boolean; complete: boolean }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  // Born at rest at the current value; animated only on the resident-flips-edge below.
-  const presence = useSharedValue(sun ? 1 : 0);
-  const wasResident = useRef(sun);
+  // Born at rest at the current value; animated only on the lit-flips-edge below.
+  const presence = useSharedValue(lit ? 1 : 0);
+  const wasLit = useRef(lit);
   useEffect(() => {
-    if (wasResident.current === sun) return;
-    wasResident.current = sun;
+    if (wasLit.current === lit) return;
+    wasLit.current = lit;
     if (reduceMotion) {
-      presence.set(sun ? 1 : 0);
+      presence.set(lit ? 1 : 0);
       return;
     }
-    presence.set(withTiming(sun ? 1 : 0, { duration: Duration.slow, easing: Easing.inOut(Easing.quad) }));
-  }, [sun, reduceMotion, presence]);
-  const stackStyle = useAnimatedStyle(() => ({ opacity: 1 - presence.get() }));
-  const sunStyle = useAnimatedStyle(() => ({ opacity: presence.get() }));
+    presence.set(withTiming(lit ? 1 : 0, { duration: Duration.slow, easing: Easing.inOut(Easing.quad) }));
+  }, [lit, reduceMotion, presence]);
+  const mutedStyle = useAnimatedStyle(() => ({ opacity: 1 - presence.get() }));
+  const litStyle = useAnimatedStyle(() => ({ opacity: presence.get() }));
 
+  if (!moment) {
+    return (
+      <View style={styles.leading}>
+        <AppIcon name="stack" size={26} color={complete ? theme.textDisabled : theme.accent} />
+      </View>
+    );
+  }
+  const def = MOMENTS[moment];
   return (
     <View style={styles.leading}>
-      <Animated.View style={stackStyle}>
-        <AppIcon name="stack" size={26} color={complete ? theme.textDisabled : theme.accent} />
+      <Animated.View style={mutedStyle}>
+        <AppIcon name={def.icon} size={24} color={complete ? theme.textDisabled : theme.textSecondary} />
       </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFill, styles.leadingOverlay, sunStyle]} pointerEvents="none">
-        <AppIcon name="sun" size={24} color={theme.sun} />
+      <Animated.View style={[StyleSheet.absoluteFill, styles.leadingOverlay, litStyle]} pointerEvents="none">
+        <AppIcon name={def.icon} size={24} color={def.band === 'night' ? theme.starlight : theme.sun} />
       </Animated.View>
     </View>
   );
@@ -356,7 +383,11 @@ const styles = StyleSheet.create({
   // Sized to the member rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
   // habits it holds; the semibold weight + accent leading glyph (not a smaller size, not a tint —
   // accent stays reserved for interactive points) mark it as the header.
-  title: { flex: 1, fontWeight: FontWeight.semibold },
+  // Semibold via the FACE, never fontWeight: a weight override beside rowTitle's registered
+  // family would silently fall back to Roboto on Android (the theme.ts fake-bold gotcha).
+  title: { flex: 1, fontFamily: Face.bodySemiBold },
+  // Trailing "until 21:47" meta — flexShrink 0 so Android can't clip it (the "Und" gotcha).
+  until: { flexShrink: 0 },
   // The trailing "⋯" manage button's tap area; its own right-edge padding stands in for the header's.
   manage: {
     paddingLeft: Spacing.two,
@@ -389,13 +420,16 @@ const styles = StyleSheet.create({
 // day-state Sets + callbacks by identity (a tick swaps the Set identity, so completions still land).
 // The collapse/fold is local component state, not a prop, so it needs no entry here.
 // KEEP IN SYNC: any newly *rendered* stack field or prop must be compared here, or the card will
-// silently ignore its changes (`day_part`/`isCurrentChapter` drive the resting sun glyph).
+// silently ignore its changes (`moment`/`day_part`/`isCurrentChapter`/`currentChapterUntil` drive
+// the moment emblem, its lighting, and the "until" caption).
 function stackPropsEqual(a: Props, b: Props): boolean {
   if (
     a.stack.id !== b.stack.id ||
     a.stack.name !== b.stack.name ||
+    a.stack.moment !== b.stack.moment ||
     a.stack.day_part !== b.stack.day_part ||
     a.isCurrentChapter !== b.isCurrentChapter ||
+    a.currentChapterUntil !== b.currentChapterUntil ||
     a.completed !== b.completed ||
     a.skipped !== b.skipped ||
     a.counts !== b.counts ||
@@ -403,6 +437,7 @@ function stackPropsEqual(a: Props, b: Props): boolean {
     a.onAdjust !== b.onAdjust ||
     a.onSkip !== b.onSkip ||
     a.onEdit !== b.onEdit ||
+    a.onStats !== b.onStats ||
     a.onDelete !== b.onDelete ||
     a.onEditStack !== b.onEditStack ||
     a.onRemoveFromStack !== b.onRemoveFromStack ||

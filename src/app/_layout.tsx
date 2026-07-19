@@ -1,3 +1,4 @@
+import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { DayCompleteProvider } from '@/components/day-complete';
 import { ToastProvider } from '@/components/toast';
+import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
 import { PreferencesProvider } from '@/hooks/use-preferences';
@@ -52,17 +54,22 @@ function ThemedChrome() {
 
 function RootNavigator() {
   const { session, initialized } = useAuth();
+  // Local-asset fonts resolve in milliseconds, well inside the auth gate's splash hold; on a
+  // load error the app degrades to the system font rather than deadlocking the splash (the
+  // same philosophy as AuthProvider's safety-net timeout).
+  const [fontsLoaded, fontError] = useFonts(FontAssets);
   const scheme = useEffectiveScheme();
   const theme = useTheme();
 
-  // Splash stays up (it covers this branch) until the session is known, then hides.
-  // `initialized` is guaranteed to flip within ~2.5s by AuthProvider's safety-net
-  // timeout, so this never sticks even if getSession() hangs.
+  // Splash stays up (it covers this branch) until the session is known and the fonts have
+  // settled, then hides. `initialized` is guaranteed to flip within ~2.5s by AuthProvider's
+  // safety-net timeout, so this never sticks even if getSession() hangs.
+  const ready = initialized && (fontsLoaded || !!fontError);
   useEffect(() => {
-    if (initialized) SplashScreen.hide();
-  }, [initialized]);
+    if (ready) SplashScreen.hide();
+  }, [ready]);
 
-  if (!initialized) return null;
+  if (!ready) return null;
 
   // Feed the theme into React Navigation so the navigator container + screen
   // backgrounds are the app's background — otherwise the default theme paints

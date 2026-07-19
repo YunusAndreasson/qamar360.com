@@ -1,3 +1,4 @@
+import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { SFSymbol } from 'expo-symbols';
 
@@ -9,8 +10,14 @@ import type { SFSymbol } from 'expo-symbols';
  * Because {@link Icons} is declared `satisfies Record<string, IconGlyph>`, every `sf` is checked
  * against the SF Symbols catalog at compile time — a mistyped symbol is a type error, not a blank
  * glyph on device.
+ *
+ * The Android glyph normally comes from classic MaterialIcons; a `materialCommunity` entry pulls
+ * from MaterialCommunityIcons instead — used only where the classic set can't distinguish (the
+ * sun-position family: sunrise vs sunset vs low sun has one 'wb-twilight' in the classic set).
  */
-export type IconGlyph = { sf: SFSymbol; material: keyof typeof MaterialIcons.glyphMap };
+export type IconGlyph =
+  | { sf: SFSymbol; material: keyof typeof MaterialIcons.glyphMap }
+  | { sf: SFSymbol; materialCommunity: keyof typeof MaterialCommunityIcons.glyphMap };
 
 /** The app's full icon set, by semantic name. Add new icons here, never inline a raw glyph name. */
 export const Icons = {
@@ -34,11 +41,28 @@ export const Icons = {
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },
   undo: { sf: 'arrow.uturn.backward', material: 'undo' },
   edit: { sf: 'pencil', material: 'edit' },
+  // Per-habit stats — the leading swipe's "Insights" action and its empty state.
+  insights: { sf: 'chart.bar.xaxis', material: 'insights' },
   delete: { sf: 'trash', material: 'delete' },
   deleteOutline: { sf: 'trash', material: 'delete-outline' },
-  // ── Appearance / brand ─────────────────────────────────────────────────
+  // ── Appearance / brand / moment emblems ────────────────────────────────
+  // `sun` and `moon` double as the midday / night stack emblems on Today; the whole moment
+  // set (lib/moments.ts) draws from this block. Near-twins across groups (dhuhr↔sun,
+  // maghrib↔sunset on iOS) are deliberate — they name the same solar moment.
   moon: { sf: 'moon.fill', material: 'dark-mode' },
   sun: { sf: 'sun.max.fill', material: 'light-mode' },
+  sunrise: { sf: 'sunrise.fill', material: 'wb-twilight' },
+  sunset: { sf: 'sunset.fill', material: 'brightness-4' },
+  // Waking up = sun through morning haze — an alarm clock was "logical but looks terrible"
+  // (user): a mechanical object breaks the celestial family the other emblems live in.
+  wake: { sf: 'sun.haze.fill', materialCommunity: 'weather-hazy' },
+  preDawn: { sf: 'moon.haze.fill', material: 'nights-stay' },
+  fajr: { sf: 'sun.horizon.fill', materialCommunity: 'weather-sunset-up' },
+  dhuhr: { sf: 'sun.max.fill', materialCommunity: 'white-balance-sunny' },
+  asr: { sf: 'sun.min.fill', materialCommunity: 'sun-angle' },
+  maghrib: { sf: 'sunset.fill', materialCommunity: 'weather-sunset-down' },
+  isha: { sf: 'moon.stars.fill', materialCommunity: 'weather-night' },
+  jumuah: { sf: 'person.3.fill', material: 'groups' },
   appearanceAuto: { sf: 'circle.lefthalf.filled', material: 'brightness-auto' },
   bedtime: { sf: 'moon.zzz.fill', material: 'bedtime' },
   // ── States / settings ──────────────────────────────────────────────────

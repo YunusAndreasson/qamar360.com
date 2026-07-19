@@ -190,6 +190,24 @@ export function withDoneToday(completions: CompletionRow[], doneIds: string[], d
   return [...kept, ...injected];
 }
 
+/**
+ * One scheduled habit's credit toward a day's completion, given its completion `row` for that day
+ * (`undefined` when nothing was logged). `null` = excused (a 'skipped' day — dropped from BOTH
+ * numerator and denominator, so it never reads as a miss); otherwise 0–1. A count goal earns
+ * `count ÷ target` (capped at 1, full on 'done'); a binary habit earns 1 when 'done', else 0.
+ *
+ * The single source of truth for the completion rule — shared by {@link computeProgress} and the
+ * per-habit stats ({@link import('./habit-stats').computeHabitStats}), so the two can never drift.
+ */
+export function creditFor(habit: { target_count?: number | null }, row: CompletionRow | undefined): number | null {
+  if (row?.status === 'skipped') return null; // excused — out of the rate entirely
+  if (habit.target_count && habit.target_count > 0) {
+    if (row?.status === 'done') return 1; // reached target
+    return clamp01((row?.count ?? 0) / habit.target_count); // in-progress count goal
+  }
+  return row?.status === 'done' ? 1 : 0; // binary
+}
+
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
 export function computeProgress(
   habits: ProgressHabit[],
@@ -210,18 +228,9 @@ export function computeProgress(
     m.set(row.habit_id, row);
   }
 
-  // One scheduled habit's credit toward a day's rate: `null` = excused (drop from numerator
-  // AND denominator); otherwise 0–1. A count goal earns `count ÷ target` (capped at 1); a
-  // binary habit earns 1 when 'done', else 0.
-  const habitCredit = (h: ProgressHabit, iso: string): number | null => {
-    const row = rowByDate.get(iso)?.get(h.id);
-    if (row?.status === 'skipped') return null; // excused — out of the rate entirely
-    if (h.target_count && h.target_count > 0) {
-      if (row?.status === 'done') return 1; // reached target
-      return clamp01((row?.count ?? 0) / h.target_count); // in-progress count goal
-    }
-    return row?.status === 'done' ? 1 : 0; // binary
-  };
+  // One scheduled habit's credit toward a day's rate — the shared completion rule (see
+  // {@link creditFor}): `null` = excused (drop from numerator AND denominator); otherwise 0–1.
+  const habitCredit = (h: ProgressHabit, iso: string): number | null => creditFor(h, rowByDate.get(iso)?.get(h.id));
 
   // A day's completion fraction (credit ÷ scheduled, minus excused), for the per-day month bars.
   const dayFraction = (iso: string): number => {

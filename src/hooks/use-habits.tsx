@@ -19,6 +19,7 @@ import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
+import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
 import { isStackComplete } from '@/lib/progress';
@@ -161,18 +162,19 @@ type HabitsContextValue = {
   /** Create a stack from existing habits (in order) — or, with `[]`, an intentionally empty
    *  stack (the "+ → New stack" flow) that waits on Today for its first member. Returns the new
    *  stack id, or null. Pass `stackId` to use a caller-minted id (so the card can be targeted the
-   *  moment it appears — e.g. to animate a drag-merge); otherwise one is generated. `dayPart`
-   *  anchors the stack to a chapter of the solar day (the Today sun glyph rests on it). */
+   *  moment it appears — e.g. to animate a drag-merge); otherwise one is generated. `moment`
+   *  anchors the stack to an occasion (lib/moments.ts): it wears the moment's emblem and lights
+   *  when the moment arrives; the derived day-part band is stored alongside. */
   createStack: (
     name: string,
     orderedMemberIds: string[],
-    opts?: { stackId?: string; dayPart?: DayPart | null },
+    opts?: { stackId?: string; moment?: MomentKey | null },
   ) => Promise<string | null>;
-  /** Rename a stack, re-anchor its day part, and/or set its full ordered membership. Empty
-   *  membership deletes it. `dayPart` present-and-null is an explicit clear (absent = untouched). */
+  /** Rename a stack, re-anchor its moment, and/or set its full ordered membership. Empty
+   *  membership deletes it. `moment` present-and-null is an explicit clear (absent = untouched). */
   updateStack: (
     stackId: string,
-    patch: { name?: string; orderedMemberIds?: string[]; dayPart?: DayPart | null },
+    patch: { name?: string; orderedMemberIds?: string[]; moment?: MomentKey | null },
   ) => Promise<void>;
   /** Delete a stack; its members survive as standalone habits. */
   deleteStack: (stackId: string) => Promise<void>;
@@ -1186,7 +1188,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     async (
       name: string,
       orderedMemberIds: string[],
-      opts?: { stackId?: string; dayPart?: DayPart | null },
+      opts?: { stackId?: string; moment?: MomentKey | null },
     ): Promise<string | null> => {
       if (!userId) return null;
       const cleanName = name.trim();
@@ -1212,11 +1214,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // the moment the ghost lands, instead of flashing back to standalone during the insert. A caller
       // that pre-minted the id (to target the card as it appears) passes it through.
       const stackId = opts?.stackId ?? newId();
+      const moment = opts?.moment ?? null;
       const stack: HabitStack = {
         id: stackId,
         user_id: userId,
         name: cleanName,
-        day_part: opts?.dayPart ?? null,
+        moment,
+        // day_part keeps holding the derived band, so everything banded downstream is unchanged.
+        day_part: momentBand(moment),
         created_at: null,
         updated_at: null,
       };
@@ -1241,7 +1246,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         const { error: insErr } = await supabase
           .from('habit_stacks')
-          .insert({ id: stackId, user_id: userId, name: cleanName, day_part: opts?.dayPart ?? null });
+          .insert({ id: stackId, user_id: userId, name: cleanName, moment, day_part: momentBand(moment) });
         if (insErr) throw insErr;
       } catch {
         setHabits(prevHabits);
@@ -1297,15 +1302,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const updateStack = useCallback(
-    async (stackId: string, patch: { name?: string; orderedMemberIds?: string[]; dayPart?: DayPart | null }) => {
+    async (stackId: string, patch: { name?: string; orderedMemberIds?: string[]; moment?: MomentKey | null }) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
       const prevStacks = stacksRef.current;
       if (!prevStacks.some((s) => s.id === stackId)) return;
 
       const newName = patch.name?.trim();
-      // `dayPart` present-and-null is an explicit un-anchor; absent leaves the anchor alone.
-      const hasDayPart = 'dayPart' in patch;
+      // `moment` present-and-null is an explicit un-anchor; absent leaves the anchor alone.
+      const hasMoment = 'moment' in patch;
       const memberIds = patch.orderedMemberIds?.filter((id) => !id.startsWith('temp-'));
 
       // No members left → the stack is meaningless; delete it.
@@ -1314,10 +1319,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const rowPatch: { name?: string; day_part?: DayPart | null } = {};
+      const rowPatch: { name?: string; moment?: MomentKey | null; day_part?: DayPart | null } = {};
       if (newName) rowPatch.name = newName;
-      if (hasDayPart) rowPatch.day_part = patch.dayPart ?? null;
-      const hasRowPatch = Boolean(newName) || hasDayPart;
+      if (hasMoment) {
+        rowPatch.moment = patch.moment ?? null;
+        rowPatch.day_part = momentBand(patch.moment ?? null);
+      }
+      const hasRowPatch = Boolean(newName) || hasMoment;
 
       if (hasRowPatch) {
         setStacks((prev) => prev.map((s) => (s.id === stackId ? { ...s, ...rowPatch } : s)));
@@ -1385,13 +1393,22 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if ((habit.stack_id ?? null) === toStackId && !target.placement) return;
 
       const fromStackId = habit.stack_id ?? null;
-      const placement: MovePlacement =
+      let placement: MovePlacement =
         target.placement ??
         (toStackId
           ? { type: 'member-append' }
           : fromStackId
             ? { type: 'after-unit', key: `stack:${fromStackId}` } // "Remove" lands right after its old card
             : { type: 'before-unit', key: null });
+      // A first member entering an empty anchored stack births the card's place in the list:
+      // land the new unit at its day-order slot (the newcomer joins the day sequence; nothing
+      // else moves, and any drag afterwards still wins). Only the blind "append" default is
+      // upgraded — a geometric placement from the drag layer is never overridden.
+      if (toStackId && placement.type === 'member-append' && !prevHabits.some((h) => h.stack_id === toStackId)) {
+        const toStack = prevStacks.find((s) => s.id === toStackId);
+        const slot = toStack ? dayOrderPlacement(prevHabits, prevStacks, momentOf(toStack)) : null;
+        if (slot) placement = slot;
+      }
 
       const { orderedIds } = orderAfterHabitMove(prevHabits, habitId, toStackId, placement);
       const byId = new Map(prevHabits.map((h) => [h.id, h]));

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Typography, type ThemeColor } from '@/constants/theme';
+import { HeroScale, Typography, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
@@ -8,7 +8,15 @@ export type ThemedTextProps = TextProps & {
   themeColor?: ThemeColor;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
+// Central Dynamic Type policy: the display tiers live in fixed-size compositions (hero
+// card, celebration overlay) and get the generous HeroScale cap; everything else scales freely.
+// A caller's own maxFontSizeMultiplier (e.g. DenseLabelScale on grid labels) always wins.
+const heroCap: Partial<Record<keyof typeof Typography, number>> = {
+  display: HeroScale,
+  subtitle: HeroScale,
+};
+
+export function ThemedText({ style, type = 'default', themeColor, maxFontSizeMultiplier, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 
   return (
@@ -19,6 +27,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         styles[type],
         style,
       ]}
+      maxFontSizeMultiplier={maxFontSizeMultiplier ?? heroCap[type]}
       {...rest}
     />
   );

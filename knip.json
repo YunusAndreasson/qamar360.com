@@ -13,6 +13,7 @@
     "src/lib/database.types.ts",
     "web/**"
   ],
+  "ignoreBinaries": ["python3"],
   "ignoreDependencies": [
     "@jest/globals",
     "@babel/types",

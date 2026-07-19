@@ -107,6 +107,7 @@ export type Database = {
           created_at: string | null
           day_part: string | null
           id: string
+          moment: string | null
           name: string
           updated_at: string | null
           user_id: string
@@ -115,6 +116,7 @@ export type Database = {
           created_at?: string | null
           day_part?: string | null
           id?: string
+          moment?: string | null
           name: string
           updated_at?: string | null
           user_id: string
@@ -123,6 +125,7 @@ export type Database = {
           created_at?: string | null
           day_part?: string | null
           id?: string
+          moment?: string | null
           name?: string
           updated_at?: string | null
           user_id?: string

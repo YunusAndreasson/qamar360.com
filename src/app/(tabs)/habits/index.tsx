@@ -25,7 +25,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTheme } from '@/hooks/use-theme';
-import { addDaysISO, hijriParts, scheduledOn } from '@/lib/dates';
+import { addDaysISO, hijriParts, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -38,8 +38,10 @@ import {
 import { haptics } from '@/lib/haptics';
 import { markStackCreated, useStackEverCreated } from '@/lib/hints';
 import { newId } from '@/lib/id';
+import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { defaultStackName } from '@/lib/names';
-import { asDayPart } from '@/lib/sun';
+import { isStackComplete } from '@/lib/progress';
+import { DAY_PARTS } from '@/lib/sun';
 
 // The scroll's bottom inset — one constant shared by the layout and the drag layer's
 // auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
@@ -142,28 +144,67 @@ export default function HabitsScreen() {
       out.push({ type: 'stack', stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
     }
     // A stack with no members at all ("+ → New stack", waiting on its first habit) has no
-    // position to inherit; it holds the end of the list, showing its "Add your first habit"
-    // row. A stack whose members are merely hidden by the day filter stays hidden, as before —
+    // position to inherit. An anchored one previews its day-order slot — just after the last
+    // populated block of an earlier-or-same band, mirroring lib/moments.dayOrderPlacement, so
+    // the card doesn't jump when its first member lands; anything else holds the end of the
+    // list. A stack whose members are merely hidden by the day filter stays hidden, as before —
     // the distinction is drawn against ALL habits, not just the day's.
     const stacksWithMembers = new Set<string>();
     for (const h of habits) if (h.stack_id) stacksWithMembers.add(h.stack_id);
+    const sortedBlocks = [...out].sort((a, b) => a.sortKey - b.sortKey);
     for (const s of stacks) {
-      if (!stacksWithMembers.has(s.id)) {
-        out.push({ type: 'stack', stack: s, members: [], sortKey: Number.MAX_SAFE_INTEGER });
+      if (stacksWithMembers.has(s.id)) continue;
+      const band = momentBand(momentOf(s));
+      let sortKey = Number.MAX_SAFE_INTEGER;
+      if (band) {
+        const myRank = DAY_PARTS.indexOf(band);
+        let lastEarlier: Entry | null = null;
+        let firstLater: Entry | null = null;
+        for (const e of sortedBlocks) {
+          if (e.type !== 'stack') continue;
+          const eBand = momentBand(momentOf(e.stack));
+          if (!eBand) continue;
+          if (DAY_PARTS.indexOf(eBand) <= myRank) lastEarlier = e;
+          else if (!firstLater) firstLater = e;
+        }
+        if (lastEarlier) sortKey = lastEarlier.sortKey + 0.5;
+        else if (firstLater) sortKey = firstLater.sortKey - 0.5;
       }
+      out.push({ type: 'stack', stack: s, members: [], sortKey });
     }
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, habits, stacks]);
 
   // The live day-cycle chapter (updates only at real transitions — ~4× a day, never per minute).
-  // The sun rests on the FIRST stack in list order anchored to the current chapter, and only on
-  // the real today — a past day has no "now". Computed here once and passed down as a narrow
-  // boolean so a chapter turn re-renders exactly the two cards whose residency changed.
-  const { dayPart, displayDateISO } = useSunCycle();
+  // The FIRST *open* stack in list order whose moment lives in the current band gets its emblem
+  // lit, and only on the real today — a past day has no "now". When that stack seals, the light
+  // passes to the next open stack of the band (the day progressing through its stacks). Sky
+  // moments also get the band's closing time ("until 21:47"), so the lighting explains itself;
+  // prayer moments never carry a clock (the no-prayer-times rule). Friday moments (Jumuʿah)
+  // light by weekday, all day, independent of the hourly cursor.
+  const { dayPart, partEndsAt, displayDateISO } = useSunCycle();
+  const inBand = (e: Entry): e is Entry & { type: 'stack' } =>
+    e.type === 'stack' && momentBand(momentOf(e.stack)) === dayPart;
+  // Prefer a populated, still-open stack (the light passes on seal); fall back to any band
+  // match so a lone empty card can still invite. All-sealed ends dark either way (the card
+  // itself suppresses the light once complete).
   const sunEntry = isToday
-    ? entries.find((e): e is Entry & { type: 'stack' } => e.type === 'stack' && asDayPart(e.stack.day_part) === dayPart)
+    ? (entries.find((e) => inBand(e) && e.members.length > 0 && !isStackComplete(e.members, completed, skipped)) ??
+      entries.find(inBand))
     : undefined;
-  const sunStackId = sunEntry?.stack.id ?? null;
+  const sunStackId = sunEntry && sunEntry.type === 'stack' ? sunEntry.stack.id : null;
+  const chapterUntil = partEndsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const fridayToday = isToday && localDate(today).getDay() === 5;
+  const stackLit = (stack: HabitStack) => {
+    if (stack.id === sunStackId) return true;
+    const m = momentOf(stack);
+    return !!m && !!MOMENTS[m].friday && fridayToday;
+  };
+  const stackUntil = (stack: HabitStack) => {
+    if (stack.id !== sunStackId) return undefined;
+    const m = momentOf(stack);
+    return m && MOMENTS[m].until ? chapterUntil : undefined;
+  };
 
   const canGoBack = viewDate > minViewDate;
   const canGoForward = viewDate < today;
@@ -181,6 +222,12 @@ export default function HabitsScreen() {
 
   const openEditor = useCallback(
     (habit: Habit) => router.push({ pathname: '/habits/editor', params: { id: habit.id } }),
+    [router],
+  );
+
+  // A row's leading swipe (or its screen-reader "View insights" action) → that habit's Insights.
+  const openStats = useCallback(
+    (habit: Habit) => router.push({ pathname: '/habits/stats', params: { habitId: habit.id } }),
     [router],
   );
 
@@ -224,7 +271,7 @@ export default function HabitsScreen() {
       showToast(`Added to ${stack.name}`, 'success', {
         label: 'Undo',
         onPress: () => {
-          if (wasOnlyMember) void createStack(sourceStack.name, [habitId], { dayPart: asDayPart(sourceStack.day_part) });
+          if (wasOnlyMember) void createStack(sourceStack.name, [habitId], { moment: momentOf(sourceStack) });
           else void moveHabit(habitId, restore);
         },
       });
@@ -246,7 +293,7 @@ export default function HabitsScreen() {
       showToast(`Removed from ${stack.name}`, 'success', {
         label: 'Undo',
         onPress: () => {
-          if (wasOnlyMember) void createStack(stack.name, [habit.id], { dayPart: asDayPart(stack.day_part) });
+          if (wasOnlyMember) void createStack(stack.name, [habit.id], { moment: momentOf(stack) });
           else void moveHabit(habit.id, restore);
         },
       });
@@ -551,13 +598,15 @@ export default function HabitsScreen() {
                           onAdjust={adjustHabitCount}
                           onSkip={skipHabit}
                           onEdit={openEditor}
+                          onStats={openStats}
                           onDelete={deleteHabit}
                           onEditStack={openStackActions}
                           onRemoveFromStack={removeFromStack}
                           onMove={moveStackForA11y}
                           onMoveHabit={moveRowForA11y}
                           onAddHabits={openAddHabits}
-                          isCurrentChapter={entry.stack.id === sunStackId}
+                          isCurrentChapter={stackLit(entry.stack)}
+                          currentChapterUntil={stackUntil(entry.stack)}
                         />
                       </CoalesceIn>
                     </DraggableEntry>
@@ -577,6 +626,7 @@ export default function HabitsScreen() {
                         onAdjust={adjustHabitCount}
                         onSkip={skipHabit}
                         onEdit={openEditor}
+                        onStats={openStats}
                         onDelete={deleteHabit}
                         // The picker only helps once a stack exists to join — hidden otherwise
                         // (the first stack is made by dragging, which the teaching pill points at).
@@ -596,7 +646,8 @@ export default function HabitsScreen() {
                   completed={completed}
                   skipped={skipped}
                   counts={counts}
-                  sunStackId={sunStackId}
+                  stackLit={stackLit}
+                  stackUntil={stackUntil}
                 />
               </DragGrid>
             </HabitDragProvider>
@@ -615,16 +666,18 @@ function HabitsDragGhost({
   completed,
   skipped,
   counts,
-  sunStackId,
+  stackLit,
+  stackUntil,
 }: {
   dragEntryKey: string | null;
   entries: Entry[];
   completed: Set<string>;
   skipped: Set<string>;
   counts: Map<string, number>;
-  /** The current chapter's stack — the ghost carries the resting sun too (it mounts at rest,
-   *  so lifting the card never replays the glyph's arrival). */
-  sunStackId: string | null;
+  /** The screen's lighting rules, shared so the ghost carries the lit emblem and its "until"
+   *  caption unchanged (it mounts at rest — lifting a card never replays the lighting). */
+  stackLit: (stack: HabitStack) => boolean;
+  stackUntil: (stack: HabitStack) => string | undefined;
 }) {
   if (!dragEntryKey) return null;
   // A member being pulled out of its card floats as a card of its own (`standalone` wraps the
@@ -643,6 +696,7 @@ function HabitsDragGhost({
           onToggle={noop}
           onSkip={noop}
           onEdit={noop}
+          onStats={noop}
           onDelete={noop}
           standalone
         />
@@ -666,10 +720,12 @@ function HabitsDragGhost({
           onAdjust={noop}
           onSkip={noop}
           onEdit={noop}
+          onStats={noop}
           onDelete={noop}
           onEditStack={noop}
           onRemoveFromStack={noop}
-          isCurrentChapter={entry.stack.id === sunStackId}
+          isCurrentChapter={stackLit(entry.stack)}
+          currentChapterUntil={stackUntil(entry.stack)}
         />
       ) : (
         <HabitRow
@@ -680,6 +736,7 @@ function HabitsDragGhost({
           onToggle={noop}
           onSkip={noop}
           onEdit={noop}
+          onStats={noop}
           onDelete={noop}
           standalone
         />
@@ -704,7 +761,7 @@ function HijriDateLine({ iso }: { iso: string }) {
   const label = `${parts.day} ${parts.monthName} ${parts.year}`;
   return (
     <ThemedText
-      type="small"
+      type="almanac"
       themeColor="textSecondary"
       style={styles.hijriLine}
       accessibilityLabel={`Hijri date: ${label}`}>

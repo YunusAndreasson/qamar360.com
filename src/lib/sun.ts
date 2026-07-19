@@ -159,6 +159,45 @@ function clockDayPart(date: Date): DayPart {
   return 'night';
 }
 
+/** Upper/lower culmination altitudes for the current solar declination — the closed-form
+ *  polar-day/night test {@link dayPartAt} bands with, no event search needed. */
+function solarCulminations(date: Date, latDeg: number, lonDeg: number): { peak: number; trough: number } {
+  const dec = Equator(Body.Sun, date, new Observer(latDeg, lonDeg, 0), true, true).dec;
+  return { peak: 90 - Math.abs(latDeg - dec), trough: Math.abs(latDeg + dec) - 90 };
+}
+
+/**
+ * The instant the current day-part chapter closes. Backs the "until HH:MM" caption beside the
+ * lit stack emblem, so the lighting explains itself.
+ *
+ * Found by root-finding on {@link dayPartAt} ITSELF — a coarse forward scan then a bisection
+ * to ~15s — never by an independent altitude search: the banding reads the hand-rolled
+ * {@link sunHorizontal}, and astronomy-engine's own altitude model disagrees with it by
+ * enough (~0.1–0.6°) to miss a solstice's shallow civil-dusk crossing by many minutes. Same
+ * function ⇒ same boundary, by construction — including the wall-clock chapters on
+ * degenerate polar days, with no special case. The chapter cycle only moves forward, so even
+ * if a stride overleapt a whole short chapter the bisection still converges on the current
+ * chapter's true end. ~120 evaluations, called once per minute tick — noise.
+ */
+export function dayPartEndsAt(now: Date, latDeg: number, lonDeg: number): Date {
+  const part = dayPartAt(now, latDeg, lonDeg);
+  const STRIDE = 15 * 60_000;
+  const LIMIT = now.getTime() + 26 * 3_600_000; // every chapter turns within a day, clock bands too
+  let lo = now.getTime();
+  let hi = lo;
+  while (hi < LIMIT) {
+    hi = Math.min(hi + STRIDE, LIMIT);
+    if (dayPartAt(new Date(hi), latDeg, lonDeg) !== part) break;
+    lo = hi;
+  }
+  while (hi - lo > 15_000) {
+    const mid = (lo + hi) / 2;
+    if (dayPartAt(new Date(mid), latDeg, lonDeg) === part) lo = mid;
+    else hi = mid;
+  }
+  return new Date(hi);
+}
+
 /**
  * Which chapter of the day an instant falls in, from the real sun:
  *
@@ -177,11 +216,7 @@ function clockDayPart(date: Date): DayPart {
  */
 export function dayPartAt(date: Date, latDeg: number, lonDeg: number): DayPart {
   const { alt, az } = sunHorizontal(date, latDeg, lonDeg);
-  // Upper/lower culmination altitudes from the current solar declination — a closed-form
-  // polar-day/night test, no event search.
-  const dec = Equator(Body.Sun, date, new Observer(latDeg, lonDeg, 0), true, true).dec;
-  const peak = 90 - Math.abs(latDeg - dec);
-  const trough = Math.abs(latDeg + dec) - 90;
+  const { peak, trough } = solarCulminations(date, latDeg, lonDeg);
   if (peak < RISE_SET_ALT || trough > RISE_SET_ALT) return clockDayPart(date);
   // East of the meridian is az ∈ (0°, 180°) in the 0°=N frame, west is (180°, 360°) — true in
   // both hemispheres and the tropics, wherever the sun culminates. West ⇔ past solar noon.
@@ -205,9 +240,15 @@ export function displayDateISO(now: Date, latDeg: number, lonDeg: number): strin
   return now.getTime() >= sunset.getTime() ? addDaysISO(today, 1) : today;
 }
 
-export type SunCycle = { dayPart: DayPart; displayDateISO: string };
+export type SunCycle = { dayPart: DayPart; partEndsAt: Date; displayDateISO: string };
 
-/** Both derived day-cycle values for an instant — the one call the UI's clock hook needs. */
+/** The derived day-cycle values for an instant — the one call the UI's clock hook needs.
+ *  `partEndsAt` is a pure function of the chapter, so consumers comparing `dayPart` (+ the
+ *  display day) for change-detection stay correct. */
 export function sunCycleAt(now: Date, latDeg: number, lonDeg: number): SunCycle {
-  return { dayPart: dayPartAt(now, latDeg, lonDeg), displayDateISO: displayDateISO(now, latDeg, lonDeg) };
+  return {
+    dayPart: dayPartAt(now, latDeg, lonDeg),
+    partEndsAt: dayPartEndsAt(now, latDeg, lonDeg),
+    displayDateISO: displayDateISO(now, latDeg, lonDeg),
+  };
 }

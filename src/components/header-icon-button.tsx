@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -42,6 +43,8 @@ export function HeaderIconButton({
       style={[styles.button, style]}>
       {Platform.OS === 'ios' ? (
         <SymbolView name={icon.sf} size={22} tintColor={color} type="monochrome" />
+      ) : 'materialCommunity' in icon ? (
+        <MaterialCommunityIcons name={icon.materialCommunity} size={24} color={color} />
       ) : (
         <MaterialIcons name={icon.material} size={24} color={color} />
       )}

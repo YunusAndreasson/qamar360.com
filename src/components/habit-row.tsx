@@ -35,6 +35,8 @@ type Props = {
   /** Toggle the habit's skipped (excused) state for the viewed day. */
   onSkip: (id: string) => void;
   onEdit: (habit: Habit) => void;
+  /** Open this habit's Insights (stats + graphs) — the leading (right) swipe's single action. */
+  onStats: (habit: Habit) => void;
   onDelete: (id: string) => void;
   /** Open the "add to stack" picker for this habit. Only wired for standalone (ungrouped)
    *  rows — a stack member already belongs to one, so the action is omitted there.
@@ -60,7 +62,7 @@ type Props = {
 // Staggered reveal — each trailing action fades/slides in left-to-right as the panel
 // opens, keyed by its slot so Skip leads and Delete lands last. `stack` slots between
 // Edit and Delete (standalone rows only), so Skip/Edit/Delete keep their original timing.
-const ACTION_ENTRY_DELAY = { skip: 0.04, edit: 0.12, stack: 0.16, delete: 0.2 } as const;
+const ACTION_ENTRY_DELAY = { insights: 0.04, skip: 0.04, edit: 0.12, stack: 0.16, delete: 0.2 } as const;
 
 // The one open swipe panel across every row (module-scoped: rows live in different cards and
 // lists but share one screen). Opening a second panel closes the first — the Reminders/Mail
@@ -120,14 +122,15 @@ function SwipeAction({
   );
 }
 
-function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip, onEdit, onDelete, onAddToStack, onRemoveFromStack, onMove, onGroupWithNext, standalone }: Props) {
+function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip, onEdit, onStats, onDelete, onAddToStack, onRemoveFromStack, onMove, onGroupWithNext, standalone }: Props) {
   const theme = useTheme();
 
-  // The swipeable's handle (for the single-open rule) and whether its panel is showing — the
-  // hidden actions are dropped from the accessibility tree while closed, so screen readers
-  // don't traverse three invisible buttons per row.
+  // The swipeable's handle (for the single-open rule) and which side's panel is showing (if any) —
+  // the hidden actions are dropped from the accessibility tree while closed, so screen readers
+  // don't traverse invisible buttons, and the trailing set never reads as visible while the
+  // leading Insights action is the one open.
   const swipeableRef = useRef<SwipeableMethods | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
   // A row deleted while its panel is open must not leave the module slot pointing at it.
   useEffect(
     () => () => {
@@ -181,8 +184,8 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
   ) => (
     <View
       style={styles.actions}
-      accessibilityElementsHidden={!panelOpen}
-      importantForAccessibility={panelOpen ? 'auto' : 'no-hide-descendants'}>
+      accessibilityElementsHidden={openSide !== 'right'}
+      importantForAccessibility={openSide === 'right' ? 'auto' : 'no-hide-descendants'}>
       <SwipeAction
         progress={progress}
         kind="skip"
@@ -250,21 +253,49 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
     </View>
   );
 
+  // The leading (right) swipe reveals one action: this habit's Insights. It sits on the free side
+  // (the trailing panel is already crowded), accent-tinted so it reads as a "go look" action, not
+  // a destructive or list-management one.
+  const renderLeftActions = (progress: SharedValue<number>, _translation: SharedValue<number>, swipeable: SwipeableMethods) => (
+    <View
+      style={styles.actions}
+      accessibilityElementsHidden={openSide !== 'left'}
+      importantForAccessibility={openSide === 'left' ? 'auto' : 'no-hide-descendants'}>
+      <SwipeAction
+        progress={progress}
+        kind="insights"
+        label="Insights"
+        icon="insights"
+        backgroundColor={theme.accentSubtle}
+        foregroundColor={theme.accent}
+        rippleColor={theme.backgroundElement}
+        onPress={() => {
+          swipeable.close();
+          onStats(habit);
+        }}
+        accessibilityLabel={`Insights for ${habit.name}`}
+      />
+    </View>
+  );
+
   const row = (
     <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
+      renderLeftActions={renderLeftActions}
       friction={1.35}
       rightThreshold={72}
+      leftThreshold={72}
       overshootRight={false}
-      onSwipeableWillOpen={() => {
+      overshootLeft={false}
+      onSwipeableWillOpen={(direction) => {
         if (openSwipeable && openSwipeable !== swipeableRef.current) openSwipeable.close();
         openSwipeable = swipeableRef.current;
-        setPanelOpen(true);
+        setOpenSide(direction);
       }}
       onSwipeableClose={() => {
         if (openSwipeable === swipeableRef.current) openSwipeable = null;
-        setPanelOpen(false);
+        setOpenSide(null);
       }}>
       <Pressable
         // A count goal is logged with its stepper (below), so the row body doesn't toggle;
@@ -285,16 +316,18 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
         accessibilityHint={
           isCount
             ? standalone
-              ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a stack. Swipe left to add to a stack, skip, edit, or delete.'
-              : 'Use the stepper to log progress. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete.'
+              ? 'Use the stepper to log progress. Hold and drag to reorder or drop onto a stack. Swipe left to add to a stack, skip, edit, or delete. Swipe right for insights.'
+              : 'Use the stepper to log progress. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete. Swipe right for insights.'
             : standalone
-              ? 'Activates to toggle done. Hold and drag to reorder, drop onto a stack, or drop onto another habit to stack the two. Swipe left to add to a stack, skip, edit, or delete.'
-              : 'Activates to toggle done. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete.'
+              ? 'Activates to toggle done. Hold and drag to reorder, drop onto a stack, or drop onto another habit to stack the two. Swipe left to add to a stack, skip, edit, or delete. Swipe right for insights.'
+              : 'Activates to toggle done. Hold and drag to move it out of its stack. Swipe left to remove from its stack, skip, edit, or delete. Swipe right for insights.'
         }
         // Everything the drag can do, as screen-reader actions (full parity — a drag gesture
         // is invisible to TalkBack/VoiceOver): reorder via Move up/down, and the stack
         // membership change appropriate to the row.
         accessibilityActions={[
+          // Insights is available on every row — the gesture-free equivalent of the leading swipe.
+          { name: 'viewInsights', label: 'View insights' },
           ...(onMove
             ? [
                 { name: 'moveUp', label: 'Move up' },
@@ -309,6 +342,9 @@ function HabitRowBase({ habit, done, skipped, count, onToggle, onAdjust, onSkip,
         ]}
         onAccessibilityAction={(event) => {
           switch (event.nativeEvent.actionName) {
+            case 'viewInsights':
+              onStats(habit);
+              break;
             case 'moveUp':
               onMove?.(habit, -1);
               break;
@@ -476,6 +512,7 @@ function propsEqual(a: Props, b: Props): boolean {
     a.onAdjust === b.onAdjust &&
     a.onSkip === b.onSkip &&
     a.onEdit === b.onEdit &&
+    a.onStats === b.onStats &&
     a.onDelete === b.onDelete &&
     a.onAddToStack === b.onAddToStack &&
     a.onRemoveFromStack === b.onRemoveFromStack &&
