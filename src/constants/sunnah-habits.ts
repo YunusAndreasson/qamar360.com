@@ -62,6 +62,7 @@ export const SUNNAH_CATEGORIES: SunnahCategory[] = [
   { id: 'dhikr', title: 'Dhikr & remembrance' },
   { id: 'fasting', title: 'Fasting' },
   { id: 'character', title: 'Character & charity' },
+  { id: 'growth', title: 'Study & growth' },
   { id: 'wellbeing', title: 'Health & wellbeing' },
 ];
 
@@ -238,6 +239,30 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     evidence: 'Read the Qurʾān, for it will intercede for its companions on the Day of Resurrection (Muslim 804).',
     defaultSchedule: DAILY_SCHEDULE,
     essential: true,
+  },
+  {
+    id: 'quran-daily-juz',
+    categoryId: 'quran',
+    name: 'Read 1 juzʾ of Qurʾān',
+    detail: 'Read one full juzʾ (1/30th of the Qurʾān) today — this pace completes the whole Qurʾān every month.',
+    evidence: 'The Prophet ﷺ told ʿAbdullāh ibn ʿAmr to complete a recitation of the Qurʾān every month (Bukhari 5054, Muslim 1159).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'quran-sabaq',
+    categoryId: 'quran',
+    name: 'Memorize new Qurʾān',
+    detail: 'Memorize a new portion of Qurʾān today — a few lines or a page — building on what you already know.',
+    evidence: 'It will be said to the companion of the Qurʾān: recite and ascend, reciting as you used to in the world — your rank is at the last verse you recite (Abu Dawud 1464, Tirmidhi 2914, ḥasan ṣaḥīḥ).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'quran-murajaah',
+    categoryId: 'quran',
+    name: 'Revise memorized Qurʾān',
+    detail: 'Revise a portion you’ve already memorized — a few lines or a page — so it stays fresh rather than fading. Set a larger portion if you wish.',
+    evidence: 'The one who memorizes the Qurʾān is like the owner of tied camels — hold on and you keep them, let go and they run off (Bukhari 5031, Muslim 789).',
+    defaultSchedule: DAILY_SCHEDULE,
   },
   {
     id: 'surah-al-mulk',
@@ -530,6 +555,24 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     defaultSchedule: DAILY_SCHEDULE,
   },
 
+  // ── Study & growth ───────────────────────────────────────────────────────
+  {
+    id: 'focused-study',
+    categoryId: 'growth',
+    name: 'Study with focus',
+    detail: 'Spend at least 30 focused minutes on your studies — schoolwork, a course, or a skill — phone away and notifications off. Open with the duʿāʾ for beneficial knowledge: Allāhumma nfaʿnī bimā ʿallamtanī wa ʿallimnī mā yanfaʿunī.',
+    evidence: 'Seeking knowledge is an obligation upon every Muslim (Ibn Mājah 224, ḥasan); switching between tasks and notifications measurably erodes learning and recall compared to one uninterrupted block (Uncapher & Wagner, PNAS 2016).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'family-study-circle',
+    categoryId: 'growth',
+    name: 'Study together as a family',
+    detail: 'Set aside time to study something together as a family — Qurʾān, a ḥadīth, homework, or a new skill — opening with Bismillāh and a duʿāʾ for beneficial knowledge.',
+    evidence: 'Whenever people gather in a house of Allāh, reciting His Book and studying it among themselves, tranquility descends upon them, mercy envelops them, and the angels surround them (Muslim 2699).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+
   // ── Health & wellbeing (Sunnah guidance with strong modern evidence) ───────
   {
     id: 'qaylulah',
@@ -740,6 +783,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
+    id: 'phone-curfew-9pm',
+    categoryId: 'wellbeing',
+    name: 'No screens after 9pm',
+    detail: 'Put your phone, TV, and other screens away for the night by 9pm — use the evening for worship, family, or rest instead. Adjust the cutoff hour to fit your own routine.',
+    evidence: 'The Prophet ﷺ disliked idle talk after ʿIshāʾ (Bukhari 568); mobile use close to bedtime tracks with later sleep and more next-day tiredness (Exelmans & Van den Bulck, Soc. Sci. Med. 2016).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
     id: 'screens-away',
     categoryId: 'wellbeing',
     name: 'Screens away before sleep',
@@ -774,7 +825,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
  * ＋. Keyed by stable preset id so it holds for both the bundled list and the Supabase catalog with
  * no schema change; add ids here as genuinely-repeatable presets appear.
  */
-const REPEATABLE_PRESET_IDS = new Set<string>(['quran-daily-page']);
+const REPEATABLE_PRESET_IDS = new Set<string>(['quran-daily-page', 'quran-sabaq', 'quran-murajaah']);
 
 /** Whether Discover should offer "Add another" (an independent copy) for this preset. */
 export function isRepeatablePreset(preset: SunnahPreset): boolean {
