@@ -2,7 +2,6 @@
  * The app's colour + design tokens, defined once and resolved through `useTheme()`.
  */
 
-import '@/global.css';
 
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
@@ -304,22 +303,21 @@ export const Radius = {
  * One soft elevation recipe for raised surfaces (cards), so depth is tuned in a single place —
  * a gentle shadow that lifts a card off the deep-space page without announcing itself. Pair with
  * `theme.topHighlight` on the top edge for the "lit from above" read.
+ *
+ * Cross-platform `boxShadow` (RN 0.76+, New Architecture): ONE recipe both platforms actually
+ * render, replacing the old iOS `shadow*` + Android `elevation` fork — Android now draws the
+ * *tuned* soft shadow instead of elevation's fixed approximation. The blur values are 2× the
+ * old iOS `shadowRadius` (CSS blur = 2 × the Gaussian σ that `shadowRadius` sets), so the iOS
+ * look is unchanged. Android < 9 can't draw outset box shadows — those devices lose only the
+ * whisper of depth; the border + `topHighlight` still delineate the card.
  */
 export const Elevation = {
   card: {
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 20, color: 'rgba(0, 0, 0, 0.12)' }],
   },
   /** A tight lift for a small raised control (the segmented thumb) — not the big card shadow. */
   thumb: {
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: 'rgba(0, 0, 0, 0.12)' }],
   },
 } satisfies Record<string, ViewStyle>;
 

@@ -40,11 +40,16 @@ export type TrendPoint = {
   weekEndISO: string;
   /** Trailing {@link TREND_ROLL_DAYS}-day completion rate at that point, 0–1. */
   rate: number;
+  /** Scheduled (non-excused, closed) days inside the sample's window — the sample size. 0 means
+   *  the habit didn't run at all in that window (e.g. it didn't exist yet): the rate carries no
+   *  signal, and the chart/trend copy must treat the point as absent rather than as an 0° miss. */
+  scheduledCount: number;
 };
 
 /** Everything the Insights screen derives from one habit's raw completion rows. */
 export type HabitStats = {
-  /** Days this habit was scheduled (and not excused) across the window — the consistency sample size. */
+  /** Closed days this habit was scheduled (and not excused) across the window — the consistency
+   *  sample size. A still-open today is pending (see the sweep) and not yet part of the sample. */
   scheduledDays: number;
   /** Σ credit ÷ {@link scheduledDays} across the window, 0–1 — the headline consistency. */
   consistency: number;
@@ -114,6 +119,10 @@ export function computeHabitStats(
     }
 
     if (credit === null) continue; // excused — out of the completion rate entirely
+    if (iso === today && credit < 1) continue; // today still open is pending, not a miss —
+    // the same rule the streak applies. Counting it would dip the consistency ring (and its
+    // weekday bucket) every midnight and "recover" on tick, while the streak card right
+    // beside them says the run is intact.
     scheduled += 1;
     done += credit;
     const wd = weekdayIndex(iso);
@@ -161,10 +170,11 @@ export function computeHabitStats(
       if (iso > today || !scheduledOn(habit, iso)) continue;
       const credit = creditFor(habit, rowByDate.get(iso));
       if (credit === null) continue; // excused
+      if (iso === today && credit < 1) continue; // pending — same rule as the main sweep
       wScheduled += 1;
       wDone += credit;
     }
-    trend.push({ weekEndISO: weekEnd, rate: wScheduled > 0 ? wDone / wScheduled : 0 });
+    trend.push({ weekEndISO: weekEnd, rate: wScheduled > 0 ? wDone / wScheduled : 0, scheduledCount: wScheduled });
   }
 
   return {

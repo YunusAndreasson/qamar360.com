@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
@@ -80,6 +80,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+
+  // `accessibilityLiveRegion` below is Android-only — without an explicit announcement iOS
+  // VoiceOver never reads a toast at all (it appears unfocused and vanishes). Announce on iOS
+  // only, so Android's live region doesn't speak everything twice.
+  useEffect(() => {
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(toast.message);
+  }, [toast.message]);
 
   // No green in the palette — a success ("done") toast wears the warm `complete` moonlight, the
   // same positive note the completion rings use; danger stays red.

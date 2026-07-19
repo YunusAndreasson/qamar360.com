@@ -18,6 +18,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDestructive } from '@/lib/alerts';
 import { haptics } from '@/lib/haptics';
 import { dedupeName, normalizeName } from '@/lib/names';
 import { buildStarterPlan } from '@/lib/starter';
@@ -179,7 +180,17 @@ export default function DiscoverScreen() {
       // can still see on Today. Keep the shell — this screen belongs to that stack.
       void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
     } else {
-      void deleteHabit(habit.id);
+      // A real delete — the row match is by name, so this can be a long-standing habit whose
+      // completion history cascades away with it. Confirm like every other delete path does;
+      // one accidental tap on an "added ✓" row must not silently destroy months of history.
+      confirmDestructive({
+        title: 'Delete habit',
+        message: `Delete “${habit.name}”? This can’t be undone.`,
+        onConfirm: () => {
+          haptics.removed();
+          void deleteHabit(habit.id);
+        },
+      });
     }
   };
 

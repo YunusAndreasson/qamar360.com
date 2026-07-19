@@ -1,7 +1,7 @@
 {
   "name": "qamar360",
   "main": "expo-router/entry",
-  "version": "1448.2.4",
+  "version": "1448.2.5",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -81,7 +81,6 @@
       "<rootDir>/src/**/*.test.ts"
     ],
     "moduleNameMapper": {
-      "\\.css$": "<rootDir>/jest.css-stub.js",
       "^@/(.*)$": "<rootDir>/src/$1"
     }
   },

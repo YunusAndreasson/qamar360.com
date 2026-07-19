@@ -33,9 +33,22 @@ export function addDaysISO(iso: string, n: number): string {
   return todayLocalISO(date);
 }
 
+/** Per-day cache of the weekday (same rationale as {@link hijriPartsCache}): the progress and
+ *  stats sweeps ask for the same ≤370 days once per habit per recompute, and each miss costs a
+ *  `Date` construction — the schedule check's hottest allocation. Cleared wholesale past the
+ *  cap, a leak guard that in practice never fires. */
+const weekdayCache = new Map<string, number>();
+const WEEKDAY_CACHE_MAX = 4000;
+
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */
 export function weekdayIndex(iso: string): number {
-  return localDate(iso).getDay();
+  let wd = weekdayCache.get(iso);
+  if (wd === undefined) {
+    if (weekdayCache.size >= WEEKDAY_CACHE_MAX) weekdayCache.clear();
+    wd = localDate(iso).getDay();
+    weekdayCache.set(iso, wd);
+  }
+  return wd;
 }
 
 /**

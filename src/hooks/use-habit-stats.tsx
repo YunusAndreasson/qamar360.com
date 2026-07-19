@@ -1,5 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit } from '@/hooks/use-habits';
@@ -56,26 +57,42 @@ export function useHabitStats(habitId: string): HabitStatsData {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // The identity this hook instance currently serves — a fetch that lands after the identity
+  // moved on (user switch, habit param change) must neither be reused nor write its rows.
+  const identity = `${userId}:${habitId}`;
+  const identityRef = useRef(identity);
+  useEffect(() => {
+    identityRef.current = identity;
+  }, [identity]);
+  const todayRef = useRef(today);
+  useEffect(() => {
+    todayRef.current = today;
+  }, [today]);
+
   // Concurrent callers (mount preload, a focus refetch, pull-to-refresh) share one request — the
-  // one already in flight is milliseconds old and just as fresh.
-  const inFlight = useRef<Promise<void> | null>(null);
+  // one already in flight is milliseconds old and just as fresh. Keyed by identity so a request
+  // for a *previous* habit/user is never handed to the new one.
+  const inFlight = useRef<{ key: string; work: Promise<void> } | null>(null);
   const fetchData = useCallback(async () => {
     if (!userId) return;
-    if (inFlight.current) return inFlight.current;
+    const key = `${userId}:${habitId}`;
+    if (inFlight.current?.key === key) return inFlight.current.work;
     const day = todayLocalISO();
     const work = (async () => {
       try {
         const rows = await fetchHabitCompletions(userId, habitId, day);
+        if (identityRef.current !== key) return; // superseded mid-flight — discard
         setToday(day);
         setCompletions(rows);
         setError(null);
       } catch {
+        if (identityRef.current !== key) return;
         setError("Couldn't load these insights. Pull down to try again.");
       } finally {
-        inFlight.current = null;
+        if (inFlight.current?.key === key) inFlight.current = null;
       }
     })();
-    inFlight.current = work;
+    inFlight.current = { key, work };
     return work;
   }, [userId, habitId]);
 
@@ -97,6 +114,17 @@ export function useHabitStats(habitId: string): HabitStatsData {
       void fetchData();
     }, [fetchData]),
   );
+
+  // Day rollover while the app sits backgrounded on this screen (focus won't fire): without
+  // this, `today` stays yesterday and the streak/pending logic reads a day behind — the same
+  // listener `use-progress` carries for the same reason.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !userId) return;
+      if (todayLocalISO() !== todayRef.current) void fetchData();
+    });
+    return () => sub.remove();
+  }, [userId, fetchData]);
 
   const dismissError = useCallback(() => setError(null), []);
 

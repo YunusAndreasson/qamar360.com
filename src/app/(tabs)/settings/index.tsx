@@ -1,7 +1,6 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
@@ -20,6 +19,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
+import { openBrowser } from '@/lib/browser';
 import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
 
 export default function SettingsScreen() {
@@ -95,25 +95,34 @@ export default function SettingsScreen() {
       onConfirm: () => void runReset(),
     });
 
+  // In-flight latch: with permission already denied the checks resolve instantly, and two quick
+  // taps would otherwise queue two identical "Notifications are off" alerts back to back.
+  const notifBusy = useRef(false);
   const enableNotifications = async () => {
-    // Already on: there's no permission to request, so the only useful action is to
-    // hand off to the OS settings — otherwise the tap is a silent no-op on a row that
-    // looks tappable. iOS can't re-prompt once decided, so this is also the way back.
-    if (await permissionGranted()) {
-      await Linking.openSettings();
-      return;
-    }
-    const granted = await ensurePermission();
-    setNotifGranted(granted);
-    if (!granted) {
-      Alert.alert(
-        'Notifications are off',
-        'Turn on notifications in system settings to get habit reminders.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open settings', onPress: () => void Linking.openSettings() },
-        ],
-      );
+    if (notifBusy.current) return;
+    notifBusy.current = true;
+    try {
+      // Already on: there's no permission to request, so the only useful action is to
+      // hand off to the OS settings — otherwise the tap is a silent no-op on a row that
+      // looks tappable. iOS can't re-prompt once decided, so this is also the way back.
+      if (await permissionGranted()) {
+        await Linking.openSettings();
+        return;
+      }
+      const granted = await ensurePermission();
+      setNotifGranted(granted);
+      if (!granted) {
+        Alert.alert(
+          'Notifications are off',
+          'Turn on notifications in system settings to get habit reminders.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open settings', onPress: () => void Linking.openSettings() },
+          ],
+        );
+      }
+    } finally {
+      notifBusy.current = false;
     }
   };
 
@@ -123,10 +132,16 @@ export default function SettingsScreen() {
 
   // Sign-out asks first: the row sits directly under "Change password", so one mis-tap would
   // otherwise dump the user straight to the sign-in screen. Not destructive — plain buttons.
+  // A failed sign-out (offline: Supabase's /logout throws) must say so, not vanish into an
+  // unhandled rejection leaving the user parked on Settings with no feedback.
   const confirmSignOut = () =>
     Alert.alert('Sign out', 'You can sign back in anytime.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', onPress: () => void signOut() },
+      {
+        text: 'Sign out',
+        onPress: () =>
+          void signOut().catch(() => toast.show('Could not sign out. Check your connection.', 'danger')),
+      },
     ]);
 
   return (
@@ -196,24 +211,9 @@ export default function SettingsScreen() {
 
       {/* About */}
       <SettingsSection title="About">
-        <SettingsRow
-          icon="privacy"
-          label="Privacy Policy"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.privacy)}
-          showChevron
-        />
-        <SettingsRow
-          icon="document"
-          label="Terms of Service"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.terms)}
-          showChevron
-        />
-        <SettingsRow
-          icon="help"
-          label="Support"
-          onPress={() => void WebBrowser.openBrowserAsync(Links.support)}
-          showChevron
-        />
+        <SettingsRow icon="privacy" label="Privacy Policy" onPress={() => openBrowser(Links.privacy)} showChevron />
+        <SettingsRow icon="document" label="Terms of Service" onPress={() => openBrowser(Links.terms)} showChevron />
+        <SettingsRow icon="help" label="Support" onPress={() => openBrowser(Links.support)} showChevron />
       </SettingsSection>
 
       {/* Destructive actions — an unlabeled card at the foot of the list. No "Danger zone"
@@ -244,7 +244,7 @@ export default function SettingsScreen() {
           {APP_NAME} · {version}
         </ThemedText>
         <Pressable
-          onPress={() => void WebBrowser.openBrowserAsync(Links.maker)}
+          onPress={() => openBrowser(Links.maker)}
           accessibilityRole="link"
           accessibilityLabel="Made by Yunus Andreasson, opens andreassonphoto.com"
           style={({ pressed }) => [styles.makerLink, pressed && styles.footerPressed]}>

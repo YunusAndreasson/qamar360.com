@@ -28,6 +28,7 @@ import {
   WEEKDAY_LABELS,
 } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
+import { normalizeName } from '@/lib/names';
 import { ensurePermission, remindersAvailable } from '@/lib/notifications';
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -61,7 +62,7 @@ function toggleInSet<T>(setter: (update: (prev: Set<T>) => Set<T>) => void, valu
 type Props = {
   /** The habit being edited, or `null` to create a new one. */
   habit: Habit | null;
-  /** Lower-cased, trimmed names of the user's *other* habits — used to reject duplicates. */
+  /** {@link normalizeName}-folded names of the user's *other* habits — used to reject duplicates. */
   existingNames: string[];
   /** Name of the stack this habit belongs to, or null. Editing only. */
   stackName?: string | null;
@@ -128,10 +129,13 @@ export function HabitEditorForm({
   }, [hour, minute]);
 
   const trimmedName = name.trim();
-  // Reject a name that matches another habit (case-insensitive) — no DB constraint
-  // enforces this, so two identical rows would otherwise be indistinguishable.
+  // Reject a name that matches another habit — no DB constraint enforces this, so two
+  // identical rows would otherwise be indistinguishable. Folded through the SAME
+  // normalizer as `existingNames` (stack-new/stack-rename do the same): comparing the
+  // raw lower-cased name against the diacritic-stripped set would wave through
+  // "Read 1 page of Qurʾān" as a "new" name beside an identical existing habit.
   const isDuplicate = useMemo(
-    () => trimmedName.length > 0 && existingNames.includes(trimmedName.toLowerCase()),
+    () => trimmedName.length > 0 && existingNames.includes(normalizeName(trimmedName)),
     [trimmedName, existingNames],
   );
   const hijriValid = monthDays.size > 0 || months.size > 0 || hijriDates.size > 0;

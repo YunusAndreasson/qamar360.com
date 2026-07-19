@@ -1,11 +1,4 @@
-import { useEffect } from 'react';
-import Animated, {
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useReducedMotion, type CSSAnimationKeyframes } from 'react-native-reanimated';
 
 import { Duration } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
@@ -14,6 +7,15 @@ import { useTheme } from '@/hooks/use-theme';
 type Props = {
   height?: number;
   radius?: number;
+};
+
+/** The breathing fade as a declarative CSS animation (Reanimated 4): the library owns the
+ *  infinite loop — no shared value, effect, or cleanup to hand-roll. The base style carries
+ *  the `from` opacity, so the first frame is already correct (this is a loop starting at
+ *  rest, not a mount fade — the FadeInView first-frame concern doesn't apply). */
+const pulse: CSSAnimationKeyframes = {
+  from: { opacity: 0.4 },
+  to: { opacity: 0.8 },
 };
 
 /**
@@ -26,25 +28,25 @@ type Props = {
 export function Skeleton({ height = 16, radius = Radius.control }: Props) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  const pulse = useSharedValue(0);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      pulse.set(1);
-      return;
-    }
-    // 0 → 1 → 0 … a slow breathing fade; `true` auto-reverses each cycle.
-    pulse.set(withRepeat(withTiming(1, { duration: Duration.pulse }), -1, true));
-  }, [pulse, reduceMotion]);
-
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: 0.4 + pulse.get() * 0.4 }));
 
   return (
     <Animated.View
       // Decorative only — a screen reader announces the real content once it loads.
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[{ width: '100%', height, borderRadius: radius, backgroundColor: theme.backgroundElement }, animatedStyle]}
+      style={[
+        { width: '100%', height, borderRadius: radius, backgroundColor: theme.backgroundElement },
+        reduceMotion
+          ? { opacity: 0.8 } // the pulse's resting brightness, held still
+          : {
+              opacity: 0.4,
+              animationName: pulse,
+              animationDuration: Duration.pulse,
+              animationIterationCount: 'infinite',
+              animationDirection: 'alternate',
+              animationTimingFunction: 'ease-in-out',
+            },
+      ]}
     />
   );
 }

@@ -3,7 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { Platform, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
-import { Icons, type IconName } from '@/constants/icons';
+import { Icons, type IconGlyph, type IconName } from '@/constants/icons';
 
 type Props = {
   /** Semantic icon name from the {@link Icons} registry. */
@@ -19,12 +19,21 @@ type Props = {
 };
 
 /**
- * One in-content glyph, resolved per platform: an SF Symbol on iOS, a Material icon on Android —
- * the same native convention the tab bar and nav headers use. Always prefer this over importing a
- * raw `MaterialIcons`, so an icon is native to whichever OS it renders on.
+ * The one per-platform glyph fork — an SF Symbol on iOS, a Material (or Community) icon on
+ * Android. {@link AppIcon} keys it by registry name; the header button passes a glyph record
+ * directly. A single definition so the resolution rule can never drift between the two.
  */
-export function AppIcon({ name, size = 22, color, style }: Props) {
-  const glyph = Icons[name];
+export function GlyphIcon({
+  glyph,
+  size,
+  color,
+  style,
+}: {
+  glyph: IconGlyph;
+  size: number;
+  color: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   if (Platform.OS === 'ios') {
     return <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" style={style} />;
   }
@@ -33,4 +42,13 @@ export function AppIcon({ name, size = 22, color, style }: Props) {
   ) : (
     <MaterialIcons name={glyph.material} size={size} color={color} style={style as StyleProp<TextStyle>} />
   );
+}
+
+/**
+ * One in-content glyph, resolved per platform: an SF Symbol on iOS, a Material icon on Android —
+ * the same native convention the tab bar and nav headers use. Always prefer this over importing a
+ * raw `MaterialIcons`, so an icon is native to whichever OS it renders on.
+ */
+export function AppIcon({ name, size = 22, color, style }: Props) {
+  return <GlyphIcon glyph={Icons[name]} size={size} color={color} style={style} />;
 }

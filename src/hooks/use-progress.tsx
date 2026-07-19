@@ -83,28 +83,38 @@ export function useProgress(): ProgressData {
     todayRef.current = today;
   }, [today]);
 
+  // The user this hook instance currently serves — a fetch that lands after a user switch must
+  // neither be reused nor write its rows.
+  const userRef = useRef(userId);
+  useEffect(() => {
+    userRef.current = userId;
+  }, [userId]);
+
   // Concurrent callers (the mount preload, a focus refetch, pull-to-refresh) share one request:
   // each fetch is two queries plus a whole-year recompute on landing, so overlapping identical
   // pulls are pure waste — the one already in flight is milliseconds old and just as fresh.
-  const inFlight = useRef<Promise<void> | null>(null);
+  // Keyed by user so a request for a *previous* user is never handed to the new one.
+  const inFlight = useRef<{ key: string; work: Promise<void> } | null>(null);
   const fetchData = useCallback(async () => {
     if (!userId) return;
-    if (inFlight.current) return inFlight.current;
+    if (inFlight.current?.key === userId) return inFlight.current.work;
     const day = todayLocalISO();
     const work = (async () => {
       try {
         const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
+        if (userRef.current !== userId) return; // superseded mid-flight — discard
         setToday(day);
         setHabits(rows);
         setCompletions(comps);
         setError(null);
       } catch {
+        if (userRef.current !== userId) return;
         setError("Couldn't load your progress. Pull down to try again.");
       } finally {
-        inFlight.current = null;
+        if (inFlight.current?.key === userId) inFlight.current = null;
       }
     })();
-    inFlight.current = work;
+    inFlight.current = { key: userId, work };
     return work;
   }, [userId]);
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "qamar360",
     "slug": "qamar360",
-    "version": "1448.2.4",
+    "version": "1448.2.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "qamar360",
@@ -41,6 +41,13 @@
         }
       ],
       "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#89C2E3"
+        }
+      ],
       "@react-native-community/datetimepicker",
       [
         "expo-build-properties",

@@ -55,6 +55,21 @@ export default function ProgressScreen() {
     );
   }
 
+  // A runtime whose `Intl` lacks the Umm al-Qura calendar derives no month and no year — every
+  // card below would render null, leaving a wordless blank screen. Every layer beneath defends
+  // against the missing calendar; this final composition must name it too.
+  if (month === null && year === null) {
+    return (
+      <AppScreen transparent centered>
+        <EmptyState
+          icon="cloudOff"
+          title="Progress needs the Islamic calendar"
+          body="This device's system is missing Islamic (Umm al-Qura) calendar support, which the moons and months are measured in."
+        />
+      </AppScreen>
+    );
+  }
+
   return (
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />

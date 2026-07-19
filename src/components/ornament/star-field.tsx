@@ -136,15 +136,21 @@ function TwinkleLayer({
   depth,
 }: LayerProps & { half: number; tilt: SkyTilt; depth: number }) {
   const reduceMotion = useReducedMotion();
+  const empty = stars.length === 0;
   const breath = useSharedValue(0);
   useEffect(() => {
+    // Also parked while the layer is empty (daylight prunes whole tiers): rendering null below
+    // doesn't stop a running `withRepeat`, and an invisible layer must not keep a perpetual
+    // UI-thread animation alive.
     breath.set(
-      reduceMotion ? 0 : withRepeat(withTiming(1, { duration: half, easing: Easing.inOut(Easing.sin) }), -1, true),
+      reduceMotion || empty
+        ? 0
+        : withRepeat(withTiming(1, { duration: half, easing: Easing.inOut(Easing.sin) }), -1, true),
     );
-  }, [reduceMotion, half, breath]);
+  }, [reduceMotion, empty, half, breath]);
   const twinkle = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * (1 - Twinkle.floor) }));
 
-  if (stars.length === 0) return null;
+  if (empty) return null;
   return (
     <ParallaxLayer tilt={tilt} depth={depth}>
       <Animated.View style={[StyleSheet.absoluteFill, twinkle]} pointerEvents="none">

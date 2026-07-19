@@ -139,8 +139,10 @@ type HabitsContextValue = {
    *  the OS app-icon badge read this same number, so the two can never disagree. */
   remainingToday: number;
   dismissError: () => void;
-  /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus). */
-  refresh: () => Promise<void>;
+  /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus).
+   *  Resolves `true` when every fetch succeeded — `load()` uses this to clear a stale
+   *  timeout banner; UI callers are free to ignore it. */
+  refresh: () => Promise<boolean>;
   /** Re-run the first load, showing the loading state again — the Today error state's "Try again". */
   reload: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
@@ -298,6 +300,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const viewDateRef = useRef(viewDate);
   const ensuredUserRow = useRef(false);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
+  const completionsInFlight = useRef(0); // open fetchCompletions calls (gates the snapshot write)
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
@@ -325,7 +328,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [viewDate]);
 
   const fetchHabits = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return true;
     const { data, error: habitsError } = await supabase
       .from('habits')
       .select('*')
@@ -333,48 +336,61 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .order('position', { ascending: true });
     if (habitsError) {
       setError(LOAD_ERROR);
-      return;
+      return false;
     }
     setHabits((data ?? []) as Habit[]);
+    return true;
   }, [userId]);
 
   const fetchStacks = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) return true;
     const { data, error: stacksError } = await supabase
       .from('habit_stacks')
       .select('*')
       .eq('user_id', userId);
     if (stacksError) {
       setError(LOAD_ERROR);
-      return;
+      return false;
     }
     setStacks(data ?? []);
+    return true;
   }, [userId]);
 
   const fetchCompletions = useCallback(
     async (day: string) => {
-      if (!userId) return;
-      const { data, error: completionsError } = await supabase
-        .from('habit_completions')
-        .select('habit_id, status, count')
-        .eq('user_id', userId)
-        .eq('completed_at', day);
-      if (completionsError) {
-        setError(LOAD_ERROR);
-        return;
+      if (!userId) return true;
+      completionsInFlight.current += 1;
+      try {
+        const { data, error: completionsError } = await supabase
+          .from('habit_completions')
+          .select('habit_id, status, count')
+          .eq('user_id', userId)
+          .eq('completed_at', day);
+        // The view may have stepped to another day while this was in flight; applying a stale
+        // day's rows would show (and then snapshot) the wrong ticks under the new day. The
+        // fetch the day-switch issued owns the view now — discard this one. (The mutation
+        // paths all guard on `viewDateRef` the same way.)
+        if (viewDateRef.current !== day) return true;
+        if (completionsError) {
+          setError(LOAD_ERROR);
+          return false;
+        }
+        const rows = data ?? [];
+        // 'done' = fully complete (binary tick, or a count goal that reached its target);
+        // 'partial' rows are in-progress count goals and stay OPEN (not in `completed`).
+        setCompleted(new Set(rows.filter((row) => row.status === 'done').map((row) => row.habit_id)));
+        setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
+        setCounts(
+          new Map(
+            rows
+              .filter((row): row is typeof row & { count: number } => row.count != null)
+              .map((row) => [row.habit_id, row.count]),
+          ),
+        );
+        return true;
+      } finally {
+        completionsInFlight.current -= 1;
       }
-      const rows = data ?? [];
-      // 'done' = fully complete (binary tick, or a count goal that reached its target);
-      // 'partial' rows are in-progress count goals and stay OPEN (not in `completed`).
-      setCompleted(new Set(rows.filter((row) => row.status === 'done').map((row) => row.habit_id)));
-      setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
-      setCounts(
-        new Map(
-          rows
-            .filter((row): row is typeof row & { count: number } => row.count != null)
-            .map((row) => [row.habit_id, row.count]),
-        ),
-      );
     },
     [userId],
   );
@@ -383,18 +399,27 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // changes made outside this provider (e.g. a progress reset in Settings) appear on return —
   // the same focus-refetch the Progress tab uses.
   const refresh = useCallback(async () => {
-    await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
+    const results = await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
+    return results.every(Boolean);
   }, [fetchHabits, fetchStacks, fetchCompletions]);
 
   // One full load, raced against a timeout so a hung client (a stale session, a dropped
   // socket) surfaces a retryable error instead of an endless spinner. A late-settling query
-  // just refreshes the data harmlessly. Clears any prior error so a retry starts clean.
+  // just refreshes the data harmlessly — and, when it fully succeeds, clears the timeout
+  // banner it obsoleted (only that banner: a newer error from another op stays up).
+  // Clears any prior error so a retry starts clean.
   const load = useCallback(async () => {
     setError(null);
-    const work = refresh().then(() => 'ok' as const);
+    const work = refresh().then(
+      (ok) => ok,
+      () => false,
+    );
     const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), LOAD_TIMEOUT_MS));
     if ((await Promise.race([work, timeout])) === 'timeout') {
       setError(LOAD_ERROR);
+      void work.then((ok) => {
+        if (ok) setError((e) => (e === LOAD_ERROR ? null : e));
+      });
     }
   }, [refresh]);
 
@@ -433,6 +458,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading || !userId || error) return;
     const timer = setTimeout(() => {
+      // A completions fetch still in flight means these sets may be the blanked pre-fetch state
+      // (day-switch clears them synchronously); persisting that would seed the next cold start
+      // with "nothing done" for a day with real ticks. Skip — the fetch's own commit re-arms
+      // this effect and writes the settled snapshot.
+      if (completionsInFlight.current > 0) return;
       writeHabitsSnapshot({
         userId,
         day: viewDate,
@@ -581,9 +611,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // Tactile feedback, matched to the optimistic flip: a light "undo" tap when
       // clearing, otherwise a solid tap — upgraded to a celebratory buzz when this
       // tick completes every habit scheduled for the viewed day. Skipped acts aren't
-      // "open", so they don't hold the day back from completing.
+      // "open", so they don't hold the day back from completing — which also means
+      // ticking a *previously skipped* habit can never newly close the day or its
+      // stack (both were already complete without it, and already celebrated); a
+      // plain done tap avoids replaying the celebration.
       if (wasDone) {
         haptics.uncompleted();
+      } else if (wasSkipped) {
+        haptics.completed();
       } else {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
@@ -675,13 +710,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       // Haptics matched to the step: a light "undo" tap when stepping down, a solid tap on
       // each step up — upgraded to a celebratory buzz when reaching the target closes every
-      // open habit scheduled for the day (mirrors `toggleHabit`).
+      // open habit scheduled for the day (mirrors `toggleHabit`, including the was-skipped
+      // gate: a skipped act never held the day or stack open, so completing it can't newly
+      // close either — don't replay their celebrations).
       if (next < prevCount) {
         haptics.uncompleted();
-      } else if (nowDone && !wasDone) {
+      } else if (nowDone && !wasDone && !wasSkipped) {
         const res = celebrateIfDayComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day);
         if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
         celebrateIfStackComplete(habitsRef.current, skippedRef.current, completedRef.current, habitId, day, res.dayComplete);
+      } else if (nowDone && !wasDone) {
+        haptics.completed();
       } else {
         haptics.selection();
       }
@@ -1008,7 +1047,26 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if (count <= 0) return; // nothing logged today — nothing to reconcile
+      if (count <= 0) {
+        // Binary → count with the day already ticked: the binary 'done' row (count null) would
+        // render greyed-done at "0/N" with a live stepper and credit an unmet target. The old
+        // tick doesn't represent N reps — reopen the day (mirrors adjustHabitCount's ≤0 delete).
+        if (!completedRef.current.has(habitId)) return; // nothing logged, nothing ticked
+        setCompleted((prevDone) => {
+          const nextDone = new Set(prevDone);
+          nextDone.delete(habitId);
+          return nextDone;
+        });
+        try {
+          await deleteCompletion(habitId, day);
+        } catch {
+          if (viewDateRef.current === day) {
+            setCompleted((prevDone) => new Set(prevDone).add(habitId));
+          }
+          setError(UPDATE_ERROR);
+        }
+        return;
+      }
       const clamped = Math.min(count, newTarget);
       const nowDone = clamped >= newTarget;
       const wasDone = completedRef.current.has(habitId);
@@ -1206,7 +1264,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
 
       const prevHabits = habitsRef.current;
-      const prevStacks = stacksRef.current;
 
       // Client-minted id so the card can appear this frame — no round-trip to read a server id, and
       // no temp→real id swap (a swap would remount the card and re-fire its entrance animation). The
@@ -1251,7 +1308,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       } catch {
         setHabits(prevHabits);
         habitsRef.current = prevHabits;
-        setStacks(prevStacks);
+        // Remove just the stack this op added — not a wholesale prevStacks restore, which
+        // would clobber any unrelated stack op that landed while the insert was in flight.
+        setStacks((cur) => cur.filter((s) => s.id !== stackId));
         setError('Could not create that stack. Check your connection.');
         return null;
       }
@@ -1260,7 +1319,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!ok) {
         // persistGrouping already rolled the habits back; undo the stack shell too (local + remote).
         habitsRef.current = prevHabits;
-        setStacks(prevStacks);
+        setStacks((cur) => cur.filter((s) => s.id !== stackId));
         void supabase.from('habit_stacks').delete().eq('id', stackId);
         setError('Could not create that stack. Check your connection.');
         return null;
@@ -1359,12 +1418,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           if (rowErr) throw rowErr;
         }
         if (memberIds && !(await persistGrouping(next, prevHabits))) {
-          setStacks(prevStacks);
+          // persistGrouping rolled the habits back. The row patch (name/moment) already
+          // succeeded server-side, so the local stacks keep it — reverting would show a
+          // name the server no longer has.
           setError('Could not save the stack. Check your connection.');
         }
       } catch {
         setHabits(prevHabits);
-        setStacks(prevStacks);
+        // The row update failed: revert just this stack's row patch (a wholesale prevStacks
+        // restore would clobber unrelated concurrent stack ops).
+        if (hasRowPatch) {
+          const prevRow = prevStacks.find((s) => s.id === stackId);
+          if (prevRow) setStacks((cur) => cur.map((s) => (s.id === stackId ? prevRow : s)));
+        }
         setError('Could not save the stack. Check your connection.');
       }
     },
@@ -1429,8 +1495,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setHabits(next);
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
 
+      // On failure, restore only the shell this move removed — a wholesale prevStacks
+      // restore would clobber unrelated concurrent stack ops.
+      const restoreShell = () => {
+        const shell = prevStacks.find((s) => s.id === emptyStackId);
+        if (shell) setStacks((cur) => (cur.some((s) => s.id === shell.id) ? cur : [...cur, shell]));
+      };
       if (!(await persistGrouping(next, prevHabits))) {
-        setStacks(prevStacks);
+        if (emptyStackId) restoreShell();
         setError('Could not move that habit. Check your connection.');
         return;
       }
@@ -1438,7 +1510,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
         // The move itself stands; a failed shell delete just leaves the empty stack in place
         // (it still exists in the DB) — the next emptying move will retry the cleanup.
-        if (delErr) setStacks(prevStacks);
+        if (delErr) restoreShell();
       }
     },
     [userId, persistGrouping],

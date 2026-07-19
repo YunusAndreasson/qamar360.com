@@ -65,9 +65,11 @@ export const MOMENT_GROUPS: { key: string; title: string; moments: MomentKey[] }
   { key: 'prayers', title: 'PRAYERS', moments: ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
 ];
 
-/** Narrow the DB's `text` column (or any unknown string) to a MomentKey. */
+/** Narrow the DB's `text` column (or any unknown string) to a MomentKey. `hasOwn`, not `in`:
+ *  `in` also matches inherited prototype keys ('toString' would pass and read undefined
+ *  label/icon off Object.prototype downstream). */
 export function asMoment(value: string | null | undefined): MomentKey | null {
-  return value != null && value in MOMENTS ? (value as MomentKey) : null;
+  return value != null && Object.hasOwn(MOMENTS, value) ? (value as MomentKey) : null;
 }
 
 /** A stack row's effective moment: the stored `moment`, falling back to the legacy

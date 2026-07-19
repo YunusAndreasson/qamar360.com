@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -20,11 +20,15 @@ import { Duration } from '@/constants/motion';
 export function StatReadout({ text, refreshKey }: { text: string; refreshKey: string | number }) {
   const reduceMotion = useReducedMotion();
   const fade = useSharedValue(1);
+  const mounted = useRef(false);
   useEffect(() => {
+    const isFirst = !mounted.current;
+    mounted.current = true;
     if (reduceMotion) {
       fade.set(1);
       return;
     }
+    if (isFirst) return; // born at rest — the dip marks a *refresh*, not the first paint
     fade.set(0.4);
     fade.set(withTiming(1, { duration: Duration.base, easing: Easing.inOut(Easing.quad) }));
   }, [refreshKey, reduceMotion, fade]);

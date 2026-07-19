@@ -97,6 +97,13 @@ export async function signInWithApple(): Promise<void> {
     token: credential.identityToken,
   });
   if (error) throw error;
+  // Apple hands over the user's name ONLY on the very first authorization — persist it into the
+  // user metadata now or it is gone for good (every later sign-in carries null). Fire-and-forget:
+  // the sign-in itself has already succeeded, and a lost name must not fail it.
+  const fullName = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
+  if (fullName) {
+    void supabase.auth.updateUser({ data: { full_name: fullName } }).then(undefined, () => {});
+  }
 }
 
 let googleConfigured = false;

@@ -66,6 +66,10 @@ export default function SignInScreen() {
   }
 
   async function handleSocial(provider: 'apple' | 'google') {
+    // One auth flow at a time: Apple's native button carries no busy/disabled state, so without
+    // this guard a second tap (or a tap during the email flow) starts an overlapping attempt
+    // whose failure surfaces as a spurious mid-flow form error.
+    if (busy || socialBusy) return;
     setError(null);
     setNotice(null);
     setSocialBusy(provider);
@@ -82,6 +86,7 @@ export default function SignInScreen() {
   }
 
   async function onSubmit() {
+    if (busy || socialBusy) return; // one auth flow at a time (see handleSocial)
     setError(null);
     setNotice(null);
     setBusy(true);

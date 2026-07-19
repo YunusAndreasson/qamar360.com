@@ -36,6 +36,9 @@ function trendDescriptor(trend: TrendPoint[]): string | null {
   const last = trend[trend.length - 1];
   const monthAgo = trend[trend.length - 5]; // four weekly samples back ≈ a month
   if (!last || !monthAgo) return null;
+  // An endpoint with no scheduled days carries no signal — for a habit younger than a month,
+  // "monthAgo" predates its creation and its 0 rate would make any current rate read "Rising".
+  if (last.scheduledCount === 0 || monthAgo.scheduledCount === 0) return null;
   return last.rate > monthAgo.rate + 0.08 ? 'Rising' : null;
 }
 

@@ -150,4 +150,13 @@ describe('native launch sync', () => {
     );
     expect(splash?.[1].backgroundColor.toUpperCase()).toBe(dark);
   });
+
+  it('app.json notification tint matches the dark accent (a palette retune must not strand it)', () => {
+    const plugins = appJson.expo.plugins as unknown as (string | [string, Record<string, unknown>])[];
+    const notifications = plugins.find(
+      (p): p is [string, { color: string; icon: string }] => Array.isArray(p) && p[0] === 'expo-notifications',
+    );
+    expect(notifications?.[1].color.toUpperCase()).toBe(Colors.dark.accent.toUpperCase());
+    expect(notifications?.[1].icon).toBe('./assets/images/notification-icon.png');
+  });
 });

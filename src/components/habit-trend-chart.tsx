@@ -55,7 +55,10 @@ function weekLabel(index: number, count: number): string {
   return `${back} ${back === 1 ? 'week' : 'weeks'} ago`;
 }
 
-const pointReadout = (index: number, p: TrendPoint, count: number) => `${weekLabel(index, count)} · ${toDegrees(p.rate)}°`;
+const pointReadout = (index: number, p: TrendPoint, count: number) =>
+  p.scheduledCount === 0
+    ? `${weekLabel(index, count)} · not scheduled`
+    : `${weekLabel(index, count)} · ${toDegrees(p.rate)}°`;
 
 /**
  * "Over time" — this habit's completion rate as a rolling line across the last twelve weeks,
@@ -86,7 +89,13 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
 
   const count = trend.length;
   const baselineY = H - PAD_Y;
-  const points = width > 0 ? trend.map((p, i) => pointFor(i, p.rate, width, count)) : [];
+  // Only weeks the habit actually ran in carry signal (`scheduledCount > 0`). Weeks without —
+  // before the habit existed, or an off-season Hijri schedule — are absent from the line and
+  // dots (their x-slots stay empty, keeping the time axis honest) instead of being drawn as 0°
+  // misses pinned to the floor.
+  const signalIdx = trend.map((p, i) => (p.scheduledCount > 0 ? i : -1)).filter((i) => i >= 0);
+  const points =
+    width > 0 ? signalIdx.map((i) => ({ index: i, ...pointFor(i, trend[i]!.rate, width, count) })) : [];
   const lineLength = polylineLength(points);
 
   const first = points[0];
@@ -99,16 +108,18 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: lineLength * (1 - reveal.get()) }));
 
   const hasData = trend.some((p) => p.rate > 0);
-  const latest = trend[count - 1];
+  // The resting readout (and the emphasized dot) belong to the latest week WITH signal — for a
+  // young habit "this week" may still be pending, and reading it as data would be a lie.
+  const latestSignal = signalIdx.length > 0 ? signalIdx[signalIdx.length - 1]! : null;
   const focusedPoint = focused != null ? (trend[focused] ?? null) : null;
   const readoutText = focusedPoint
     ? pointReadout(focused!, focusedPoint, count)
-    : latest
-      ? pointReadout(count - 1, latest, count)
+    : latestSignal != null
+      ? pointReadout(latestSignal, trend[latestSignal]!, count)
       : null;
 
   const a11y = `Completion over the last ${count} weeks: ${trend
-    .map((p, i) => `${weekLabel(i, count)} ${toDegrees(p.rate)} degrees`)
+    .map((p, i) => `${weekLabel(i, count)} ${p.scheduledCount === 0 ? 'not scheduled' : `${toDegrees(p.rate)} degrees`}`)
     .join(', ')}.`;
 
   // Column boundaries: midpoints between adjacent point x-positions, edge columns run to the card
@@ -164,10 +175,10 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
               ) : null}
 
               {hasData
-                ? points.map((p, i) => {
-                    const isCurrent = i === count - 1;
-                    const color = (trend[i]?.rate ?? 0) >= 1 ? theme.complete : theme.accent;
-                    return <Circle key={i} cx={p.x} cy={p.y} r={isCurrent ? CURRENT_R : DOT_R} fill={color} />;
+                ? points.map((p) => {
+                    const isCurrent = p.index === latestSignal;
+                    const color = (trend[p.index]?.rate ?? 0) >= 1 ? theme.complete : theme.accent;
+                    return <Circle key={p.index} cx={p.x} cy={p.y} r={isCurrent ? CURRENT_R : DOT_R} fill={color} />;
                   })
                 : null}
             </Svg>

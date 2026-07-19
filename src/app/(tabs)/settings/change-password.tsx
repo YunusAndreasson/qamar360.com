@@ -6,6 +6,7 @@ import { AppScreen } from '@/components/app-screen';
 import { FormField } from '@/components/form-field';
 import { headerSaveAction } from '@/components/form-header-actions';
 import { formContentStyle } from '@/components/form-screen';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/hooks/use-auth';
 
 const MIN_LENGTH = 6;
@@ -17,6 +18,7 @@ const MIN_LENGTH = 6;
  */
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { updatePassword } = useAuth();
 
   const [password, setPassword] = useState('');
@@ -33,12 +35,18 @@ export default function ChangePasswordScreen() {
     setBusy(true);
     try {
       await updatePassword(password);
-      Alert.alert('Password updated', 'Your password has been changed.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    } catch {
+      // Navigate at once and confirm with a quiet toast (the app's success voice — see the
+      // Settings reset). The old success *Alert* stranded Android users: its dialog can be
+      // dismissed by back/outside-tap without firing any button, leaving a changed password
+      // behind a still-`busy`, permanently dead Save.
+      router.back();
+      toast.show('Password updated.', 'success');
+    } catch (e) {
       setBusy(false);
-      Alert.alert('Could not update password', 'Please check your connection and try again.');
+      // Surface Supabase's own reason when it gives one ("New password should be different
+      // from the old password." is actionable; "check your connection" for that is a lie).
+      const message = e instanceof Error && e.message ? e.message : 'Please check your connection and try again.';
+      Alert.alert('Could not update password', message);
     }
   };
 

@@ -75,15 +75,26 @@ export async function configureNotifications(): Promise<void> {
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      // The foreground badge is owned by the app's live "open today" effect (use-habits) —
+      // letting a firing reminder apply its baked, schedule-time count here would stomp the
+      // accurate live number and stick until the next state change. Baked counts still serve
+      // the closed-app case, which is the only case they were ever for.
+      shouldSetBadge: false,
     }),
   });
 
   if (Platform.OS === 'android') {
-    await N.setNotificationChannelAsync('default', {
-      name: 'Reminders',
-      importance: N.AndroidImportance.HIGH,
-    });
+    try {
+      await N.setNotificationChannelAsync('default', {
+        name: 'Reminders',
+        importance: N.AndroidImportance.HIGH,
+      });
+    } catch {
+      // Channel creation failed — drop the latch so a later call can retry (the handler
+      // re-set above is idempotent), and never let the rejection escape the fire-and-forget
+      // startup call.
+      configured = false;
+    }
   }
 }
 

@@ -99,6 +99,9 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0').toUpperCase()}`;
 }
 
+/** Half-width of the azimuth blend around the 0°/180° meridians (see {@link horizonTint}). */
+const MORNING_BLEND_SIN = Math.sin((15 * Math.PI) / 180);
+
 /**
  * The dawn/dusk horizon wash for a sun position, or `null` in full day and deep night (the
  * pure cold base). Two overlapping tents — a warm one peaking just above the horizon (golden
@@ -107,11 +110,18 @@ function mixHex(a: string, b: string, t: number): string {
  * sunrise, evenings burn warm and hand over to indigo as the light sinks. Azimuth only picks
  * that weighting; the wash itself stays a vertical top-of-sky gradient — the moon's corner
  * remains the composition's one *located* light.
+ *
+ * The morning/evening weighting blends smoothly (over ±15° of azimuth, via `sin az`) across the
+ * 0° and 180° meridians rather than switching on a boolean: inside the twilight tents the sun
+ * *does* cross them — every high-summer midnight at high latitudes (az through 0° near the
+ * trough), and subarctic winter noons (az through 180° while the sun is low) — and a hard flip
+ * stepped the wash visibly between two adjacent minutes.
  */
 export function horizonTint(sunAltDeg: number, sunAzDeg: number): { color: string; opacity: number } | null {
-  const morning = sunAzDeg < 180;
-  const warm = tent(sunAltDeg, 1, -6, 8) * (morning ? 0.35 : 1);
-  const cool = tent(sunAltDeg, -6, -13, 1) * (morning ? 1 : 0.6);
+  // 1 fully east/morning, 0 fully west/evening; smooth through both meridian crossings.
+  const morningness = smoothstep(0.5 + Math.sin((sunAzDeg * Math.PI) / 180) / (2 * MORNING_BLEND_SIN));
+  const warm = tent(sunAltDeg, 1, -6, 8) * (1 - 0.65 * morningness);
+  const cool = tent(sunAltDeg, -6, -13, 1) * (0.6 + 0.4 * morningness);
   const strength = Math.min(1, warm + cool);
   if (strength <= 0.02) return null;
   return { color: mixHex(SUN_WARM, SUN_COOL, cool / (warm + cool)), opacity: TINT_PEAK * strength };

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -28,6 +28,10 @@ export function ErrorBanner({ message, onDismiss, style }: Props) {
 
   useEffect(() => {
     if (!message) return;
+    // `accessibilityLiveRegion` is Android-only; without this, iOS VoiceOver never reads a
+    // transient error (it auto-dismisses before it can be focused). iOS only, so Android's
+    // live region doesn't announce twice.
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
     const timer = setTimeout(onDismiss, AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
   }, [message, onDismiss]);

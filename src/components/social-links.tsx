@@ -1,4 +1,3 @@
-import * as WebBrowser from 'expo-web-browser';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
@@ -9,6 +8,7 @@ import { Links } from '@/constants/links';
 import { Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { openBrowser } from '@/lib/browser';
 
 import type { ReactNode } from 'react';
 
@@ -45,7 +45,7 @@ function LinkButton({ label, url, children }: { label: string; url: string; chil
   const theme = useTheme();
   return (
     <PressableScale
-      onPress={() => void WebBrowser.openBrowserAsync(url)}
+      onPress={() => openBrowser(url)}
       scaleTo={Scale.glyph}
       accessibilityRole="link"
       accessibilityLabel={label}

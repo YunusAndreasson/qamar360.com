@@ -141,7 +141,7 @@ export function ExpandableAddRow({
       </View>
 
       {expanded ? (
-        // A CSS-animation mount fade (FadeInView) — NOT reanimated entering/exiting. On the New
+        // A shared-value mount fade (FadeInView) — NOT reanimated entering/exiting. On the New
         // Architecture those layout animations depend on a nativeID that Fabric's view-flattening
         // clobbers, which left the body mounted at opacity 0 (empty on open) and only flashed it
         // on unmount (flicker on close). Collapse stays an instant removal: exit animations need

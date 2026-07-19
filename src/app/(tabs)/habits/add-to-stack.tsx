@@ -45,7 +45,9 @@ export default function AddToStackScreen() {
         if (restore) void moveHabit(habit.id, restore);
       },
     });
-    router.back();
+    // No router.back() here: the optimistic move flips `habit.stack_id` synchronously, which
+    // makes the `stale` effect below close the sheet. Calling both fires GO_BACK twice — the
+    // second has nothing to pop (the same rule habit-editor's confirmDelete documents).
   };
 
   // A habit deleted (or already grouped) while the sheet is up has nothing to add here — and

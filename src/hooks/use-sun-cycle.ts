@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { deviceLocation } from '@/lib/geo';
-import { sunCycleAt, type SunCycle } from '@/lib/sun';
+import { dayPartAt, displayDateISO, sunCycleAt, type SunCycle } from '@/lib/sun';
 
 /**
  * The day's two derived sun values — the current {@link DayPart} chapter and the sunset-turned
@@ -25,12 +25,36 @@ export function useSunCycle(): SunCycle {
   });
 
   useEffect(() => {
+    let lastLoc: { lat: number; lon: number } | null = null;
     const check = () => {
       const { lat, lon } = deviceLocation();
-      const next = sunCycleAt(new Date(), lat, lon);
-      setCycle((prev) =>
-        prev.dayPart === next.dayPart && prev.displayDateISO === next.displayDateISO ? prev : next,
-      );
+      const moved = !lastLoc || Math.abs(lastLoc.lat - lat) > 0.01 || Math.abs(lastLoc.lon - lon) > 0.01;
+      lastLoc = { lat, lon };
+      const now = new Date();
+      setCycle((prev) => {
+        // Steady state (same place, same chapter, same display day): skip the full recompute —
+        // `partEndsAt` is constant within a chapter, and its root-find is ~50–75 ephemeris
+        // evaluations that would otherwise burn on the JS thread every minute for nothing.
+        if (
+          !moved &&
+          dayPartAt(now, lat, lon) === prev.dayPart &&
+          displayDateISO(now, lat, lon) === prev.displayDateISO
+        ) {
+          return prev;
+        }
+        const next = sunCycleAt(now, lat, lon);
+        // A location change can move the chapter's end without changing the chapter — commit
+        // when it shifted materially, so the "until HH:MM" caption self-corrects; the root-find's
+        // ±15 s jitter alone must not (exact equality would thrash).
+        if (
+          prev.dayPart === next.dayPart &&
+          prev.displayDateISO === next.displayDateISO &&
+          Math.abs(prev.partEndsAt.getTime() - next.partEndsAt.getTime()) <= 60_000
+        ) {
+          return prev;
+        }
+        return next;
+      });
     };
     let interval: ReturnType<typeof setInterval> | undefined;
     // Sync to the next minute boundary first, then tick steadily.

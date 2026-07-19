@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
@@ -94,9 +94,16 @@ export default function HabitsScreen() {
     reload,
   } = useHabits();
   // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
-  // progress from Settings) are reflected on return — mirrors the Progress tab.
+  // progress from Settings) are reflected on return — mirrors the Progress tab. The FIRST focus
+  // coincides with the provider's own mount load (both mount on entering the tabs), so it is
+  // skipped: without the skip every cold entry runs the same three queries twice.
+  const focusedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
+      if (!focusedOnce.current) {
+        focusedOnce.current = true;
+        return;
+      }
       void refresh();
     }, [refresh]),
   );

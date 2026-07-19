@@ -249,7 +249,15 @@ export function computeProgress(
   // This Hijri month vs last, as a completion *rate* (done / scheduled). A rate
   // normalises across changing habit counts and month lengths, so 100% always
   // means a perfect month regardless of how many acts that is.
+  // Memoized per call by range: the ring, the year strip, and the trend walk each re-tally
+  // ranges another already swept (the previous whole month alone is asked for twice, and the
+  // current month's two tallies recur in the year strip) — each sweep is days × habits of
+  // schedule checks, so the dedup roughly halves the recompute.
+  const tallyCache = new Map<string, { done: number; possible: number }>();
   const tallyRange = (startISO: string, endISO: string): { done: number; possible: number } => {
+    const key = `${startISO}|${endISO}`;
+    const hit = tallyCache.get(key);
+    if (hit) return hit;
     let done = 0;
     let possible = 0;
     for (let day = startISO; day <= endISO; day = addDaysISO(day, 1)) {
@@ -261,7 +269,9 @@ export function computeProgress(
         done += credit; // count goals add a fraction; binary habits add 1 or 0
       }
     }
-    return { done, possible };
+    const tally = { done, possible };
+    tallyCache.set(key, tally);
+    return tally;
   };
   let month: MonthProgress | null = null;
   const thisRange = hijriMonthRange(today);

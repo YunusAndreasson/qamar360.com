@@ -130,6 +130,30 @@ describe('horizonTint', () => {
       }
     }
   });
+
+  it('never steps across the 0°/180° azimuth meridians either', () => {
+    // Inside the twilight tents the sun DOES cross these: every high-summer midnight at high
+    // latitudes sweeps az through 0° near the trough (Stockholm's own midsummer ~-7°), and a
+    // subarctic winter noon crosses 180° while low. The morning/evening weighting must blend
+    // there, not flip — a boolean on `az < 180` popped the wash between two adjacent minutes.
+    const channel = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+    for (const [alt, azStart] of [
+      [-7, 350], // midnight-sun trough crossing az 0/360
+      [-4, 170], // low winter noon crossing az 180
+      [2, 170], // and inside the warm tent
+    ] as const) {
+      let prev = horizonTint(alt, azStart % 360);
+      for (let step = 0.25; step <= 20; step += 0.25) {
+        const tint = horizonTint(alt, (azStart + step) % 360);
+        // A quarter-degree of azimuth travel may never move the wash or its hue visibly.
+        expect(Math.abs((tint?.opacity ?? 0) - (prev?.opacity ?? 0))).toBeLessThan(0.002);
+        if (tint && prev) {
+          for (const i of [0, 1, 2]) expect(Math.abs(channel(tint.color, i) - channel(prev.color, i))).toBeLessThan(6);
+        }
+        prev = tint;
+      }
+    }
+  });
 });
 
 describe('sunsetOn', () => {

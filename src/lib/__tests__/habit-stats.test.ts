@@ -56,6 +56,26 @@ describe('computeHabitStats — consistency', () => {
     expect(stats.bestWeekday).toBeNull();
     expect(stats.toughestWeekday).toBeNull();
   });
+
+  it('treats an open today as pending — outside the rate, matching the streak', () => {
+    // 5-day window Tue 27 … Sat 31: done 29+30, today (31) unticked. A 30-day-perfect ring must
+    // not dip at midnight and "recover" on tick while the streak card says the run is intact —
+    // today joins the sample only once it closes. Denominator: 27, 28, 29, 30 → 2/4.
+    const stats = computeHabitStats(dailyHabit(), [done('2026-01-29'), done('2026-01-30')], SAT, 5);
+    expect(stats.scheduledDays).toBe(4);
+    expect(stats.consistency).toBeCloseTo(2 / 4, 10);
+    // An in-progress count goal today is equally pending — not a fractional miss.
+    const habit: ProgressHabit = { ...dailyHabit(), target_count: 4 };
+    const counting = computeHabitStats(habit, [countRow('2026-01-30', 4, 'done'), countRow('2026-01-31', 2, 'partial')], SAT, 2);
+    expect(counting.scheduledDays).toBe(1);
+    expect(counting.consistency).toBeCloseTo(1, 10);
+  });
+
+  it('counts a DONE today immediately — pending ends the moment the day closes', () => {
+    const stats = computeHabitStats(dailyHabit(), [done('2026-01-30'), done('2026-01-31')], SAT, 2);
+    expect(stats.scheduledDays).toBe(2);
+    expect(stats.consistency).toBeCloseTo(1, 10);
+  });
 });
 
 describe('computeHabitStats — weekday distribution', () => {
@@ -67,7 +87,9 @@ describe('computeHabitStats — weekday distribution', () => {
       SAT,
       14,
     );
-    for (const w of stats.byWeekday) expect(w.scheduledCount).toBe(2); // 2 of each weekday in the window
+    // 2 of each weekday in the window — except Saturday: its second occurrence IS today,
+    // still open → pending, not yet part of the sample (the streak's rule, applied to rates).
+    for (const w of stats.byWeekday) expect(w.scheduledCount).toBe(w.weekday === 6 ? 1 : 2);
     expect(stats.byWeekday[5]!.rate).toBeCloseTo(1, 10); // Fridays
     expect(stats.byWeekday[1]!.rate).toBeCloseTo(0.5, 10); // Mondays (1 of 2)
     expect(stats.byWeekday[0]!.rate).toBe(0); // Sundays — none done
@@ -142,5 +164,21 @@ describe('computeHabitStats — weekday applicability + trend', () => {
     expect(stats.trend).toHaveLength(12);
     expect(stats.trend[stats.trend.length - 1]!.weekEndISO).toBe(SAT);
     for (const p of stats.trend) expect(p.rate).toBeGreaterThanOrEqual(0);
+  });
+
+  it('marks pre-creation trend windows as signal-free (scheduledCount 0), not as 0° misses', () => {
+    // Created Wed 28 (noon UTC keeps the local day stable across test timezones): only the
+    // newest window holds scheduled days. Its sample: 28, 29, 30 (today 31 is pending) with
+    // one done → rate 1/3. Every earlier weekly sample predates the habit — a chart or trend
+    // reading them as 0° would call a brand-new habit "falling from nothing".
+    const habit: ProgressHabit = { ...dailyHabit(), created_at: '2026-01-28T12:00:00.000Z' };
+    const stats = computeHabitStats(habit, [done('2026-01-29')], SAT);
+    const last = stats.trend[stats.trend.length - 1]!;
+    expect(last.scheduledCount).toBe(3);
+    expect(last.rate).toBeCloseTo(1 / 3, 10);
+    for (const p of stats.trend.slice(0, -1)) {
+      expect(p.scheduledCount).toBe(0);
+      expect(p.rate).toBe(0);
+    }
   });
 });

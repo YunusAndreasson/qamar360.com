@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
  * to a ScrollView / FlatList. One definition so both screens spin the same indicator in the same
  * colours instead of re-declaring the handler and the control side by side.
  */
-export function usePullToRefresh(refresh: () => Promise<void>) {
+export function usePullToRefresh(refresh: () => Promise<unknown>) {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -17,6 +17,10 @@ export function usePullToRefresh(refresh: () => Promise<void>) {
     setRefreshing(true);
     try {
       await refresh();
+    } catch {
+      // Each screen's refetch owns its own error surface (its banner); the control only needs
+      // its spinner back. Nothing consumes this promise, so a rejection must not escape as an
+      // unhandled rejection.
     } finally {
       setRefreshing(false);
     }

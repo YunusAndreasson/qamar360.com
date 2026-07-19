@@ -1,8 +1,6 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolView } from 'expo-symbols';
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { GlyphIcon } from '@/components/app-icon';
 import { PressableScale } from '@/components/pressable-scale';
 import type { IconGlyph } from '@/constants/icons';
 import { Scale } from '@/constants/motion';
@@ -41,13 +39,9 @@ export function HeaderIconButton({
       accessibilityState={{ disabled }}
       hitSlop={10}
       style={[styles.button, style]}>
-      {Platform.OS === 'ios' ? (
-        <SymbolView name={icon.sf} size={22} tintColor={color} type="monochrome" />
-      ) : 'materialCommunity' in icon ? (
-        <MaterialCommunityIcons name={icon.materialCommunity} size={24} color={color} />
-      ) : (
-        <MaterialIcons name={icon.material} size={24} color={color} />
-      )}
+      {/* Header glyphs run a step larger on Android (Material's 24dp toolbar convention vs the
+          22pt SF Symbol) — the only thing this button adds over the shared fork. */}
+      <GlyphIcon glyph={icon} size={Platform.OS === 'ios' ? 22 : 24} color={color} />
     </PressableScale>
   );
 }

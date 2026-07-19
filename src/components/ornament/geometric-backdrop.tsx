@@ -92,34 +92,40 @@ function ScreenSky() {
   // Light mode dims the ornament (dark-steel `pattern` lines on a white page read stronger
   // than pale lines on deep space) — gently; a heavy cut fades it to invisible.
   const dim = scheme === 'light' ? 0.8 : 1;
+  const tilt = useSkyTilt();
+  const now = useMinuteTick();
+
+  // The phase is derived from the tick's day, NOT frozen at mount: this sky lives inside the
+  // eager-mounted tabs and can stay mounted for days — a mount-time snapshot would keep painting
+  // a stale Hijri day's bloom and washout after midnight while the stars beside it move on.
+  const dayISO = todayLocalISO(now);
   const illumination = useMemo(() => {
-    const iso = todayLocalISO();
-    const parts = hijriParts(iso);
-    const range = hijriMonthRange(iso);
+    const parts = hijriParts(dayISO);
+    const range = hijriMonthRange(dayISO);
     if (!parts || !range) return 0.5; // no Islamic calendar on this runtime — an average sky
     return moonIllumination(parts.day, range.length).illumination;
-  }, []);
-  const tilt = useSkyTilt();
+  }, [dayISO]);
 
-  // Tonight's real sky over the observer (placed by timezone — no permission). Recomputed once a
+  // Tonight's real sky over the observer (placed by timezone — no permission). The location is
+  // re-read on each minute render (a cheap Intl + map lookup) so travel that changes the
+  // timezone self-corrects, the same way useSunCycle re-reads it per check. Recomputed once a
   // minute as the sky turns; the designed field is the graceful fallback if location or the
   // astronomy ever throws, so the backdrop never breaks.
-  const location = useMemo(() => deviceLocation(), []);
-  const now = useMinuteTick();
+  const { lat, lon } = deviceLocation();
   const stars = useMemo(() => {
     try {
-      const moon = moonHorizontal(now, location.lat, location.lon);
-      return realSkyField({ lat: location.lat, lon: location.lon, date: now, moon });
+      const moon = moonHorizontal(now, lat, lon);
+      return realSkyField({ lat, lon, date: now, moon });
     } catch {
       return starField();
     }
-  }, [location, now]);
+  }, [now, lat, lon]);
 
   // The real sun over the same observer, on the same minute clock. If the astronomy ever
   // throws, the sky fails into full night — the backdrop's familiar look, never a blank.
   let sun: { alt: number; az: number };
   try {
-    sun = sunHorizontal(now, location.lat, location.lon);
+    sun = sunHorizontal(now, lat, lon);
   } catch {
     sun = { alt: -18, az: 180 };
   }

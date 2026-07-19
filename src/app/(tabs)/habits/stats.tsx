@@ -10,6 +10,7 @@ import { HabitTrendChart } from '@/components/habit-trend-chart';
 import { HabitWeekdayBars } from '@/components/habit-weekday-bars';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
 import { useHabitStats } from '@/hooks/use-habit-stats';
+import { useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { describeHijriSchedule } from '@/lib/dates';
 
@@ -23,15 +24,18 @@ export default function HabitStatsScreen() {
   const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
   const { loading, error, dismissError, refresh, habit, stats } = useHabitStats(habitId ?? '');
+  const { loading: habitsLoading } = useHabits();
   const { refreshControl } = usePullToRefresh(refresh);
 
   // Opened for a habit that no longer exists (deleted elsewhere / stale link) — back out rather
-  // than render an empty shell (the editor's guard).
+  // than render an empty shell (the editor's guard). `habit` comes from the habits list, which is
+  // empty while ITS first load runs (a cold start whose snapshot seed was rejected) — that load
+  // must have settled too, or this pops the screen for a habit that exists.
   useEffect(() => {
-    if (!loading && !habit) router.back();
-  }, [loading, habit, router]);
+    if (!loading && !habitsLoading && !habit) router.back();
+  }, [loading, habitsLoading, habit, router]);
 
-  if (loading) {
+  if (loading || (habitsLoading && !habit)) {
     return (
       <AppScreen transparent>
         <ProgressSkeleton />

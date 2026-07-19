@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
@@ -67,10 +67,13 @@ export function Segmented<T extends string>({
   const targetX = PAD + index * (segmentWidth + GAP);
 
   // The thumb's left edge. Springs between segments on a value change; jumps when the
-  // geometry itself changes (first measure, rotation) or under Reduce Motion.
+  // geometry itself changes (first measure, rotation) or under Reduce Motion. A LAYOUT effect:
+  // `x` was initialised while the track was unmeasured (targetX ≈ the left edge), and the
+  // remeasure jump must land before the thumb's first paint — a passive effect runs after it,
+  // flashing a selected index > 0 at the wrong slot for one frame.
   const x = useSharedValue(targetX);
   const prevSegmentWidth = useRef(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (segmentWidth <= 0) return;
     const remeasured = prevSegmentWidth.current !== segmentWidth;
     prevSegmentWidth.current = segmentWidth;
