@@ -297,6 +297,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
+    id: 'surah-al-kafirun-sleep',
+    categoryId: 'quran',
+    name: 'Recite al-Kāfirūn before sleeping',
+    detail: 'Recite Sūrat al-Kāfirūn (chapter 109) before sleeping.',
+    evidence: 'The Prophet ﷺ taught it as a disavowal of shirk before sleeping (Abu Dawud 5055, Tirmidhi 3403, ḥasan).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
     id: 'al-imran-last-ten',
     categoryId: 'quran',
     name: 'Last ten āyāt of Āl ʿImrān',
@@ -350,6 +358,14 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     name: 'Istighfār ×100',
     detail: 'Seek Allāh’s forgiveness (astaghfirullāh) at least 100 times through the day.',
     evidence: 'I seek Allāh’s forgiveness and repent to Him a hundred times a day (Muslim 2702).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'tawbah',
+    categoryId: 'dhikr',
+    name: 'Make tawbah',
+    detail: 'Turn back to Allāh in sincere repentance for today’s sins — feel remorse, stop the sin, and resolve not to return to it.',
+    evidence: 'Every son of Adam sins, and the best of those who sin are those who repent (Tirmidhi 2499, ḥasan).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
@@ -571,6 +587,24 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Set aside time to study something together as a family — Qurʾān, a ḥadīth, homework, or a new skill — opening with Bismillāh and a duʿāʾ for beneficial knowledge.',
     evidence: 'Whenever people gather in a house of Allāh, reciting His Book and studying it among themselves, tranquility descends upon them, mercy envelops them, and the angels surround them (Muslim 2699).',
     defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'arabic-study',
+    categoryId: 'growth',
+    name: 'Study Arabic',
+    detail: 'Spend at least 20 focused minutes learning Arabic — grammar, vocabulary, or reading practice — phone away and notifications off.',
+    evidence: 'ʿUmar ibn al-Khaṭṭāb said, "Learn Arabic, for it is part of your religion" (Ibn Abī Shaybah, athar); the Qurʾān was sent down "in Arabic, that you may understand" (12:2).',
+    defaultSchedule: DAILY_SCHEDULE,
+  },
+  {
+    id: 'arabic-vocabulary',
+    categoryId: 'growth',
+    name: 'Learn new Arabic words',
+    detail: 'Learn at least 5 new Arabic words today — from the Qurʾān, a wordlist, or a lesson — and review them once before you sleep.',
+    evidence: 'Understanding the Qurʾān and Sunnah in their own language is itself a religious obligation, since what is needed to fulfil an obligation is obligatory (Ibn Taymiyyah, Iqtiḍāʾ aṣ-Ṣirāṭ al-Mustaqīm).',
+    defaultSchedule: DAILY_SCHEDULE,
+    targetCount: 5,
+    targetUnit: 'words',
   },
 
   // ── Health & wellbeing (Sunnah guidance with strong modern evidence) ───────

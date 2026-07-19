@@ -302,6 +302,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const ensuredUserRow = useRef(false);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
   const completionsInFlight = useRef(0); // open fetchCompletions calls (gates the snapshot write)
+  // Bumped by every habits/stacks mutation's optimistic write. fetchHabits/fetchStacks stamp this
+  // before their SELECT and discard the result if it changed — otherwise a `refresh()` in flight
+  // when a create/move/etc. lands (e.g. the focus-refresh a modal's `router.back()` triggers)
+  // can read the DB before the mutation's own insert commits and clobber the optimistic state
+  // with that stale row set, with nothing after to correct it.
+  const mutationGen = useRef(0);
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
@@ -330,6 +336,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
   const fetchHabits = useCallback(async () => {
     if (!userId) return true;
+    const gen = mutationGen.current;
     const { data, error: habitsError } = await supabase
       .from('habits')
       .select('*')
@@ -339,12 +346,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setError(LOAD_ERROR);
       return false;
     }
+    // A mutation's optimistic write landed while this SELECT was in flight — it may have read
+    // the table before that mutation's own insert/update committed. Applying it now would wipe
+    // the optimistic change back out with nothing to correct it; let a later refresh reconcile.
+    if (mutationGen.current !== gen) return true;
     setHabits((data ?? []) as Habit[]);
     return true;
   }, [userId]);
 
   const fetchStacks = useCallback(async () => {
     if (!userId) return true;
+    const gen = mutationGen.current;
     const { data, error: stacksError } = await supabase
       .from('habit_stacks')
       .select('*')
@@ -353,6 +365,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setError(LOAD_ERROR);
       return false;
     }
+    if (mutationGen.current !== gen) return true;
     setStacks(data ?? []);
     return true;
   }, [userId]);
@@ -897,6 +910,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         target_unit,
         stack_id: null,
       };
+      mutationGen.current += 1;
       setHabits((prev) => [...prev, optimistic]);
 
       try {
@@ -966,6 +980,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         stack_id: null,
       }));
       const tempIds = new Set(optimistic.map((o) => o.id));
+      mutationGen.current += 1;
       setHabits((prev) => [...prev, ...optimistic]);
 
       try {
@@ -1024,6 +1039,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!prev) return;
 
       // Optimistic patch.
+      mutationGen.current += 1;
       setHabits((list) => list.map((h) => (h.id === habitId ? { ...h, ...patch } : h)));
 
       try {
@@ -1135,6 +1151,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           : null;
 
       // Optimistic removal.
+      mutationGen.current += 1;
       setHabits((prev) => prev.filter((h) => h.id !== habitId));
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
       setCompleted((prev) => {
@@ -1207,6 +1224,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (reordered.length !== prev.length) return; // unknown id — bail rather than corrupt order
 
       // Optimistic reorder.
+      mutationGen.current += 1;
       setHabits(reordered);
 
       const persistable = reordered.filter((h) => {
@@ -1302,6 +1320,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           return h ? { ...h, position: index, stack_id: memberSet.has(id) ? stackId : h.stack_id } : null;
         })
         .filter((h): h is Habit => h !== null);
+      mutationGen.current += 1;
       setStacks((prev) => [...prev, stack]);
       setHabits(next);
       // Keep the ref authoritative immediately (mirrors `createHabits`), so stack creates
@@ -1351,6 +1370,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // stack_ids instead of re-stamping the deleted stack's id from the stale ref (which left
       // a phantom unit that silently swallowed drag-reorders until the next refetch).
       const next = prevHabits.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h));
+      mutationGen.current += 1;
       setStacks((prev) => prev.filter((s) => s.id !== stackId));
       setHabits(next);
       habitsRef.current = next;
@@ -1395,6 +1415,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
       const hasRowPatch = Boolean(newName) || hasMoment;
 
+      mutationGen.current += 1;
       if (hasRowPatch) {
         setStacks((prev) => prev.map((s) => (s.id === stackId ? { ...s, ...rowPatch } : s)));
       }
@@ -1501,6 +1522,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           ? fromStackId
           : null;
 
+      mutationGen.current += 1;
       setHabits(next);
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
 

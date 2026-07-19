@@ -20,6 +20,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
 import { BottomTabInset, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
+import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
@@ -113,8 +114,12 @@ export default function HabitsScreen() {
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
-  // Pull-to-refresh. `refresh` is silent (no spinner); the RefreshControl owns the indicator.
-  const { refreshControl } = usePullToRefresh(refresh);
+  // Pull-to-refresh. Both `refresh`es are silent (no spinner); the RefreshControl owns the
+  // indicator. The catalog rides along here too — it otherwise only refetches on cold app
+  // launch, so a pull on Today is the one in-session way to retry it (e.g. after a network
+  // blip at launch silently left Discover on a stale snapshot).
+  const { refresh: refreshCatalog } = useCatalog();
+  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshCatalog()]));
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;

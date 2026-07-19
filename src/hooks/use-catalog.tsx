@@ -1,6 +1,6 @@
 import 'expo-sqlite/localStorage/install';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import {
   SUNNAH_CATEGORIES,
@@ -94,7 +94,13 @@ async function fetchCatalog(): Promise<Catalog> {
   };
 }
 
-const CatalogContext = createContext<Catalog | null>(null);
+type CatalogContextValue = Catalog & {
+  /** Re-fetch from Supabase now (e.g. pull-to-refresh on Today). Silent: same swallow-and-keep
+   * behavior as the mount fetch — a failure just leaves the previous catalog painted. */
+  refresh: () => Promise<void>;
+};
+
+const CatalogContext = createContext<CatalogContextValue | null>(null);
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
   // First paint from cache if we have it, else the bundled constants — never an empty catalog.
@@ -116,7 +122,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <CatalogContext value={catalog}>{children}</CatalogContext>;
+  // On-demand re-fetch (e.g. pull-to-refresh on Today) — same swallow-and-keep behavior as the
+  // mount fetch above. No `cancelled` guard: unlike the mount effect, this only ever runs while
+  // the provider (mounted once at the root) is already up.
+  const refresh = useCallback(async () => {
+    try {
+      const fresh = await fetchCatalog();
+      writeCache(fresh);
+      setCatalog(fresh);
+    } catch {
+      // Offline / unreachable: keep whatever we already painted (cache or bundled).
+    }
+  }, []);
+
+  const value = useMemo(() => ({ ...catalog, refresh }), [catalog, refresh]);
+
+  return <CatalogContext value={value}>{children}</CatalogContext>;
 }
 
 export function useCatalog() {
