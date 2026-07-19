@@ -16,26 +16,27 @@ import { Duration, PageEnter } from '@/constants/motion';
 import { DenseLabelScale, Radius, Spacing } from '@/constants/theme';
 import type { WeekdayStat } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
-import { WEEKDAY_LABELS } from '@/lib/dates';
+import { WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
+import { usePreference } from '@/lib/preferences';
 import { clamp01, toDegrees } from '@/lib/progress';
 
 const MAX_BAR_HEIGHT = 96;
 const BAR_WIDTH = 14;
 const STAGGER_MS = 40;
 
-/** Full weekday names for the readout ("Strongest on Fridays") — plural reads as a habit ("on
- *  Fridays"), where the single-letter axis labels stay compact under each bar. */
-const WEEKDAY_NAMES = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'] as const;
+/** The readout names a weekday in the plural ("Strongest on Fridays") — it reads as a habit
+ *  rather than a single date, where the single-letter axis labels stay compact under each bar. */
+const plural = (weekday: number) => `${WEEKDAY_NAMES[weekday] ?? ''}s`;
 
 function weekdayReadout(stat: WeekdayStat, best: number | null, tough: number | null): string {
   const tag = stat.weekday === best ? ' · strongest' : stat.weekday === tough ? ' · toughest' : '';
-  return `${WEEKDAY_NAMES[stat.weekday]} · ${toDegrees(stat.rate)}°${tag}`;
+  return `${plural(stat.weekday)} · ${toDegrees(stat.rate)}°${tag}`;
 }
 
 function weekdayA11y(stat: WeekdayStat, best: number | null, tough: number | null): string {
   const tag = stat.weekday === best ? ', your strongest' : stat.weekday === tough ? ', your toughest' : '';
-  return `${WEEKDAY_NAMES[stat.weekday]}, ${toDegrees(stat.rate)} degrees${tag}`;
+  return `${plural(stat.weekday)}, ${toDegrees(stat.rate)} degrees${tag}`;
 }
 
 /** One weekday's bar — a track the fill grows up within on appear (staggered left-to-right, the
@@ -100,6 +101,7 @@ export function HabitWeekdayBars({
   hijriNote?: string;
 }) {
   const [focused, setFocused] = useState<number | null>(null);
+  const weekStart = usePreference('weekStart');
 
   if (hijriNote) {
     return (
@@ -113,14 +115,16 @@ export function HabitWeekdayBars({
     );
   }
 
-  const active = byWeekday.filter((w) => w.scheduledCount > 0);
-  const restingText = bestWeekday != null ? `Strongest on ${WEEKDAY_NAMES[bestWeekday]}` : 'Complete it to see your rhythm';
+  // Bars run left-to-right in the user's own week order, so the chart reads like their calendar.
+  const rank = new Map(weekOrder(weekStart).map((weekday, i) => [weekday, i]));
+  const active = byWeekday
+    .filter((w) => w.scheduledCount > 0)
+    .sort((a, b) => (rank.get(a.weekday) ?? 0) - (rank.get(b.weekday) ?? 0));
+  const restingText = bestWeekday != null ? `Strongest on ${plural(bestWeekday)}` : 'Complete it to see your rhythm';
   const focusedStat = focused != null ? (byWeekday[focused] ?? null) : null;
   const readoutText = focusedStat ? weekdayReadout(focusedStat, bestWeekday, toughestWeekday) : restingText;
 
-  const a11y = `Best day. ${active
-    .map((w) => `${WEEKDAY_NAMES[w.weekday]} ${toDegrees(w.rate)} degrees`)
-    .join(', ')}.`;
+  const a11y = `Best day. ${active.map((w) => `${plural(w.weekday)} ${toDegrees(w.rate)} degrees`).join(', ')}.`;
 
   return (
     <StatCard>

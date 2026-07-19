@@ -6,7 +6,7 @@
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { usePreferences } from '@/hooks/use-preferences';
+import { usePreference } from '@/lib/preferences';
 
 /**
  * The effective `'light' | 'dark'` scheme after applying the user's appearance preference:
@@ -14,9 +14,9 @@ import { usePreferences } from '@/hooks/use-preferences';
  */
 export function useEffectiveScheme(): 'light' | 'dark' {
   const scheme = useColorScheme();
-  const { themePreference } = usePreferences();
-  if (themePreference === 'system') return scheme === 'dark' ? 'dark' : 'light';
-  return themePreference;
+  const appearance = usePreference('appearance');
+  if (appearance === 'system') return scheme === 'dark' ? 'dark' : 'light';
+  return appearance;
 }
 
 export function useTheme() {

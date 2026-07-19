@@ -25,17 +25,19 @@ export function StackingGuide() {
       </View>
 
       <ThemedText type="default">
-        The easiest way to grow a new habit is to attach it to one you already keep. The habit you
-        never miss becomes the cue for the one you’re building: after I pray Fajr, I read one page.
+        A habit stack gives a good deed a clear cue: after Fajr, I read one page. Behavioral
+        research calls this an if–then plan. Repeating a small action after the same cue can make it
+        easier to begin and remember.
       </ThemedText>
       <ThemedText type="default">
-        Psychologists call these if–then plans “implementation intentions” — deciding the when in
-        advance roughly doubles follow-through. Atomic Habits made the idea famous as habit
-        stacking.
+        This pattern appears in the authentic Sunnah. The Prophet ﷺ taught remembrances after each
+        prescribed prayer (Muslim 596), and Bilal (may Allah be pleased with him) regularly prayed
+        after making wudu (Bukhari 1149).
       </ThemedText>
       <ThemedText type="default">
-        And you already have the strongest anchors there are: the five daily prayers — fixed
-        moments spread through every day. A stack tied to one of them almost keeps itself.
+        The Prophet ﷺ taught that the deeds most beloved to Allah are those kept consistently, even
+        when small (Bukhari 6464). Some early Muslims said, “Among the rewards of a good deed is the
+        good deed that follows it.”
       </ThemedText>
       <ThemedText type="default">
         <ThemedText type="defaultSemiBold">Try it. </ThemedText>

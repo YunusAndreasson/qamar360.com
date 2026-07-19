@@ -2,17 +2,14 @@
  * Local habit reminders — weekly recurring triggers, plus one-shot dated triggers for
  * Hijri-scheduled habits (which have no weekly equivalent).
  *
- * `expo-notifications` (and the date picker it pairs with) are native modules that are
- * NOT in Expo Go (SDK 53+), and an OTA update can't add native code to an existing
- * build. So we load the module defensively: never in Expo Go (its import throws there),
- * and tolerating its absence in any build that predates the dependency. `remindersAvailable`
- * reflects whether it actually loaded, and the editor hides the reminder control when it
- * didn't — so reminders light up only in a build that bundled the native module.
+ * `expo-notifications` is loaded defensively because an OTA update can't add native code to an
+ * existing build. Expo Go supports these local notifications, while a custom build that predates
+ * the dependency may not. `remindersAvailable` reflects whether the module actually loaded, and
+ * the editor hides the reminder control only when it did not.
  *
  * No local state is kept: {@link rescheduleAll} cancels everything and rebuilds from the
  * current habits, so the OS schedule always mirrors the database.
  */
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { addDaysISO, type HijriSchedule, localDate, parseReminderTime, scheduledOn, todayLocalISO } from '@/lib/dates';
@@ -42,14 +39,12 @@ function dailyDueCount(habits: RemindableHabit[], iso: string): number {
   return habits.filter((habit) => scheduledOn(habit, iso)).length;
 }
 
-// We need the module's *type* without a runtime import — a static `import` would evaluate
-// expo-notifications and crash Expo Go (its native module is absent there).
+// We need the module's *type* without a runtime import — a static import would eagerly evaluate
+// expo-notifications in an older OTA target whose binary may not contain the native module.
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 type NotificationsModule = typeof import('expo-notifications');
 
 function loadModule(): NotificationsModule | null {
-  // Expo Go strips the native module — requiring it there throws and crashes the app.
-  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('expo-notifications') as NotificationsModule;
@@ -155,34 +150,46 @@ async function rebuildSchedule(habits: RemindableHabit[], epoch: number): Promis
   if (!N) return;
   try {
     await N.cancelAllScheduledNotificationsAsync();
-    const now = new Date();
-    const todayISO = todayLocalISO(now);
-    for (const habit of habits) {
-      if (epoch !== rescheduleEpoch) return; // superseded — the newer run owns the schedule
-      const time = parseReminderTime(habit.reminder_time);
-      if (!time) continue;
+    const { status } = await N.getPermissionsAsync();
+    if (status !== 'granted') return;
+  } catch {
+    return; // without a clean slate, rebuilding could leave duplicate/stale reminders
+  }
 
-      // Hijri habits: arm the next few dated occurrences (there is no weekly equivalent).
-      if (habit.hijri_schedule) {
-        let armed = 0;
-        for (let i = 0; i <= HIJRI_HORIZON_DAYS && armed < HIJRI_MAX_OCCURRENCES; i += 1) {
-          if (epoch !== rescheduleEpoch) return;
-          const dayISO = addDaysISO(todayISO, i);
-          if (!scheduledOn(habit, dayISO)) continue;
-          const when = localDate(dayISO, time.hour, time.minute);
-          if (when.getTime() <= now.getTime()) continue; // today's slot already passed
+  const now = new Date();
+  const todayISO = todayLocalISO(now);
+  for (const habit of habits) {
+    if (epoch !== rescheduleEpoch) return; // superseded — the newer run owns the schedule
+    const time = parseReminderTime(habit.reminder_time);
+    if (!time) continue;
+
+    // Hijri habits: arm the next few dated occurrences (there is no weekly equivalent).
+    if (habit.hijri_schedule) {
+      let armed = 0;
+      for (let i = 0; i <= HIJRI_HORIZON_DAYS && armed < HIJRI_MAX_OCCURRENCES; i += 1) {
+        if (epoch !== rescheduleEpoch) return;
+        const dayISO = addDaysISO(todayISO, i);
+        if (!scheduledOn(habit, dayISO)) continue;
+        const when = localDate(dayISO, time.hour, time.minute);
+        if (when.getTime() <= now.getTime()) continue; // today's slot already passed
+        try {
           await N.scheduleNotificationAsync({
             content: { title: habit.name, body: `Time for ${habit.name}`, badge: dailyDueCount(habits, dayISO) },
             trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when },
           });
           armed += 1;
+        } catch {
+          // One rejected occurrence must not prevent this or later habits from being scheduled.
         }
-        continue;
       }
+      continue;
+    }
 
-      // Weekly habits: one recurring trigger per scheduled weekday.
-      for (const day of habit.schedule_days) {
-        if (epoch !== rescheduleEpoch) return;
+    // Weekly habits: one recurring trigger per scheduled weekday.
+    for (const day of habit.schedule_days) {
+      if (epoch !== rescheduleEpoch) return;
+      if (!Number.isInteger(day) || day < 0 || day > 6) continue;
+      try {
         await N.scheduleNotificationAsync({
           content: { title: habit.name, body: `Time for ${habit.name}`, badge: weeklyDueCount(habits, day) },
           trigger: {
@@ -193,9 +200,9 @@ async function rebuildSchedule(habits: RemindableHabit[], epoch: number): Promis
             minute: time.minute,
           },
         });
+      } catch {
+        // Keep rebuilding: a single invalid/rejected trigger should not silence later habits.
       }
     }
-  } catch {
-    // Scheduling can fail when permission is denied — reminders just won't fire.
   }
 }

@@ -1,16 +1,10 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Parallax, Twinkle } from '@/constants/motion';
+import { useSkyMotion } from '@/hooks/use-sky-motion';
 import type { SkyTilt } from '@/hooks/use-sky-tilt';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { glintPath, STAR_FIELD, starOpacity, type Star, type StarTier } from '@/lib/starfield';
@@ -135,7 +129,7 @@ function TwinkleLayer({
   tilt,
   depth,
 }: LayerProps & { half: number; tilt: SkyTilt; depth: number }) {
-  const reduceMotion = useReducedMotion();
+  const skyMotion = useSkyMotion();
   const empty = stars.length === 0;
   const breath = useSharedValue(0);
   useEffect(() => {
@@ -143,11 +137,11 @@ function TwinkleLayer({
     // doesn't stop a running `withRepeat`, and an invisible layer must not keep a perpetual
     // UI-thread animation alive.
     breath.set(
-      reduceMotion || empty
+      !skyMotion || empty
         ? 0
         : withRepeat(withTiming(1, { duration: half, easing: Easing.inOut(Easing.sin) }), -1, true),
     );
-  }, [reduceMotion, empty, half, breath]);
+  }, [skyMotion, empty, half, breath]);
   const twinkle = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * (1 - Twinkle.floor) }));
 
   if (empty) return null;

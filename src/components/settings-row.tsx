@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
@@ -22,12 +22,17 @@ type Props = {
   disabled?: boolean;
   /** Swap the trailing area for a spinner while an async action runs. */
   busy?: boolean;
+  /** Make this a toggle row: the trailing area becomes a `Switch` over this value. */
+  switchValue?: boolean;
+  onSwitchChange?: (value: boolean) => void;
   accessibilityLabel?: string;
 };
 
 /**
  * One line inside a {@link SettingsSection} card. Renders as a static `View` unless `onPress`
  * is set, in which case it becomes a pressable matching the app's row idiom (`habit-row.tsx`).
+ * A `switchValue` row is always static: as in the platform's own Settings, the switch is the
+ * only target — the row around it isn't tappable.
  */
 export function SettingsRow({
   icon,
@@ -39,6 +44,8 @@ export function SettingsRow({
   destructive,
   disabled,
   busy,
+  switchValue,
+  onSwitchChange,
   accessibilityLabel,
 }: Props) {
   const theme = useTheme();
@@ -58,7 +65,18 @@ export function SettingsRow({
           </ThemedText>
         ) : null}
       </View>
-      {busy ? (
+      {switchValue !== undefined ? (
+        // No app haptic here: a `Switch` is a native control and the OS already vibrates for it
+        // (see the haptics vocabulary). Same theming as the editor's reminder switch.
+        <Switch
+          value={switchValue}
+          onValueChange={onSwitchChange}
+          disabled={disabled}
+          trackColor={{ true: theme.accent, false: theme.backgroundSelected }}
+          ios_backgroundColor={theme.backgroundSelected}
+          accessibilityLabel={accessibilityLabel ?? label}
+        />
+      ) : busy ? (
         <ActivityIndicator color={iconColor} />
       ) : value ? (
         <ThemedText type="small" themeColor="textSecondary">
@@ -70,7 +88,7 @@ export function SettingsRow({
     </>
   );
 
-  if (!onPress) return <View style={styles.row}>{content}</View>;
+  if (!onPress || switchValue !== undefined) return <View style={styles.row}>{content}</View>;
 
   return (
     <Pressable

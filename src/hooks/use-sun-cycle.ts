@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { deviceLocation } from '@/lib/geo';
+import { getPreference, usePreference } from '@/lib/preferences';
 import { dayPartAt, displayDateISO, sunCycleAt, type SunCycle } from '@/lib/sun';
 
 /**
@@ -16,12 +17,14 @@ import { dayPartAt, displayDateISO, sunCycleAt, type SunCycle } from '@/lib/sun'
  * so hours away would otherwise leave a stale chapter on screen until the next tick.
  *
  * Location is re-read from the device timezone on every check (cheap), so travel that changes
- * the timezone self-corrects without a restart.
+ * the timezone self-corrects without a restart. So are the user's custom chapter times, when
+ * they've set any — `null` (the default) leaves the whole cycle on the real sun.
  */
 export function useSunCycle(): SunCycle {
+  const bands = usePreference('dayBands');
   const [cycle, setCycle] = useState<SunCycle>(() => {
     const { lat, lon } = deviceLocation();
-    return sunCycleAt(new Date(), lat, lon);
+    return sunCycleAt(new Date(), lat, lon, getPreference('dayBands'));
   });
 
   useEffect(() => {
@@ -37,12 +40,12 @@ export function useSunCycle(): SunCycle {
         // evaluations that would otherwise burn on the JS thread every minute for nothing.
         if (
           !moved &&
-          dayPartAt(now, lat, lon) === prev.dayPart &&
+          dayPartAt(now, lat, lon, bands) === prev.dayPart &&
           displayDateISO(now, lat, lon) === prev.displayDateISO
         ) {
           return prev;
         }
-        const next = sunCycleAt(now, lat, lon);
+        const next = sunCycleAt(now, lat, lon, bands);
         // A location change can move the chapter's end without changing the chapter — commit
         // when it shifted materially, so the "until HH:MM" caption self-corrects; the root-find's
         // ±15 s jitter alone must not (exact equality would thrash).
@@ -56,6 +59,9 @@ export function useSunCycle(): SunCycle {
         return next;
       });
     };
+    // Re-check at once when the chapter times change (this effect re-runs on `bands`): a
+    // preference the user just set must land on screen now, not at the next minute boundary.
+    check();
     let interval: ReturnType<typeof setInterval> | undefined;
     // Sync to the next minute boundary first, then tick steadily.
     const timeout = setTimeout(
@@ -73,7 +79,7 @@ export function useSunCycle(): SunCycle {
       if (interval) clearInterval(interval);
       sub.remove();
     };
-  }, []);
+  }, [bands]);
 
   return cycle;
 }

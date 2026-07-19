@@ -106,23 +106,54 @@ const hijriPartsCache = new Map<string, { day: number; month: number; year: numb
 const HIJRI_PARTS_CACHE_MAX = 4000;
 
 /**
+ * Days to shift the Umm al-Qura calendar by, for a locale whose moonsighting runs ahead of or
+ * behind the tabular reckoning. `+1` means "today is one Hijri day further along". Held here as
+ * module state, pushed in by the preferences store — so every consumer of {@link hijriParts}
+ * (the displayed date, `scheduledOn`, the progress and stats sweeps, the reminders) agrees
+ * without any of them having to know the preference exists.
+ */
+let hijriOffset = 0;
+
+/** Set the Hijri adjustment. Clears the parts cache, which is keyed on the Gregorian day alone
+ *  and would otherwise keep serving dates from the previous offset. */
+export function setHijriOffset(days: number): void {
+  if (days === hijriOffset) return;
+  hijriOffset = days;
+  hijriPartsCache.clear();
+}
+
+/** How an offset reads to the user: signed days, with the untouched calendar named rather than
+ *  shown as "0" — the default is a calendar, not an absence of one. */
+export function describeHijriOffset(days: number): string {
+  if (days === 0) return 'Umm al-Qura';
+  return `${days > 0 ? '+' : '−'}${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'}`;
+}
+
+/**
  * Numeric Umm al-Qura (Hijri) parts for a `YYYY-MM-DD` day, plus the month name,
  * for month math.
  * `month` is the 1-based Hijri month number; `day` is the 1-based day of that
  * month. Returns `null` on a runtime whose `Intl` lacks the Islamic calendar
  * (it silently resolves to `gregory`), so callers can hide the feature rather
  * than ever compute against a wrong calendar.
+ *
+ * Honours the user's {@link setHijriOffset} adjustment — this is the app's single
+ * Gregorian→Hijri crossing, so nothing downstream can disagree with it.
  */
 export function hijriParts(
   iso: string,
+  offset = hijriOffset,
 ): { day: number; month: number; year: number; monthName: string } | null {
   const fmt = getHijriFormatter();
   if (!fmt) return null;
-  const hit = hijriPartsCache.get(iso);
+  const cacheKey = `${offset}:${iso}`;
+  const hit = hijriPartsCache.get(cacheKey);
   if (hit !== undefined) return hit;
   let result: { day: number; month: number; year: number; monthName: string } | null = null;
   try {
-    const date = localDate(iso);
+    // The adjustment lands here and nowhere else: shift the day handed to the formatter, and
+    // every function built on this one — month ranges, year starts, `scheduledOn` — follows.
+    const date = localDate(offset === 0 ? iso : addDaysISO(iso, offset));
     const parts = fmt.formatToParts(date);
     const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
     const day = Number(pick('day'));
@@ -135,7 +166,7 @@ export function hijriParts(
     result = null;
   }
   if (hijriPartsCache.size >= HIJRI_PARTS_CACHE_MAX) hijriPartsCache.clear();
-  hijriPartsCache.set(iso, result);
+  hijriPartsCache.set(cacheKey, result);
   return result;
 }
 
@@ -183,6 +214,22 @@ export function hijriYearStart(iso: string): { start: string; year: number } | n
 
 /** One-letter weekday labels indexed 0=Sunday … 6=Saturday — for the schedule picker. */
 export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+
+/** Full weekday names on the same 0=Sunday index — the accessible reading of {@link WEEKDAY_LABELS},
+ *  whose one-letter forms are ambiguous by design (two S's, two T's). */
+export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
+/**
+ * The seven weekday indices in *display* order for a week that begins on `weekStart`
+ * (0=Sunday, 1=Monday, 6=Saturday) — e.g. Monday gives `[1,2,3,4,5,6,0]`.
+ *
+ * Display order only. Stored `schedule_days` stay on the 0=Sunday index everywhere (the DB
+ * column, `weekdayIndex`, the notification layer's Expo conversion), so changing where the week
+ * starts rearranges what the user sees and touches nothing that was saved.
+ */
+export function weekOrder(weekStart: number): number[] {
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => (i + weekStart) % 7);
+}
 
 /** A new habit's default schedule: every day. */
 export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
@@ -234,11 +281,11 @@ function createdDayISO(createdAt: string): string {
  * recurrence when it has one, otherwise `D`'s weekday must be in `schedule_days`.
  * Single source of truth for the Habits-screen filter, progress math, and reminders.
  */
-export function scheduledOn(habit: Schedulable, dayISO: string): boolean {
+export function scheduledOn(habit: Schedulable, dayISO: string, offset = hijriOffset): boolean {
   const created = habit.created_at ? createdDayISO(habit.created_at) : null;
   if (created != null && created > dayISO) return false; // didn't exist yet
   if (habit.hijri_schedule) {
-    const parts = hijriParts(dayISO);
+    const parts = hijriParts(dayISO, offset);
     if (!parts) return false; // no Islamic calendar on this runtime — can't place a Hijri habit
     return hijriScheduleMatches(habit.hijri_schedule, parts);
   }
@@ -282,7 +329,16 @@ export function parseReminderTime(value: string | null | undefined): { hour: num
   const minute = Number(minutePart);
   // A bare "8" (no colon) leaves minutePart undefined → Number(undefined) is NaN;
   // Number.isInteger rejects that, so we never return a half-parsed time.
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
   return { hour, minute };
 }
 

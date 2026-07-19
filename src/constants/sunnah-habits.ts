@@ -14,7 +14,7 @@ import type { DayPart } from '@/lib/sun';
  * Schedules use weekday indices 0=Sun … 6=Sat (matching `habits.schedule_days`). Presets carry
  * no reminder — this is a habit tracker, not a prayer-times app, and a fixed clock time would
  * be wrong for prayers (their times shift daily by location/season). A reminder is an opt-in
- * choice the user makes per habit in the editor, and only fires in a development build (not Expo Go).
+ * choice the user makes per habit in the editor.
  *
  * Hijri-date practices (the White Days, ʿĀshūrāʾ, ʿArafah, Ramaḍān) carry a `hijriSchedule`
  * instead of weekdays: `scheduledOn` places them by the Umm al-Qura date, and they are stored
@@ -821,4 +821,3 @@ export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null
   const sorted = [...schedule].sort((a, b) => a - b);
   return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ');
 }
-

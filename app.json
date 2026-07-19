@@ -21,6 +21,9 @@
     },
     "android": {
       "package": "com.qamar360.app",
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#060910",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

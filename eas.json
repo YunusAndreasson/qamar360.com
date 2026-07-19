@@ -1,7 +1,8 @@
 {
   "cli": {
     "version": ">= 20.3.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote",
+    "requireCommit": true
   },
   "build": {
     "development": {
@@ -21,6 +22,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {},
+      "android": {
+        "serviceAccountKeyPath": "./credentials/play-service-account.json",
+        "track": "internal"
+      }
+    }
   }
 }

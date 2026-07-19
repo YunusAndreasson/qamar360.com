@@ -1,9 +1,8 @@
 // Deletes the authenticated caller's account and all their data.
 //
 // The anon client can't remove an auth user, so this runs with the service-role key
-// (auto-injected by Supabase). Order matters: `users.id → auth.users(id)` has no
-// cascade, so we delete the public `users` row first (which cascades to habits and
-// completions) and only then delete the auth user.
+// (auto-injected by Supabase). `public.users.id → auth.users(id)` cascades, so deleting
+// the Auth user removes all app data in the same database operation.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -38,10 +37,8 @@ Deno.serve(async (req: Request) => {
   } = await caller.auth.getUser();
   if (authError || !user) return json({ error: 'Invalid or expired session' }, 401);
 
-  // Delete app data (cascades to habits + completions), then the auth user.
+  // The public user and all owned app data cascade from this single Auth deletion.
   const admin = createClient(supabaseUrl, serviceKey);
-  const { error: dataError } = await admin.from('users').delete().eq('id', user.id);
-  if (dataError) return json({ error: dataError.message }, 500);
   const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
   if (deleteError) return json({ error: deleteError.message }, 500);
 

@@ -6,11 +6,13 @@ import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-nat
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { SectionLabel } from '@/components/section-label';
+import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
+import { TimeChip } from '@/components/time-chip';
 import { useToast } from '@/components/toast';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
@@ -20,7 +22,18 @@ import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import { openBrowser } from '@/lib/browser';
+import { describeHijriOffset, formatReminderTime, parseReminderTime } from '@/lib/dates';
 import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
+import { setPreference, usePreference, type WeekStart } from '@/lib/preferences';
+
+// Sunday (the app's own index origin and the US/Gulf convention), Monday (ISO and most of
+// Europe), Saturday (much of the Arab world). Values are stringified weekday indices because
+// `Segmented` is generic over strings — the index itself is what `weekOrder` wants back.
+const WEEK_STARTS: SegmentedOption<string>[] = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '6', label: 'Saturday' },
+];
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -30,6 +43,19 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
+
+  // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
+  // user who never opens this screen has made no choices, and one who does can undo any of them.
+  const weekStart = usePreference('weekStart');
+  const hijriOffset = usePreference('hijriOffset');
+  const dayBands = usePreference('dayBands');
+  const remindersOn = usePreference('reminders');
+  const defaultReminder = usePreference('defaultReminderTime');
+  const hapticsOn = usePreference('haptics');
+  const celebrateDay = usePreference('celebrateDay');
+  const skyMotion = usePreference('skyMotion');
+  const reminderParts = parseReminderTime(defaultReminder);
+  const defaultReminderMinutes = (reminderParts?.hour ?? 8) * 60 + (reminderParts?.minute ?? 0);
 
   // Reflect the real OS permission (without prompting), so the row shows accurate
   // state rather than a "tap to…" guess. Re-read whenever the app returns to the
@@ -166,9 +192,39 @@ export default function SettingsScreen() {
       </View>
 
       {/* Appearance */}
-      <View style={styles.appearance}>
+      <View style={styles.controlGroup}>
         <SectionLabel>APPEARANCE</SectionLabel>
         <ThemeSegmented />
+      </View>
+
+      {/* The calendar — the settings that change what a date or a chapter *means*. Each defaults
+          to the app's own reckoning, and each says plainly what else it moves. */}
+      <SettingsSection title="The day" footer="The Hijri date also moves habits scheduled on Hijri days.">
+        <SettingsRow
+          icon="calendar"
+          label="Hijri date"
+          value={describeHijriOffset(hijriOffset)}
+          onPress={() => router.push('/settings/hijri-adjust')}
+          showChevron
+        />
+        <SettingsRow
+          icon="sunrise"
+          label="Times of day"
+          value={dayBands ? 'My times' : 'The sun'}
+          onPress={() => router.push('/settings/day-times')}
+          showChevron
+        />
+      </SettingsSection>
+
+      {/* Week start — the same bare-segmented shape as Appearance: three mutually-exclusive
+          options read better as one control than as a row that opens a list of three. */}
+      <View style={styles.controlGroup}>
+        <SectionLabel>WEEK STARTS ON</SectionLabel>
+        <Segmented
+          options={WEEK_STARTS}
+          value={String(weekStart)}
+          onChange={(value) => setPreference('weekStart', Number(value) as WeekStart)}
+        />
       </View>
 
       {/* Notifications */}
@@ -184,6 +240,52 @@ export default function SettingsScreen() {
         ) : (
           <SettingsRow icon="notificationsOff" label="Reminders" value="Unavailable" />
         )}
+        {remindersAvailable ? (
+          <SettingsRow
+            icon="notifications"
+            label="Habit reminders"
+            switchValue={remindersOn}
+            onSwitchChange={(value) => setPreference('reminders', value)}
+          />
+        ) : null}
+      </SettingsSection>
+
+      {/* The hour a new habit's reminder opens on. A bare label + control rather than a row:
+          on iOS the chip reveals a full-width spinner, which a grouped card can't hold. */}
+      {remindersAvailable && remindersOn ? (
+        <View style={styles.controlGroup}>
+          <SectionLabel>DEFAULT REMINDER TIME</SectionLabel>
+          <TimeChip
+            minutes={defaultReminderMinutes}
+            onChange={(minutes) =>
+              setPreference('defaultReminderTime', formatReminderTime(Math.floor(minutes / 60), minutes % 60))
+            }
+            accessibilityLabel="Default reminder time"
+          />
+        </View>
+      ) : null}
+
+      {/* Feel — the app's own texture. Every one defaults on; turning one off is a preference
+          for quiet, never a loss of function. */}
+      <SettingsSection title="Feel" footer="Sky motion also follows your system’s Reduce Motion setting.">
+        <SettingsRow
+          icon="vibration"
+          label="Haptics"
+          switchValue={hapticsOn}
+          onSwitchChange={(value) => setPreference('haptics', value)}
+        />
+        <SettingsRow
+          icon="moon"
+          label="Celebrate finishing the day"
+          switchValue={celebrateDay}
+          onSwitchChange={(value) => setPreference('celebrateDay', value)}
+        />
+        <SettingsRow
+          icon="sparkle"
+          label="Sky motion"
+          switchValue={skyMotion}
+          onSwitchChange={(value) => setPreference('skyMotion', value)}
+        />
       </SettingsSection>
 
       {/* Account */}
@@ -270,7 +372,7 @@ const styles = StyleSheet.create({
   },
   monogram: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1, gap: Spacing.half },
-  appearance: { gap: Spacing.two },
+  controlGroup: { gap: Spacing.two },
   footer: { alignItems: 'center', gap: Spacing.half, paddingTop: Spacing.two },
   // A little air below the social row so it doesn't crowd the version line beneath it.
   footerSocial: { marginBottom: Spacing.two },

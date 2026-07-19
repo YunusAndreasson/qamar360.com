@@ -31,15 +31,20 @@ import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
 import { Tick } from '@/constants/motion';
+import { getPreference } from '@/lib/preferences';
 
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
 
 /** Run a haptic without awaiting it, swallowing any failure. The engine being silenced
  *  (Low Power Mode, the camera active, the system setting off, an unsupported actuator)
- *  is expected — the feedback is purely additive. */
+ *  is expected — the feedback is purely additive.
+ *
+ *  Every intent above funnels through here, so the user's "Haptics" preference is honoured by
+ *  one early return rather than a check at each of the dozen call sites. */
 function run(fn: () => Promise<void>) {
   if (!isIOS && !isAndroid) return; // web: no reliable haptics
+  if (!getPreference('haptics')) return;
   void fn().catch(() => {});
 }
 

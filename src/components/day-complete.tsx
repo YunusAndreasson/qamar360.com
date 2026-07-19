@@ -26,6 +26,7 @@ import { celebrationCopy } from '@/lib/celebration';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { deviceLocation } from '@/lib/geo';
 import { moonIllumination } from '@/lib/moon';
+import { getPreference } from '@/lib/preferences';
 import { displayDateISO } from '@/lib/sun';
 
 /**
@@ -71,6 +72,11 @@ export function DayCompleteProvider({ children }: { children: ReactNode }) {
   const celebrate = useCallback((day: string, doneToday: string[]) => {
     if (lastDay.current === day) return;
     lastDay.current = day;
+    // Turned off, the day still closes — the ring still sweeps shut and the celebratory haptic
+    // still lands (that one answers to the Haptics preference). Only the card stays away, for
+    // someone who'd rather finish the day quietly. Latched above regardless, so switching it
+    // back on mid-day doesn't raise a card for a day already completed.
+    if (!getPreference('celebrateDay')) return;
     setCelebration({ id: (idRef.current += 1), day, doneToday });
   }, []);
 

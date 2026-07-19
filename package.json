@@ -72,7 +72,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "validate": "npm run typecheck && npm run lint:ci && npm run deadcode && npm run test",
-    "verify": "npm run validate"
+    "verify": "npm run validate",
+    "release": "./scripts/release.sh all",
+    "release:check": "./scripts/release.sh --check all",
+    "release:ios": "./scripts/release.sh ios",
+    "release:android": "./scripts/release.sh android",
+    "release:all": "./scripts/release.sh all"
   },
   "jest": {
     "preset": "jest-expo",

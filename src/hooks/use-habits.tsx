@@ -22,6 +22,7 @@ import { newId } from '@/lib/id';
 import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
 import { moonIllumination } from '@/lib/moon';
 import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
+import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import type { DayPart } from '@/lib/sun';
 import { supabase } from '@/lib/supabase';
@@ -523,12 +524,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       })),
     [habits],
   );
-  const reminderSignature = JSON.stringify(reminders);
+  // Two preferences move the schedule without any habit changing: the master switch (off means
+  // an empty schedule — the same clearing the sign-out path does), and the Hijri adjustment,
+  // which shifts the one-shot dates a Hijri habit's occurrences were computed for.
+  const remindersOn = usePreference('reminders');
+  const hijriOffset = usePreference('hijriOffset');
+  const reminderSignature = `${remindersOn ? 1 : 0}|${hijriOffset}|${JSON.stringify(reminders)}`;
   // Effect Event (stable, non-reactive): reads the latest `reminders` without the sync
   // effect having to depend on its per-render array identity. The signature string is the
   // real trigger — reorders/ticks that don't touch reminder fields leave it unchanged.
   const syncReminders = useEffectEvent(() => {
-    void rescheduleAll(reminders);
+    void rescheduleAll(remindersOn ? reminders : []);
   });
   // Gated on `loading`: the first commit renders with `habits = []` whenever the snapshot seed
   // is rejected (every new-day launch), and syncing THAT would cancel every scheduled OS
@@ -540,8 +546,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [loading, reminderSignature]);
 
   const remainingToday = useMemo(
-    () => habits.filter((h) => scheduledOn(h, today) && !completed.has(h.id) && !skipped.has(h.id)).length,
-    [habits, completed, skipped, today],
+    () =>
+      habits.filter(
+        (h) => scheduledOn(h, today, hijriOffset) && !completed.has(h.id) && !skipped.has(h.id),
+      ).length,
+    [habits, completed, skipped, today, hijriOffset],
   );
 
   // Keep the home-screen app icon badge aligned with the same "open today" count shown in

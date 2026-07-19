@@ -2,13 +2,13 @@ import {
   SensorType,
   useAnimatedReaction,
   useAnimatedSensor,
-  useReducedMotion,
   useSharedValue,
   withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
 
 import { Parallax } from '@/constants/motion';
+import { useSkyMotion } from '@/hooks/use-sky-motion';
 
 /** A normalized tilt offset in [-1, 1] per axis. A drifting sky layer multiplies these by its
  *  own `Parallax.depth` factor × `Parallax.maxShift` to get its pixel translation. */
@@ -22,12 +22,13 @@ export type SkyTilt = { shiftX: SharedValue<number>; shiftY: SharedValue<number>
  * rather than hanging off-centre when you lie down or lay the phone flat. The output is spring-
  * smoothed (critically damped — no jitter, no overshoot), so it's felt, never noticed.
  *
- * All UI-thread: one sensor + four shared values, no React re-renders. Under Reduce Motion the
- * offsets pin to 0 (a still sky); when the device has no usable sensor (e.g. an emulator) gravity
- * reads as zeros and the offsets stay ~0 — a graceful no-op. Call once, high in the sky tree.
+ * All UI-thread: one sensor + four shared values, no React re-renders. With sky motion off
+ * ({@link useSkyMotion} — Reduce Motion or the user's own preference) the offsets pin to 0, a
+ * still sky; when the device has no usable sensor (e.g. an emulator) gravity reads as zeros and
+ * the offsets stay ~0 — a graceful no-op. Call once, high in the sky tree.
  */
 export function useSkyTilt(): SkyTilt {
-  const reduceMotion = useReducedMotion();
+  const skyMotion = useSkyMotion();
   const gravity = useAnimatedSensor(SensorType.GRAVITY, { interval: Parallax.interval });
 
   const shiftX = useSharedValue(0);
@@ -39,7 +40,7 @@ export function useSkyTilt(): SkyTilt {
     () => gravity.sensor.get(),
     (g) => {
       'worklet';
-      if (reduceMotion || !g) {
+      if (!skyMotion || !g) {
         shiftX.set(0);
         shiftY.set(0);
         return;
@@ -55,7 +56,7 @@ export function useSkyTilt(): SkyTilt {
       shiftX.set(withSpring(dx, Parallax.spring));
       shiftY.set(withSpring(dy, Parallax.spring));
     },
-    [reduceMotion],
+    [skyMotion],
   );
 
   return { shiftX, shiftY };

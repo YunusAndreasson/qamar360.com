@@ -40,6 +40,7 @@ import { markStackCreated, useStackEverCreated } from '@/lib/hints';
 import { newId } from '@/lib/id';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { defaultStackName } from '@/lib/names';
+import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
 
@@ -68,6 +69,7 @@ type Entry =
 export default function HabitsScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const hijriOffset = usePreference('hijriOffset');
   const {
     habits,
     stacks,
@@ -117,15 +119,24 @@ export default function HabitsScreen() {
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
   // Only the habits scheduled for the viewed day appear in the day's checklist.
-  const visibleHabits = useMemo(() => habits.filter((h) => scheduledOn(h, viewDate)), [habits, viewDate]);
+  const visibleHabits = useMemo(
+    () => habits.filter((h) => scheduledOn(h, viewDate, hijriOffset)),
+    [habits, viewDate, hijriOffset],
+  );
 
   // A quiet heads-up the day before a Hijri-only act (e.g. the White Days fast): such habits
   // otherwise surface for the first time on the day itself — too late to prepare (suhūr, intention).
   // Only acts that are new tomorrow (not already scheduled today) are flagged.
   const tomorrow = addDaysISO(today, 1);
   const upcomingTomorrow = useMemo(
-    () => habits.filter((h) => h.hijri_schedule && scheduledOn(h, tomorrow) && !scheduledOn(h, today)),
-    [habits, tomorrow, today],
+    () =>
+      habits.filter(
+        (h) =>
+          h.hijri_schedule &&
+          scheduledOn(h, tomorrow, hijriOffset) &&
+          !scheduledOn(h, today, hijriOffset),
+      ),
+    [habits, tomorrow, today, hijriOffset],
   );
 
   // Fold the day's habits into top-level entries: stacks render as one grouped card,

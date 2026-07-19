@@ -12,11 +12,15 @@ import { ToastProvider } from '@/components/toast';
 import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
-import { PreferencesProvider } from '@/hooks/use-preferences';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications } from '@/lib/notifications';
+import { initPreferences } from '@/lib/preferences';
 
 void SplashScreen.preventAutoHideAsync();
+
+// Push the preferences that plain modules hold as their own state (the Hijri adjustment) before
+// anything renders — the very first date the app formats must already carry the user's choice.
+initPreferences();
 
 export default function RootLayout() {
   useEffect(() => {
@@ -26,18 +30,16 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PreferencesProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <CatalogProvider>
-                <DayCompleteProvider>
-                  <RootNavigator />
-                  <ThemedChrome />
-                </DayCompleteProvider>
-              </CatalogProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </PreferencesProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <CatalogProvider>
+              <DayCompleteProvider>
+                <RootNavigator />
+                <ThemedChrome />
+              </DayCompleteProvider>
+            </CatalogProvider>
+          </AuthProvider>
+        </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

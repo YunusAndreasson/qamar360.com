@@ -16,6 +16,10 @@ export default function SettingsStackLayout() {
       {/* The habit-stacking guide — the same sheet the Today hint opens, registered here too so
           reaching it from Settings never switches tabs. */}
       <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />
+      {/* The two settings that need more than a switch: each is a compact picker over one
+          value, so it's a sheet rather than a pushed screen — the list stays one level deep. */}
+      <Stack.Screen name="hijri-adjust" options={formSheetOptions(theme)} />
+      <Stack.Screen name="day-times" options={formSheetOptions(theme)} />
     </TabStack>
   );
 }

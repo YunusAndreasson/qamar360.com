@@ -1,15 +1,10 @@
 import { useEffect, useId } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, Line, LinearGradient, Stop } from 'react-native-svg';
 
 import { Meteor } from '@/constants/motion';
+import { useSkyMotion } from '@/hooks/use-sky-motion';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 
 /**
@@ -29,7 +24,7 @@ const PEAK = 0.35;
 
 export function Meteors({ sunAlt }: { sunAlt: number }) {
   const scheme = useEffectiveScheme();
-  const reduceMotion = useReducedMotion();
+  const skyMotion = useSkyMotion();
   const theme = useTheme();
   const gradId = useId();
   const { width, height } = useWindowDimensions();
@@ -41,8 +36,8 @@ export function Meteors({ sunAlt }: { sunAlt: number }) {
   const distance = useSharedValue(0);
 
   // Meteors are a dark-night thing — light mode, daylight/twilight (sun above nautical dark),
-  // and Reduce Motion simply never schedule one.
-  const active = scheme === 'dark' && !reduceMotion && sunAlt < -12;
+  // and a still sky (Reduce Motion or the user's preference) simply never schedule one.
+  const active = scheme === 'dark' && skyMotion && sunAlt < -12;
 
   useEffect(() => {
     if (!active) return;

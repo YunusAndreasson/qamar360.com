@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Store-submission credentials (never commit).
+/credentials/
+
 # env / secrets — never commit (.env.example is kept)
 .env
 .env.*

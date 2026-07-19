@@ -1,10 +1,6 @@
-import DateTimePicker, {
-  DateTimePickerAndroid,
-  type DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
@@ -12,10 +8,10 @@ import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
-import { PressableScale } from '@/components/pressable-scale';
 import { Segmented } from '@/components/segmented';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
+import { TimeChip } from '@/components/time-chip';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import type { Habit, HabitCreate, HabitPatch } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -26,12 +22,13 @@ import {
   type HijriSchedule,
   parseReminderTime,
   WEEKDAY_LABELS,
+  WEEKDAY_NAMES,
+  weekOrder,
 } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { normalizeName } from '@/lib/names';
 import { ensurePermission, remindersAvailable } from '@/lib/notifications';
-
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+import { getPreference, usePreference } from '@/lib/preferences';
 
 /** The White Days of every Hijri month (Ayyām al-Bīḍ) — the one-tap monthly fill. */
 const WHITE_DAYS = [13, 14, 15];
@@ -97,7 +94,13 @@ export function HabitEditorForm({
 }: Props) {
   const theme = useTheme();
   const isNew = !habit;
-  const initialTime = parseReminderTime(habit?.reminder_time);
+  const weekStart = usePreference('weekStart');
+  const savedTime = parseReminderTime(habit?.reminder_time);
+  // A habit's own saved time always wins; the preference only decides where a *new* reminder
+  // opens, so the common case (the same hour every time) is one switch instead of a scroll.
+  // Read once, not subscribed: retuning the default mid-edit must not move the time under the
+  // user's fingers. The reminder itself stays opt-in — only `savedTime` turns the switch on.
+  const initialTime = savedTime ?? parseReminderTime(getPreference('defaultReminderTime'));
 
   const initialHijri = habit?.hijri_schedule ?? null;
 
@@ -115,18 +118,11 @@ export function HabitEditorForm({
   const [hijriDates, setHijriDates] = useState<Set<string>>(
     () => new Set((initialHijri?.dates ?? []).map(dateKey)),
   );
-  const [reminderOn, setReminderOn] = useState(!!initialTime);
+  const [reminderOn, setReminderOn] = useState(!!savedTime);
   const [hour, setHour] = useState(initialTime?.hour ?? 8);
   const [minute, setMinute] = useState(initialTime?.minute ?? 0);
-  const [pickerVisible, setPickerVisible] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [stackPickerOpen, setStackPickerOpen] = useState(false);
-
-  const timeAsDate = useMemo(() => {
-    const d = new Date();
-    d.setHours(hour, minute, 0, 0);
-    return d;
-  }, [hour, minute]);
 
   const trimmedName = name.trim();
   // Reject a name that matches another habit — no DB constraint enforces this, so two
@@ -208,30 +204,10 @@ export function HabitEditorForm({
         return; // stay off — can't schedule without permission
       }
       setPermissionDenied(false);
-    } else {
-      setPickerVisible(false);
     }
     // No manual haptic: this is a native `Switch`, which already provides the platform's
     // own toggle feedback (a double-buzz otherwise on iOS).
     setReminderOn(value);
-  };
-
-  // Apply a picked time. Fired continuously by the iOS spinner and once by the Android dialog.
-  const onChangeTime = (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type === 'set' && date) {
-      setHour(date.getHours());
-      setMinute(date.getMinutes());
-    }
-  };
-
-  // iOS renders the spinner inline (toggled here); Android uses the library's imperative
-  // dialog — the recommended pattern for `@react-native-community/datetimepicker` v9.
-  const openTimePicker = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({ value: timeAsDate, mode: 'time', onChange: onChangeTime });
-    } else {
-      setPickerVisible((v) => !v);
-    }
   };
 
   const save = () => {
@@ -353,11 +329,11 @@ export function HabitEditorForm({
       {scheduleMode === 'weekly' ? (
         <>
           <View style={styles.days}>
-            {WEEKDAY_LABELS.map((label, d) => (
+            {weekOrder(weekStart).map((d) => (
               <SelectablePill
                 key={d}
                 selected={days.has(d)}
-                label={label}
+                label={WEEKDAY_LABELS[d] ?? ''}
                 onPress={() => toggleDay(d)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: days.has(d) }}
@@ -445,35 +421,23 @@ export function HabitEditorForm({
       </View>
       {!remindersAvailable ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-          Reminders need a development build (not available in Expo Go).
+          Reminders are unavailable in this build.
         </ThemedText>
       ) : null}
       {remindersAvailable && reminderOn ? (
-        <PressableScale
-          onPress={openTimePicker}
-          accessibilityRole="button"
+        <TimeChip
+          minutes={hour * 60 + minute}
+          onChange={(minutes) => {
+            setHour(Math.floor(minutes / 60));
+            setMinute(minutes % 60);
+          }}
           accessibilityLabel="Reminder time"
-          style={[styles.timeChip, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-          <ThemedText type="smallBold">
-            {timeAsDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-          </ThemedText>
-        </PressableScale>
+        />
       ) : null}
       {permissionDenied ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
           Allow notifications in system settings to get reminders.
         </ThemedText>
-      ) : null}
-      {/* iOS shows the spinner inline; Android opens the native dialog imperatively. */}
-      {remindersAvailable && pickerVisible && Platform.OS === 'ios' ? (
-        <View>
-          <DateTimePicker value={timeAsDate} mode="time" display="spinner" onChange={onChangeTime} />
-          <PressableScale onPress={() => setPickerVisible(false)} style={styles.pickerDone} accessibilityRole="button">
-            <ThemedText type="smallBold" themeColor="accent">
-              Done
-            </ThemedText>
-          </PressableScale>
-        </View>
       ) : null}
 
       {/* Stack (editing only) — this habit's grouping: edit the stack it's in, or join an
@@ -577,14 +541,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: Spacing.two,
   },
-  timeChip: {
-    alignSelf: 'flex-start',
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  pickerDone: { alignSelf: 'flex-end', padding: Spacing.two },
   stackRow: {
     flexDirection: 'row',
     alignItems: 'center',

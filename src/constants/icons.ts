@@ -76,6 +76,12 @@ export const Icons = {
   document: { sf: 'doc.text', material: 'description' },
   help: { sf: 'questionmark.circle', material: 'help-outline' },
   reset: { sf: 'arrow.counterclockwise', material: 'restart-alt' },
+  calendar: { sf: 'calendar', material: 'calendar-today' },
+  // The device itself buzzing — the only mechanical glyph in the set, and rightly so: haptics
+  // are the one setting about the hardware rather than the sky.
+  vibration: { sf: 'iphone.radiowaves.left.and.right', material: 'vibration' },
+  // Sky motion — the drift, twinkle and meteors, named by what they add rather than by a switch.
+  sparkle: { sf: 'sparkles', material: 'auto-awesome' },
   // ── Toast / status ─────────────────────────────────────────────────────
   success: { sf: 'checkmark.circle.fill', material: 'check-circle' },
   danger: { sf: 'exclamationmark.triangle.fill', material: 'error-outline' },

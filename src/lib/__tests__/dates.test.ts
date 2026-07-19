@@ -1,15 +1,22 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from '@jest/globals';
 
 import {
   addDaysISO,
+  describeHijriOffset,
   describeHijriSchedule,
   formatReminderTime,
+  hijriMonthRange,
   hijriParts,
   parseReminderTime,
   scheduledOn,
+  setHijriOffset,
   todayLocalISO,
   weekdayIndex,
+  weekOrder,
 } from '@/lib/dates';
+
+// The Hijri offset is module state shared by every test in this file — always put it back.
+afterEach(() => setHijriOffset(0));
 
 describe('todayLocalISO', () => {
   it('formats local date parts as YYYY-MM-DD (not UTC)', () => {
@@ -78,6 +85,9 @@ describe('parseReminderTime / formatReminderTime', () => {
     expect(parseReminderTime('abc')).toBeNull();
     // Regression: a bare hour with no minute must not parse to a half-populated time.
     expect(parseReminderTime('8')).toBeNull();
+    expect(parseReminderTime('-1:30')).toBeNull();
+    expect(parseReminderTime('24:00')).toBeNull();
+    expect(parseReminderTime('08:60')).toBeNull();
   });
 
   it('formats and round-trips', () => {
@@ -99,5 +109,77 @@ describe('describeHijriSchedule', () => {
 
   it('falls back when nothing is set', () => {
     expect(describeHijriSchedule({})).toBe('No Hijri days');
+  });
+});
+
+describe('weekOrder', () => {
+  it('rotates the week to start on the chosen day', () => {
+    expect(weekOrder(0)).toEqual([0, 1, 2, 3, 4, 5, 6]); // Sunday
+    expect(weekOrder(1)).toEqual([1, 2, 3, 4, 5, 6, 0]); // Monday
+    expect(weekOrder(6)).toEqual([6, 0, 1, 2, 3, 4, 5]); // Saturday
+  });
+
+  it('always yields each weekday exactly once', () => {
+    for (const start of [0, 1, 6]) {
+      expect([...weekOrder(start)].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    }
+  });
+});
+
+describe('setHijriOffset', () => {
+  const ISO = '2026-07-19';
+
+  it('shifts the Hijri date by whole days', () => {
+    // Both references are read while the offset is still 0 — asking for them afterwards would
+    // shift them too, and the comparison would say nothing.
+    const base = hijriParts(ISO);
+    const nextDay = hijriParts(addDaysISO(ISO, 1));
+    if (!base) return; // runtime without islamic-umalqura — nothing to assert
+    setHijriOffset(1);
+    // +1 lands on the Hijri date of the NEXT Gregorian day: today is one day further along.
+    expect(hijriParts(ISO)).toEqual(nextDay);
+    expect(hijriParts(ISO)).not.toEqual(base);
+  });
+
+  it('clears the cached parts, so a day read before the change is re-read after it', () => {
+    const base = hijriParts(ISO); // warms the cache for this day
+    const twoBack = hijriParts(addDaysISO(ISO, -2));
+    if (!base) return;
+    setHijriOffset(-2);
+    expect(hijriParts(ISO)).toEqual(twoBack); // the warm entry did not survive the change
+    setHijriOffset(0);
+    expect(hijriParts(ISO)).toEqual(base); // and back again
+  });
+
+  it('moves the days a Hijri-scheduled habit falls on', () => {
+    const base = hijriParts(ISO);
+    if (!base) return;
+    const habit = { created_at: null, schedule_days: [], hijri_schedule: { monthDays: [base.day] } };
+    expect(scheduledOn(habit, ISO)).toBe(true);
+    setHijriOffset(1);
+    // The same Gregorian day now carries a different Hijri day, so the habit isn't due on it —
+    // it has moved to the day before, which now carries `base.day`.
+    expect(scheduledOn(habit, ISO)).toBe(false);
+    expect(scheduledOn(habit, addDaysISO(ISO, -1))).toBe(true);
+  });
+
+  it('carries into the month range built on top of it', () => {
+    const base = hijriMonthRange(ISO);
+    if (!base) return;
+    setHijriOffset(1);
+    const shifted = hijriMonthRange(ISO);
+    expect(shifted?.start).toBe(addDaysISO(base.start, -1));
+  });
+});
+
+describe('describeHijriOffset', () => {
+  it('names the untouched calendar rather than showing a zero', () => {
+    expect(describeHijriOffset(0)).toBe('Umm al-Qura');
+  });
+
+  it('signs the shift and pluralises', () => {
+    expect(describeHijriOffset(1)).toBe('+1 day');
+    expect(describeHijriOffset(2)).toBe('+2 days');
+    expect(describeHijriOffset(-1)).toBe('−1 day');
   });
 });
