@@ -493,10 +493,16 @@ export default function DiscoverScreen() {
           Habits tab uses) — in-scroll it would just scroll away with the first section. */}
       <GeometricBackdrop variant="screen" />
 
-      {/* Filter chips are the list's sticky header — still pinned under the native search bar
-          for findability, and a descendant of the single tracked scroll (an outside-the-scroll
-          sibling would sit un-inset at the screen's true top and get flashed over the header by
-          react-native-screens on the back-swipe). The route's centered "Add Habit" is the title. */}
+      {/* Filter chips lead the list as its (scrolling) header — deliberately NOT sticky. On this
+          native modal react-native-screens gives the content a zero header offset (RNSScreen.mm's
+          isPresentedAsNativeModal branch) and the layout leans entirely on the automatic content
+          inset — which RN's sticky-header math never sees (ScrollView.js only offsets by the
+          contentInset PROP), so a sticky row engaged one bar-height too late and vanished under
+          the opaque header the moment the list scrolled. Letting the chips scroll with the
+          content is the native filter-row idiom (they're one flick from anywhere), and the always-
+          visible search bar carries pinned findability. They stay a descendant of the single
+          tracked scroll — an outside-the-scroll sibling would sit un-inset at the screen's true
+          top under that same header. The route's centered "Add Habit" is the title. */}
       <FlatList
         data={rows}
         renderItem={renderRow}
@@ -506,9 +512,8 @@ export default function DiscoverScreen() {
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[0]}
         ListHeaderComponent={
-          <View style={[styles.controls, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+          <View style={styles.controls}>
             <DiscoverFilterChips filters={filters} active={filter} onChange={setFilter} />
           </View>
         }
@@ -533,6 +538,8 @@ const styles = StyleSheet.create({
   gap: { height: Spacing.four },
   rowWrap: { paddingHorizontal: Spacing.three },
   firstRow: { paddingTop: Spacing.three },
+  // In-flow now (not sticky), so no opaque background or seam hairline — the chips sit on the
+  // sky like the section content beneath them.
   controls: {
     width: '100%',
     maxWidth: MaxContentWidth,
@@ -540,7 +547,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     gap: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   starter: { gap: Spacing.two },
   starterButton: { marginTop: Spacing.one, alignSelf: 'flex-start' },
