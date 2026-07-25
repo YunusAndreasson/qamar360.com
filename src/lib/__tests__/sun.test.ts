@@ -91,6 +91,26 @@ describe('starVisibility', () => {
       }
     }
   });
+
+  it('keeps a night sky through a white-night twilight the tiers never open in', () => {
+    // The regression this pins: at 59°N from April to August the sun bottoms out near −10°,
+    // above the faint tier's −12° band top, so a fixed daylight floor rendered the dust at its
+    // *midday* value all summer — the sky went empty for a third of the year. The floor now
+    // rides the overall darkness instead.
+    const summerNight = -10.5;
+    expect(starVisibility('faint', summerNight, 'inspired')).toBeGreaterThan(
+      2 * FLOORS.faint * 0.9,
+    );
+    // Still darker than the tiers that HAVE opened — the emergence ladder must survive the lift.
+    expect(starVisibility('bright', summerNight, 'inspired')).toBeGreaterThan(
+      starVisibility('mid', summerNight, 'inspired'),
+    );
+    expect(starVisibility('mid', summerNight, 'inspired')).toBeGreaterThan(
+      starVisibility('faint', summerNight, 'inspired'),
+    );
+    // And the lift is genuinely twilight-only: just after sunset it has barely started.
+    expect(starVisibility('faint', -4, 'inspired')).toBeLessThan(FLOORS.faint * 1.2);
+  });
 });
 
 describe('horizonTint', () => {

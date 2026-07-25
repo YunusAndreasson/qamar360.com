@@ -59,6 +59,19 @@ const VISIBILITY_BANDS: Record<StarTier, { hi: number; lo: number }> = {
 const DAYLIGHT_FLOORS: Record<StarTier, number> = { bright: 0.7, mid: 0.45, faint: 0.25 };
 
 /**
+ * How dark the sky has gone overall — 0 from civil dusk's edge (−2°) up, 1 at astronomical dark
+ * (−18°). This is what lifts an `inspired` floor off its noon value: a tier that hasn't reached
+ * its own band yet still gains ground as the whole sky darkens.
+ *
+ * Without it the ladder starves at high latitude. Stockholm (59°N) bottoms out near −10° from
+ * April to August — above the faint tier's −12° band top — so the entire summer would render the
+ * faint dust at its *midday* floor: 66 of the 80 stars in view at 0.05 opacity, an empty sky for
+ * a third of the year. The same holds worse for Oulu and Tromsø. Deliberately keyed to the sun,
+ * not to a latitude special case.
+ */
+const nightness = (sunAltDeg: number) => smoothstep((-2 - sunAltDeg) / 16);
+
+/**
  * How much of a star tier the sun's altitude lets through, 0..1. Multiplies with the
  * moon-washout ({@link starfield.starOpacity}) and the scheme dim — sun and moon drown
  * starlight independently, as in the real sky.
@@ -67,8 +80,13 @@ export function starVisibility(tier: StarTier, sunAltDeg: number, mode: Daylight
   const { hi, lo } = VISIBILITY_BANDS[tier];
   const rise = smoothstep((hi - sunAltDeg) / (hi - lo));
   if (mode === 'literal') return rise;
+  // The floor rides {@link nightness} rather than sitting at the daylight constant. Both ends of
+  // the contract are untouched — nightness is 0 above −2° (noon still returns exactly the floor)
+  // and 1 at −18° (true dark still returns exactly 1) — so only the twilight middle moves, which
+  // is precisely where a white-night latitude lives.
   const floor = DAYLIGHT_FLOORS[tier];
-  return floor + (1 - floor) * rise;
+  const lifted = floor + (1 - floor) * nightness(sunAltDeg);
+  return lifted + (1 - lifted) * rise;
 }
 
 // The tint's two voices. Warm is an apricot dusk — deliberately more orange than both the

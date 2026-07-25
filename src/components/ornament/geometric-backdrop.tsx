@@ -374,11 +374,12 @@ function ScreenVignette() {
  * from a horizon. Static on purpose (no tilt drift): this is the frame's own edge-light, the
  * fixed thing the parallax layers move against.
  */
-// Peaks together at ~0.1 in the bottom-centre — a touch over the overhead dome's 0.08, since
-// this one is read through the content margins rather than across an open sky. Still a felt
-// lift, never a visible wash.
-const HORIZON_BAND_OPACITY = 0.055;
-const HORIZON_DOME_OPACITY = 0.05;
+// Peaks together at ~0.15 in the bottom-centre — above the overhead dome's 0.08, since this one
+// is read through the content margins rather than across an open sky, and on a phone in a lit
+// room the first tuning (≈0.1 combined) measured as a real lift but landed under the threshold
+// of "I can see it". Still a felt lift, never a visible wash.
+const HORIZON_BAND_OPACITY = 0.08;
+const HORIZON_DOME_OPACITY = 0.07;
 
 /** Where the tab bar's opaque edge cuts the sky off, as a fraction of screen height — the last
  *  line of sky the eye actually reads, so the lift is shaped to arrive there rather than at the
