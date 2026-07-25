@@ -33,6 +33,7 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
+      "./plugins/strip-aps-environment.js",
       "expo-router",
       [
         "expo-splash-screen",
@@ -67,8 +68,7 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.417419719833-o6u0bg7tqjgvovlfib3sc1d303ab0bf9"
         }
-      ],
-      "./plugins/strip-aps-environment.js"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
