@@ -4,10 +4,8 @@ import {
   addDaysISO,
   describeHijriOffset,
   describeHijriSchedule,
-  formatReminderTime,
   hijriMonthRange,
   hijriParts,
-  parseReminderTime,
   scheduledOn,
   setHijriOffset,
   todayLocalISO,
@@ -72,31 +70,6 @@ describe('scheduledOn', () => {
     expect(scheduledOn({ created_at: null, schedule_days: [], hijri_schedule: { monthDays: [otherDay] } }, iso)).toBe(false);
   });
 });
-
-describe('parseReminderTime / formatReminderTime', () => {
-  it('parses a valid HH:MM string', () => {
-    expect(parseReminderTime('08:30')).toEqual({ hour: 8, minute: 30 });
-    expect(parseReminderTime('8:5')).toEqual({ hour: 8, minute: 5 });
-  });
-
-  it('returns null for empty or malformed input', () => {
-    expect(parseReminderTime(null)).toBeNull();
-    expect(parseReminderTime('')).toBeNull();
-    expect(parseReminderTime('abc')).toBeNull();
-    // Regression: a bare hour with no minute must not parse to a half-populated time.
-    expect(parseReminderTime('8')).toBeNull();
-    expect(parseReminderTime('-1:30')).toBeNull();
-    expect(parseReminderTime('24:00')).toBeNull();
-    expect(parseReminderTime('08:60')).toBeNull();
-  });
-
-  it('formats and round-trips', () => {
-    expect(formatReminderTime(8, 30)).toBe('08:30');
-    expect(formatReminderTime(8, 5)).toBe('08:05');
-    expect(parseReminderTime(formatReminderTime(21, 0))).toEqual({ hour: 21, minute: 0 });
-  });
-});
-
 describe('describeHijriSchedule', () => {
   it('names the White Days', () => {
     expect(describeHijriSchedule({ monthDays: [13, 14, 15] })).toBe('White Days (13–15)');

@@ -50,16 +50,6 @@ const oneOfNumber =
   (raw: string): T | undefined =>
     (values as readonly number[]).includes(Number(raw)) ? (Number(raw) as T) : undefined;
 
-/** `'HH:MM'` 24-hour, in range. Deliberately not `parseReminderTime` — that one accepts any
- *  integer pair, which is right for a stored habit column but not for validating storage. */
-function parseTime(raw: string): string | undefined {
-  const match = /^(\d{2}):(\d{2})$/.exec(raw);
-  if (!match) return undefined;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  return hour < 24 && minute < 60 ? raw : undefined;
-}
-
 /** The four chapter starts, in minutes from local midnight, strictly increasing within a day. */
 function parseBands(raw: string): DayBands | undefined {
   try {
@@ -126,15 +116,12 @@ const SPEC = {
     parse: oneOfNumber([-2, -1, 0, 1, 2] as const),
     serialize: String,
   } satisfies Spec<-2 | -1 | 0 | 1 | 2>,
-  /** Master switch for scheduled habit reminders — silences them without touching OS permission. */
-  reminders: flag('prefs.reminders', true),
-  /** `'HH:MM'` a new habit's reminder opens on. */
-  defaultReminderTime: {
-    key: 'prefs.reminderTime',
-    fallback: '08:00',
-    parse: parseTime,
-    serialize: (v) => v,
-  } satisfies Spec<string>,
+  /**
+   * Master switch for the four lunar-quarter updates — silences them without touching OS
+   * permission. A new key rather than the retired `prefs.reminders`: this is a different
+   * feature, and inheriting someone's opt-out of per-habit reminders would silence it wrongly.
+   */
+  lunarUpdates: flag('prefs.lunarUpdates', true),
   /** Custom day-part boundaries, or `null` to follow the real sun (the default). */
   dayBands: {
     key: 'prefs.dayBands',

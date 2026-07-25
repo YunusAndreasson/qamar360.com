@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { MILESTONE_ASSET_KEYS } from '@/lib/lunar-phase';
 import { moonIllumination, moonPhasePath } from '@/lib/moon';
 
 describe('moonIllumination', () => {
@@ -32,5 +33,44 @@ describe('moonPhasePath', () => {
     expect(path.startsWith('M')).toBe(true);
     expect(path.trimEnd().endsWith('Z')).toBe(true);
     expect(path).toContain('A'); // arc commands draw the limb + terminator
+  });
+});
+
+/**
+ * The moons a notification attaches are PNGs rendered ahead of time by `scripts/gen-moons.mjs`,
+ * which necessarily carries its own copy of the geometry above (it is plain Node; this is
+ * TypeScript). Nothing at runtime can notice the two drifting apart — the app would simply
+ * attach a moon of the wrong shape — so the seam is pinned here instead.
+ *
+ * If this fails, the generator and the library disagree: run `npm run gen:moons` and update
+ * the strings below from its output.
+ */
+describe('the pre-rendered notification moons', () => {
+  // Mirrors the canvas constants in scripts/gen-moons.mjs (re-declared, not imported, like
+  // sun.test.ts does with sun.ts's tunables).
+  const SIZE = 512;
+  const MARGIN = 24;
+  const R = (SIZE - MARGIN * 2) / 2;
+  const C = SIZE / 2;
+
+  const GOLDEN: Record<string, string> = {
+    'd01-l29': 'M 256 24 A 232 232 0 0 1 256 488 A 232 232 0 0 0 256 24 Z',
+    'd08-l29': 'M 256 24 A 232 232 0 0 1 256 488 A 12.56022679181688 232 0 0 0 256 24 Z',
+    'd15-l29': 'M 256 24 A 232 232 0 0 1 256 488 A 230.6400060598114 232 0 0 1 256 24 Z',
+    'd22-l29': 'M 256 24 A 232 232 0 0 0 256 488 A 37.533423200241415 232 0 0 0 256 24 Z',
+    'd01-l30': 'M 256 24 A 232 232 0 0 1 256 488 A 232 232 0 0 0 256 24 Z',
+    'd08-l30': 'M 256 24 A 232 232 0 0 1 256 488 A 24.25060347809559 232 0 0 0 256 24 Z',
+    'd15-l30': 'M 256 24 A 232 232 0 0 1 256 488 A 226.93024337024292 232 0 0 1 256 24 Z',
+    'd22-l30': 'M 256 24 A 232 232 0 0 0 256 488 A 71.6919426949878 232 0 0 0 256 24 Z',
+  };
+
+  it('covers exactly the keys a lunar update can ask for', () => {
+    expect(Object.keys(GOLDEN).sort()).toEqual([...MILESTONE_ASSET_KEYS].sort());
+  });
+
+  it.each(Object.entries(GOLDEN))('draws %s from the app’s own geometry', (key, expected) => {
+    const [, day, length] = /^d(\d+)-l(\d+)$/.exec(key) as RegExpExecArray;
+    const { illumination, waxing } = moonIllumination(Number(day), Number(length));
+    expect(moonPhasePath(C, C, R, illumination, waxing)).toBe(expected);
   });
 });

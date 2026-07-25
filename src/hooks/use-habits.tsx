@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -13,6 +12,7 @@ import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
+import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
@@ -21,7 +21,7 @@ import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
 import { moonIllumination } from '@/lib/moon';
-import { rescheduleAll, setAppBadgeCount } from '@/lib/notifications';
+import { setAppBadgeCount } from '@/lib/notifications';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import type { DayPart } from '@/lib/sun';
@@ -31,8 +31,15 @@ import { supabase } from '@/lib/supabase';
  * A habit row, with `hijri_schedule` narrowed from the DB's raw `Json` to the
  * structured {@link HijriSchedule}. Rows fetched from Supabase are cast to this at
  * the query boundary (the column is only ever written as a `HijriSchedule`).
+ *
+ * `reminder_time` is omitted rather than merely unused: per-habit reminders were replaced by
+ * lunar updates, and dropping it from the type here is what lets the app stop touching the
+ * column *before* the migration removes it — an app that still wrote it would break the moment
+ * the column went, so the two have to be ordered. The `Omit` stays harmless afterwards.
  */
-export type Habit = Omit<Tables<'habits'>, 'hijri_schedule'> & { hijri_schedule: HijriSchedule | null };
+export type Habit = Omit<Tables<'habits'>, 'hijri_schedule' | 'reminder_time'> & {
+  hijri_schedule: HijriSchedule | null;
+};
 /** A named, ordered group of habits — presentation grouping only (see `stack_id`). */
 export type HabitStack = Tables<'habit_stacks'>;
 
@@ -40,7 +47,6 @@ export type HabitStack = Tables<'habit_stacks'>;
 export type HabitPatch = {
   name?: string;
   schedule_days?: number[];
-  reminder_time?: string | null;
   /** Set to a {@link HijriSchedule} to make the habit Hijri-scheduled, or `null` for weekly. */
   hijri_schedule?: HijriSchedule | null;
   /** A numeric daily target (a "count goal"), or `null` for a plain binary habit. */
@@ -49,11 +55,10 @@ export type HabitPatch = {
   target_unit?: string | null;
 };
 
-/** Everything needed to create a habit (name + schedule + optional reminder). */
+/** Everything needed to create a habit (name + schedule + optional goal). */
 export type HabitCreate = {
   name: string;
   schedule_days: number[];
-  reminder_time: string | null;
   /** A Hijri recurrence instead of weekdays; omit/null for a weekly habit. */
   hijri_schedule?: HijriSchedule | null;
   /** A numeric daily target (a "count goal"); omit/null for a plain binary habit. */
@@ -200,7 +205,7 @@ const HabitsContext = createContext<HabitsContextValue | null>(null);
 
 /**
  * Delete a user's entire completion history — every check-off — for a "fresh start", while
- * leaving their habits and stacks (and reminders) intact. Standalone (not a hook) so the
+ * leaving their habits and stacks intact. Standalone (not a hook) so the
  * Settings tab can call it directly without consuming the habits context; the Habits tab
  * picks the change up via its focus-refetch on return. Throws on failure.
  */
@@ -524,39 +529,24 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [userId, fetchHabits, fetchStacks, fetchCompletions]);
 
-  // Keep OS reminders in sync with the habits. Keyed on the reminder-relevant fields
-  // only, so reorders/ticks (which don't change them) don't churn the schedule.
-  const reminders = useMemo(
-    () =>
-      habits.map((h) => ({
-        name: h.name,
-        reminder_time: h.reminder_time,
-        schedule_days: h.schedule_days,
-        hijri_schedule: h.hijri_schedule,
-        created_at: h.created_at,
-      })),
-    [habits],
-  );
-  // Two preferences move the schedule without any habit changing: the master switch (off means
-  // an empty schedule — the same clearing the sign-out path does), and the Hijri adjustment,
-  // which shifts the one-shot dates a Hijri habit's occurrences were computed for.
-  const remindersOn = usePreference('reminders');
   const hijriOffset = usePreference('hijriOffset');
-  const reminderSignature = `${remindersOn ? 1 : 0}|${hijriOffset}|${JSON.stringify(reminders)}`;
-  // Effect Event (stable, non-reactive): reads the latest `reminders` without the sync
-  // effect having to depend on its per-render array identity. The signature string is the
-  // real trigger — reorders/ticks that don't touch reminder fields leave it unchanged.
-  const syncReminders = useEffectEvent(() => {
-    void rescheduleAll(remindersOn ? reminders : []);
+
+  // Keep the four lunar updates armed with the month's real figure. The key is a cheap stand-in
+  // for "the month's completion moved": the acts done today are exactly what the degrees count,
+  // so untick-one-tick-another (equal sizes, equal degrees) rightly reads as no change.
+  const doneToday = useMemo(() => (viewDate === today ? [...completed] : []), [viewDate, today, completed]);
+  useLunarUpdates({
+    userId,
+    today,
+    doneToday,
+    loading,
+    // Sorted, so a Map that arrives in a different insertion order after a refetch doesn't read
+    // as a change and buy a pointless fetch.
+    progressKey: `${habits.length}|${completed.size}|${skipped.size}|${[...counts]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, n]) => `${id}:${n}`)
+      .join(',')}`,
   });
-  // Gated on `loading`: the first commit renders with `habits = []` whenever the snapshot seed
-  // is rejected (every new-day launch), and syncing THAT would cancel every scheduled OS
-  // reminder before the load lands — durably, if the load then fails. Sync only from loaded
-  // (or seeded) state; the `loading` flip re-runs the effect once the real habits are in.
-  useEffect(() => {
-    if (loading) return;
-    syncReminders();
-  }, [loading, reminderSignature]);
 
   const remainingToday = useMemo(
     () =>
@@ -567,19 +557,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   // Keep the home-screen app icon badge aligned with the same "open today" count shown in
-  // the Habits tab badge. Scheduled notifications also set this while the app is closed.
+  // the Habits tab badge. Nothing else writes it — a firing lunar update carries no `badge`.
   useEffect(() => {
     void setAppBadgeCount(userId ? remainingToday : 0);
   }, [userId, remainingToday]);
 
-  // Unmount = leaving the authed tree (sign-out): zero the badge AND cancel the scheduled
-  // reminders, so the previous user's habit-named notifications don't keep firing on the
-  // sign-in screen (each would also re-set the badge this cleanup just cleared). The next
-  // sign-in's provider rebuilds its own schedule once its load lands.
+  // Unmount = leaving the authed tree (sign-out): zero the badge, so the previous user's count
+  // doesn't sit on the icon at the sign-in screen. Clearing the lunar schedule is the matching
+  // job of {@link useLunarUpdates}, which unmounts with this provider.
   useEffect(
     () => () => {
       void setAppBadgeCount(0);
-      void rescheduleAll([]);
     },
     [],
   );
@@ -881,7 +869,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const cancelledTempIds = useRef<Set<string>>(new Set());
 
   const createHabit = useCallback(
-    async ({ name: rawName, schedule_days, reminder_time, hijri_schedule = null, target_count = null, target_unit = null }: HabitCreate) => {
+    async ({ name: rawName, schedule_days, hijri_schedule = null, target_count = null, target_unit = null }: HabitCreate) => {
       if (!userId) return;
       const name = rawName.trim();
       if (!name) return;
@@ -904,7 +892,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         created_at: null,
         updated_at: null,
         schedule_days,
-        reminder_time,
         hijri_schedule,
         target_count,
         target_unit,
@@ -916,7 +903,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error: insError } = await supabase
           .from('habits')
-          .insert({ user_id: userId, name, position, schedule_days, reminder_time, hijri_schedule, target_count, target_unit })
+          .insert({ user_id: userId, name, position, schedule_days, hijri_schedule, target_count, target_unit })
           .select()
           .single();
         if (insError) throw insError;
@@ -973,7 +960,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         created_at: null,
         updated_at: null,
         schedule_days: input.schedule_days,
-        reminder_time: input.reminder_time,
         hijri_schedule: input.hijri_schedule ?? null,
         target_count: input.target_count ?? null,
         target_unit: input.target_unit ?? null,
@@ -992,7 +978,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
               name: input.name,
               position: base + k,
               schedule_days: input.schedule_days,
-              reminder_time: input.reminder_time,
               hijri_schedule: input.hijri_schedule ?? null,
               target_count: input.target_count ?? null,
               target_unit: input.target_unit ?? null,

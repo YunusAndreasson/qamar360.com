@@ -67,7 +67,7 @@ export function SettingsRow({
       </View>
       {switchValue !== undefined ? (
         // No app haptic here: a `Switch` is a native control and the OS already vibrates for it
-        // (see the haptics vocabulary). Same theming as the editor's reminder switch.
+        // (see the haptics vocabulary).
         <Switch
           value={switchValue}
           onValueChange={onSwitchChange}

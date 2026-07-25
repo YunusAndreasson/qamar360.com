@@ -98,6 +98,5 @@ export function presetToHabit(preset: Preset) {
     hijri_schedule: preset.hijriSchedule ?? null,
     target_count: preset.targetCount ?? null,
     target_unit: preset.targetUnit ?? null,
-    reminder_time: null,
   }
 }

@@ -169,7 +169,6 @@ function HabitForm({ habit, onSaved }: { habit: Habit | null; onSaved: () => voi
           hijri_schedule: null,
           target_count: count,
           target_unit: unit,
-          reminder_time: null,
         })
       }
       onSaved()

@@ -7,8 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** A time of day as minutes from local midnight — the app's one numeric time-of-day currency
- *  (habit reminders store `'HH:MM'`, day bands store minutes; both convert here). */
+/** A time of day as minutes from local midnight — the currency the day bands are stored in. */
 function minutesToDate(minutes: number): Date {
   const date = new Date();
   date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
@@ -22,8 +21,7 @@ function formatMinutes(minutes: number): string {
 
 /**
  * A tappable chip showing a time, which opens the platform's time picker — the app's single
- * time-of-day control, shared by the habit editor's reminder, the default reminder time, and
- * the custom day-part boundaries.
+ * time-of-day control, used by the custom day-part boundaries.
  *
  * Per-platform by the library's own recommendation (`@react-native-community/datetimepicker`
  * v9): iOS renders the spinner inline (revealed under the chip, with its own Done), Android

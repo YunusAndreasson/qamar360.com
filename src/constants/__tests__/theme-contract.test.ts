@@ -159,4 +159,14 @@ describe('native launch sync', () => {
     expect(notifications?.[1].color.toUpperCase()).toBe(Colors.dark.accent.toUpperCase());
     expect(notifications?.[1].icon).toBe('./assets/images/notification-icon.png');
   });
+
+  it('the pre-rendered notification moons are painted in the dark theme’s own two colours', () => {
+    // scripts/gen-moons.mjs is plain Node and cannot import the palette, so it hardcodes these.
+    // A retune that moves either one has to re-run `npm run gen:moons`, or the moon on the lock
+    // screen stops matching the moon on the Progress hero.
+    const LIT = '#F4EACB';
+    const SHADOW = '#12161D';
+    expect(LIT.toUpperCase()).toBe(Colors.dark.complete.toUpperCase());
+    expect(SHADOW.toUpperCase()).toBe(Colors.dark.backgroundElement.toUpperCase());
+  });
 });

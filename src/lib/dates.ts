@@ -18,8 +18,8 @@ export function todayLocalISO(date = new Date()): string {
 /**
  * A `Date` at local `hour:minute` on the given `YYYY-MM-DD` day — local midnight by default, so the
  * weekday/day match the local date. The one place a completion date-string is turned back into a
- * local `Date`: display code and the reminder scheduler both build on this, so a day never shifts
- * across a time zone.
+ * local `Date`: display code and the lunar-update scheduler both build on this, so a day never
+ * shifts across a time zone.
  */
 export function localDate(iso: string, hour = 0, minute = 0): Date {
   const [year, month, day] = iso.split('-').map(Number) as [number, number, number];
@@ -109,7 +109,7 @@ const HIJRI_PARTS_CACHE_MAX = 4000;
  * Days to shift the Umm al-Qura calendar by, for a locale whose moonsighting runs ahead of or
  * behind the tabular reckoning. `+1` means "today is one Hijri day further along". Held here as
  * module state, pushed in by the preferences store — so every consumer of {@link hijriParts}
- * (the displayed date, `scheduledOn`, the progress and stats sweeps, the reminders) agrees
+ * (the displayed date, `scheduledOn`, the progress and stats sweeps, the lunar updates) agrees
  * without any of them having to know the preference exists.
  */
 let hijriOffset = 0;
@@ -279,7 +279,7 @@ function createdDayISO(createdAt: string): string {
  * Whether a habit "counts" on day `D`: it must already have existed (created on or
  * before `D`, or creation unknown) *and* `D` must fall on its schedule — its Hijri
  * recurrence when it has one, otherwise `D`'s weekday must be in `schedule_days`.
- * Single source of truth for the Habits-screen filter, progress math, and reminders.
+ * Single source of truth for the Habits-screen filter and the progress math.
  */
 export function scheduledOn(habit: Schedulable, dayISO: string, offset = hijriOffset): boolean {
   const created = habit.created_at ? createdDayISO(habit.created_at) : null;
@@ -319,30 +319,4 @@ export function describeHijriSchedule(hs: HijriSchedule): string {
     );
   }
   return parts.join(' · ') || 'No Hijri days';
-}
-
-/** Parse a stored `'HH:MM'` reminder into numeric parts, or null when unset/invalid. */
-export function parseReminderTime(value: string | null | undefined): { hour: number; minute: number } | null {
-  if (!value) return null;
-  const [hourPart, minutePart] = value.split(':');
-  const hour = Number(hourPart);
-  const minute = Number(minutePart);
-  // A bare "8" (no colon) leaves minutePart undefined → Number(undefined) is NaN;
-  // Number.isInteger rejects that, so we never return a half-parsed time.
-  if (
-    !Number.isInteger(hour) ||
-    !Number.isInteger(minute) ||
-    hour < 0 ||
-    hour > 23 ||
-    minute < 0 ||
-    minute > 59
-  ) {
-    return null;
-  }
-  return { hour, minute };
-}
-
-/** Format hour/minute into the stored `'HH:MM'` 24-hour string. */
-export function formatReminderTime(hour: number, minute: number): string {
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }

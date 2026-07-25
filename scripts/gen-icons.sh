@@ -32,3 +32,7 @@ rsvg-convert -w 48 -h 48 "$LOGO/qamar-icon.svg" \
   | convert - -background "$BG" -flatten -alpha off "PNG24:$IMG/favicon.png"
 
 echo "Regenerated icons in $IMG"
+
+# Moon phases attached to lunar update notifications on iOS — drawn from the app's own phase
+# geometry rather than the logo SVGs, so they live in their own generator.
+node scripts/gen-moons.mjs

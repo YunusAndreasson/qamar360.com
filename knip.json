@@ -13,7 +13,7 @@
     "src/lib/database.types.ts",
     "web/**"
   ],
-  "ignoreBinaries": ["python3"],
+  "ignoreBinaries": ["python3", "rsvg-convert"],
   "ignoreDependencies": [
     "@jest/globals",
     "@babel/types",

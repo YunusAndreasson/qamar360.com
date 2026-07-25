@@ -6,15 +6,15 @@ import type { DayPart } from '@/lib/sun';
  * Specific, Measurable, Achievable, Relevant, Time-bound — so it is unambiguous to track.
  *
  * Pure client-side data (no DB): adding a preset just creates an ordinary habit via
- * `createHabit({ name, schedule_days, reminder_time })`. The precise `name` is the stored
+ * `createHabit({ name, schedule_days })`. The precise `name` is the stored
  * habit; `detail` (the "what counts as done") and `evidence` (the Sunnah source) are shown
  * in the Discover UI at the moment of choosing — knowledge in the world, exactly where the
  * decision is made.
  *
  * Schedules use weekday indices 0=Sun … 6=Sat (matching `habits.schedule_days`). Presets carry
- * no reminder — this is a habit tracker, not a prayer-times app, and a fixed clock time would
- * be wrong for prayers (their times shift daily by location/season). A reminder is an opt-in
- * choice the user makes per habit in the editor.
+ * no clock time — this is a habit tracker, not a prayer-times app, and a fixed hour would be
+ * wrong for prayers (their times shift daily by location/season). The app's only notifications
+ * are the four lunar updates, which belong to the month rather than to any one habit.
  *
  * Hijri-date practices (the White Days, ʿĀshūrāʾ, ʿArafah, Ramaḍān) carry a `hijriSchedule`
  * instead of weekdays: `scheduledOn` places them by the Umm al-Qura date, and they are stored
@@ -898,8 +898,7 @@ const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * A human one-line schedule summary, e.g. "Every day", "Fri", "Mon, Thu", or — for a Hijri
- * habit — "White Days (13–15)", "Ramaḍān". Reminders are an opt-in choice the user makes per
- * habit, so they don't appear here.
+ * habit — "White Days (13–15)", "Ramaḍān". No habit carries a clock time, so none appears here.
  */
 export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null): string {
   if (hijri) return describeHijriSchedule(hijri);

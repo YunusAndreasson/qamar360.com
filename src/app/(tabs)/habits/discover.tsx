@@ -31,9 +31,6 @@ const toCreate = (preset: SunnahPreset) => ({
   // A few presets are naturally counted (cups, servings); the rest stay binary.
   target_count: preset.targetCount ?? null,
   target_unit: preset.targetUnit ?? null,
-  // Reminders are opt-in: presets never pre-schedule a notification (this is a habit
-  // tracker, not a prayer-times app). The user sets a time per habit in the editor.
-  reminder_time: null,
 });
 
 /** 'all' | a category id — the active chip narrows the corpus searched. */
@@ -456,7 +453,7 @@ export default function DiscoverScreen() {
               <SettingsRow
                 icon="add"
                 label="Create your own habit"
-                sublabel="Name, schedule and reminder"
+                sublabel="Name, schedule and goal"
                 onPress={goCreateHabit}
                 showChevron
               />

@@ -14,7 +14,6 @@ export type HabitCreate = {
   hijri_schedule: HijriSchedule | null
   target_count: number | null
   target_unit: string | null
-  reminder_time: string | null
 }
 export type HabitPatch = {
   name?: string

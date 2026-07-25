@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
@@ -12,7 +12,6 @@ import { SettingsSection } from '@/components/settings-section';
 import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
-import { TimeChip } from '@/components/time-chip';
 import { useToast } from '@/components/toast';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
@@ -22,8 +21,11 @@ import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import { openBrowser } from '@/lib/browser';
-import { describeHijriOffset, formatReminderTime, parseReminderTime } from '@/lib/dates';
-import { ensurePermission, permissionGranted, remindersAvailable } from '@/lib/notifications';
+import { describeHijriOffset, todayLocalISO } from '@/lib/dates';
+import { deviceLocation } from '@/lib/geo';
+import { planLunarFires } from '@/lib/lunar-schedule';
+import { lunarUpdateCopy } from '@/lib/lunar-update';
+import { ensurePermission, notificationsAvailable, permissionGranted } from '@/lib/notifications';
 import { setPreference, usePreference, type WeekStart } from '@/lib/preferences';
 
 // Sunday (the app's own index origin and the US/Gulf convention), Monday (ISO and most of
@@ -49,13 +51,21 @@ export default function SettingsScreen() {
   const weekStart = usePreference('weekStart');
   const hijriOffset = usePreference('hijriOffset');
   const dayBands = usePreference('dayBands');
-  const remindersOn = usePreference('reminders');
-  const defaultReminder = usePreference('defaultReminderTime');
+  const lunarUpdatesOn = usePreference('lunarUpdates');
   const hapticsOn = usePreference('haptics');
   const celebrateDay = usePreference('celebrateDay');
   const skyMotion = usePreference('skyMotion');
-  const reminderParts = parseReminderTime(defaultReminder);
-  const defaultReminderMinutes = (reminderParts?.hour ?? 8) * 60 + (reminderParts?.minute ?? 0);
+
+  // The next update, named by the same generator that will actually send it — so this line
+  // can't drift from what arrives. No figure is shown: that needs a progress fetch, and the
+  // Progress tab is one tap away for anyone who wants the number.
+  const nextUpdate = useMemo(() => {
+    // Nothing is going to arrive without the OS's consent, so don't promise one.
+    if (!lunarUpdatesOn || !notificationsAvailable || notifGranted !== true) return null;
+    const { lat, lon } = deviceLocation();
+    const [fire] = planLunarFires(todayLocalISO(), lat, lon);
+    return fire ? lunarUpdateCopy(fire, null).title : null;
+  }, [lunarUpdatesOn, notifGranted]);
 
   // Reflect the real OS permission (without prompting), so the row shows accurate
   // state rather than a "tap to…" guess. Re-read whenever the app returns to the
@@ -69,6 +79,15 @@ export default function SettingsScreen() {
     });
     return () => sub.remove();
   }, []);
+
+  // And on regaining focus: the lunar-updates sheet asks for the permission over this screen,
+  // which never leaves the foreground — so without this the row would still read the answer
+  // from before the prompt.
+  useFocusEffect(
+    useCallback(() => {
+      void permissionGranted().then(setNotifGranted);
+    }, []),
+  );
 
   // The app is versioned by the moon: `expoConfig.version` is the Umm al-Qura date it shipped on
   // (`YYYY.MM.DD`, a Hijri date that also happens to be valid SemVer) — already a Hijri date, so
@@ -103,7 +122,7 @@ export default function SettingsScreen() {
     try {
       await clearCompletionHistory(user.id);
       setClearing(false);
-      // Habits, stacks, and reminders are untouched; the Habits/Progress tabs refetch on focus,
+      // Habits and stacks are untouched; the Habits/Progress tabs refetch on focus,
       // so they show a clean slate on return. A quiet toast confirms — no blocking dialog needed.
       toast.show('Progress reset — your habits and stacks are untouched.', 'success');
     } catch {
@@ -140,7 +159,7 @@ export default function SettingsScreen() {
       if (!granted) {
         Alert.alert(
           'Notifications are off',
-          'Turn on notifications in system settings to get habit reminders.',
+          'Turn on notifications in system settings to get your lunar updates.',
           [
             { text: 'Not now', style: 'cancel' },
             { text: 'Open settings', onPress: () => void Linking.openSettings() },
@@ -155,6 +174,17 @@ export default function SettingsScreen() {
   // State only — the chevron already says it's tappable; a denied tap surfaces the
   // "open settings" path in an alert. `undefined` while the mount check resolves.
   const notifSublabel = notifGranted === true ? 'On' : notifGranted === false ? 'Off' : undefined;
+
+  // Turning the feature on is where the OS prompt is earned, so the first time it goes through
+  // the sheet that explains what the four nights are; that sheet flips the preference itself,
+  // and only on a grant. Once permission exists the switch is just a switch.
+  const onToggleLunarUpdates = (value: boolean) => {
+    if (!value || notifGranted === true) {
+      setPreference('lunarUpdates', value);
+      return;
+    }
+    router.push('/settings/lunar-updates');
+  };
 
   // Sign-out asks first: the row sits directly under "Change password", so one mis-tap would
   // otherwise dump the user straight to the sign-in screen. Not destructive — plain buttons.
@@ -227,9 +257,30 @@ export default function SettingsScreen() {
         />
       </View>
 
-      {/* Notifications */}
-      <SettingsSection title="Notifications">
-        {remindersAvailable ? (
+      {/* Lunar updates — the app's only notifications. Four a month, at the quarters of the
+          moon; the permission row appears only once they're wanted, since that's the only
+          state in which the OS answer matters. */}
+      <SettingsSection
+        title="Lunar updates"
+        footer={
+          notificationsAvailable
+            ? nextUpdate
+              ? `Next · ${nextUpdate}`
+              : 'New moon, first quarter, full moon, last quarter — each with how far through the month you are.'
+            : undefined
+        }>
+        {notificationsAvailable ? (
+          <SettingsRow
+            icon="moon"
+            label="Lunar updates"
+            sublabel="Four nights a lunar month"
+            switchValue={lunarUpdatesOn}
+            onSwitchChange={onToggleLunarUpdates}
+          />
+        ) : (
+          <SettingsRow icon="notificationsOff" label="Lunar updates" value="Unavailable" />
+        )}
+        {notificationsAvailable && lunarUpdatesOn ? (
           <SettingsRow
             icon={notifGranted === false ? 'notificationsOff' : 'notifications'}
             label="Allow notifications"
@@ -237,33 +288,8 @@ export default function SettingsScreen() {
             onPress={() => void enableNotifications()}
             showChevron
           />
-        ) : (
-          <SettingsRow icon="notificationsOff" label="Reminders" value="Unavailable" />
-        )}
-        {remindersAvailable ? (
-          <SettingsRow
-            icon="notifications"
-            label="Habit reminders"
-            switchValue={remindersOn}
-            onSwitchChange={(value) => setPreference('reminders', value)}
-          />
         ) : null}
       </SettingsSection>
-
-      {/* The hour a new habit's reminder opens on. A bare label + control rather than a row:
-          on iOS the chip reveals a full-width spinner, which a grouped card can't hold. */}
-      {remindersAvailable && remindersOn ? (
-        <View style={styles.controlGroup}>
-          <SectionLabel>DEFAULT REMINDER TIME</SectionLabel>
-          <TimeChip
-            minutes={defaultReminderMinutes}
-            onChange={(minutes) =>
-              setPreference('defaultReminderTime', formatReminderTime(Math.floor(minutes / 60), minutes % 60))
-            }
-            accessibilityLabel="Default reminder time"
-          />
-        </View>
-      ) : null}
 
       {/* Feel — the app's own texture. Every one defaults on; turning one off is a preference
           for quiet, never a loss of function. */}

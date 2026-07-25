@@ -27,10 +27,9 @@ describe('defaults', () => {
     expect(getPreference('haptics')).toBe(true);
     expect(getPreference('celebrateDay')).toBe(true);
     expect(getPreference('skyMotion')).toBe(true);
-    expect(getPreference('reminders')).toBe(true);
+    expect(getPreference('lunarUpdates')).toBe(true);
     expect(getPreference('weekStart')).toBe(0);
     expect(getPreference('hijriOffset')).toBe(0);
-    expect(getPreference('defaultReminderTime')).toBe('08:00');
     expect(getPreference('dayBands')).toBeNull(); // follow the sun
   });
 });
@@ -41,7 +40,7 @@ describe('round trip', () => {
     setPreference('haptics', false);
     setPreference('weekStart', 1);
     setPreference('hijriOffset', -1);
-    setPreference('defaultReminderTime', '21:30');
+    setPreference('lunarUpdates', false);
     setPreference('dayBands', { morning: 360, midday: 720, evening: 1080, night: 1320 });
 
     resetPreferencesCache(); // forget everything in memory — a fresh launch reading storage
@@ -50,7 +49,7 @@ describe('round trip', () => {
     expect(getPreference('haptics')).toBe(false);
     expect(getPreference('weekStart')).toBe(1);
     expect(getPreference('hijriOffset')).toBe(-1);
-    expect(getPreference('defaultReminderTime')).toBe('21:30');
+    expect(getPreference('lunarUpdates')).toBe(false);
     expect(getPreference('dayBands')).toEqual({ morning: 360, midday: 720, evening: 1080, night: 1320 });
   });
 
@@ -73,7 +72,7 @@ describe('a stored value that isn’t legal', () => {
     ['prefs.haptics', 'yes'],
     ['prefs.weekStart', '3'], // a real weekday, but not one of the three offered
     ['prefs.hijriOffset', '5'], // beyond the ±2 any reckoning uses
-    ['prefs.reminderTime', '25:00'],
+    ['prefs.lunarUpdates', 'yes'],
     ['prefs.dayBands', '{"morning":100}'], // incomplete
     ['prefs.dayBands', 'not json'],
   ])('falls back to the default rather than propagating %s=%s', (key, value) => {
@@ -83,7 +82,7 @@ describe('a stored value that isn’t legal', () => {
     expect(getPreference('haptics')).toBe(true);
     expect(getPreference('weekStart')).toBe(0);
     expect(getPreference('hijriOffset')).toBe(0);
-    expect(getPreference('defaultReminderTime')).toBe('08:00');
+    expect(getPreference('lunarUpdates')).toBe(true);
     expect(getPreference('dayBands')).toBeNull();
   });
 

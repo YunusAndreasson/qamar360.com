@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -13,7 +13,7 @@ import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
-import { configureNotifications } from '@/lib/notifications';
+import { configureNotifications, subscribeToUpdateTaps } from '@/lib/notifications';
 import { initPreferences } from '@/lib/preferences';
 
 void SplashScreen.preventAutoHideAsync();
@@ -56,6 +56,7 @@ function ThemedChrome() {
 
 function RootNavigator() {
   const { session, initialized } = useAuth();
+  const router = useRouter();
   // Local-asset fonts resolve in milliseconds, well inside the auth gate's splash hold; on a
   // load error the app degrades to the system font rather than deadlocking the splash (the
   // same philosophy as AuthProvider's safety-net timeout).
@@ -70,6 +71,14 @@ function RootNavigator() {
   useEffect(() => {
     if (ready) SplashScreen.hide();
   }, [ready]);
+
+  // Tapping a lunar update opens the tab it was describing — the moon and the orbit the
+  // notification just quoted. Gated on a mounted navigator and a session, so a cold-start tap
+  // can't navigate before the tabs exist or land a signed-out user on a protected route.
+  useEffect(() => {
+    if (!ready || !session) return;
+    return subscribeToUpdateTaps(() => router.navigate('/progress'));
+  }, [ready, session, router]);
 
   if (!ready) return null;
 

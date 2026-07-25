@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
@@ -11,24 +11,14 @@ import { FormScreen } from '@/components/form-screen';
 import { Segmented } from '@/components/segmented';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
-import { TimeChip } from '@/components/time-chip';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import type { Habit, HabitCreate, HabitPatch } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
-import {
-  DAILY_SCHEDULE,
-  formatReminderTime,
-  type HijriSchedule,
-  parseReminderTime,
-  WEEKDAY_LABELS,
-  WEEKDAY_NAMES,
-  weekOrder,
-} from '@/lib/dates';
+import { DAILY_SCHEDULE, type HijriSchedule, WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { normalizeName } from '@/lib/names';
-import { ensurePermission, remindersAvailable } from '@/lib/notifications';
-import { getPreference, usePreference } from '@/lib/preferences';
+import { usePreference } from '@/lib/preferences';
 
 /** The White Days of every Hijri month (Ayyām al-Bīḍ) — the one-tap monthly fill. */
 const WHITE_DAYS = [13, 14, 15];
@@ -95,12 +85,6 @@ export function HabitEditorForm({
   const theme = useTheme();
   const isNew = !habit;
   const weekStart = usePreference('weekStart');
-  const savedTime = parseReminderTime(habit?.reminder_time);
-  // A habit's own saved time always wins; the preference only decides where a *new* reminder
-  // opens, so the common case (the same hour every time) is one switch instead of a scroll.
-  // Read once, not subscribed: retuning the default mid-edit must not move the time under the
-  // user's fingers. The reminder itself stays opt-in — only `savedTime` turns the switch on.
-  const initialTime = savedTime ?? parseReminderTime(getPreference('defaultReminderTime'));
 
   const initialHijri = habit?.hijri_schedule ?? null;
 
@@ -118,10 +102,6 @@ export function HabitEditorForm({
   const [hijriDates, setHijriDates] = useState<Set<string>>(
     () => new Set((initialHijri?.dates ?? []).map(dateKey)),
   );
-  const [reminderOn, setReminderOn] = useState(!!savedTime);
-  const [hour, setHour] = useState(initialTime?.hour ?? 8);
-  const [minute, setMinute] = useState(initialTime?.minute ?? 0);
-  const [permissionDenied, setPermissionDenied] = useState(false);
   const [stackPickerOpen, setStackPickerOpen] = useState(false);
 
   const trimmedName = name.trim();
@@ -196,23 +176,8 @@ export function HabitEditorForm({
     return hs.monthDays || hs.months || hs.dates ? hs : null;
   };
 
-  const onToggleReminder = async (value: boolean) => {
-    if (value) {
-      const granted = await ensurePermission();
-      if (!granted) {
-        setPermissionDenied(true);
-        return; // stay off — can't schedule without permission
-      }
-      setPermissionDenied(false);
-    }
-    // No manual haptic: this is a native `Switch`, which already provides the platform's
-    // own toggle feedback (a double-buzz otherwise on iOS).
-    setReminderOn(value);
-  };
-
   const save = () => {
     if (!canSave) return;
-    const reminder_time = reminderOn ? formatReminderTime(hour, minute) : null;
     // A habit is weekly OR Hijri — the unused side is cleared so switching modes can't leave
     // stale data (empty schedule_days for Hijri, null hijri_schedule for weekly).
     const fields =
@@ -227,9 +192,9 @@ export function HabitEditorForm({
         : { target_count: null, target_unit: null };
     if (habit) {
       // Editing in place is an adjustment, not a new commit — silent, like renaming a stack.
-      onSave(habit.id, { name: trimmedName, reminder_time, ...fields, ...goalFields });
+      onSave(habit.id, { name: trimmedName, ...fields, ...goalFields });
     } else {
-      onCreate({ name: trimmedName, reminder_time, ...fields, ...goalFields });
+      onCreate({ name: trimmedName, ...fields, ...goalFields });
       // The same crisp "commit" as creating a stack or adding from Discover — every way a
       // habit enters the list confirms with one texture.
       haptics.added();
@@ -406,40 +371,6 @@ export function HabitEditorForm({
         </>
       )}
 
-      {/* Reminder — opt-in. Off by default; a habit carries no reminder until set here. */}
-      <View style={styles.reminderRow}>
-        <FieldLabel>REMINDER</FieldLabel>
-        {remindersAvailable ? (
-          <Switch
-            value={reminderOn}
-            onValueChange={onToggleReminder}
-            trackColor={{ true: theme.accent, false: theme.backgroundSelected }}
-            ios_backgroundColor={theme.backgroundSelected}
-            accessibilityLabel="Reminder"
-          />
-        ) : null}
-      </View>
-      {!remindersAvailable ? (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-          Reminders are unavailable in this build.
-        </ThemedText>
-      ) : null}
-      {remindersAvailable && reminderOn ? (
-        <TimeChip
-          minutes={hour * 60 + minute}
-          onChange={(minutes) => {
-            setHour(Math.floor(minutes / 60));
-            setMinute(minutes % 60);
-          }}
-          accessibilityLabel="Reminder time"
-        />
-      ) : null}
-      {permissionDenied ? (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-          Allow notifications in system settings to get reminders.
-        </ThemedText>
-      ) : null}
-
       {/* Stack (editing only) — this habit's grouping: edit the stack it's in, or join an
           existing one. Hidden when there's nothing to show or join — new stacks aren't made
           here; you start one on Today by dropping one habit onto another. */}
@@ -535,12 +466,6 @@ const styles = StyleSheet.create({
   monthDay: { width: 40, height: 36, paddingHorizontal: 0, paddingVertical: 0 },
   occasions: { marginTop: Spacing.one },
   occasionPill: { alignSelf: 'flex-start', minHeight: 44, marginTop: Spacing.two },
-  reminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.two,
-  },
   stackRow: {
     flexDirection: 'row',
     alignItems: 'center',
