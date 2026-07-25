@@ -77,7 +77,6 @@ function mapPreset(row: Tables<'presets'>): SunnahPreset {
     hijriSchedule: (row.hijri_schedule as HijriSchedule | null) ?? undefined,
     targetCount: row.target_count ?? undefined,
     targetUnit: row.target_unit ?? undefined,
-    essential: row.essential,
   };
 }
 

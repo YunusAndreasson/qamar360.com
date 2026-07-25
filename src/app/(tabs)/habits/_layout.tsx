@@ -21,15 +21,22 @@ export default function HabitsStackLayout() {
     <TabStack>
       {/* Transparent so the fixed sky behind the stack shows through the (transparent) list. */}
       <Stack.Screen name="index" options={transparentScreen} />
-      {/* The "+" fork: habit or stack — a compact form sheet whose two rows explain the choice. */}
+      {/* The "+" fork: a ready-made stack or one you build — a compact form sheet whose two rows
+          explain the choice. */}
       <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
-      {/* Add a habit: search/filter the curated Sunnah library or create your own — a native
+      {/* The library of ready-made stacks, each anchored to a moment the day already has — a
+          native modal sheet with a left-aligned Close, like Discover beside it. */}
+      <Stack.Screen
+        name="stack-library"
+        options={{ ...modalHeaderOptions(theme), title: 'Ready-made stacks', headerLeft: headerCloseAction(() => router.back()) }}
+      />
+      {/* Add an act: search/filter the curated Sunnah library or create your own — a native
           modal sheet (from the bottom, the same idiom as the editor it sits beside in the empty
-          state), with a centered "Add Habit" title, a native search bar, and a left-aligned
+          state), with a centered "Add Act" title, a native search bar, and a left-aligned
           Close; the pinned chips sit below it. With a `stackId` param it adds into that stack. */}
       <Stack.Screen
         name="discover"
-        options={{ ...modalHeaderOptions(theme), title: 'Add Habit', headerLeft: headerCloseAction(() => router.back()) }}
+        options={{ ...modalHeaderOptions(theme), title: 'Add Act', headerLeft: headerCloseAction(() => router.back()) }}
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
@@ -40,10 +47,13 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="stack-new" options={modalHeaderOptions(theme)} />
       {/* Rename a stack — the one-field modal the manage menu's Rename action opens. */}
       <Stack.Screen name="stack-rename" options={modalHeaderOptions(theme)} />
-      {/* "Add to stack" picker for a lone habit — a native form sheet sized to its content
-          (a short list of existing stacks). */}
+      {/* The stack picker — where an act goes. A native form sheet sized to its content (the
+          existing stacks, plus starting a new one). */}
       <Stack.Screen name="add-to-stack" options={formSheetOptions(theme)} />
-      {/* "Manage stack" (rename / delete) for a stack card — raised by tapping the card header. */}
+      {/* One act's options (skip today / insights / edit / move) — raised by tapping an act line,
+          since acts are read rather than ticked. */}
+      <Stack.Screen name="act-actions" options={formSheetOptions(theme)} />
+      {/* "Manage stack" (edit / delete / add acts) for a stack card — raised by its ⋯. */}
       <Stack.Screen name="stack-manage" options={formSheetOptions(theme)} />
       {/* The habit-stacking guide — a short educational sheet, opened from the Today hint. */}
       <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />

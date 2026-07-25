@@ -46,26 +46,49 @@ export function ringMetrics(size: number, strokeWidth: number, fraction: number)
 }
 
 /**
- * Whether a stack has just been sealed — every act it has due today is done, and it's a
- * genuine *group* (≥2 acts due), so a stack with a single act scheduled today reads as a plain
- * tick rather than a milestone. Skipped members are excused — out of the stack's "open" set, the
- * same way {@link computeProgress} and the day-complete rule drop an excused act. `justCompletedId`
- * lets the completion handler count the id it is ticking as done before its optimistic state has
- * propagated (mirroring the day-complete seam's stale-read guard); the card omits it, since by the
- * time it re-renders its `completed` set already reflects the tick.
+ * Whether a stack is sealed — every act it has due today is done. Skipped members are excused,
+ * out of the stack's "open" set, the same way {@link computeProgress} and the day-complete rule
+ * drop an excused act.
+ *
+ * A stack with a single act due still seals: the stack is the unit the app tracks, so sealing one
+ * *is* the milestone, however short its sequence happens to be today (a five-act stack with four
+ * acts excused is not a lesser event than the same stack in full).
  *
  * The single source of truth for "stack complete" — the card's border flash and the synced
  * completion haptic both read it, so the flash and the buzz can never disagree.
  */
-export function isStackComplete(
-  members: { id: string }[],
-  completed: Set<string>,
-  skipped: Set<string>,
-  justCompletedId?: string,
-): boolean {
+export function isStackComplete(members: { id: string }[], completed: Set<string>, skipped: Set<string>): boolean {
   const open = members.filter((m) => !skipped.has(m.id));
-  if (open.length < 2) return false;
-  return open.every((m) => m.id === justCompletedId || completed.has(m.id));
+  if (open.length === 0) return false;
+  return open.every((m) => completed.has(m.id));
+}
+
+/** The minimal habit shape {@link sealableActs} needs — `Habit` satisfies it structurally. */
+export type StackMember = {
+  id: string;
+  stack_id: string | null;
+  created_at: string | null;
+  schedule_days: number[];
+  hijri_schedule?: HijriSchedule | null;
+};
+
+/**
+ * The acts a seal acts on: everything `stackId` has due on `day`, minus the excused and anything
+ * not yet persisted (a `temp-` row's insert is still in flight and has no id to write against).
+ *
+ * Seal and unseal both resolve membership through this, so the pair can never disagree about
+ * what the day's sequence was — and it is the same "open acts" notion {@link isStackComplete}
+ * checks, so the card's sealed look and the write always describe the same set.
+ */
+export function sealableActs<T extends StackMember>(
+  habits: readonly T[],
+  skipped: Set<string>,
+  stackId: string,
+  day: string,
+): T[] {
+  return habits.filter(
+    (h) => h.stack_id === stackId && !h.id.startsWith('temp-') && scheduledOn(h, day) && !skipped.has(h.id),
+  );
 }
 
 /** The minimal habit shape {@link computeProgress} needs — `Habit` satisfies it structurally. */

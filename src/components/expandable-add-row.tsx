@@ -32,7 +32,7 @@ type Props = {
 
 /**
  * A Discover library row: tap it to add — or to remove, once added — the same tap-to-toggle idiom
- * as a `HabitRow` checklist item, so an already-added item is never a dead end. Once added, an
+ * as a checklist item, so an already-added item is never a dead end. Once added, an
  * optional trailing "＋" (see `onAddAnother`) adds a second, independent copy — the escape hatch
  * for habits you want in more than one place (a page of Qurʾān in both your Morning and Evening
  * stacks). A small trailing chevron reveals the "why"/"what's inside" without touching the add

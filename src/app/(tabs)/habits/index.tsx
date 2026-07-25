@@ -1,25 +1,25 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
+import { ActRow } from '@/components/act-row';
+import { AnchorTheseCard } from '@/components/anchor-these-card';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
-import { BrowseHabitsButton } from '@/components/browse-habits-button';
-import { CoalesceIn } from '@/components/coalesce-in';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
-import { HabitRow } from '@/components/habit-row';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { StackCard } from '@/components/stack-card';
+import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
-import { BottomTabInset, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -33,14 +33,10 @@ import {
   fullMemberIndexForVisibleDrop,
   moveUnit,
   placementToRestore,
-  type MovePlacement,
   type OrderMeta,
 } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
-import { markStackCreated, useStackEverCreated } from '@/lib/hints';
-import { newId } from '@/lib/id';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
-import { defaultStackName } from '@/lib/names';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
@@ -62,10 +58,9 @@ function viewDateTitle(viewDate: string, today: string): string {
     : date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-/** A top-level row of the day's checklist: a lone habit, or a stack of habits. */
-type Entry =
-  | { type: 'habit'; habit: Habit; sortKey: number }
-  | { type: 'stack'; stack: HabitStack; members: Habit[]; sortKey: number };
+/** A top-level card of the day: a stack and the acts it has due. Every habit lives in one, so
+ *  this is the only kind of entry the list has. */
+type Entry = { stack: HabitStack; members: Habit[]; sortKey: number };
 
 export default function HabitsScreen() {
   const theme = useTheme();
@@ -76,7 +71,6 @@ export default function HabitsScreen() {
     stacks,
     completed,
     skipped,
-    counts,
     loading,
     error,
     today,
@@ -84,14 +78,11 @@ export default function HabitsScreen() {
     minViewDate,
     isToday,
     setViewDate,
-    toggleHabit,
-    adjustHabitCount,
-    skipHabit,
+    sealStack,
+    unsealStack,
     moveHabit,
     createStack,
-    deleteStack,
     reorderHabits,
-    deleteHabit,
     dismissError,
     refresh,
     reload,
@@ -144,33 +135,34 @@ export default function HabitsScreen() {
     [habits, tomorrow, today, hijriOffset],
   );
 
-  // Fold the day's habits into top-level entries: stacks render as one grouped card,
-  // sitting where their earliest member sits; lone habits keep their own slot.
+  // Habits from before every habit had to be anchored. They can't be rendered as cards — a stack
+  // is the unit — so they gather in the one-time "Anchor these" card at the top of the day until
+  // they have a home. Nothing new can join them: every creation path now goes through a stack.
+  const orphans = useMemo(() => habits.filter((h) => !h.stack_id), [habits]);
+
+  // Fold the day's acts into their stacks' cards, each sitting where its earliest act sits.
   const entries = useMemo<Entry[]>(() => {
     const stackById = new Map(stacks.map((s) => [s.id, s]));
     const membersByStack = new Map<string, Habit[]>();
     const out: Entry[] = [];
     for (const h of visibleHabits) {
       const stack = h.stack_id ? stackById.get(h.stack_id) : undefined;
-      if (stack) {
-        const arr = membersByStack.get(stack.id);
-        if (arr) arr.push(h);
-        else membersByStack.set(stack.id, [h]);
-      } else {
-        out.push({ type: 'habit', habit: h, sortKey: h.position });
-      }
+      if (!stack) continue; // an orphan — shown by the anchoring card above, not as a card
+      const arr = membersByStack.get(stack.id);
+      if (arr) arr.push(h);
+      else membersByStack.set(stack.id, [h]);
     }
     for (const [stackId, members] of membersByStack) {
       const sorted = [...members].sort((a, b) => a.position - b.position);
       const first = sorted[0];
       if (!first) continue; // a populated stack always has ≥1 member, but keep the index access honest
-      out.push({ type: 'stack', stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
+      out.push({ stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
     }
-    // A stack with no members at all ("+ → New stack", waiting on its first habit) has no
+    // A stack with no acts at all ("+ → Build your own stack", waiting on its first) has no
     // position to inherit. An anchored one previews its day-order slot — just after the last
     // populated block of an earlier-or-same band, mirroring lib/moments.dayOrderPlacement, so
-    // the card doesn't jump when its first member lands; anything else holds the end of the
-    // list. A stack whose members are merely hidden by the day filter stays hidden, as before —
+    // the card doesn't jump when its first act lands; anything else holds the end of the
+    // list. A stack whose acts are merely hidden by the day filter stays hidden, as before —
     // the distinction is drawn against ALL habits, not just the day's.
     const stacksWithMembers = new Set<string>();
     for (const h of habits) if (h.stack_id) stacksWithMembers.add(h.stack_id);
@@ -184,7 +176,6 @@ export default function HabitsScreen() {
         let lastEarlier: Entry | null = null;
         let firstLater: Entry | null = null;
         for (const e of sortedBlocks) {
-          if (e.type !== 'stack') continue;
           const eBand = momentBand(momentOf(e.stack));
           if (!eBand) continue;
           if (DAY_PARTS.indexOf(eBand) <= myRank) lastEarlier = e;
@@ -193,7 +184,7 @@ export default function HabitsScreen() {
         if (lastEarlier) sortKey = lastEarlier.sortKey + 0.5;
         else if (firstLater) sortKey = firstLater.sortKey - 0.5;
       }
-      out.push({ type: 'stack', stack: s, members: [], sortKey });
+      out.push({ stack: s, members: [], sortKey });
     }
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, habits, stacks]);
@@ -206,8 +197,7 @@ export default function HabitsScreen() {
   // prayer moments never carry a clock (the no-prayer-times rule). Friday moments (Jumuʿah)
   // light by weekday, all day, independent of the hourly cursor.
   const { dayPart, partEndsAt, displayDateISO } = useSunCycle();
-  const inBand = (e: Entry): e is Entry & { type: 'stack' } =>
-    e.type === 'stack' && momentBand(momentOf(e.stack)) === dayPart;
+  const inBand = (e: Entry) => momentBand(momentOf(e.stack)) === dayPart;
   // Prefer a populated, still-open stack (the light passes on seal); fall back to any band
   // match so a lone empty card can still invite. All-sealed ends dark either way (the card
   // itself suppresses the light once complete).
@@ -215,7 +205,7 @@ export default function HabitsScreen() {
     ? (entries.find((e) => inBand(e) && e.members.length > 0 && !isStackComplete(e.members, completed, skipped)) ??
       entries.find(inBand))
     : undefined;
-  const sunStackId = sunEntry && sunEntry.type === 'stack' ? sunEntry.stack.id : null;
+  const sunStackId = sunEntry?.stack.id ?? null;
   const chapterUntil = partEndsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const fridayToday = isToday && localDate(today).getDay() === 5;
   const stackLit = (stack: HabitStack) => {
@@ -243,28 +233,18 @@ export default function HabitsScreen() {
     [canGoBack, canGoForward, setViewDate, viewDate],
   );
 
-  const openEditor = useCallback(
-    (habit: Habit) => router.push({ pathname: '/habits/editor', params: { id: habit.id } }),
+  // Tapping an act opens its sheet: acts are read rather than ticked, so a tap means *inspect*
+  // (skip today, insights, edit, move) and the card's seal is what completes.
+  const openAct = useCallback(
+    (habit: Habit) => router.push({ pathname: '/habits/act-actions', params: { habitId: habit.id } }),
     [router],
   );
 
-  // A row's leading swipe (or its screen-reader "View insights" action) → that habit's Insights.
-  const openStats = useCallback(
-    (habit: Habit) => router.push({ pathname: '/habits/stats', params: { habitId: habit.id } }),
-    [router],
-  );
-
-  // Tapping a stack card's header opens the native "manage stack" menu (rename / delete) —
-  // an iOS action sheet or an Android bottom sheet. Composing its members is all drag on the card.
+  // The stack card's "⋯" opens the native manage menu (add acts / edit / delete) — an iOS action
+  // sheet or an Android bottom sheet.
   const openStackActions = useStackActions();
 
-  // A lone habit's "Add to stack" swipe action → the stack picker sheet (seeded with it).
-  const openAddToStack = useCallback(
-    (habit: Habit) => router.push({ pathname: '/habits/add-to-stack', params: { habitId: habit.id } }),
-    [router],
-  );
-
-  // The empty stack card's "Add your first habit" row → the Add screen scoped to that stack
+  // The empty stack card's "Add your first act" row → the Add screen scoped to that stack
   // (presets, "your habits", and "create your own" all land inside it).
   const openAddHabits = useCallback(
     (stackId: string) => router.push({ pathname: '/habits/discover', params: { stackId } }),
@@ -273,18 +253,17 @@ export default function HabitsScreen() {
 
   const { show: showToast } = useToast();
 
-  // Commit "join a stack" (the drag's drop-onto-a-card and the picker sheet both land here
-  // via moveHabit). The restore is captured BEFORE the move so the toast's Undo puts the habit
+  // Commit "move into this stack" (the drag's drop-onto-a-card and the picker sheet both land
+  // here via moveHabit). The restore is captured BEFORE the move so the toast's Undo puts the act
   // back exactly where it was (user control & freedom — a slip is one tap from undone).
   const addHabitToStack = useCallback(
     (habitId: string, stackId: string) => {
       const stack = stacks.find((s) => s.id === stackId);
       const habit = habits.find((h) => h.id === habitId);
       const restore = placementToRestore(habits, habitId);
-      // Moving a stack's last member OUT deletes the emptied source stack, so this Undo can't
-      // just move the habit back (moveHabit's stale-target guard would silently no-op on the
-      // vanished id) — it recreates the stack around the habit instead, mirroring
-      // removeFromStack's Undo (a fresh id: nothing references the old one).
+      // Moving a stack's last act OUT deletes the emptied source stack, so this Undo can't just
+      // move it back (moveHabit's stale-target guard would silently no-op on the vanished id) —
+      // it recreates the stack around the act instead (a fresh id: nothing references the old one).
       const sourceStack = habit?.stack_id ? stacks.find((s) => s.id === habit.stack_id) : undefined;
       const wasOnlyMember =
         !!sourceStack && habits.filter((h) => h.stack_id === sourceStack.id).length === 1;
@@ -302,69 +281,6 @@ export default function HabitsScreen() {
     [habits, stacks, moveHabit, createStack, showToast],
   );
 
-  // Commit "leave a stack" — the member row's "Remove" swipe (default placement: right after
-  // its former card) and the drag-out (an explicit drop slot). Removing the last member deletes
-  // the stack, so that Undo recreates it (a fresh id — nothing references the old one).
-  const removeFromStack = useCallback(
-    (habit: Habit, placement?: MovePlacement) => {
-      const stack = stacks.find((s) => s.id === habit.stack_id);
-      const restore = placementToRestore(habits, habit.id);
-      const wasOnlyMember = !!stack && habits.filter((h) => h.stack_id === stack.id).length === 1;
-      haptics.removed();
-      void moveHabit(habit.id, placement ? { toStackId: null, placement } : { toStackId: null });
-      if (!stack || !restore) return;
-      showToast(`Removed from ${stack.name}`, 'success', {
-        label: 'Undo',
-        onPress: () => {
-          if (wasOnlyMember) void createStack(stack.name, [habit.id], { moment: momentOf(stack) });
-          else void moveHabit(habit.id, restore);
-        },
-      });
-    },
-    [habits, stacks, moveHabit, createStack, showToast],
-  );
-
-  // The stack just created by a drag-merge — the only card that gets the coalesce spring-in (kept
-  // set until the next merge; overwriting it lets the previous card, long settled, unwrap seamlessly).
-  const [coalescingStackId, setCoalescingStackId] = useState<string | null>(null);
-
-  // Drop one habit onto another → a brand-new stack holding both. Created instantly with a default
-  // name (rename later from the card's ⋯ menu); the drop target hosts the new card at its slot and the
-  // dragged habit joins after it. Undo deletes the fresh stack and restores the exact prior order —
-  // createStack pulls the pair adjacent, so a bare delete would leave them regrouped where they landed.
-  const mergeHabits = useCallback(
-    async (draggedId: string, targetId: string) => {
-      // A row whose insert is still in flight has no server id to group: createStack would
-      // filter the temp id and leave a one-member "stack", and the Undo's captured order
-      // (holding the temp id) would no-op after the temp→real swap. Bail — the rows stay put,
-      // and the merge works the moment the insert lands. (Every other mutation guards temp
-      // ids the same way.)
-      if (draggedId.startsWith('temp-') || targetId.startsWith('temp-')) return;
-      const prevOrder = flattenUnits(buildUnits(habits));
-      haptics.added();
-      // Pre-mint the stack id and mark it coalescing BEFORE createStack stamps it into state, so the
-      // card animates its spring-in on its very first mount (only this card — not every card on load).
-      const stackId = newId();
-      setCoalescingStackId(stackId);
-      const created = await createStack(defaultStackName(stacks), [targetId, draggedId], { stackId });
-      if (!created) return;
-      showToast('Stack created', 'success', {
-        label: 'Undo',
-        onPress: () => {
-          void deleteStack(created);
-          void reorderHabits(prevOrder);
-        },
-      });
-    },
-    [habits, stacks, createStack, deleteStack, reorderHabits, showToast],
-  );
-
-  // The drag layer's "dropped one lone habit onto another (held long enough to arm the merge)".
-  const onDropMerge = useCallback(
-    (draggedKey: string, targetHabitId: string) => mergeHabits(draggedKey.slice('habit:'.length), targetHabitId),
-    [mergeHabits],
-  );
-
   // The key being dragged (ghost source), or null at rest. While a drag is live the scroll is
   // frozen so a vertical drag doesn't fight the list (auto-scroll drives it instead).
   const [dragEntryKey, setDragEntryKey] = useState<string | null>(null);
@@ -372,39 +288,35 @@ export default function HabitsScreen() {
   const onDragActive = useCallback((key: string | null) => setDragEntryKey(key), []);
 
   // The rendered entry order, mirrored into the drag layer's registry (keys in render order).
-  const orderMeta = entries.map((entry): OrderMeta =>
-    entry.type === 'stack'
-      ? { key: `stack:${entry.stack.id}`, kind: 'stack', stackId: entry.stack.id }
-      : { key: `habit:${entry.habit.id}`, kind: 'habit', stackId: null },
-  );
+  const orderMeta = entries.map((entry): OrderMeta => ({
+    key: `stack:${entry.stack.id}`,
+    kind: 'stack',
+    stackId: entry.stack.id,
+  }));
 
-  // stackId → its visible members' keys in sequence — the inner lists an in-card reorder drags
-  // within (the member analogue of `orderMeta`; day-hidden members aren't rendered, so aren't here).
+  // stackId → its visible acts' keys in sequence — the inner lists an in-card reorder drags
+  // within (the act analogue of `orderMeta`; day-hidden acts aren't rendered, so aren't here).
   const memberOrder: Record<string, string[]> = {};
   for (const entry of entries) {
-    if (entry.type === 'stack') memberOrder[entry.stack.id] = entry.members.map((m) => `member:${m.id}`);
+    memberOrder[entry.stack.id] = entry.members.map((m) => `member:${m.id}`);
   }
 
-  // A drop between entries: a top-level entry reorders (its members travel with it); a member
-  // row dragged out of its card detaches to that exact slot.
+  // A drop between cards: the card reorders, its acts travelling with it. Only cards reach here —
+  // an act dropped in a gap has nowhere to land (a habit lives in a stack or nowhere), and the
+  // drag layer floats it home rather than opening a gap it can't honour.
   const onDropBetween = useCallback(
     (draggedKey: string, beforeKey: string) => {
       const anchor = beforeKey === '' ? null : beforeKey;
-      if (draggedKey.startsWith('member:')) {
-        const habit = habits.find((h) => h.id === draggedKey.slice('member:'.length));
-        if (habit) removeFromStack(habit, { type: 'before-unit', key: anchor });
-        return;
-      }
       const units = buildUnits(habits);
       const next = moveUnit(units, draggedKey, anchor);
       if (next === units) return; // stale anchor — leave the order alone
       haptics.selection();
       void reorderHabits(flattenUnits(next));
     },
-    [habits, removeFromStack, reorderHabits],
+    [habits, reorderHabits],
   );
 
-  // A drop onto a glowing stack card: a standalone habit or another card's member joins it.
+  // A drop onto a glowing stack card: an act from another card joins it.
   const onDropInto = useCallback(
     (draggedKey: string, stackId: string) => {
       const habitId = draggedKey.slice(draggedKey.indexOf(':') + 1);
@@ -420,9 +332,7 @@ export default function HabitsScreen() {
   const onDropReorder = useCallback(
     (draggedKey: string, stackId: string, visibleIndex: number) => {
       const habitId = draggedKey.slice('member:'.length);
-      const stackEntry = entries.find((e) => e.type === 'stack' && e.stack.id === stackId);
-      const visibleMemberIds =
-        stackEntry && stackEntry.type === 'stack' ? stackEntry.members.map((m) => m.id) : [];
+      const visibleMemberIds = entries.find((e) => e.stack.id === stackId)?.members.map((m) => m.id) ?? [];
       const fullMemberIds = habits
         .filter((h) => h.stack_id === stackId)
         .sort((a, b) => a.position - b.position)
@@ -438,7 +348,7 @@ export default function HabitsScreen() {
   // steps within its stack's sequence.
   const moveEntryForA11y = useCallback(
     (entryKey: string, delta: -1 | 1) => {
-      const visible = entries.map((e) => (e.type === 'stack' ? `stack:${e.stack.id}` : `habit:${e.habit.id}`));
+      const visible = entries.map((e) => `stack:${e.stack.id}`);
       const at = visible.indexOf(entryKey);
       const targetKey = at === -1 ? undefined : visible[at + delta];
       if (!targetKey) return; // already at the edge
@@ -458,10 +368,7 @@ export default function HabitsScreen() {
 
   const moveRowForA11y = useCallback(
     (habit: Habit, delta: -1 | 1) => {
-      if (!habit.stack_id) {
-        moveEntryForA11y(`habit:${habit.id}`, delta);
-        return;
-      }
+      if (!habit.stack_id) return; // an orphan isn't in the list yet — it has no sequence to move in
       const siblings = habits
         .filter((h) => h.stack_id === habit.stack_id)
         .sort((a, b) => a.position - b.position);
@@ -472,38 +379,13 @@ export default function HabitsScreen() {
       void moveHabit(habit.id, { toStackId: habit.stack_id, placement: { type: 'member-index', index: target } });
       AccessibilityInfo.announceForAccessibility(delta === -1 ? 'Moved up' : 'Moved down');
     },
-    [habits, moveEntryForA11y, moveHabit],
+    [habits, moveHabit],
   );
 
   const moveStackForA11y = useCallback(
     (stackId: string, delta: -1 | 1) => moveEntryForA11y(`stack:${stackId}`, delta),
     [moveEntryForA11y],
   );
-
-  // The gesture-free twin of drop-onto-a-habit: a screen-reader action on a lone row that folds it
-  // with the immediately-following lone habit into a new stack (a stack-card neighbour is already
-  // served by "Add to stack"). Passed to a row only when that neighbour exists, so the action never
-  // no-ops.
-  const groupWithNext = useCallback(
-    (habit: Habit) => {
-      const at = entries.findIndex((e) => e.type === 'habit' && e.habit.id === habit.id);
-      const next = at === -1 ? undefined : entries[at + 1];
-      if (!next || next.type !== 'habit') return;
-      void mergeHabits(next.habit.id, habit.id);
-      AccessibilityInfo.announceForAccessibility('Stack created');
-    },
-    [entries, mergeHabits],
-  );
-
-  // The one-shot "drag to stack" teaching pill: shown while this install has never had a stack
-  // (persisted, so deleting your only stack doesn't resurrect the lesson) and the viewed day
-  // actually offers the gesture (≥2 lone rows to fold together). Retired the moment any stack
-  // exists — created by drag, the a11y action, or synced in from another device.
-  const everHadStack = useStackEverCreated();
-  useEffect(() => {
-    if (stacks.length > 0) markStackCreated();
-  }, [stacks.length]);
-  const stackHintVisible = !everHadStack && stacks.length === 0 && entries.length >= 2;
 
   return (
     <>
@@ -522,12 +404,11 @@ export default function HabitsScreen() {
               {Platform.OS !== 'ios' ? (
                 <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
               ) : null}
-              {/* One door to add: the sheet forks to a habit (the curated Sunnah
-                  library, with "create your own" closing it) or a new stack. */}
+              {/* One door to add: the sheet forks to a ready-made stack or one you build. */}
               <HeaderIconButton
                 icon={Icons.add}
                 color={theme.accent}
-                accessibilityLabel="Add habit or stack"
+                accessibilityLabel="Add a stack"
                 onPress={() => router.push('/habits/add-menu')}
               />
             </HeaderActions>
@@ -568,13 +449,18 @@ export default function HabitsScreen() {
           {/* Directly under the Hijri line, so the two calendar whispers read as one almanac. */}
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
-          {stackHintVisible ? <StackingHint /> : null}
+          {/* One-time, and only until they're all anchored: habits from before every habit had
+              to live in a stack. It leads the day because an unanchored habit is invisible
+              otherwise — it has no card to appear on. */}
+          {orphans.length > 0 ? <AnchorTheseCard habits={orphans} /> : null}
           {entries.length === 0 ? (
-            <HabitsEmptyState
-              hasHabits={habits.length > 0}
-              isToday={isToday}
-              onAdd={() => router.push({ pathname: '/habits/editor', params: { id: 'new' } })}
-            />
+            orphans.length > 0 ? null : (
+              <HabitsEmptyState
+                hasHabits={habits.length > 0}
+                isToday={isToday}
+                onBuild={() => router.push('/habits/stack-new')}
+              />
+            )
           ) : (
             <HabitDragProvider
               scrollRef={scrollRef}
@@ -584,91 +470,51 @@ export default function HabitsScreen() {
               onDragActive={onDragActive}
               onDropBetween={onDropBetween}
               onDropInto={onDropInto}
-              onDropReorder={onDropReorder}
-              onDropMerge={onDropMerge}>
-              {/* One long-press drag vocabulary (hold ~a beat, then move): a lone habit reorders
-                  through the gaps, joins the stack card it's dropped onto (accent ring), or —
-                  held over another lone habit — folds the two into a new stack (that row rings
-                  and pops); a stack card reorders as one unit, members in tow. The dragged item
-                  floats as a ghost above the grid while its original holds the empty slot. Swipe
-                  actions and the picker sheet remain as the explicit, screen-reader-friendly routes. */}
+              onDropReorder={onDropReorder}>
+              {/* One long-press drag vocabulary (hold ~a beat, then move): a stack card reorders
+                  through the gaps as one unit, its acts in tow; an act reorders within its own
+                  card, or joins the card it's dropped onto (accent ring). The dragged item floats
+                  as a ghost above the grid while its original holds the empty slot. Every one of
+                  these has a screen-reader action twin — no capability is gesture-only. */}
               <DragGrid style={styles.gridBreath}>
-                {entries.map((entry, index) =>
-                  entry.type === 'stack' ? (
-                    <DraggableEntry
-                      key={`stack-${entry.stack.id}`}
-                      entryKey={`stack:${entry.stack.id}`}
-                      index={index}
-                      kind="stack"
-                      stackId={entry.stack.id}
-                      // The empty "Add your first habit" card holds the list's end and has no
-                      // unit in the order math — every drop of it would snap back, so don't
-                      // offer the lift. (It still accepts habits dropped ONTO it, as always.)
-                      draggable={entry.members.length > 0}>
-                      <CoalesceIn active={coalescingStackId === entry.stack.id}>
-                        <StackCard
-                          // Remount on a day-step: a stack already done on the newly-viewed day
-                          // is born collapsed (a quiet grey bar) instead of animating the in-day
-                          // seal fold open→shut. The mount path is flash-free either way; an
-                          // in-day seal keeps the same key, so its fold still plays.
-                          key={viewDate}
-                          stack={entry.stack}
-                          members={entry.members}
-                          completed={completed}
-                          skipped={skipped}
-                          counts={counts}
-                          onToggle={toggleHabit}
-                          onAdjust={adjustHabitCount}
-                          onSkip={skipHabit}
-                          onEdit={openEditor}
-                          onStats={openStats}
-                          onDelete={deleteHabit}
-                          onEditStack={openStackActions}
-                          onRemoveFromStack={removeFromStack}
-                          onMove={moveStackForA11y}
-                          onMoveHabit={moveRowForA11y}
-                          onAddHabits={openAddHabits}
-                          isCurrentChapter={stackLit(entry.stack)}
-                          currentChapterUntil={stackUntil(entry.stack)}
-                        />
-                      </CoalesceIn>
-                    </DraggableEntry>
-                  ) : (
-                    <DraggableEntry
-                      key={`habit-${entry.habit.id}`}
-                      entryKey={`habit:${entry.habit.id}`}
-                      index={index}
-                      kind="habit"
-                      stackId={null}>
-                      <HabitRow
-                        habit={entry.habit}
-                        done={completed.has(entry.habit.id)}
-                        skipped={skipped.has(entry.habit.id)}
-                        count={counts.get(entry.habit.id) ?? 0}
-                        onToggle={toggleHabit}
-                        onAdjust={adjustHabitCount}
-                        onSkip={skipHabit}
-                        onEdit={openEditor}
-                        onStats={openStats}
-                        onDelete={deleteHabit}
-                        // The picker only helps once a stack exists to join — hidden otherwise
-                        // (the first stack is made by dragging, which the teaching pill points at).
-                        onAddToStack={stacks.length > 0 ? openAddToStack : undefined}
-                        onMove={moveRowForA11y}
-                        // Screen-reader "stack these two" — offered only when the next row is
-                        // also a lone habit (the drag gesture's gesture-free equivalent).
-                        onGroupWithNext={entries[index + 1]?.type === 'habit' ? groupWithNext : undefined}
-                        standalone
-                      />
-                    </DraggableEntry>
-                  ),
-                )}
+                {entries.map((entry, index) => (
+                  <DraggableEntry
+                    key={`stack-${entry.stack.id}`}
+                    entryKey={`stack:${entry.stack.id}`}
+                    index={index}
+                    kind="stack"
+                    stackId={entry.stack.id}
+                    // The empty "Add your first act" card holds the list's end and has no unit in
+                    // the order math — every drop of it would snap back, so don't offer the lift.
+                    // (It still accepts acts dropped ONTO it, as always.)
+                    draggable={entry.members.length > 0}>
+                    <StackCard
+                      // Remount on a day-step: a stack already sealed on the newly-viewed day is
+                      // born collapsed (a quiet grey bar) instead of animating the in-day seal fold
+                      // open→shut. The mount path is flash-free either way; an in-day seal keeps
+                      // the same key, so its fold still plays.
+                      key={viewDate}
+                      stack={entry.stack}
+                      members={entry.members}
+                      completed={completed}
+                      skipped={skipped}
+                      onSeal={sealStack}
+                      onUnseal={unsealStack}
+                      onAct={openAct}
+                      onEditStack={openStackActions}
+                      onMove={moveStackForA11y}
+                      onMoveHabit={moveRowForA11y}
+                      onAddHabits={openAddHabits}
+                      isCurrentChapter={stackLit(entry.stack)}
+                      currentChapterUntil={stackUntil(entry.stack)}
+                    />
+                  </DraggableEntry>
+                ))}
                 <HabitsDragGhost
                   dragEntryKey={dragEntryKey}
                   entries={entries}
                   completed={completed}
                   skipped={skipped}
-                  counts={counts}
                   stackLit={stackLit}
                   stackUntil={stackUntil}
                 />
@@ -688,7 +534,6 @@ function HabitsDragGhost({
   entries,
   completed,
   skipped,
-  counts,
   stackLit,
   stackUntil,
 }: {
@@ -696,74 +541,49 @@ function HabitsDragGhost({
   entries: Entry[];
   completed: Set<string>;
   skipped: Set<string>;
-  counts: Map<string, number>;
   /** The screen's lighting rules, shared so the ghost carries the lit emblem and its "until"
    *  caption unchanged (it mounts at rest — lifting a card never replays the lighting). */
   stackLit: (stack: HabitStack) => boolean;
   stackUntil: (stack: HabitStack) => string | undefined;
 }) {
   if (!dragEntryKey) return null;
-  // A member being pulled out of its card floats as a card of its own (`standalone` wraps the
-  // row in a Surface) — it reads as "this is leaving the stack" while it travels.
+  // A travelling act keeps its own bare look — it is going to another sequence, not becoming a
+  // card of its own (there is nowhere outside a stack for it to land).
   if (dragEntryKey.startsWith('member:')) {
     const habitId = dragEntryKey.slice('member:'.length);
-    const member = entries.flatMap((e) => (e.type === 'stack' ? e.members : [])).find((h) => h.id === habitId);
-    if (!member) return null;
+    const stack = entries.find((e) => e.members.some((m) => m.id === habitId));
+    const member = stack?.members.find((h) => h.id === habitId);
+    if (!stack || !member) return null;
     return (
       <DragGhost>
-        <HabitRow
-          habit={member}
-          done={completed.has(member.id)}
-          skipped={skipped.has(member.id)}
-          count={counts.get(member.id) ?? 0}
-          onToggle={noop}
-          onSkip={noop}
-          onEdit={noop}
-          onStats={noop}
-          onDelete={noop}
-          standalone
-        />
+        <Surface>
+          <ActRow
+            habit={member}
+            ordinal={stack.members.filter((m) => !skipped.has(m.id)).findIndex((m) => m.id === habitId) + 1}
+            done={completed.has(member.id)}
+            skipped={skipped.has(member.id)}
+            onPress={noop}
+          />
+        </Surface>
       </DragGhost>
     );
   }
-  const entry =
-    entries.find((e) => (e.type === 'stack' ? `stack:${e.stack.id}` : `habit:${e.habit.id}`) === dragEntryKey) ??
-    null;
+  const entry = entries.find((e) => `stack:${e.stack.id}` === dragEntryKey) ?? null;
   if (!entry) return null;
   return (
     <DragGhost>
-      {entry.type === 'stack' ? (
-        <StackCard
-          stack={entry.stack}
-          members={entry.members}
-          completed={completed}
-          skipped={skipped}
-          counts={counts}
-          onToggle={noop}
-          onAdjust={noop}
-          onSkip={noop}
-          onEdit={noop}
-          onStats={noop}
-          onDelete={noop}
-          onEditStack={noop}
-          onRemoveFromStack={noop}
-          isCurrentChapter={stackLit(entry.stack)}
-          currentChapterUntil={stackUntil(entry.stack)}
-        />
-      ) : (
-        <HabitRow
-          habit={entry.habit}
-          done={completed.has(entry.habit.id)}
-          skipped={skipped.has(entry.habit.id)}
-          count={counts.get(entry.habit.id) ?? 0}
-          onToggle={noop}
-          onSkip={noop}
-          onEdit={noop}
-          onStats={noop}
-          onDelete={noop}
-          standalone
-        />
-      )}
+      <StackCard
+        stack={entry.stack}
+        members={entry.members}
+        completed={completed}
+        skipped={skipped}
+        onSeal={noop}
+        onUnseal={noop}
+        onAct={noop}
+        onEditStack={noop}
+        isCurrentChapter={stackLit(entry.stack)}
+        currentChapterUntil={stackUntil(entry.stack)}
+      />
     </DragGhost>
   );
 }
@@ -847,65 +667,40 @@ function UpcomingHint({ habits }: { habits: Habit[] }) {
   );
 }
 
-/**
- * The one-shot habit-stacking teaching pill — the strip's one accent pill, the tappable
- * costume the read-only almanac lines deliberately don't wear: it names the gesture (the
- * app's only invisible affordance) and opens the short habit-stacking guide for the why.
- * Gated by the caller until the first stack ever exists.
- */
-function StackingHint() {
-  const theme = useTheme();
-  const router = useRouter();
-  return (
-    <Pressable
-      onPress={() => router.push('/habits/stacking-info')}
-      accessibilityRole="button"
-      accessibilityLabel="Tip: drag one habit onto another to stack them"
-      accessibilityHint="Opens a short guide to habit stacking"
-      style={({ pressed }) => [
-        styles.hintPill,
-        { backgroundColor: theme.accentSubtle },
-        pressed && { opacity: Pressed.dim },
-      ]}>
-      <AppIcon name="stack" size={16} color={theme.accent} />
-      <ThemedText type="small" numberOfLines={1} themeColor="accent" style={styles.hintText}>
-        Drag one habit onto another to stack them
-      </ThemedText>
-      <AppIcon name="chevronRight" size={14} color={theme.accent} />
-    </Pressable>
-  );
-}
-
 function HabitsEmptyState({
   hasHabits,
   isToday,
-  onAdd,
+  onBuild,
 }: {
   hasHabits: boolean;
   isToday: boolean;
-  onAdd: () => void;
+  onBuild: () => void;
 }) {
-  // A rest day (you have habits, none fall today) is a calm, action-free "bedtime" note. The
-  // brand-new user instead gets the warm moon emblem and a clear, inviting way in.
+  const router = useRouter();
+  // A rest day (you have stacks, none fall today) is a calm, action-free "bedtime" note. The
+  // brand-new user instead gets the warm moon emblem and the question the whole app turns on.
   if (hasHabits) {
     return (
       <EmptyState
         icon="bedtime"
         title="Nothing scheduled"
-        body={isToday ? 'Enjoy your rest day.' : 'No habits were scheduled for this day.'}
+        body={isToday ? 'Enjoy your rest day.' : 'Nothing was scheduled for this day.'}
       />
     );
   }
   return (
-    // First-run call-to-action — lead the new user to the curated library (knowledge in the
-    // world), with manual entry as a quieter secondary path.
+    // First run asks for an anchor rather than a habit: a new act attached to something you
+    // already do every day is the one that survives, and the ready-made stacks are exactly
+    // those anchors with a short sequence hung on each.
     <EmptyState
       art={<MoonEmblem />}
-      title="Start your first habit"
-      body={'Pick one from the Sunnah library, or create your\u00A0own.'}>
-      <BrowseHabitsButton />
-      <AppButton variant="secondary" onPress={onAdd} accessibilityLabel="Add your own habit" hitSlop={8}>
-        Add your own
+      title="Anchor your first stack"
+      body={'Attach a short sequence to something you already\u00A0do — waking, a prayer, going to bed.'}>
+      <AppButton onPress={() => router.push('/habits/stack-library')} accessibilityLabel="Choose an anchor">
+        Choose an anchor
+      </AppButton>
+      <AppButton variant="secondary" onPress={onBuild} accessibilityLabel="Build your own stack" hitSlop={8}>
+        Build your own
       </AppButton>
     </EmptyState>
   );
@@ -937,20 +732,6 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.three,
     marginTop: Spacing.one,
     marginBottom: Spacing.one,
-  },
-  // The strip's one accent pill — the tappable stacking hint. Button radius (not control)
-  // for a 44pt tappable surface: the rounder corner keeps kinship with the cards, and the
-  // minHeight meets the tap target.
-  hintPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    marginHorizontal: Spacing.three,
-    marginBottom: Spacing.one,
-    borderRadius: Radius.button,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    minHeight: 44,
   },
   hintText: { flex: 1 },
   listContent: {

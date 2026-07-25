@@ -8,25 +8,30 @@ import { otherNames } from '@/lib/names';
 
 /**
  * One params-driven screen for both new and edit, presented as a native modal
- * sheet by the Habits Stack. `id="new"` creates; any other id edits that habit.
+ * sheet by the Habits Stack. `id="new"` creates; any other id edits that act.
  * Save/Delete (and Cancel) just `router.back()` to the list.
+ *
+ * Creating REQUIRES a `stackId`: an act lives in a stack or nowhere, so there is no unanchored
+ * create path to fall back to. Every caller supplies one (the stack-scoped Add screen, the empty
+ * card's "Add your first act"); the guard below closes the screen rather than mint an orphan.
  */
 export default function HabitEditorScreen() {
   const router = useRouter();
   const { id, stackId } = useLocalSearchParams<{ id?: string; stackId?: string }>();
-  const { habits, stacks, createHabit, createHabitInStack, updateHabit, deleteHabit, updateStack } = useHabits();
+  const { habits, stacks, createHabitInStack, updateHabit, deleteHabit, updateStack } = useHabits();
 
   const isNew = !id || id === 'new';
   const habit = isNew ? null : (habits.find((h) => h.id === id) ?? null);
 
-  // Opened from the stack-scoped Add screen: the new habit lands straight in that stack.
-  // If the stack vanished mid-flow, fall back to a plain create — the habit still exists.
+  // Opened from the stack-scoped Add screen: the new act lands straight in that stack.
   const targetStack = isNew && stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
-  const onCreate = targetStack ? (input: HabitCreate) => createHabitInStack(input, targetStack.id) : createHabit;
+  // Only ever called in create mode, where the guard below has already proved `targetStack`.
+  const onCreate = (input: HabitCreate) => {
+    if (targetStack) void createHabitInStack(input, targetStack.id);
+  };
 
-  // The stack this habit belongs to (if any) + handlers for the editor's STACK picker:
-  // edit the current stack, or join an existing one. (New stacks are made on Today, by
-  // dropping one habit onto another — not from this form.)
+  // The stack this act belongs to (if any) + handlers for the editor's STACK picker: edit the
+  // current stack, or join an existing one. (New stacks are made from the "+" menu, not here.)
   const stackName = habit?.stack_id ? (stacks.find((s) => s.id === habit.stack_id)?.name ?? null) : null;
   const joinableStacks = useMemo(
     () => (habit && !habit.stack_id ? stacks.map((s) => ({ id: s.id, name: s.name })) : []),
@@ -50,12 +55,14 @@ export default function HabitEditorScreen() {
   // edited is excluded so keeping its own name is fine.
   const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
 
-  // Editing a habit that no longer exists (stale deep link / deleted elsewhere):
-  // back out rather than render an empty form.
+  // Editing an act that no longer exists (stale deep link / deleted elsewhere), or creating with
+  // no stack to land in (a stack deleted mid-flow): back out rather than render a form that can't
+  // commit.
+  const stale = isNew ? !targetStack : !habit;
   useEffect(() => {
-    if (!isNew && !habit) router.back();
-  }, [isNew, habit, router]);
-  if (!isNew && !habit) return null;
+    if (stale) router.back();
+  }, [stale, router]);
+  if (stale) return null;
 
   return (
     <HabitEditorForm

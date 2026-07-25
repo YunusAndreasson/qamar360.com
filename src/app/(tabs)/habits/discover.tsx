@@ -10,7 +10,6 @@ import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
-import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { isRepeatablePreset, scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
@@ -18,20 +17,9 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { confirmDestructive } from '@/lib/alerts';
+import { habitInputFor as toCreate } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { dedupeName, normalizeName } from '@/lib/names';
-import { buildStarterPlan } from '@/lib/starter';
-
-const toCreate = (preset: SunnahPreset) => ({
-  name: preset.name,
-  // Hijri presets store empty weekdays + a hijri_schedule; weekly presets the reverse.
-  schedule_days: preset.hijriSchedule ? [] : preset.defaultSchedule,
-  hijri_schedule: preset.hijriSchedule ?? null,
-  // A few presets are naturally counted (cups, servings); the rest stay binary.
-  target_count: preset.targetCount ?? null,
-  target_unit: preset.targetUnit ?? null,
-});
 
 /** 'all' | a category id — the active chip narrows the corpus searched. */
 type FilterId = 'all' | SunnahCategory['id'];
@@ -45,7 +33,6 @@ type Row =
   | { type: 'banner' }
   | { type: 'empty' }
   | { type: 'results' }
-  | { type: 'starter' }
   | { type: 'yourHabits'; habits: Habit[] }
   | { type: 'category'; category: SunnahCategory; presets: SunnahPreset[] }
   | { type: 'create' };
@@ -82,14 +69,9 @@ export default function DiscoverScreen() {
   const {
     habits,
     stacks,
-    createHabit,
     createHabits,
     createHabitInStack,
-    createStack,
-    updateStack,
-    deleteStack,
     moveHabit,
-    deleteHabit,
     error,
     dismissError,
   } = useHabits();
@@ -116,7 +98,6 @@ export default function DiscoverScreen() {
   const deferred = useDeferredValue(query);
   const q = deferred.trim().toLowerCase();
   const searching = q.length > 0;
-  const isDefault = filter === 'all' && !searching;
 
   // Normalized name → habit, so a row can both answer "already added?" and undo its own add
   // by deleting the exact habit it created (the ✓ becomes tap-to-remove).
@@ -147,7 +128,9 @@ export default function DiscoverScreen() {
 
   const addPreset = (preset: SunnahPreset) => {
     if (!scoped) {
-      void createHabit(toCreate(preset));
+      // Unscoped, an act has no home yet: ask which stack it joins rather than mint an orphan.
+      // (The picker can also start a new stack, so "none of these" is still a way forward.)
+      router.push({ pathname: '/habits/add-to-stack', params: { presetId: preset.id } });
       return;
     }
     const found = habitByName.get(normalizeName(preset.name));
@@ -158,8 +141,8 @@ export default function DiscoverScreen() {
     }
     if (found.stack_id === stack.id) return; // already a member here (the ✓ tap handles removal)
     if (found.stack_id === null) {
-      // A loose habit you already have — organize it into this stack. Non-destructive: it wasn't
-      // in a stack, so nothing gets quietly emptied.
+      // An un-anchored habit you already have (from before every habit had a stack) — give it
+      // this home. Non-destructive: it wasn't in a stack, so nothing gets quietly emptied.
       void moveHabit(found.id, { toStackId: stack.id });
       return;
     }
@@ -169,26 +152,13 @@ export default function DiscoverScreen() {
     void addCopyIntoStack(preset, stack.id);
   };
 
+  // Un-member, never delete. This screen composes a stack's sequence; destroying an act (and the
+  // history that cascades with it) belongs to the act's own sheet, where the confirmation is.
+  // Un-anchored, the act lands in the one-time "Anchor these" card on Today rather than vanishing.
   const removePreset = (preset: SunnahPreset) => {
     const habit = habitByName.get(normalizeName(preset.name));
     if (!habit) return;
-    if (scoped) {
-      // Un-member, never delete: a habit added here by mistake survives as a lone row the user
-      // can still see on Today. Keep the shell — this screen belongs to that stack.
-      void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
-    } else {
-      // A real delete — the row match is by name, so this can be a long-standing habit whose
-      // completion history cascades away with it. Confirm like every other delete path does;
-      // one accidental tap on an "added ✓" row must not silently destroy months of history.
-      confirmDestructive({
-        title: 'Delete habit',
-        message: `Delete “${habit.name}”? This can’t be undone.`,
-        onConfirm: () => {
-          haptics.removed();
-          void deleteHabit(habit.id);
-        },
-      });
-    }
+    void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
   };
 
   // "Add another" (the trailing ＋ on an already-added row): a second, independent copy for a
@@ -205,11 +175,6 @@ export default function DiscoverScreen() {
       onPress: () => router.push({ pathname: '/habits/editor', params: { id: created.id } }),
     });
   };
-
-  // The starter plan: presets not yet added, grouped into the ready-made day-part stacks
-  // (Morning / Midday / Evening / Night, matching an existing same-named stack rather than
-  // creating a twin), plus the standalone tail.
-  const starterPlan = useMemo(() => buildStarterPlan(presets, existing, stacks), [presets, existing, stacks]);
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
   // categories drop out so a filtered view shows no bare headers.
@@ -260,65 +225,9 @@ export default function DiscoverScreen() {
     // list as a quiet row: the from-scratch path stays one tap away without shouting over
     // the library (and the empty-search state offers it too). The starter belongs to the
     // plain screen only — inside a stack it would add habits *outside* it.
-    if (isDefault && !scoped && starterPlan.total > 0) rows.push({ type: 'starter' });
     for (const section of categorySections) rows.push({ type: 'category', ...section });
     rows.push({ type: 'create' });
   }
-
-  // Add the starter stacks — one insert for every remaining habit (contiguous positions),
-  // then the grouping: each planned group becomes a new stack, or appends to the same-named
-  // one the user already has. Sequential awaits are safe — createHabits and createStack keep
-  // `habitsRef` authoritative between chained calls. The button isn't an `ExpandableAddRow`,
-  // so it fires the "commit" haptic itself, and the toast introduces where everything went,
-  // since it all lands below the fold on Today.
-  const addStarterSet = async () => {
-    const plan = starterPlan;
-    const inputs = [...plan.groups.flatMap((g) => g.presets), ...plan.lone].map(toCreate);
-    const created = await createHabits(inputs);
-    if (created.length === 0) return;
-    haptics.added();
-
-    // Map the fresh rows back to their groups by the same folded name used for dedupe.
-    const createdByName = new Map(created.map((h) => [normalizeName(h.name), h]));
-    const createdStackIds: string[] = [];
-    for (const group of plan.groups) {
-      const memberIds = group.presets
-        .map((p) => createdByName.get(normalizeName(p.name))?.id)
-        .filter((id): id is string => id !== undefined);
-      if (memberIds.length === 0) continue;
-      if (group.existingStackId) {
-        // Append to the user's own same-named stack (its membership didn't change during the
-        // insert — the new rows landed standalone), keeping their order ahead of the new tail.
-        const current = habits
-          .filter((h) => h.stack_id === group.existingStackId)
-          .sort((a, b) => a.position - b.position)
-          .map((h) => h.id);
-        await updateStack(group.existingStackId, { orderedMemberIds: [...current, ...memberIds] });
-      } else {
-        const newStackId = await createStack(group.name, memberIds, { moment: group.dayPart });
-        if (newStackId) createdStackIds.push(newStackId);
-      }
-    }
-
-    const habitPart = `${created.length} essential${created.length === 1 ? '' : 's'}`;
-    const stackCount = createdStackIds.length;
-    toast.show(
-      stackCount > 0
-        ? `Added ${habitPart} in ${stackCount} stack${stackCount === 1 ? '' : 's'} — find them on Today`
-        : `Added your ${habitPart} — find them on Today`,
-      'success',
-      {
-        label: 'Undo',
-        onPress: () => {
-          // Shells first, then habits: deleting the habits first would trip each stack's
-          // empty-shell sweep against a ref that hasn't seen the previous delete yet, and
-          // could strand shells that now render as empty cards.
-          for (const createdStackId of createdStackIds) void deleteStack(createdStackId);
-          for (const h of created) void deleteHabit(h.id);
-        },
-      },
-    );
-  };
 
   const goCreateHabit = () =>
     router.push({
@@ -349,7 +258,7 @@ export default function DiscoverScreen() {
               <AppButton
                 variant="secondary"
                 onPress={goCreateHabit}
-                accessibilityLabel="Create your own habit">
+                accessibilityLabel="Create your own act">
                 Create your own
               </AppButton>
             </EmptyState>
@@ -379,7 +288,7 @@ export default function DiscoverScreen() {
         // row leaving this section (it's a member now) is the confirmation, like a preset ✓.
         return (
           <View style={wrap}>
-            <SettingsSection title="Your habits">
+            <SettingsSection title="Your acts">
               {item.habits.map((habit) => (
                 <SettingsRow
                   key={habit.id}
@@ -394,28 +303,6 @@ export default function DiscoverScreen() {
                 />
               ))}
             </SettingsSection>
-          </View>
-        );
-      case 'starter':
-        // One-tap starter stacks for a new user — only in the default browse view, and the one
-        // accent element on the screen (everything below stays quiet).
-        return (
-          <View style={wrap}>
-            <Surface padded pattern contentStyle={[styles.starter, { backgroundColor: theme.accentSubtle }]}>
-              <ThemedText type="smallBold" themeColor="accent">
-                New here? Start with the essentials
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                The moments already in your day — prayers, adhkār and a page of Qurʾān, grouped
-                into Morning, Midday, Evening and Night.
-              </ThemedText>
-              <AppButton
-                onPress={() => void addStarterSet()}
-                accessibilityLabel={`Add ${starterPlan.total} starter habits, grouped into stacks`}
-                style={styles.starterButton}>
-                Add starter stacks ({starterPlan.total})
-              </AppButton>
-            </Surface>
           </View>
         );
       case 'category':
@@ -452,7 +339,7 @@ export default function DiscoverScreen() {
             <SettingsSection>
               <SettingsRow
                 icon="add"
-                label="Create your own habit"
+                label="Create your own act"
                 sublabel="Name, schedule and goal"
                 onPress={goCreateHabit}
                 showChevron
@@ -545,8 +432,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
     gap: Spacing.two,
   },
-  starter: { gap: Spacing.two },
-  starterButton: { marginTop: Spacing.one, alignSelf: 'flex-start' },
   // A category: its heading hugs the card it names (the inter-section gap above provides the
   // separation from the previous group).
   section: { gap: Spacing.two },

@@ -10,11 +10,11 @@ import { haptics } from '@/lib/haptics';
 
 /**
  * "Manage stack" — a native bottom sheet raised by tapping a stack card's header (the ⋯). It
- * holds the things you can't do to a stack by direct manipulation on Today: add habits to it,
- * edit it (name + time-of-day anchor), or delete it (members are removed/reordered by dragging
- * the card). Presented `fitToContents` from the habits stack layout — the same compact
- * sheet-of-rows as "Add to stack". Add habits and Edit stack hand off to their own modals so
- * no keyboard or list has to live inside the sheet.
+ * holds the things you can't do to a stack by direct manipulation on Today: add acts to it,
+ * edit it (name + moment anchor), or delete it (acts are reordered by dragging them on the card).
+ * Presented `fitToContents` from the habits stack layout — the same compact sheet-of-rows as
+ * "Add to stack". Add acts and Edit stack hand off to their own modals so no keyboard or list has
+ * to live inside the sheet.
  */
 export default function StackManageScreen() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function StackManageScreen() {
 
   // `replace` (not push) so the next modal's Save/Close returns to the list, not back to
   // this sheet.
-  const addHabits = () => {
+  const addActs = () => {
     if (!stack) return;
     router.replace({ pathname: '/habits/discover', params: { stackId: stack.id } });
   };
@@ -41,7 +41,7 @@ export default function StackManageScreen() {
     // router.back() here, or it pops twice).
     confirmDestructive({
       title: 'Delete stack',
-      message: `Delete “${stack.name}”? The habits stay; only the grouping is removed.`,
+      message: `Delete “${stack.name}”? Its acts stay, but they’ll need a new anchor.`,
       onConfirm: () => {
         haptics.removed();
         void deleteStack(stack.id);
@@ -58,7 +58,7 @@ export default function StackManageScreen() {
   return (
     <FormSheet title={stack.name} subtitle="Stack">
       <Surface>
-        <SheetRow icon="add" label="Add habits" onPress={addHabits} />
+        <SheetRow icon="add" label="Add acts" onPress={addActs} />
         <RowSeparator />
         <SheetRow icon="edit" label="Edit stack" onPress={rename} />
         <RowSeparator />

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
+import { clamp01, computeProgress, isStackComplete, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -39,20 +39,57 @@ describe('isStackComplete', () => {
     expect(isStackComplete(members, set('a', 'b', 'c'), set())).toBe(true);
   });
 
-  it('counts the just-ticked habit as done (the seam reads a stale set)', () => {
-    // a & b already done, c is being ticked now — its optimistic state has not propagated yet.
-    expect(isStackComplete(members, set('a', 'b'), set(), 'c')).toBe(true);
-  });
-
   it('treats skipped members as excused, not as blockers', () => {
     // c skipped; a & b done → the stack is complete (skipped drops out of the open set).
     expect(isStackComplete(members, set('a', 'b'), set('c'))).toBe(true);
   });
 
-  it('needs at least two open acts — a single act due today is a plain tick, not a milestone', () => {
-    expect(isStackComplete(members, set('a'), set('b', 'c'))).toBe(false); // only one open, done
-    expect(isStackComplete([{ id: 'a' }], set('a'), set())).toBe(false); // lone member
-    expect(isStackComplete([], set(), set())).toBe(false); // empty
+  it('seals on a single open act — the stack is the unit, however short today’s sequence is', () => {
+    expect(isStackComplete(members, set('a'), set('b', 'c'))).toBe(true); // one open, and done
+    expect(isStackComplete([{ id: 'a' }], set('a'), set())).toBe(true); // lone member
+  });
+
+  it('is false when nothing is open — an all-excused or empty stack has nothing to seal', () => {
+    expect(isStackComplete(members, set(), set('a', 'b', 'c'))).toBe(false);
+    expect(isStackComplete([], set(), set())).toBe(false);
+  });
+});
+
+describe('sealableActs', () => {
+  const set = (...ids: string[]) => new Set(ids);
+  // 2026-07-25 is a Saturday (weekday 6); 2026-07-24 a Friday (5).
+  const act = (id: string, stackId: string | null, schedule = [0, 1, 2, 3, 4, 5, 6]) => ({
+    id,
+    stack_id: stackId,
+    created_at: '2026-01-01T00:00:00Z',
+    schedule_days: schedule,
+    hijri_schedule: null,
+  });
+
+  const acts = [
+    act('a', 's1'),
+    act('b', 's1'),
+    act('friday-only', 's1', [5]),
+    act('other-stack', 's2'),
+    act('temp-123', 's1'),
+  ];
+
+  it('takes only the stack’s own acts that are due on the day', () => {
+    expect(sealableActs(acts, set(), 's1', '2026-07-25').map((h) => h.id)).toEqual(['a', 'b']);
+    // The Friday act joins the sequence on Friday and not otherwise.
+    expect(sealableActs(acts, set(), 's1', '2026-07-24').map((h) => h.id)).toEqual(['a', 'b', 'friday-only']);
+  });
+
+  it('leaves out excused acts — the seal never asserts something the user excused', () => {
+    expect(sealableActs(acts, set('a'), 's1', '2026-07-25').map((h) => h.id)).toEqual(['b']);
+  });
+
+  it('leaves out rows whose insert is still in flight (no persisted id to write against)', () => {
+    expect(sealableActs(acts, set(), 's1', '2026-07-25').some((h) => h.id.startsWith('temp-'))).toBe(false);
+  });
+
+  it('is empty for a stack with nothing due — the card has nothing to seal', () => {
+    expect(sealableActs(acts, set(), 'no-such-stack', '2026-07-25')).toEqual([]);
   });
 });
 

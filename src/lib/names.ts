@@ -38,12 +38,3 @@ export const dedupeName = (base: string, taken: Set<string>): string => {
     if (!taken.has(normalizeName(candidate))) return candidate;
   }
 };
-
-/**
- * A fresh stack's placeholder name for the drop-one-habit-onto-another gesture: the stack is
- * created instantly (no name prompt — see the ⋯ → Rename affordance), so it needs a sensible
- * default. Deduped against existing stacks so repeated merges read "New stack", "New stack 2",
- * "New stack 3" … rather than colliding (createStack does not dedupe names itself).
- */
-export const defaultStackName = (stacks: { id: string; name: string }[]) =>
-  dedupeName('New stack', new Set(otherNames(stacks)));

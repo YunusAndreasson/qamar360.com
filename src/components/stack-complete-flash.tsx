@@ -34,7 +34,7 @@ export function StackCompleteFlash({ complete }: { complete: boolean }) {
   const reduceMotion = useReducedMotion();
   const flash = useSharedValue(0);
 
-  // Fire only on the false→true edge — the moment of sealing — mirroring CompletionRing's
+  // Fire only on the false→true edge — the moment of sealing — mirroring the completion ring's
   // `wasComplete` guard: a card that loads already-complete, or re-renders while still complete,
   // never flashes. Born at `complete` so the first run is a no-op for an already-sealed stack.
   const wasComplete = useRef(complete);

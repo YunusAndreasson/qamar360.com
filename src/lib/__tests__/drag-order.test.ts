@@ -22,20 +22,22 @@ import {
 } from '@/lib/drag-order';
 
 const GAP = 8;
-const ROW = 56; // a lone habit row
+const ROW = 56; // one act row inside a card
 const CARD = 180; // a stack card
-const MEMBER_SEP = 1; // the hairline between member rows inside a card (a clean number for the math)
+const SHORT_CARD = 56; // a one-act card — short, but still a card
+const MEMBER_SEP = 1; // the hairline between act rows inside a card (a clean number for the math)
 
-/** A five-entry day list: row, card, row, card, row — mixed heights, gap-spaced from y=0. */
+/** A five-card day list — mixed heights, gap-spaced from y=0. Every top-level entry is a stack:
+ *  a habit never lives outside one. */
 function fixture() {
   const order: OrderMeta[] = [
-    { key: 'habit:a', kind: 'habit', stackId: null },
+    { key: 'stack:A', kind: 'stack', stackId: 'A' },
     { key: 'stack:S', kind: 'stack', stackId: 'S' },
-    { key: 'habit:b', kind: 'habit', stackId: null },
+    { key: 'stack:B', kind: 'stack', stackId: 'B' },
     { key: 'stack:T', kind: 'stack', stackId: 'T' },
-    { key: 'habit:c', kind: 'habit', stackId: null },
+    { key: 'stack:C', kind: 'stack', stackId: 'C' },
   ];
-  const heights = [ROW, CARD, ROW, CARD, ROW];
+  const heights = [SHORT_CARD, CARD, SHORT_CARD, CARD, SHORT_CARD];
   const frames: Record<string, Frame> = {};
   let y = 0;
   order.forEach((entry, i) => {
@@ -78,7 +80,7 @@ describe('compactMidpoints', () => {
 
   it('lifts the dragged entry out and shifts later entries up one slot', () => {
     const slot = ROW + GAP;
-    const mids = compactMidpoints(order, frames, 'habit:a', slot);
+    const mids = compactMidpoints(order, frames, 'stack:A', slot);
     // stack:S moves from y=64 to y=0, and so on down the list.
     expect(mids).toEqual([64 - slot + 90, 252 - slot + 28, 316 - slot + 90, 504 - slot + 28]);
     expect(mids).toHaveLength(order.length - 1);
@@ -86,7 +88,7 @@ describe('compactMidpoints', () => {
 
   it('skips entries without a measured frame', () => {
     const partial = { ...frames };
-    delete partial['habit:b'];
+    delete partial['stack:B'];
     expect(compactMidpoints(order, partial, null, 0)).toHaveLength(order.length - 1);
   });
 });
@@ -101,18 +103,6 @@ describe('resolveDropSlot', () => {
   const sMemberOrder = { S: ['member:m1', 'member:m2'] };
   const sMemberFrames: Record<string, Frame> = { 'member:m1': { y: 100, h: 50 }, 'member:m2': { y: 150, h: 50 } };
   const NO_MEMBERS: Record<string, string[]> = {};
-
-  it('a habit over a card body drops into that stack', () => {
-    expect(resolveDropSlot(cardBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0)).toEqual({
-      kind: 'into',
-      stackId: 'S',
-    });
-  });
-
-  it("a habit over a card's top band drops between (reorder above the card)", () => {
-    const result = resolveDropSlot(cardTopBandY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
-    expect(result.kind).toBe('between');
-  });
 
   it('a stack card never drops into another stack', () => {
     const result = resolveDropSlot(cardBodyY, order, frames, 'stack:T', 'stack', 'T', CARD + GAP, NO_MEMBERS, {}, 0);
@@ -136,7 +126,9 @@ describe('resolveDropSlot', () => {
     });
   });
 
-  it("a member over its own card's band still resolves to between (detach above/below)", () => {
+  it("an act over its own card's top band resolves to between — which commits nothing", () => {
+    // An act has nowhere to go outside a stack, so the gesture layer floats it home rather than
+    // detaching. resolveDropSlot still reports the geometry; the meaning is applied above it.
     const result = resolveDropSlot(cardTopBandY, order, frames, 'member:m1', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW);
     expect(result.kind).toBe('between');
   });
@@ -144,47 +136,15 @@ describe('resolveDropSlot', () => {
   it('a very short card has no into zone (inset floor leaves no body)', () => {
     const tinyOrder: OrderMeta[] = [{ key: 'stack:S', kind: 'stack', stackId: 'S' }];
     const tinyFrames = { 'stack:S': { y: 0, h: 20 } }; // inset 12 each side → body empty
-    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
+    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'member:m1', 'member', 'X', slot, NO_MEMBERS, {}, 0);
     expect(result.kind).toBe('between');
   });
 
-  // habit:b is a lone row at y=252, h=56 → inset 12 → merge band 264..296. The dwell timer that
-  // actually arms the merge lives in the gesture layer (UI-thread, stateful) and is out of scope
-  // here; resolveDropSlot only reports the *candidate*.
-  const rowBodyY = 280; // inside habit:b's merge band
-  const rowBandY = 258; // habit:b's top band, above the merge band — still a reorder
-
-  it('a habit over another lone habit body is a merge candidate for that habit', () => {
-    const result = resolveDropSlot(rowBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
-    expect(result).toMatchObject({ kind: 'merge', habitId: 'b' });
-  });
-
-  it("a merge candidate's fallback betweenIndex equals the plain reorder index (stays reorderable)", () => {
-    const result = resolveDropSlot(rowBodyY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
-    const mids = compactMidpoints(order, frames, 'habit:a', slot);
-    expect(result).toEqual({ kind: 'merge', habitId: 'b', betweenIndex: insertionIndexFor(rowBodyY, mids) });
-  });
-
-  it("a habit over another lone habit's band resolves to between (reorder, no merge)", () => {
-    const result = resolveDropSlot(rowBandY, order, frames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
-    expect(result.kind).toBe('between');
-  });
-
-  it('a member dragged over a lone habit resolves to between (only habit-on-habit merges)', () => {
-    const result = resolveDropSlot(rowBodyY, order, frames, 'member:m1', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW);
-    expect(result.kind).toBe('between');
-  });
-
-  it('a dragged card over a lone habit resolves to between (cards never merge)', () => {
-    const result = resolveDropSlot(rowBodyY, order, frames, 'stack:T', 'stack', 'T', CARD + GAP, NO_MEMBERS, {}, 0);
-    expect(result.kind).toBe('between');
-  });
-
-  it('a degenerate ~20px habit row has no merge zone (inset floor leaves no body)', () => {
-    const tinyOrder: OrderMeta[] = [{ key: 'habit:x', kind: 'habit', stackId: null }];
-    const tinyFrames = { 'habit:x': { y: 0, h: 20 } }; // inset 12 each side → body empty
-    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'habit:a', 'habit', null, slot, NO_MEMBERS, {}, 0);
-    expect(result.kind).toBe('between');
+  it("a between index matches the plain compact insertion index", () => {
+    const bandY = 258; // stack:B's top band
+    const result = resolveDropSlot(bandY, order, frames, 'stack:A', 'stack', 'A', SHORT_CARD + GAP, NO_MEMBERS, {}, 0);
+    const mids = compactMidpoints(order, frames, 'stack:A', SHORT_CARD + GAP);
+    expect(result).toEqual({ kind: 'between', index: insertionIndexFor(bandY, mids) });
   });
 });
 
@@ -310,22 +270,22 @@ describe('keyAtCompactIndex / slotTopForIndex', () => {
   const slot = ROW + GAP;
 
   it('maps compact indices to the remaining keys in order', () => {
-    expect(keyAtCompactIndex(order, 'habit:a', 0)).toBe('stack:S');
-    expect(keyAtCompactIndex(order, 'habit:a', 3)).toBe('habit:c');
-    expect(keyAtCompactIndex(order, 'habit:a', 4)).toBeNull();
-    expect(keyAtCompactIndex(order, null, 0)).toBe('habit:a');
+    expect(keyAtCompactIndex(order, 'stack:A', 0)).toBe('stack:S');
+    expect(keyAtCompactIndex(order, 'stack:A', 3)).toBe('stack:C');
+    expect(keyAtCompactIndex(order, 'stack:A', 4)).toBeNull();
+    expect(keyAtCompactIndex(order, null, 0)).toBe('stack:A');
   });
 
   it('slot top is the compact top of the entry at that index', () => {
-    // Lifting habit:a out: stack:S compacts to y=0.
-    expect(slotTopForIndex(order, frames, 'habit:a', slot, 0, GAP)).toBe(0);
-    // habit:b compacts from 252 to 252-64=188.
-    expect(slotTopForIndex(order, frames, 'habit:a', slot, 1, GAP)).toBe(188);
+    // Lifting stack:A out: stack:S compacts to y=0.
+    expect(slotTopForIndex(order, frames, 'stack:A', slot, 0, GAP)).toBe(0);
+    // stack:B compacts from 252 to 252-64=188.
+    expect(slotTopForIndex(order, frames, 'stack:A', slot, 1, GAP)).toBe(188);
   });
 
   it('past the last entry the slot sits one gap below the compact list', () => {
-    // habit:c compact top = 504-64=440; bottom + gap = 440+56+8 = 504.
-    expect(slotTopForIndex(order, frames, 'habit:a', slot, 4, GAP)).toBe(504);
+    // stack:C compact top = 504-64=440; bottom + gap = 440+56+8 = 504.
+    expect(slotTopForIndex(order, frames, 'stack:A', slot, 4, GAP)).toBe(504);
   });
 
   it('member drags (nothing lifted out) use measured tops directly', () => {

@@ -1,5 +1,4 @@
 import { DAILY_SCHEDULE, describeHijriSchedule, type HijriSchedule } from '@/lib/dates';
-import type { DayPart } from '@/lib/sun';
 
 /**
  * A curated, evidence-backed library of Sunnah habits, each worded as a SMART goal —
@@ -55,8 +54,6 @@ export type SunnahPreset = {
   targetCount?: number;
   /** Unit label shown next to the count ("cups", "servings"). Only meaningful with `targetCount`. */
   targetUnit?: string;
-  /** Part of the one-tap "starter set" — a balanced daily core for a new user. */
-  essential?: boolean;
 };
 
 export const SUNNAH_CATEGORIES: SunnahCategory[] = [
@@ -79,7 +76,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Pray the two obligatory rakʿahs of Fajr in its window — from true dawn (ṣubḥ ṣādiq) until just before sunrise.',
     evidence: 'The best deed is prayer at its appointed time (Bukhari 527, Muslim 85).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'dhuhr-on-time',
@@ -88,7 +84,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Pray the four obligatory rakʿahs of Dhuhr in its window — from just after the sun passes its zenith (zawāl) until ʿAṣr begins.',
     evidence: 'The best deed is prayer at its appointed time (Bukhari 527, Muslim 85).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'asr-on-time',
@@ -97,7 +92,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Pray the four obligatory rakʿahs of ʿAṣr in its window — from when a shadow grows to equal the object casting it until sunset, ideally before the sun yellows.',
     evidence: 'Whoever misses ʿAṣr, it is as if he lost his family and wealth (Bukhari 552).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'maghrib-on-time',
@@ -106,7 +100,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Pray the three obligatory rakʿahs of Maghrib in its window — from just after sunset until the red twilight fades.',
     evidence: 'The best deed is prayer at its appointed time (Bukhari 527, Muslim 85).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'isha-on-time',
@@ -115,7 +108,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Pray the four obligatory rakʿahs of ʿIshāʾ in its window — from when the twilight fades until Islamic midnight, and no later than true dawn.',
     evidence: 'The most burdensome prayers on the hypocrites are ʿIshāʾ and Fajr (Bukhari 657, Muslim 651).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'prayer-in-congregation',
@@ -242,7 +234,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Read at least one page of the Qurʾān today — set a larger portion if you wish.',
     evidence: 'Read the Qurʾān, for it will intercede for its companions on the Day of Resurrection (Muslim 804).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'quran-daily-juz',
@@ -325,7 +316,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Say the morning remembrances (Adhkār aṣ-Ṣabāḥ) after Fajr, before sunrise.',
     evidence: 'Glorify Him in the morning and the evening (Qurʾān 33:41–42).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'evening-adhkar',
@@ -334,7 +324,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'Say the evening remembrances (Adhkār al-Masāʾ) between ʿAṣr and Maghrib.',
     evidence: 'Glorify Him in the morning and the evening (Qurʾān 33:41–42).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'tasbih-after-salah',
@@ -387,7 +376,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'On opening your eyes, say: Al-ḥamdu lillāhi alladhī aḥyānā baʿda mā amātanā wa ilayhi-n-nushūr.',
     evidence: 'On waking the Prophet ﷺ would say it — "Praise to Allāh who gave us life after death, and to Him is the return" (Bukhari 6312).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'wipe-face-on-waking',
@@ -404,7 +392,6 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     detail: 'When you hear the call, repeat the muʾadhdhin’s words, then ask Allāh to grant the Prophet ﷺ al-wasīlah (Allāhumma rabba hādhihi-d-daʿwati-t-tāmmah…).',
     evidence: 'Repeat what the muʾadhdhin says (Bukhari 611); whoever asks al-wasīlah for me after it, my intercession is due for him (Bukhari 614).',
     defaultSchedule: DAILY_SCHEDULE,
-    essential: true,
   },
   {
     id: 'dua-after-wudu',
@@ -901,33 +888,6 @@ const REPEATABLE_PRESET_IDS = new Set<string>(['quran-daily-page', 'quran-sabaq'
 export function isRepeatablePreset(preset: SunnahPreset): boolean {
   return REPEATABLE_PRESET_IDS.has(preset.id);
 }
-
-/** One starter stack: a named group of presets added together, in this order. */
-export type StarterStack = {
-  /** The stack's name as created — plain English day-parts, per house style. */
-  name: string;
-  /** The solar-day chapter the stack anchors to (the Today sun glyph rests on it). */
-  dayPart: DayPart;
-  /** Preset ids (see `SUNNAH_PRESETS`) in stack sequence order. */
-  presetIds: string[];
-};
-
-/**
- * The starter set, grouped by the moments of the day it anchors to — added as ready-made
- * stacks so a new user's very first screen already demonstrates the app's core idea. Ids
- * resolve against the live catalog at add time (a missing id just drops out), and presets the
- * user already has are skipped, so a partial re-run only fills the gaps.
- */
-export const STARTER_STACKS: StarterStack[] = [
-  { name: 'Morning', dayPart: 'morning', presetIds: ['dua-on-waking', 'fajr-on-time', 'morning-adhkar'] },
-  { name: 'Midday', dayPart: 'midday', presetIds: ['dhuhr-on-time', 'asr-on-time'] },
-  { name: 'Evening', dayPart: 'evening', presetIds: ['evening-adhkar', 'maghrib-on-time'] },
-  { name: 'Night', dayPart: 'night', presetIds: ['isha-on-time', 'quran-daily-page', 'sleeping-adhkar'] },
-];
-
-/** Starter presets with no time-of-day home (event-driven) — added standalone, after the
- *  stacks, so the first run also shows what a lone habit looks like. */
-export const STARTER_STANDALONE_PRESET_IDS = ['answer-the-adhan'];
 
 /** Short weekday names indexed 0=Sun … 6=Sat, for schedule summaries. */
 const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 
 import { FormField } from '@/components/form-field';
@@ -6,23 +6,35 @@ import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { MomentPicker } from '@/components/moment-picker';
 import { useToast } from '@/components/toast';
+import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
+import { habitInputFor } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
 import { normalizeName, otherNames } from '@/lib/names';
 
 /**
- * Name a new stack — the modal behind the add menu's "New stack" (a name, plus an optional
+ * Name a new stack — the modal behind the add menu's "Build your own" (a name, plus an optional
  * moment anchor). Deliberately NO autofocus: the sheet opens with the whole moment grid in
  * view (a raised keyboard buried it), and picking a moment prefills the name — the common
  * case is one tap and Create. Creates an intentionally empty stack: it lands on Today at its
  * moment's day-order slot (or the end, unanchored) as a card holding an "Add your first
- * habit" row, so the next step is visible in the world rather than remembered.
+ * act" row, so the next step is visible in the world rather than remembered.
+ *
+ * Reached from the stack picker's "New stack…", it also carries a pending act (`pendingHabitId`
+ * for one that exists, `pendingPresetId` for one from the library) and lands it the moment the
+ * stack is created — so "none of these" is never a dead end that loses what you were adding.
  */
 export default function StackNewScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { stacks, createStack, deleteStack } = useHabits();
+  const { pendingHabitId, pendingPresetId } = useLocalSearchParams<{
+    pendingHabitId?: string;
+    pendingPresetId?: string;
+  }>();
+  const { stacks, createStack, deleteStack, moveHabit, createHabitInStack } = useHabits();
+  const { presets } = useCatalog();
+  const pendingPreset = pendingPresetId ? (presets.find((p) => p.id === pendingPresetId) ?? null) : null;
 
   const [name, setName] = useState('');
   const [moment, setMoment] = useState<MomentKey | null>(null);
@@ -55,7 +67,15 @@ export default function StackNewScreen() {
     void (async () => {
       const id = await createStack(trimmed, [], { moment });
       if (!id) return;
-      show('Stack created — add your first habit', 'success', {
+      // An act was waiting on this stack (the picker's "New stack…") — land it now, and let the
+      // toast say where it went instead of asking for a first act the stack already has.
+      if (pendingHabitId) {
+        await moveHabit(pendingHabitId, { toStackId: id, placement: { type: 'member-append' } });
+      } else if (pendingPreset) {
+        await createHabitInStack(habitInputFor(pendingPreset), id);
+      }
+      const landed = pendingHabitId || pendingPreset;
+      show(landed ? `Created ${trimmed} — the act is in it` : 'Stack created — add your first act', 'success', {
         label: 'Undo',
         onPress: () => void deleteStack(id),
       });

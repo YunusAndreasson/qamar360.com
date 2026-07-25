@@ -24,10 +24,11 @@
  */
 
 /** What a top-level entry is: a lone habit row, or a stack (stack) card. */
-export type EntryKind = 'habit' | 'stack';
+export type EntryKind = 'stack';
 
-/** What is being dragged: a top-level entry, or a member row inside a stack card. */
-export type DragKind = 'habit' | 'stack' | 'member';
+/** What is being dragged: a whole stack card, or one act inside one. Every top-level entry is
+ *  a stack — a habit never lives outside one — so there is no third case. */
+export type DragKind = 'stack' | 'member';
 
 /** A top-level entry in render order. `key` is `habit:<id>` / `stack:<id>`. */
 export type OrderMeta = { key: string; kind: EntryKind; stackId: string | null };
@@ -40,7 +41,6 @@ export type DropSlot =
   | { kind: 'between'; index: number } // compact-space insertion index at top level
   | { kind: 'into'; stackId: string } // join this stack (appended)
   | { kind: 'reorder'; stackId: string; index: number } // reorder within own stack (compact member index)
-  | { kind: 'merge'; habitId: string; betweenIndex: number } // hover a lone habit → candidate new stack; betweenIndex = the reorder it falls back to before the merge arms
   | { kind: 'none' }; // no meaning here → cancel (float home)
 
 /** A stack card's "into" zone is its frame inset top and bottom by 20% of its height
@@ -118,13 +118,11 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
  * reordered (never nested). A member over its OWN card's body reorders *within* that card:
  * `memberOrder[ownStackId]` (its members' keys in sequence) + `memberFrames` (their grid frames)
  * resolve a compact insertion index among the siblings, compacted by `memberSlot` (the dragged
- * member's own height). Its top/bottom bands still fall through to "between", so a member can be
- * dropped directly above or below its own stack to detach there.
+ * member's own height).
  *
- * A lone habit dragged over another lone habit's body resolves to "merge" (fold the two into a new
- * stack) — the same body-inset zone as a card's "into", carrying the `between` index it falls back
- * to so the row stays reorderable until the merge arms (the dwell timer lives in the gesture layer,
- * not here). Only habit-over-habit merges; a member or a card over a lone habit stays "between".
+ * An act over ANOTHER card's body joins that stack. Its top/bottom bands fall through to
+ * "between", which for an act means nothing to commit — an act has nowhere to go outside a stack,
+ * so the drop simply floats home.
  */
 export function resolveDropSlot(
   centerY: number,
@@ -139,8 +137,6 @@ export function resolveDropSlot(
   memberSlot: number,
 ): DropSlot {
   'worklet';
-  // Computed once and shared: the merge candidate's fallback reorder index must equal the plain
-  // `between` index, so a lone habit stays reorderable right up until the merge arms.
   const midpoints = compactMidpoints(order, frames, draggedKey, slotSize);
   if (draggedKind !== 'stack') {
     for (const entry of order) {
@@ -151,18 +147,12 @@ export function resolveDropSlot(
       const top = f.y + inset;
       const bottom = f.y + f.h - inset;
       if (top >= bottom || centerY < top || centerY > bottom) continue;
-      if (entry.kind === 'stack' && entry.stackId) {
-        if (draggedKind === 'member' && entry.stackId === ownStackId) {
-          const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
-          return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
-        }
-        return { kind: 'into', stackId: entry.stackId };
+      if (!entry.stackId) continue;
+      if (entry.stackId === ownStackId) {
+        const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
+        return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
       }
-      // A lone habit's body is a candidate merge target — but only when dragging another lone habit
-      // (drop-onto-app-makes-a-folder). A member or a card over it falls through to `between`.
-      if (entry.kind === 'habit' && draggedKind === 'habit') {
-        return { kind: 'merge', habitId: entry.key.slice('habit:'.length), betweenIndex: insertionIndexFor(centerY, midpoints) };
-      }
+      return { kind: 'into', stackId: entry.stackId };
     }
   }
   return { kind: 'between', index: insertionIndexFor(centerY, midpoints) };

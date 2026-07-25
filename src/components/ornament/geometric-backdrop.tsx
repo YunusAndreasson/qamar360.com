@@ -79,13 +79,14 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
 
 /**
  * The whole-screen sky, living through the real day: the overhead galactic glow, the stars, the
- * corner order-bloom, a rare meteor, then the sun's horizon wash and the vignette. Two unseen
- * lights govern the composition. Tonight's real moon brightens the bloom and drowns the faint
- * stars and the glow; the real sun — computed for the same observer, once a minute — washes the
- * stars out by day and hands them back tier by tier through the true twilight bands, while the
- * horizon warms toward sunset and cools toward dawn ({@link sun.ts}). Neither light is ever
- * drawn. The whole field also drifts a whisper with the phone's tilt ({@link useSkyTilt}), each
- * layer at its own depth so the sky reads dimensional, not flat.
+ * corner order-bloom, a rare meteor, then the sun's horizon wash, the vignette, and the horizon
+ * lift rising off the bottom edge. Two unseen lights govern the composition. Tonight's real moon
+ * brightens the bloom and drowns the faint stars and the glow; the real sun — computed for the
+ * same observer, once a minute — washes the stars out by day and hands them back tier by tier
+ * through the true twilight bands, while the horizon warms toward sunset and cools toward dawn
+ * ({@link sun.ts}). Neither light is ever drawn. The whole field also drifts a whisper with the
+ * phone's tilt ({@link useSkyTilt}), each layer at its own depth so the sky reads dimensional,
+ * not flat.
  */
 function ScreenSky() {
   const scheme = useEffectiveScheme();
@@ -138,6 +139,7 @@ function ScreenSky() {
       <Meteors sunAlt={sun.alt} />
       <HorizonTint sunAlt={sun.alt} sunAz={sun.az} />
       <ScreenVignette />
+      <HorizonGlow sunAlt={sun.alt} />
     </View>
   );
 }
@@ -147,6 +149,10 @@ function ScreenSky() {
 // indigo over the near-black base that fades to nothing by mid-screen. It washes out toward the
 // full moon like the faint stars beneath it, and — being night-sky light itself — fades in step
 // with the first stars as the real sun rises.
+//
+// One colour serves both of the sky's diffuse lights (this dome and the {@link HorizonGlow}
+// rising off the bottom edge), so the screen reads as a single atmosphere lit from two ends
+// rather than two unrelated washes.
 const GLOW_COLOR = '#1E2A52';
 const GLOW_OPACITY = 0.08;
 const GLOW_LIGHT_DIM = 0.1;
@@ -337,6 +343,84 @@ function ScreenVignette() {
         </RadialGradient>
       </Defs>
       <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+/**
+ * The horizon lift — the sky's other diffuse light, rising off the *absolute bottom edge* of the
+ * screen and dissolving into darkness before mid-page. Where {@link OverheadGlow} is the galactic
+ * dome gathered at the zenith, this is the last light along the horizon: the faint airglow the
+ * eye reads as depth, so the page ends in atmosphere instead of on a flat fill.
+ *
+ * Two passes, because the only sky a full screen actually leaves visible is a narrow strip — the
+ * content margins and the exhale above the tab bar:
+ *
+ *  - a full-width vertical ramp, so the lift reaches those very edges (a lone bottom-centred
+ *    dome decays to ~1% of its peak by the screen sides — invisible exactly where it is needed);
+ *  - a bottom-centred dome over it, so the band still gathers toward a light source instead of
+ *    lying flat across the foot of the page like a UI scrim.
+ *
+ * The ramp accelerates into the edge rather than climbing evenly, which is what keeps it reading
+ * as glow rather than as a gradient.
+ *
+ * Deliberately *not* coupled to the moon: the overhead dome already breathes with the phase, so
+ * leaving this one steady gives the sky two independent lives instead of one synchronized pulse.
+ * The sun still governs it — it fades with the stars by day, on the bright tier's curve, and
+ * holds the dark scheme's night-sky floor.
+ *
+ * Painted last, over {@link ScreenVignette} — which is what shapes it: the vignette keeps the
+ * bottom corners falling away while this lifts the centre, so the result reads as light rising
+ * from a horizon. Static on purpose (no tilt drift): this is the frame's own edge-light, the
+ * fixed thing the parallax layers move against.
+ */
+// Peaks together at ~0.1 in the bottom-centre — a touch over the overhead dome's 0.08, since
+// this one is read through the content margins rather than across an open sky. Still a felt
+// lift, never a visible wash.
+const HORIZON_BAND_OPACITY = 0.055;
+const HORIZON_DOME_OPACITY = 0.05;
+
+/** Where the tab bar's opaque edge cuts the sky off, as a fraction of screen height — the last
+ *  line of sky the eye actually reads, so the lift is shaped to arrive there rather than at the
+ *  literal bottom. Approximate by design: it only weights a gradient stop, so a few points of
+ *  drift across devices costs nothing. */
+const TAB_BAR_EDGE = '0.89';
+
+function HorizonGlow({ sunAlt }: { sunAlt: number }) {
+  const scheme = useEffectiveScheme();
+  const uid = useId();
+  const bandId = `bd-horizon-band-${uid}`;
+  const domeId = `bd-horizon-dome-${uid}`;
+  const mode: DaylightStarsMode = scheme === 'dark' ? 'inspired' : 'literal';
+  const dim = scheme === 'light' ? GLOW_LIGHT_DIM : 1;
+  const light = dim * starVisibility('bright', sunAlt, mode);
+  const band = HORIZON_BAND_OPACITY * light;
+  const dome = HORIZON_DOME_OPACITY * light;
+
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <Defs>
+        {/* Nothing above the 40% line — the sky up there belongs to the stars — then a ramp
+            weighted so ~90% of the lift is reached by {@link TAB_BAR_EDGE}: the bottom tenth of
+            the screen is behind an opaque tab bar, and a ramp that saved its climb for the true
+            edge would spend it where nobody can see it, leaving the visible strip flat. */}
+        <LinearGradient id={bandId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0.4" stopColor={GLOW_COLOR} stopOpacity="0" />
+          <Stop offset="0.68" stopColor={GLOW_COLOR} stopOpacity={band * 0.22} />
+          <Stop offset="0.82" stopColor={GLOW_COLOR} stopOpacity={band * 0.55} />
+          <Stop offset={TAB_BAR_EDGE} stopColor={GLOW_COLOR} stopOpacity={band * 0.9} />
+          <Stop offset="1" stopColor={GLOW_COLOR} stopOpacity={band} />
+        </LinearGradient>
+        {/* Stretched by the square→screen aspect into a wide, shallow dome on the bottom edge —
+            the mirror of the overhead glow's ellipse, dying out just past mid-screen. */}
+        <RadialGradient id={domeId} cx="50%" cy="100%" r="55%">
+          <Stop offset="0" stopColor={GLOW_COLOR} stopOpacity={dome} />
+          <Stop offset="0.45" stopColor={GLOW_COLOR} stopOpacity={dome * 0.45} />
+          <Stop offset="1" stopColor={GLOW_COLOR} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="100" fill={`url(#${bandId})`} />
+      <Rect x="0" y="0" width="100" height="100" fill={`url(#${domeId})`} />
     </Svg>
   );
 }

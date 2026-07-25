@@ -5,41 +5,56 @@ import { FormSheet, SheetRow } from '@/components/form-sheet';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { useToast } from '@/components/toast';
+import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
+import { habitInputFor } from '@/lib/curated';
 import { placementToRestore } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 
 /**
- * "Add to stack" — a native form sheet raised from a lone habit's trailing-swipe `Stack` action
- * (see {@link HabitRow}). It's the tap-first counterpart to the Today list's drag: pick an
- * existing stack to drop this habit into. (New stacks aren't made here — you start one by
- * dropping one habit onto another, so the swipe action only appears once a stack exists.)
- * Membership change goes through {@link useHabits.moveHabit} (the same mutation the drag
- * commits), with an Undo on the confirmation toast. Presented `fitToContents` so the sheet is
- * exactly as tall as its options — configured in the habits stack layout.
+ * The stack picker — "where does this act live?".
+ *
+ * Since a habit only exists inside a stack, every path that would once have created a loose one
+ * ends here: adding a preset from the browsable library, moving an act out of one sequence into
+ * another, or giving a home to an un-anchored habit from before the rule. Whichever way it was
+ * raised, the question is the same, so the sheet is the same.
+ *
+ * "New stack…" leads, because "none of these" must never be a dead end: it hands the act to the
+ * new-stack modal, which lands it the moment the stack exists.
+ *
+ * Presented `fitToContents` so the sheet is exactly as tall as its options.
  */
 export default function AddToStackScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { habitId } = useLocalSearchParams<{ habitId?: string }>();
-  const { habits, stacks, moveHabit } = useHabits();
+  const { habitId, presetId } = useLocalSearchParams<{ habitId?: string; presetId?: string }>();
+  const { habits, stacks, moveHabit, createHabitInStack } = useHabits();
+  const { presets } = useCatalog();
 
-  const habit = habits.find((h) => h.id === habitId) ?? null;
+  const habit = habitId ? (habits.find((h) => h.id === habitId) ?? null) : null;
+  const preset = presetId ? (presets.find((p) => p.id === presetId) ?? null) : null;
+  const subject = habit?.name ?? preset?.name ?? '';
 
-  // Each stack with its current member count for the sub-line. Recomputed from `habits`, so an
-  // add elsewhere stays in sync. (No useMemo — the React Compiler memoizes derived values.)
+  // Each stack with its current act count for the sub-line. Recomputed from `habits`, so a change
+  // elsewhere stays in sync. (No useMemo — the React Compiler memoizes derived values.)
   const options = stacks.map((s) => ({
     stack: s,
     memberCount: habits.filter((h) => h.stack_id === s.id).length,
   }));
 
   const addToStack = (stackId: string, name: string) => {
+    haptics.added();
+    if (preset) {
+      void createHabitInStack(habitInputFor(preset), stackId);
+      show(`Added to ${name}`, 'success');
+      router.back();
+      return;
+    }
     if (!habit) return;
-    // Capture where the habit sits BEFORE the move, so Undo can put it back exactly there.
+    // Capture where the act sits BEFORE the move, so Undo can put it back exactly there.
     const restore = placementToRestore(habits, habit.id);
     void moveHabit(habit.id, { toStackId: stackId });
-    haptics.added();
-    show(`Added to ${name}`, 'success', {
+    show(`Moved to ${name}`, 'success', {
       label: 'Undo',
       onPress: () => {
         if (restore) void moveHabit(habit.id, restore);
@@ -50,24 +65,33 @@ export default function AddToStackScreen() {
     // second has nothing to pop (the same rule habit-editor's confirmDelete documents).
   };
 
-  // A habit deleted (or already grouped) while the sheet is up has nothing to add here — and
-  // with no stacks left (the last one deleted elsewhere) there is nothing to add *to*. Close.
-  const stale = !habit || habit.stack_id != null || stacks.length === 0;
+  // "None of these" is a real answer: hand the subject to the new-stack modal, which lands it
+  // once the stack exists. `replace` (not push) so that modal's Cancel returns to Today rather
+  // than back to this sheet.
+  const newStack = () =>
+    router.replace({
+      pathname: '/habits/stack-new',
+      params: habit ? { pendingHabitId: habit.id } : { pendingPresetId: preset?.id ?? '' },
+    });
+
+  // Nothing to place (the act was deleted, or the preset id is unknown to the catalog): close.
+  const stale = !habit && !preset;
   useEffect(() => {
     if (stale) router.back();
   }, [stale, router]);
   if (stale) return null;
 
   return (
-    <FormSheet title="Add to stack" subtitle={habit.name}>
+    <FormSheet title="Add to stack" subtitle={subject}>
       <Surface>
-        {options.map(({ stack, memberCount }, i) => (
+        <SheetRow icon="add" label="New stack…" sublabel="Anchor it to a moment" onPress={newStack} />
+        {options.map(({ stack, memberCount }) => (
           <Fragment key={stack.id}>
-            {i > 0 ? <RowSeparator /> : null}
+            <RowSeparator />
             <SheetRow
               icon="link"
               label={stack.name}
-              sublabel={`${memberCount} ${memberCount === 1 ? 'habit' : 'habits'}`}
+              sublabel={`${memberCount} ${memberCount === 1 ? 'act' : 'acts'}`}
               onPress={() => addToStack(stack.id, stack.name)}
             />
           </Fragment>

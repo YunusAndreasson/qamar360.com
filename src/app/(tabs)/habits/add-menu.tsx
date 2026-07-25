@@ -10,12 +10,15 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * "Add" — the native bottom sheet behind Today's "+": the fork between adding a single habit
- * and starting a stack. Rather than the compact row-list of "Manage stack", the two choices are
- * given room to breathe as separate cards — each an icon chip, a title, and a one-line
- * explanation so the choice teaches the vocabulary as it's made. Presented `fitToContents` from
- * the habits stack layout. `replace` (not push) hands off to the next modal so dismissing it
- * returns to Today, not back to this sheet.
+ * "Add" — the native bottom sheet behind Today's "+": the fork between taking a ready-made stack
+ * and building one. Both forks make a *stack*, because that is the only thing the app tracks; an
+ * act is added into one afterwards. The ready-made path leads, since an anchor someone else has
+ * already thought through beats a blank name field for almost everyone.
+ *
+ * The two choices are given room to breathe as separate cards — an icon chip, a title, and a
+ * one-line explanation, so the choice teaches the vocabulary as it's made. Presented
+ * `fitToContents` from the habits stack layout. `replace` (not push) hands off to the next modal
+ * so dismissing it returns to Today, not back to this sheet.
  */
 export default function AddMenuScreen() {
   const router = useRouter();
@@ -24,15 +27,15 @@ export default function AddMenuScreen() {
     <FormSheet title="Add">
       <View style={styles.choices}>
         <ChoiceCard
-          icon="add"
-          label="New habit"
-          sublabel="A single habit to track on its own."
-          onPress={() => router.replace('/habits/discover')}
+          icon="sparkle"
+          label="Ready-made stack"
+          sublabel="A short sequence anchored to a prayer, waking, or bedtime."
+          onPress={() => router.replace('/habits/stack-library')}
         />
         <ChoiceCard
           icon="stack"
-          label="New stack"
-          sublabel="A group of habits, done in order."
+          label="Build your own"
+          sublabel="Name it, anchor it, then add your acts."
           onPress={() => router.replace('/habits/stack-new')}
         />
       </View>

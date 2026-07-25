@@ -3,16 +3,18 @@ import { useRouter } from 'expo-router';
 import { AppButton } from '@/components/app-button';
 
 /**
- * The shared "Browse habits" call-to-action — opens the curated Sunnah library (Discover). Lives
- * in one place so the Today and Progress empty states never drift in label or destination (they
- * once read "Browse habits" vs "Browse Sunnah habits"). `navigate` works from either tab: it opens
- * Discover in the Today stack, switching tabs first when tapped from Progress.
+ * The shared "start here" call-to-action — opens the library of ready-made stacks. It points at
+ * the stacks rather than the raw catalog because an act needs an anchor before it needs a name:
+ * someone with nothing yet is better served by "After Fajr, these four things" than by a list of
+ * ninety habits and no home to put them in. Lives in one place so every empty state agrees on the
+ * label and the destination. `navigate` works from either tab: it opens the library in the Today
+ * stack, switching tabs first when tapped from Progress.
  */
 export function BrowseHabitsButton() {
   const router = useRouter();
   return (
-    <AppButton onPress={() => router.navigate('/habits/discover')} accessibilityLabel="Browse habits">
-      Browse habits
+    <AppButton onPress={() => router.navigate('/habits/stack-library')} accessibilityLabel="Choose an anchor">
+      Choose an anchor
     </AppButton>
   );
 }
