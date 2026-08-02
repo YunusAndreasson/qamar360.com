@@ -186,8 +186,9 @@ type HabitsContextValue = {
     stackId: string,
     patch: { name?: string; orderedMemberIds?: string[]; moment?: MomentKey | null },
   ) => Promise<void>;
-  /** Delete a stack; its members survive as standalone habits. */
-  deleteStack: (stackId: string) => Promise<void>;
+  /** Delete a stack. Its members survive as standalone habits — unless `withActs`, which deletes
+   *  them, and their history, along with it. */
+  deleteStack: (stackId: string, opts?: { withActs?: boolean }) => Promise<void>;
   /** Move one habit into a stack (`toStackId`), out to the top level (`null`), or to a new
    *  slot within its stack — the single mutation behind the Today drag's drop and the tap
    *  paths (the add-to-stack sheet, the member row's "Remove" swipe). `placement` defaults:
@@ -1225,31 +1226,76 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const deleteStack = useCallback(
-    async (stackId: string) => {
+    async (stackId: string, opts?: { withActs?: boolean }) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
       const prevStacks = stacksRef.current;
       if (!prevStacks.some((s) => s.id === stackId)) return;
 
-      // Optimistic: drop the stack; members revert to standalone. The ref is synced
-      // immediately (mirrors createStack/createHabits) so an op chained right after — the
+      // `withActs` — the second answer the delete prompt offers when a stack still holds acts.
+      // Surviving is the right default (a stack is a place, and the deed can move house), but
+      // retiring a whole routine shouldn't mean deleting each act by hand afterwards.
+      const doomed = opts?.withActs ? prevHabits.filter((h) => h.stack_id === stackId) : [];
+      const doomedIds = new Set(doomed.map((h) => h.id));
+      const wasDone = doomed.filter((h) => completedRef.current.has(h.id)).map((h) => h.id);
+      const wasSkipped = doomed.filter((h) => skippedRef.current.has(h.id)).map((h) => h.id);
+
+      // Optimistic: drop the stack; members revert to standalone (or go down with it). The ref is
+      // synced immediately (mirrors createStack/createHabits) so an op chained right after — the
       // merge toast's Undo runs deleteStack + reorderHabits back-to-back — reads the cleared
       // stack_ids instead of re-stamping the deleted stack's id from the stale ref (which left
       // a phantom unit that silently swallowed drag-reorders until the next refetch).
-      const next = prevHabits.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h));
+      const next = opts?.withActs
+        ? prevHabits.filter((h) => !doomedIds.has(h.id))
+        : prevHabits.map((h) => (h.stack_id === stackId ? { ...h, stack_id: null } : h));
       mutationGen.current += 1;
       setStacks((prev) => prev.filter((s) => s.id !== stackId));
       setHabits(next);
       habitsRef.current = next;
+      if (doomedIds.size > 0) {
+        setCompleted((prev) => new Set([...prev].filter((id) => !doomedIds.has(id))));
+        setSkipped((prev) => new Set([...prev].filter((id) => !doomedIds.has(id))));
+      }
 
-      try {
-        const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', stackId);
-        if (delErr) throw delErr;
-        // Members' stack_id is cleared by the FK (on delete set null).
-      } catch {
+      // A member that was never persisted can't be deleted by id — mark it so its in-flight
+      // insert's success path takes the server row back down instead of resurrecting it (the
+      // same handoff deleteHabit makes for a temp- id).
+      const realIds: string[] = [];
+      for (const h of doomed) {
+        if (h.id.startsWith('temp-')) cancelledTempIds.current.add(h.id);
+        else realIds.push(h.id);
+      }
+
+      const restore = () => {
         setHabits(prevHabits);
         habitsRef.current = prevHabits;
         setStacks(prevStacks);
+        if (wasDone.length > 0) setCompleted((prev) => new Set([...prev, ...wasDone]));
+        if (wasSkipped.length > 0) setSkipped((prev) => new Set([...prev, ...wasSkipped]));
+      };
+
+      try {
+        // Acts first: deleting the stack row out from under them clears their stack_id (the FK is
+        // `on delete set null`), so a failure after that point would strand them as orphans.
+        if (realIds.length > 0) {
+          const { error: actsErr } = await supabase.from('habits').delete().in('id', realIds);
+          if (actsErr) throw actsErr;
+          // Their completions cascade-delete via the FK — no manual cleanup needed.
+        }
+        const { error: delErr } = await supabase.from('habit_stacks').delete().eq('id', stackId);
+        if (delErr) {
+          // The acts are already gone; putting them back on screen would be a lie. Keep the
+          // optimistic state and name what actually survived — an empty shell, which a refresh
+          // will show again as a card that can be deleted on its own.
+          if (realIds.length > 0) {
+            setError('Deleted the acts, but could not remove the stack. Pull down to refresh.');
+            return;
+          }
+          throw delErr;
+        }
+        // Surviving members' stack_id is cleared by the FK (on delete set null).
+      } catch {
+        restore();
         setError('Could not delete that stack. Check your connection.');
       }
     },

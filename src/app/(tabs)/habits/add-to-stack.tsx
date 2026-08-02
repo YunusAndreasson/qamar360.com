@@ -7,6 +7,7 @@ import { Surface } from '@/components/surface';
 import { useToast } from '@/components/toast';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
+import { confirmDestructive } from '@/lib/alerts';
 import { habitInputFor } from '@/lib/curated';
 import { placementToRestore } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
@@ -20,7 +21,8 @@ import { haptics } from '@/lib/haptics';
  * raised, the question is the same, so the sheet is the same.
  *
  * "New stack…" leads, because "none of these" must never be a dead end: it hands the act to the
- * new-stack modal, which lands it the moment the stack exists.
+ * new-stack modal, which lands it the moment the stack exists. "Nowhere — I'm done with it" is a
+ * real answer too, so an act that has no stack yet can be deleted from here (see below).
  *
  * Presented `fitToContents` so the sheet is exactly as tall as its options.
  */
@@ -28,12 +30,18 @@ export default function AddToStackScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { habitId, presetId } = useLocalSearchParams<{ habitId?: string; presetId?: string }>();
-  const { habits, stacks, moveHabit, createHabitInStack } = useHabits();
+  const { habits, stacks, moveHabit, createHabitInStack, deleteHabit } = useHabits();
   const { presets } = useCatalog();
 
   const habit = habitId ? (habits.find((h) => h.id === habitId) ?? null) : null;
   const preset = presetId ? (presets.find((p) => p.id === presetId) ?? null) : null;
   const subject = habit?.name ?? preset?.name ?? '';
+  // An un-anchored habit — one left over from before every habit had to live in a stack, or one
+  // whose stack was deleted out from under it. Today can only render stacks, so it has no act
+  // sheet to be reached from, which made it the one habit in the app that couldn't be deleted:
+  // this sheet is its only screen, so this is where its delete lives. An anchored act keeps its
+  // own in `act-actions` — offering it again here, on the way to "move", would only add a slip.
+  const orphan = !!habit && !habit.stack_id;
 
   // Each stack with its current act count for the sub-line. Recomputed from `habits`, so a change
   // elsewhere stays in sync. (No useMemo — the React Compiler memoizes derived values.)
@@ -60,9 +68,24 @@ export default function AddToStackScreen() {
         if (restore) void moveHabit(habit.id, restore);
       },
     });
-    // No router.back() here: the optimistic move flips `habit.stack_id` synchronously, which
-    // makes the `stale` effect below close the sheet. Calling both fires GO_BACK twice — the
-    // second has nothing to pop (the same rule habit-editor's confirmDelete documents).
+    // The question is answered — close, so the toast (and the card the act just joined) are
+    // visible. Safe to call directly: a move leaves the habit in state, so the `stale` effect
+    // below doesn't also fire and pop a second time.
+    router.back();
+  };
+
+  const confirmDelete = () => {
+    if (!habit) return;
+    // No router.back() on confirm: deleting drops the habit from state, which makes the `stale`
+    // effect below close the sheet. Doing both fires GO_BACK twice.
+    confirmDestructive({
+      title: 'Delete habit',
+      message: `Delete “${habit.name}”? Its history goes with it.`,
+      onConfirm: () => {
+        haptics.removed();
+        void deleteHabit(habit.id);
+      },
+    });
   };
 
   // "None of these" is a real answer: hand the subject to the new-stack modal, which lands it
@@ -96,6 +119,12 @@ export default function AddToStackScreen() {
             />
           </Fragment>
         ))}
+        {orphan ? (
+          <>
+            <RowSeparator />
+            <SheetRow icon="delete" label="Delete habit" danger onPress={confirmDelete} />
+          </>
+        ) : null}
       </Surface>
     </FormSheet>
   );

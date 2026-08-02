@@ -5,8 +5,7 @@ import { FormSheet, SheetRow } from '@/components/form-sheet';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { useHabits } from '@/hooks/use-habits';
-import { confirmDestructive } from '@/lib/alerts';
-import { haptics } from '@/lib/haptics';
+import { useConfirmDeleteStack } from '@/hooks/use-stack-actions';
 
 /**
  * "Manage stack" — a native bottom sheet raised by tapping a stack card's header (the ⋯). It
@@ -19,7 +18,8 @@ import { haptics } from '@/lib/haptics';
 export default function StackManageScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { stacks, deleteStack } = useHabits();
+  const { stacks } = useHabits();
+  const confirmDeleteStack = useConfirmDeleteStack();
 
   const stack = stacks.find((s) => s.id === id) ?? null;
 
@@ -35,18 +35,11 @@ export default function StackManageScreen() {
     router.replace({ pathname: '/habits/stack-rename', params: { id: stack.id } });
   };
 
+  // The prompt (and the "…and its acts?" question a populated stack raises) is shared with the
+  // iOS action sheet. Deleting drops the stack from state; the effect below backs the sheet out
+  // (don't also router.back() here, or it pops twice).
   const confirmDelete = () => {
-    if (!stack) return;
-    // Deleting drops the stack from state; the effect below backs the sheet out (don't also
-    // router.back() here, or it pops twice).
-    confirmDestructive({
-      title: 'Delete stack',
-      message: `Delete “${stack.name}”? Its acts stay, but they’ll need a new anchor.`,
-      onConfirm: () => {
-        haptics.removed();
-        void deleteStack(stack.id);
-      },
-    });
+    if (stack) confirmDeleteStack(stack.id);
   };
 
   // Managing a stack that no longer exists (deleted here or elsewhere): close.

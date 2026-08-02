@@ -20,15 +20,18 @@ import { MOMENTS, type MomentKey } from '@/lib/moments';
 import { normalizeName } from '@/lib/names';
 
 /**
- * The one-time home for habits made before every habit had to be anchored.
+ * The home for habits with no anchor: the ones made before every habit had to have one, and the
+ * ones whose stack was deleted while they were kept.
  *
- * A stack is now the only thing Today can render, so an unanchored habit would simply vanish from
- * the screen — this card is what keeps that from happening. It is deliberately *not* a silent
+ * A stack is the only thing Today can render, so an unanchored habit would simply vanish from the
+ * screen — this card is what keeps that from happening. It is deliberately *not* a silent
  * migration: where a habit belongs in someone's day is theirs to say, so the card proposes (from
  * the same library the ready-made stacks come from) and they confirm, in bulk or one at a time.
  *
- * Nothing can refill it — every creation path now lands inside a stack — so once it empties it is
- * gone for good.
+ * No creation path can refill it — every one of those lands inside a stack — so for most people it
+ * empties once and is gone. A row leads to the stack picker, which is also where an act with no
+ * home can be deleted outright (`add-to-stack`): this card is its only way back on screen, so it
+ * has to be a way out too.
  */
 export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
   const theme = useTheme();
@@ -122,7 +125,7 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
                 accessibilityLabel={
                   moment ? `${habit.name}, suggested ${MOMENTS[moment].stackName}` : `${habit.name}, no suggestion`
                 }
-                accessibilityHint="Activates to choose which stack it joins."
+                accessibilityHint="Activates to choose which stack it joins, or to delete it."
                 style={styles.row}>
                 <ThemedText type="rowTitle" numberOfLines={1} style={styles.name}>
                   {habit.name}
