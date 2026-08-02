@@ -176,7 +176,7 @@ function CuratedCard({
               variant="secondary"
               onPress={onAdd}
               accessibilityLabel={`Add the ${curated.name} stack`}
-              accessibilityHint={`Adds ${adding} act${adding === 1 ? '' : 's'} anchored to ${moment.label}.`}>
+              accessibilityHint={`Adds ${adding} act${adding === 1 ? '' : 's'}, anchored to ${moment.label}.`}>
               {adding === acts.length ? 'Add this stack' : `Add the missing ${adding}`}
             </AppButton>
           )}

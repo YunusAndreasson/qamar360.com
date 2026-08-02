@@ -39,7 +39,7 @@ export function MomentPicker({
                   android_ripple={{ color: theme.backgroundSelected }}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: selected }}
-                  accessibilityLabel={`${MOMENTS[key].label} moment`}
+                  accessibilityLabel={`Anchor to ${MOMENTS[key].label}`}
                   style={[
                     styles.cell,
                     {
@@ -48,11 +48,15 @@ export function MomentPicker({
                     },
                   ]}>
                   <AppIcon name={MOMENTS[key].icon} size={22} color={tint} />
+                  {/* Two lines, not one: every cell names a completed deed ("Prayed Maghrib",
+                      "Woke in the night") and a name that says what it means is worth more than
+                      one that fits a box — truncating these back to "Prayed Mag…" would undo
+                      exactly what the label is for. */}
                   <ThemedText
                     type="smallCompact"
-                    numberOfLines={1}
+                    numberOfLines={2}
                     maxFontSizeMultiplier={DenseLabelScale}
-                    style={{ color: tint }}>
+                    style={[styles.cellLabel, { color: tint }]}>
                     {MOMENTS[key].label}
                   </ThemedText>
                 </PressableScale>
@@ -62,7 +66,8 @@ export function MomentPicker({
         </View>
       ))}
       <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-        Pick one, or none. The stack wears this icon, and it lights up when its moment arrives.
+        Pick one, or none — the stack wears its icon and lights up when the moment arrives. A time
+        can’t remind you of anything: anchor to something you already do, and the acts come with it.
       </ThemedText>
     </>
   );
@@ -85,5 +90,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  // Centred so a one-line cell ("Woke up") reads level with its two-line neighbours.
+  cellLabel: { textAlign: 'center' },
   hint: { marginTop: Spacing.three },
 });

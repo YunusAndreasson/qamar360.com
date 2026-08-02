@@ -57,4 +57,15 @@ describe('curated stacks', () => {
   it('CURATED_STACKS is the groups flattened, in library order', () => {
     expect(CURATED_STACKS.map((s) => s.id)).toEqual(CURATED_GROUPS.flatMap((g) => g.stacks.map((s) => s.id)));
   });
+
+  // Every stack in the library is an "after": it names the deed it follows, because a stack
+  // anchored to a clock reading ("Evening") or a date ("Friday") has nothing to fire on. This
+  // is the one property of the library a reader can't check by looking — it all renders alike.
+  it('every stack is named for the deed it follows, and anchored to a moment that is one', () => {
+    for (const stack of CURATED_STACKS) {
+      expect(stack.name).toMatch(/^After\b/);
+      // …and its anchor is a real deed, not one of the four bare day bands.
+      expect(MOMENTS[stack.moment].stackName).toMatch(/^After\b/);
+    }
+  });
 });

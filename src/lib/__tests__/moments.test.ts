@@ -37,6 +37,36 @@ describe('the moment set', () => {
       expect(new Set(icons).size).toBe(icons.length);
     }
   });
+
+  // The point of a stack is that it hangs off a deed with a definite finish. A label that names
+  // an hour instead ("Evening") cannot cue anything, and the mistake is invisible — it still
+  // renders, still lights, still reads fine. So the rule is a test.
+  it('every non-sky moment is named as a completed deed, never a time', () => {
+    const deeds = Object.keys(MOMENTS).filter((k) => !(DAY_PARTS as readonly string[]).includes(k)) as MomentKey[];
+    // Past tense, i.e. it already happened: "Prayed Fajr", "Woke up", "Got into bed".
+    for (const key of deeds) {
+      expect(MOMENTS[key].label).toMatch(/^(Prayed|Woke|Got|Rose|Finished|Left|Came|Sat|Stood)\b/);
+    }
+    // The four sky bands are the deliberate exception, and stay plain nouns so
+    // Settings → Times of day can still say "Morning begins".
+    for (const part of DAY_PARTS) expect(MOMENTS[part].label).toBe(MOMENTS[part].stackName);
+  });
+
+  it('the weakest-cue group is listed last, so the grid never leads with a bare time', () => {
+    expect(MOMENT_GROUPS.at(-1)?.moments).toEqual([...DAY_PARTS]);
+    expect(MOMENT_GROUPS[0]?.moments).toContain('fajr');
+  });
+
+  it('a stack named after a moment reads as the occasion, not the deed', () => {
+    // "Prayed Fajr" is what you anchored to; "After Fajr" is what the card header should say.
+    // Only the sky moments (which name no deed) are allowed to reuse one string for both.
+    for (const key of Object.keys(MOMENTS) as MomentKey[]) {
+      const { label, stackName } = MOMENTS[key];
+      if ((DAY_PARTS as readonly string[]).includes(key)) continue;
+      expect(stackName).not.toBe(label);
+      expect(stackName).toMatch(/^After\b/);
+    }
+  });
 });
 
 describe('asMoment / momentOf', () => {

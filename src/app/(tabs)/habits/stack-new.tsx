@@ -38,14 +38,16 @@ export default function StackNewScreen() {
 
   const [name, setName] = useState('');
   const [moment, setMoment] = useState<MomentKey | null>(null);
-  // Most stacks are named after their moment ("Fajr", "Night", "Waking up"), so picking one
-  // prefills the name — the common case is open → tap a moment → Create, zero typing. The
-  // prefill follows the picked moment only until the user types a name of their own; clearing
-  // the field entirely hands naming back to the picker.
+  // Most stacks are named after their moment ("After Fajr", "After waking"), so picking one
+  // prefills the name — the common case is open → tap a moment → Create, zero typing. It takes
+  // `stackName`, not the picker's `label`: the cell names the deed you anchored to ("Prayed
+  // Fajr"), the card header names the occasion that follows it. The prefill follows the picked
+  // moment only until the user types a name of their own; clearing the field entirely hands
+  // naming back to the picker.
   const [nameTyped, setNameTyped] = useState(false);
   const pickMoment = (next: MomentKey | null) => {
     setMoment(next);
-    if (!nameTyped) setName(next ? MOMENTS[next].label : '');
+    if (!nameTyped) setName(next ? MOMENTS[next].stackName : '');
   };
   const typeName = (text: string) => {
     setName(text);

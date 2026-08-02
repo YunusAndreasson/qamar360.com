@@ -64,7 +64,7 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
     // Sequential awaits are safe — createStack/updateStack keep `habitsRef` authoritative between
     // chained calls, so each group sees the previous one's result.
     for (const [moment, group] of byMoment) {
-      const name = MOMENTS[moment].label;
+      const name = MOMENTS[moment].stackName;
       const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(name));
       const ids = group.map((h) => h.id);
       if (twin) {
@@ -120,7 +120,7 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
                 activeUnderlayOpacity={1}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  moment ? `${habit.name}, suggested ${MOMENTS[moment].label}` : `${habit.name}, no suggestion`
+                  moment ? `${habit.name}, suggested ${MOMENTS[moment].stackName}` : `${habit.name}, no suggestion`
                 }
                 accessibilityHint="Activates to choose which stack it joins."
                 style={styles.row}>
@@ -133,7 +133,7 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
                   type="small"
                   themeColor={moment ? 'textSecondary' : 'accent'}
                   style={styles.suggestion}>
-                  {moment ? MOMENTS[moment].label : 'Choose…'}
+                  {moment ? MOMENTS[moment].stackName : 'Choose…'}
                 </ThemedText>
                 <AppIcon name="chevronRight" size={14} color={theme.textDisabled} />
               </Touchable>
