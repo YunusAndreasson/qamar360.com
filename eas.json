@@ -23,7 +23,9 @@
   },
   "submit": {
     "production": {
-      "ios": {},
+      "ios": {
+        "ascAppId": "6797297008"
+      },
       "android": {
         "serviceAccountKeyPath": "./credentials/play-service-account.json",
         "track": "internal"
