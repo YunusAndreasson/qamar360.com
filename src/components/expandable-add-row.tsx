@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/app-icon';
@@ -84,17 +85,20 @@ export function ExpandableAddRow({
   return (
     <View>
       <View style={styles.row}>
-        <Pressable
+        <Touchable
           onPress={toggleAdd}
           disabled={inert}
-          android_ripple={{ color: theme.backgroundSelected }}
+          androidRipple={{ color: theme.backgroundSelected }}
+          // Platform-side dim, the value the old `pressed && styles.pressed` used. A disabled
+          // Touchable shows no feedback at all, which is what `!inert` guarded before.
+          activeOpacity={Pressed.dim}
           accessibilityRole="button"
           accessibilityState={{ disabled: inert, selected: added }}
           accessibilityLabel={rowAccessibilityLabel}
           accessibilityHint={
             added ? (onRemove ? 'Removes it from your habits' : 'Already added to your habits') : 'Adds it to your habits'
           }
-          style={({ pressed }) => [styles.add, pressed && !inert && styles.pressed]}>
+          style={styles.add}>
           <Animated.View style={[styles.badge, { backgroundColor: badgeColor }, badgePop]}>
             <AppIcon name={added ? 'check' : 'add'} size={20} color={iconColor} />
           </Animated.View>
@@ -107,37 +111,39 @@ export function ExpandableAddRow({
               {subtitle}
             </ThemedText>
           </View>
-        </Pressable>
+        </Touchable>
         {/* Added → a quiet accent "＋" to add another independent copy (its own row on Today,
             with an auto-differentiated name). Its own hit area, apart from the row's remove tap. */}
         {added && onAddAnother ? (
-          <Pressable
+          <Touchable
             onPress={() => {
               haptics.added();
               onAddAnother();
             }}
             hitSlop={8}
-            android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+            androidRipple={{ color: theme.backgroundSelected, borderless: true }}
+            activeOpacity={Pressed.dim}
             accessibilityRole="button"
             accessibilityLabel={`Add another ${title}`}
             accessibilityHint="Adds a second copy you can rename or place in another stack"
-            style={({ pressed }) => [styles.addAnother, pressed && styles.pressed]}>
+            style={styles.addAnother}>
             <View style={[styles.addAnotherBadge, { backgroundColor: theme.accentSubtle }]}>
               <AppIcon name="add" size={18} color={theme.accent} />
             </View>
-          </Pressable>
+          </Touchable>
         ) : null}
-        <Pressable
+        <Touchable
           onPress={toggleExpand}
           hitSlop={8}
-          android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+          androidRipple={{ color: theme.backgroundSelected, borderless: true }}
+          activeOpacity={Pressed.dim}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           accessibilityLabel={`${title} details`}
           accessibilityHint={expanded ? collapseHint : expandHint}
-          style={({ pressed }) => [styles.expandButton, pressed && styles.pressed]}>
+          style={styles.expandButton}>
           <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={16} color={theme.textSecondary} />
-        </Pressable>
+        </Touchable>
       </View>
 
       {expanded ? (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -92,12 +92,13 @@ function MonthMoonsBody({ month }: { month: MonthProgress }) {
     scheduleOnRN(setFocusedDayNum, day);
     scheduleOnRN(scrubTick);
   };
-  const scrub = Gesture.Pan()
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-12, 12])
-    .onStart((e) => scrubTo(e.x, e.y))
-    .onUpdate((e) => scrubTo(e.x, e.y))
-    .onFinalize(() => scrubDay.set(0)); // next scrub re-ticks even if it lands on the same day
+  const scrub = usePanGesture({
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-12, 12],
+    onActivate: (e) => scrubTo(e.x, e.y),
+    onUpdate: (e) => scrubTo(e.x, e.y),
+    onFinalize: () => scrubDay.set(0), // next scrub re-ticks even if it lands on the same day
+  });
 
   return (
     <StatCard>

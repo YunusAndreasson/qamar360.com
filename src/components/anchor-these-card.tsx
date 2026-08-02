@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Fragment } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
@@ -112,15 +113,17 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
           return (
             <Fragment key={habit.id}>
               {index > 0 ? <RowSeparator /> : null}
-              <Pressable
+              <Touchable
                 onPress={() => router.push({ pathname: '/habits/add-to-stack', params: { habitId: habit.id } })}
-                android_ripple={{ color: theme.backgroundSelected }}
+                androidRipple={{ color: theme.backgroundSelected }}
+                underlayColor={theme.backgroundSelected}
+                activeUnderlayOpacity={1}
                 accessibilityRole="button"
                 accessibilityLabel={
                   moment ? `${habit.name}, suggested ${MOMENTS[moment].label}` : `${habit.name}, no suggestion`
                 }
                 accessibilityHint="Activates to choose which stack it joins."
-                style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
+                style={styles.row}>
                 <ThemedText type="rowTitle" numberOfLines={1} style={styles.name}>
                   {habit.name}
                 </ThemedText>
@@ -133,7 +136,7 @@ export function AnchorTheseCard({ habits: orphans }: { habits: Habit[] }) {
                   {moment ? MOMENTS[moment].label : 'Choose…'}
                 </ThemedText>
                 <AppIcon name="chevronRight" size={14} color={theme.textDisabled} />
-              </Pressable>
+              </Touchable>
             </Fragment>
           );
         })}

@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -219,16 +220,18 @@ function StackCardBase({ stack, members, completed, skipped, onSeal, onUnseal, o
           {/* The manage affordance — a quiet "⋯" opening edit / delete / add-acts, reachable in
               any state (its own tap target + a11y button, a sibling so a screen reader gets it apart
               from the header's fold toggle). */}
-          <Pressable
+          <Touchable
             onPress={() => onEditStack(stack.id)}
             hitSlop={8}
-            android_ripple={{ color: theme.backgroundSelected, borderless: true }}
+            androidRipple={{ color: theme.backgroundSelected, borderless: true }}
+            // Platform-side dim, the same value the old `pressed && { opacity }` style used.
+            activeOpacity={Pressed.dim}
             accessibilityRole="button"
             accessibilityLabel={`Manage ${stack.name} stack`}
             accessibilityHint="Edit, delete, or add acts."
-            style={({ pressed }) => [styles.manage, pressed && { opacity: Pressed.dim }]}>
+            style={styles.manage}>
             <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
-          </Pressable>
+          </Touchable>
         </View>
 
         {/* The body folds shut when the stack seals (or is hand-collapsed): an overflow-clipped
@@ -244,12 +247,14 @@ function StackCardBase({ stack, members, completed, skipped, onSeal, onUnseal, o
                 // A brand-new stack waiting on its first act ("+ → Build your own stack"): the next
                 // step lives inside the card itself. Accent-tinted like the header — an invitation,
                 // not an act line. (An act dragged onto the card also joins it, as always.)
-                <Pressable
+                <Touchable
                   onPress={() => onAddHabits?.(stack.id)}
-                  android_ripple={{ color: theme.backgroundSelected }}
+                  androidRipple={{ color: theme.backgroundSelected }}
+                  underlayColor={theme.backgroundSelected}
+                  activeUnderlayOpacity={1}
                   accessibilityRole="button"
                   accessibilityLabel={`Add your first act to ${stack.name}`}
-                  style={({ pressed }) => [styles.addFirst, pressed && { backgroundColor: theme.backgroundSelected }]}>
+                  style={styles.addFirst}>
                   {/* Same 32-wide leading slot as the header glyph and the act numerals, so the +
                       sits directly under the stack icon and the label lines up with the title. */}
                   <View style={styles.leading}>
@@ -258,7 +263,7 @@ function StackCardBase({ stack, members, completed, skipped, onSeal, onUnseal, o
                   <ThemedText type="rowTitle" themeColor="accent">
                     Add your first act
                   </ThemedText>
-                </Pressable>
+                </Touchable>
               ) : (
                 <>
                   {members.map((habit, index) => (

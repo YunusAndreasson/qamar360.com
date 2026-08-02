@@ -1,6 +1,6 @@
 import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   measure,
   scrollTo,
@@ -476,22 +476,26 @@ export function DraggableEntry({
     });
   };
 
-  const pan = Gesture.Pan()
-    .enabled(draggable)
-    .activateAfterLongPress(holdMs)
-    .shouldCancelWhenOutside(false)
+  // Hook API (gesture-handler 3): one config object instead of a builder chain, so the gesture
+  // is not rebuilt on every render — the shape the React Compiler can reason about. Callback
+  // names follow v3: onStart → onActivate, onEnd → onDeactivate, onTouchesCancelled →
+  // onTouchesCancel. The worklets babel plugin autoworkletizes this object's callbacks.
+  const pan = usePanGesture({
+    enabled: draggable,
+    activateAfterLongPress: holdMs,
+    shouldCancelWhenOutside: false,
     // The pre-lift swell: eased in over the back half of the hold, wiped the instant the
     // touch ends or the gesture loses (a quick tap or a swipe never shows it).
-    .onTouchesDown(() => {
+    onTouchesDown: () => {
       if (draggingKey.get() !== null || reduceMotion) return;
       preLift.set(withDelay(PRE_LIFT_DELAY_MS, withTiming(1, { duration: holdMs - PRE_LIFT_DELAY_MS })));
-    })
-    .onTouchesUp(() => preLift.set(withTiming(0, { duration: Duration.fast })))
-    .onTouchesCancelled(() => preLift.set(withTiming(0, { duration: Duration.fast })))
+    },
+    onTouchesUp: () => preLift.set(withTiming(0, { duration: Duration.fast })),
+    onTouchesCancel: () => preLift.set(withTiming(0, { duration: Duration.fast })),
     // The gesture callbacks are UI-thread worklets, not render code — measuring the ref in
-    // onStart is the documented gesture-handler pattern; the hooks lint can't tell.
-    // eslint-disable-next-line react-hooks/refs
-    .onStart((e) => {
+    // onActivate is the documented gesture-handler pattern. (Under the v2 builder chain this
+    // needed a `react-hooks/refs` disable; the config-object form no longer trips that rule.)
+    onActivate: (e) => {
       if (draggingKey.get() !== null) return; // one drag at a time
       const m = measure(ref);
       const sv = measure(scrollRef);
@@ -516,15 +520,15 @@ export function DraggableEntry({
       draggingKey.set(entryKey);
       scheduleOnRN(onDragActive, entryKey);
       scheduleOnRN(haptics.pickup);
-    })
+    },
     // Only record the finger — the provider's frame callback does all the steering, so the
     // ghost and the drop slot stay live even when the finger rests still while auto-scrolling.
-    .onUpdate((e) => {
+    onUpdate: (e) => {
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
       pointerAbsoluteY.set(e.absoluteY);
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       if (draggingKey.get() !== entryKey) return;
       const hovered = hoveredStackId.get();
       if (hovered !== null) {
@@ -560,8 +564,8 @@ export function DraggableEntry({
         }
       }
       // Dropped on its own slot → fall through to the cancel in onFinalize.
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       if (draggingKey.get() !== entryKey || committed.get()) return;
       // Cancel: close the gaps and float home (nothing changed — Nielsen's easy way out).
       committed.set(true); // settling now — the frame callback must let the spring fly home
@@ -582,7 +586,8 @@ export function DraggableEntry({
           }),
         );
       }
-    });
+    },
+  });
 
   const style = useAnimatedStyle(() => {
     const dk = draggingKey.get();
@@ -691,19 +696,22 @@ function MemberRowDrag({
     };
   });
 
-  const pan = Gesture.Pan()
-    .activateAfterLongPress(LIFT_HOLD_MS)
-    .shouldCancelWhenOutside(false)
-    .onTouchesDown(() => {
+  // Hook API (gesture-handler 3) — see the note on the top-level entry's pan. The 300ms hold here
+  // vs the card's 350ms is still the ONLY thing arbitrating a member row against its parent card;
+  // there is no explicit relation between them.
+  const pan = usePanGesture({
+    activateAfterLongPress: LIFT_HOLD_MS,
+    shouldCancelWhenOutside: false,
+    onTouchesDown: () => {
       if (draggingKey.get() !== null || reduceMotion) return;
       preLift.set(withDelay(PRE_LIFT_DELAY_MS, withTiming(1, { duration: LIFT_HOLD_MS - PRE_LIFT_DELAY_MS })));
-    })
-    .onTouchesUp(() => preLift.set(withTiming(0, { duration: Duration.fast })))
-    .onTouchesCancelled(() => preLift.set(withTiming(0, { duration: Duration.fast })))
+    },
+    onTouchesUp: () => preLift.set(withTiming(0, { duration: Duration.fast })),
+    onTouchesCancel: () => preLift.set(withTiming(0, { duration: Duration.fast })),
     // The gesture callbacks are UI-thread worklets, not render code — measuring the ref in
-    // onStart is the documented gesture-handler pattern; the hooks lint can't tell.
-    // eslint-disable-next-line react-hooks/refs
-    .onStart((e) => {
+    // onActivate is the documented gesture-handler pattern. (Under the v2 builder chain this
+    // needed a `react-hooks/refs` disable; the config-object form no longer trips that rule.)
+    onActivate: (e) => {
       if (draggingKey.get() !== null) return; // one drag at a time
       const m = measure(ref);
       const sv = measure(scrollRef);
@@ -735,13 +743,13 @@ function MemberRowDrag({
       scheduleOnRN(remeasureMembers);
       scheduleOnRN(onDragActive, entryKey);
       scheduleOnRN(haptics.pickup);
-    })
-    .onUpdate((e) => {
+    },
+    onUpdate: (e) => {
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
       pointerAbsoluteY.set(e.absoluteY);
-    })
-    .onEnd(() => {
+    },
+    onDeactivate: () => {
       if (draggingKey.get() !== entryKey) return;
       const hovered = hoveredStackId.get();
       if (hovered !== null) {
@@ -782,8 +790,8 @@ function MemberRowDrag({
       }
       // Anywhere else — a gap between cards, empty space — means nothing for an act: it belongs
       // to a stack or to nothing, so there is no "out". onFinalize floats it home.
-    })
-    .onFinalize(() => {
+    },
+    onFinalize: () => {
       if (draggingKey.get() !== entryKey || committed.get()) return;
       committed.set(true); // settling — the frame callback must let the spring fly home
       hoveredStackId.set(null);
@@ -805,7 +813,8 @@ function MemberRowDrag({
           }),
         );
       }
-    });
+    },
+  });
 
   const style = useAnimatedStyle(() => {
     // While THIS card is being reordered, member rows part to open the gap at the target index —

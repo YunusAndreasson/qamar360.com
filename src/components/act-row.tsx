@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
@@ -41,9 +42,18 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
   const color = done ? theme.textDisabled : skipped ? theme.textSecondary : theme.text;
 
   return (
-    <Pressable
+    // Gesture-handler's `Touchable` rather than RN's `Pressable`: the press feedback (ripple on
+    // Android, underlay on iOS) is driven platform-side, so a tap costs no re-render — this is the
+    // densest list in the app and every act row re-rendering on press was pure waste. It also
+    // yields to continuous gestures, which is what keeps the parent `DraggableMemberRow`'s
+    // long-press pan winning over the tap.
+    <Touchable
       onPress={() => onPress(habit)}
-      android_ripple={{ color: theme.backgroundSelected }}
+      androidRipple={{ color: theme.backgroundSelected }}
+      // The iOS equivalent of the old `pressed && backgroundColor` style function — full-opacity
+      // so it reads as the same solid highlight (the default 0.105 would barely register).
+      underlayColor={theme.backgroundSelected}
+      activeUnderlayOpacity={1}
       accessibilityRole="button"
       accessibilityLabel={
         // An excused act has no place in today's sequence, so it is read without an ordinal —
@@ -65,7 +75,7 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
         if (event.nativeEvent.actionName === 'moveUp') onMove?.(habit, -1);
         if (event.nativeEvent.actionName === 'moveDown') onMove?.(habit, 1);
       }}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
+      style={styles.row}>
       {/* The same 32-wide leading slot the header's emblem uses, so the numerals form a clean
           column under it and the act names line up with the stack title. */}
       <View style={styles.leading}>
@@ -90,7 +100,7 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
           {`· ${target}${habit.target_unit ? ` ${habit.target_unit}` : ''}`}
         </ThemedText>
       ) : null}
-    </Pressable>
+    </Touchable>
   );
 }
 
