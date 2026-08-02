@@ -41,11 +41,11 @@ yarn-error.*
 .env.*
 !.env.example
 
-# npm lockfile is intentionally NOT committed: npm generates a Linux-specific
-# lockfile that omits macOS-only optional deps (@emnapi/* via lightningcss),
-# which breaks `npm ci` on EAS's macOS iOS builders. Without it EAS runs
-# `npm install` and resolves natively. See assets/logo + README if re-adding.
+# The root npm lockfile IS committed, so EAS's `npm ci` reproduces exactly the
+# dependency tree that was verified locally. Nested ones are not: web/ is
+# pnpm-managed (pnpm-lock.yaml) and its package-lock.json is a stale leftover.
 package-lock.json
+!/package-lock.json
 
 # typescript
 *.tsbuildinfo
