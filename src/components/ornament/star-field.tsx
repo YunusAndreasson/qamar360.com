@@ -55,6 +55,16 @@ export function StarField({
     mid: schemeDim.mid * starVisibility('mid', sunAlt, mode),
     faint: schemeDim.faint * starVisibility('faint', sunAlt, mode),
   };
+  // Product intent over physics, once the sun is actually down. Sun and moon each drown starlight
+  // independently, and at a high-latitude summer twilight (Stockholm bottoms out near −7° in
+  // August) under a gibbous moon the two multiply out to ~0.06 for the faint tier and ~0.17 for
+  // mid — arithmetically correct, and an empty screen. Since the mid and faint tiers are exactly
+  // the ones the twinkle layers carry, "the sky stopped moving" is what that looks like. So below
+  // the horizon each tier gets a floor: the field still thins with sun and moon, it just never
+  // reaches nothing. Above the horizon nothing is floored, so daylight empties the sky as before,
+  // and light mode is untouched (it empties on purpose — SCHEME_DIM.light.faint is 0).
+  const floored = sunAlt < 0 && scheme === 'dark';
+  const floor: Record<StarTier, number> = floored ? NIGHT_FLOOR : NO_FLOOR;
   const anchors = stars.filter((s) => s.tier === 'bright');
   const breathing = ([0, 1, 2] as const).map((group) =>
     stars.filter((s) => s.tier !== 'bright' && s.group === group && dim[s.tier] > 0),
@@ -63,7 +73,7 @@ export function StarField({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <ParallaxLayer tilt={tilt} depth={Parallax.depth.bright}>
-        <StarsSvg stars={anchors} illumination={illumination} dim={dim} />
+        <StarsSvg stars={anchors} illumination={illumination} dim={dim} floor={floor} />
       </ParallaxLayer>
       {breathing.map((group, i) => (
         <TwinkleLayer
@@ -72,6 +82,7 @@ export function StarField({
           half={Twinkle.half[i]!}
           illumination={illumination}
           dim={dim}
+          floor={floor}
           tilt={tilt}
           depth={Parallax.depth.dust[i]!}
         />
@@ -86,6 +97,11 @@ const SCHEME_DIM: Record<'light' | 'dark', Record<StarTier, number>> = {
   dark: { bright: 1, mid: 1, faint: 1 },
   light: { bright: 0.35, mid: 0.15, faint: 0 },
 };
+
+/** The least a tier may fade to once the sun is below the horizon — see the note in StarField.
+ *  Still ordered bright > mid > faint, so the field keeps its depth; it just has a bottom. */
+const NIGHT_FLOOR: Record<StarTier, number> = { bright: 0.42, mid: 0.28, faint: 0.17 };
+const NO_FLOOR: Record<StarTier, number> = { bright: 0, mid: 0, faint: 0 };
 
 /** The warm anchors' colour — a pale amber (think Aldebaran / Betelgeuse), a subtle temperature
  *  step off the cool `starlight`, never a saturated orange dot. */
@@ -116,7 +132,12 @@ function ParallaxLayer({ tilt, depth, children }: { tilt: SkyTilt; depth: number
   );
 }
 
-type LayerProps = { stars: Star[]; illumination: number; dim: Record<StarTier, number> };
+type LayerProps = {
+  stars: Star[];
+  illumination: number;
+  dim: Record<StarTier, number>;
+  floor: Record<StarTier, number>;
+};
 
 /** One breathing layer — the month-summary "breath" idiom on the layer's whole opacity, easing
  *  between full and {@link Twinkle.floor} so its stars soften but never wink out — carried inside
@@ -126,6 +147,7 @@ function TwinkleLayer({
   half,
   illumination,
   dim,
+  floor,
   tilt,
   depth,
 }: LayerProps & { half: number; tilt: SkyTilt; depth: number }) {
@@ -148,7 +170,7 @@ function TwinkleLayer({
   return (
     <ParallaxLayer tilt={tilt} depth={depth}>
       <Animated.View style={[StyleSheet.absoluteFill, twinkle]} pointerEvents="none">
-        <StarsSvg stars={stars} illumination={illumination} dim={dim} />
+        <StarsSvg stars={stars} illumination={illumination} dim={dim} floor={floor} />
       </Animated.View>
     </ParallaxLayer>
   );
@@ -158,7 +180,7 @@ function TwinkleLayer({
  *  map, faded by moonlight, scheme, and each star's extinction weight (`w` — the sky dims toward
  *  the bottom of the screen). A glinted star also carries its 4-point diffraction hairlines, at
  *  half the point's opacity. */
-function StarsSvg({ stars, illumination, dim }: LayerProps) {
+function StarsSvg({ stars, illumination, dim, floor }: LayerProps) {
   const theme = useTheme();
   return (
     <Svg
@@ -169,7 +191,9 @@ function StarsSvg({ stars, illumination, dim }: LayerProps) {
       preserveAspectRatio="xMidYMin slice"
     >
       {stars.map((s, i) => {
-        const opacity = starOpacity(s.tier, illumination) * dim[s.tier] * s.w;
+        // The floor applies to the sun/moon fade, not to `w`: a star still dims toward the bottom
+        // of the field (atmospheric extinction), so the sky keeps its depth above the horizon.
+        const opacity = Math.max(floor[s.tier], starOpacity(s.tier, illumination) * dim[s.tier]) * s.w;
         return (
           <Circle
             key={i}
@@ -189,7 +213,7 @@ function StarsSvg({ stars, illumination, dim }: LayerProps) {
             d={glintPath(s.x, s.y, s.r)}
             stroke={s.warm ? STAR_WARM : theme.starlight}
             strokeWidth={0.6}
-            strokeOpacity={0.5 * starOpacity(s.tier, illumination) * dim[s.tier] * s.w}
+            strokeOpacity={0.5 * Math.max(floor[s.tier], starOpacity(s.tier, illumination) * dim[s.tier]) * s.w}
             fill="none"
           />
         ))}

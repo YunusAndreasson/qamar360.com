@@ -58,6 +58,8 @@ const ASPECT = 'xMidYMid slice';
 // whisper, but high enough that the rosette actually reads on both the deep-space and the
 // near-white background (it had faded to near-invisible, especially in light mode).
 const STROKE_OPACITY = 0.12;
+/** The corner bloom's own, heavier weight — see the note in {@link CornerBloom}. */
+const BLOOM_STROKE_OPACITY = 0.26;
 
 const CONFIG: Record<'card' | 'hero', FieldConfig> = {
   // Tiny-circle texture, bloom focal in the upper-right (toward the same light) with a right→left
@@ -266,6 +268,13 @@ function CornerBloom({ illumination, dim, tilt }: { illumination: number; dim: n
   const maskId = `bloom-mask-${uid}`;
   // ~Baseline at the half moon; a faint ember at the new, fullest reach at the badr.
   const intensity = 0.75 + 0.45 * illumination;
+  // The bloom's own stroke weight, deliberately heavier than the shared `STROKE_OPACITY` the card
+  // lattices use. Its heart — where the flower-of-life is brightest — is parked off-screen at the
+  // corner "where the moon is", so the only part that ever reaches the display is the faint outer
+  // tail, already multiplied down by each circle's `w`. At the shared 0.12 that tail lands around
+  // 3–4% on screen, which reads as nothing on a phone in a lit room. Raising it here leaves every
+  // other lattice in the app exactly as it was.
+  const stroke = BLOOM_STROKE_OPACITY;
   // The implied moon-light is far — it barely drifts with the tilt (a small depth factor).
   const drift = useAnimatedStyle(() => ({
     transform: [
@@ -289,7 +298,7 @@ function CornerBloom({ illumination, dim, tilt }: { illumination: number; dim: n
         </Defs>
         <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
           {BLOOM_CIRCLES.map((c, i) => (
-            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={STROKE_OPACITY * c.w * dim * intensity} />
+            <Circle key={i} cx={c.cx} cy={c.cy} r={c.r} strokeOpacity={stroke * c.w * dim * intensity} />
           ))}
         </G>
       </Svg>

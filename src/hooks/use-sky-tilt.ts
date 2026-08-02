@@ -48,6 +48,12 @@ export function useSkyTilt(): SkyTilt {
       const mag = Math.max(1e-3, Math.hypot(g.x, g.y, g.z));
       const nx = g.x / mag;
       const ny = g.y / mag;
+      // A single non-finite sample would poison everything downstream: NaN flows through the
+      // baseline EMA into `shiftX`/`shiftY`, every sky layer gets `translateX: NaN`, and a view
+      // with a NaN transform is not drawn — so one bad read silently deletes the whole night
+      // sky, permanently, with no error anywhere. Drop the sample and hold the last good offset.
+      // (Emulators have no gravity sensor and read zeros, so this can only ever bite on device.)
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
       // Slow baseline follows the resting orientation, so shift = how far you've tilted *from* it.
       baseX.set(baseX.get() + (nx - baseX.get()) * Parallax.recenter);
       baseY.set(baseY.get() + (ny - baseY.get()) * Parallax.recenter);

@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
 
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -13,7 +13,12 @@ import { useTheme } from '@/hooks/use-theme';
 export const formContentStyle = {
   paddingHorizontal: Spacing.four,
   paddingTop: Spacing.three,
-  paddingBottom: Spacing.five,
+  // Clears the tab bar, which overlays these forms (they push inside a tab's stack rather than
+  // presenting over it) — the same `BottomTabInset + gap` rule `AppScreen` uses. A plain
+  // Spacing.five left the last field scrollable only to *behind* the bar: reachable content
+  // that can never be brought fully into view, which is how the moment picker's last group
+  // and its hint line went missing.
+  paddingBottom: BottomTabInset + Spacing.five,
   gap: Spacing.two,
 } as const;
 
