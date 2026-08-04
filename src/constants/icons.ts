@@ -35,6 +35,9 @@ export const Icons = {
   link: { sf: 'link', material: 'link' },
   addLink: { sf: 'link.badge.plus', material: 'add-link' },
   stack: { sf: 'square.stack.3d.up', material: 'layers' },
+  // An exchange: one thing going out as another comes in. Two arrows passing, not a cycle —
+  // nothing here repeats, and a refresh glyph would say the wrong thing entirely.
+  exchange: { sf: 'arrow.left.arrow.right', material: 'swap-horiz' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────

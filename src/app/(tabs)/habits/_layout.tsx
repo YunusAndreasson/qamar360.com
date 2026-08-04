@@ -57,6 +57,20 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="stack-manage" options={formSheetOptions(theme)} />
       {/* The habit-stacking guide — a short educational sheet, opened from the Today hint. */}
       <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />
+      {/* The library of ready-made exchanges — the other half of the "+" fork, presented like the
+          stack library beside it. */}
+      <Stack.Screen
+        name="exchange-library"
+        options={{
+          ...modalHeaderOptions(theme),
+          title: 'Ready-made exchanges',
+          headerLeft: headerCloseAction(() => router.back()),
+        }}
+      />
+      {/* New / edit exchange — a native modal sheet; Cancel/Save live in its nav bar. */}
+      <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
+      {/* The exchange guide — the sibling of `stacking-info`, opened from the library. */}
+      <Stack.Screen name="exchange-info" options={formSheetOptions(theme)} />
     </TabStack>
   );
 }

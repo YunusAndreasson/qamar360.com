@@ -11,14 +11,14 @@ import { FormScreen } from '@/components/form-screen';
 import { Segmented } from '@/components/segmented';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
+import { WeekdayPicker } from '@/components/weekday-picker';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
 import type { Habit, HabitCreate, HabitPatch } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
-import { DAILY_SCHEDULE, type HijriSchedule, WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
+import { DAILY_SCHEDULE, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { normalizeName } from '@/lib/names';
-import { usePreference } from '@/lib/preferences';
 
 /** The White Days of every Hijri month (Ayyām al-Bīḍ) — the one-tap monthly fill. */
 const WHITE_DAYS = [13, 14, 15];
@@ -84,7 +84,6 @@ export function HabitEditorForm({
 }: Props) {
   const theme = useTheme();
   const isNew = !habit;
-  const weekStart = usePreference('weekStart');
 
   const initialHijri = habit?.hijri_schedule ?? null;
 
@@ -124,7 +123,6 @@ export function HabitEditorForm({
     (scheduleMode === 'weekly' ? days.size > 0 : hijriValid) &&
     (goalMode === 'once' || targetValid);
 
-  const toggleDay = (d: number) => toggleInSet(setDays, d);
   const toggleMonthDay = (d: number) => toggleInSet(setMonthDays, d);
 
   // White Days (13–15) as a single quick-fill chip — on only when all three are selected.
@@ -292,30 +290,7 @@ export function HabitEditorForm({
       />
 
       {scheduleMode === 'weekly' ? (
-        <>
-          <View style={styles.days}>
-            {weekOrder(weekStart).map((d) => (
-              <SelectablePill
-                key={d}
-                selected={days.has(d)}
-                label={WEEKDAY_LABELS[d] ?? ''}
-                onPress={() => toggleDay(d)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: days.has(d) }}
-                accessibilityLabel={WEEKDAY_NAMES[d]}
-                // Pads the 40pt pill to a ≥44pt effective target; ±2 horizontal stays inside
-                // the row's inter-pill gap, so neighbours' slop never overlaps.
-                hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
-                style={styles.day}
-              />
-            ))}
-          </View>
-          {days.size === 0 ? (
-            <ThemedText type="small" themeColor="danger" style={styles.hint}>
-              Pick at least one day.
-            </ThemedText>
-          ) : null}
-        </>
+        <WeekdayPicker days={days} onChange={setDays} />
       ) : (
         <>
           {/* Days of every Hijri month — with a one-tap White Days (13–15) fill. */}

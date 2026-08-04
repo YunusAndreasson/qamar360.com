@@ -10,10 +10,15 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * "Add" — the native bottom sheet behind Today's "+": the fork between taking a ready-made stack
- * and building one. Both forks make a *stack*, because that is the only thing the app tracks; an
- * act is added into one afterwards. The ready-made path leads, since an anchor someone else has
- * already thought through beats a blank name field for almost everyone.
+ * "Add" — the native bottom sheet behind Today's "+".
+ *
+ * The first two forks make a *stack*: take one ready-made, or build your own and add acts into
+ * it. The ready-made path leads, since an anchor someone else has already thought through beats a
+ * blank name field for almost everyone.
+ *
+ * The third is a different shape of change altogether — not a deed added to the day but one put
+ * where an old routine keeps taking its place. It sits last because it presumes something the
+ * first two don't: that you have already noticed a specific moment going the wrong way.
  *
  * The two choices are given room to breathe as separate cards — an icon chip, a title, and a
  * one-line explanation, so the choice teaches the vocabulary as it's made. Presented
@@ -37,6 +42,12 @@ export default function AddMenuScreen() {
           label="Build your own"
           sublabel="Name it, anchor it, then add your acts."
           onPress={() => router.replace('/habits/stack-new')}
+        />
+        <ChoiceCard
+          icon="exchange"
+          label="Exchange"
+          sublabel="Put a good act where an old one keeps happening."
+          onPress={() => router.replace('/habits/exchange-library')}
         />
       </View>
     </FormSheet>

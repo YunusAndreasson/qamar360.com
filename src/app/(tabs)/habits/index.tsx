@@ -10,6 +10,7 @@ import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
+import { ExchangeSection } from '@/components/exchange-section';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
@@ -35,6 +36,7 @@ import {
   placementToRestore,
   type OrderMeta,
 } from '@/lib/drag-order';
+import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { usePreference } from '@/lib/preferences';
@@ -62,6 +64,10 @@ function viewDateTitle(viewDate: string, today: string): string {
  *  this is the only kind of entry the list has. */
 type Entry = { stack: HabitStack; members: Habit[]; sortKey: number };
 
+/** The starting fold state of every day: all shut. Hoisted so a day-step reads one stable
+ *  identity rather than minting an empty Set per render. */
+const NO_STACKS_EXPANDED: ReadonlySet<string> = new Set();
+
 export default function HabitsScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -80,6 +86,7 @@ export default function HabitsScreen() {
     setViewDate,
     sealStack,
     unsealStack,
+    toggleExchange,
     moveHabit,
     createStack,
     reorderHabits,
@@ -138,7 +145,20 @@ export default function HabitsScreen() {
   // Habits from before every habit had to be anchored. They can't be rendered as cards — a stack
   // is the unit — so they gather in the one-time "Anchor these" card at the top of the day until
   // they have a home. Nothing new can join them: every creation path now goes through a stack.
-  const orphans = useMemo(() => habits.filter((h) => !h.stack_id), [habits]);
+  //
+  // Exchanges are the one deliberate exception to "stackless means orphaned": they hold no
+  // `stack_id` BY DESIGN, because their anchor is an urge rather than a moment of the day. Left
+  // out of this filter they would be offered up for anchoring, and accepting would drop them into
+  // a stack whose seal would then swallow their own tick.
+  const orphans = useMemo(() => habits.filter((h) => !h.stack_id && !isExchange(h)), [habits]);
+
+  // The day's exchanges, in creation order. They sit below the stacks in their own section rather
+  // than among them: a stack has a place in the day's order because its cue does, and an urge has
+  // no hour to be filed under.
+  const exchanges = useMemo(
+    () => visibleHabits.filter(isExchange).sort((a, b) => a.position - b.position),
+    [visibleHabits],
+  );
 
   // Fold the day's acts into their stacks' cards, each sitting where its earliest act sits.
   const entries = useMemo<Entry[]>(() => {
@@ -240,6 +260,10 @@ export default function HabitsScreen() {
     [router],
   );
 
+  // Stable across renders so the exchange rows' memo comparator holds — a fresh arrow each render
+  // would defeat it on every day-step and every drag settle.
+  const toggleHeld = useCallback((habit: Habit) => void toggleExchange(habit.id), [toggleExchange]);
+
   // The stack card's "⋯" opens the native manage menu (add acts / edit / delete) — an iOS action
   // sheet or an Android bottom sheet.
   const openStackActions = useStackActions();
@@ -249,6 +273,36 @@ export default function HabitsScreen() {
   const openAddHabits = useCallback(
     (stackId: string) => router.push({ pathname: '/habits/discover', params: { stackId } }),
     [router],
+  );
+
+  // Which stacks the reader has unfolded. Every stack is born folded, so the day opens as a list
+  // of names and unfolding is an act of reading, not of operating the card.
+  //
+  // Owned here rather than in the card because the drag layer renders a SECOND StackCard as the
+  // floating ghost, and its height must match the original's exactly (`ghostH`/`slotSize` are
+  // measured from the original at lift).
+  //
+  // Scoped to `viewDate` and *derived* rather than reset: the day can advance without going
+  // through the stepper — the midnight rollover in use-habits calls `setViewDateState` itself —
+  // and an imperative reset would miss that. Deliberately not persisted: born folded is the design.
+  const [expandedState, setExpandedState] = useState<{ day: string; ids: ReadonlySet<string> }>(() => ({
+    day: viewDate,
+    ids: NO_STACKS_EXPANDED,
+  }));
+  const expandedIds = expandedState.day === viewDate ? expandedState.ids : NO_STACKS_EXPANDED;
+  const setStackExpanded = useCallback(
+    (stackId: string, next: boolean) => {
+      setExpandedState((prev) => {
+        const ids = prev.day === viewDate ? prev.ids : NO_STACKS_EXPANDED;
+        // Idempotent: the seal's auto-fold fires at cards that are already folded.
+        if (ids.has(stackId) === next) return prev;
+        const nextIds = new Set(ids);
+        if (next) nextIds.add(stackId);
+        else nextIds.delete(stackId);
+        return { day: viewDate, ids: nextIds };
+      });
+    },
+    [viewDate],
   );
 
   const { show: showToast } = useToast();
@@ -454,7 +508,10 @@ export default function HabitsScreen() {
               otherwise — it has no card to appear on. */}
           {orphans.length > 0 ? <AnchorTheseCard habits={orphans} /> : null}
           {entries.length === 0 ? (
-            orphans.length > 0 ? null : (
+            // The empty state is for a day with nothing on it at all. Exchanges count as
+            // something: a user who tracks only exchanges has a day, and inviting them to anchor
+            // their first stack above their own list would read as if it hadn't registered.
+            orphans.length > 0 || exchanges.length > 0 ? null : (
               <HabitsEmptyState
                 hasHabits={habits.length > 0}
                 isToday={isToday}
@@ -489,10 +546,12 @@ export default function HabitsScreen() {
                     // (It still accepts acts dropped ONTO it, as always.)
                     draggable={entry.members.length > 0}>
                     <StackCard
-                      // Remount on a day-step: a stack already sealed on the newly-viewed day is
-                      // born collapsed (a quiet grey bar) instead of animating the in-day seal fold
-                      // open→shut. The mount path is flash-free either way; an in-day seal keeps
-                      // the same key, so its fold still plays.
+                      // Remount on a day-step, so the card's edge guards (`firstRun`, the seal
+                      // flash's `wasComplete`, the emblem's `wasLit`) all start from the new day's
+                      // truth at rest — a stack already sealed on the newly-viewed day mounts
+                      // quiet instead of replaying the in-day seal's flash and fold. An in-day
+                      // seal keeps the same key, so its fold still plays. (The fold state itself
+                      // is day-scoped in `expandedIds`, not carried by this key.)
                       key={viewDate}
                       stack={entry.stack}
                       members={entry.members}
@@ -505,6 +564,8 @@ export default function HabitsScreen() {
                       onMove={moveStackForA11y}
                       onMoveHabit={moveRowForA11y}
                       onAddHabits={openAddHabits}
+                      expanded={expandedIds.has(entry.stack.id)}
+                      onSetExpanded={setStackExpanded}
                       isCurrentChapter={stackLit(entry.stack)}
                       currentChapterUntil={stackUntil(entry.stack)}
                     />
@@ -515,12 +576,23 @@ export default function HabitsScreen() {
                   entries={entries}
                   completed={completed}
                   skipped={skipped}
+                  expandedIds={expandedIds}
                   stackLit={stackLit}
                   stackUntil={stackUntil}
                 />
               </DragGrid>
             </HabitDragProvider>
           )}
+          {/* Below the stacks, and outside the drag layer: an exchange has no slot in the day's
+              order to be dragged into, so it is not a unit the grid knows about. */}
+          <ExchangeSection
+            exchanges={exchanges}
+            completed={completed}
+            skipped={skipped}
+            onToggle={toggleHeld}
+            onOptions={openAct}
+            isToday={isToday}
+          />
         </Animated.ScrollView>
       )}
     </>
@@ -534,6 +606,7 @@ function HabitsDragGhost({
   entries,
   completed,
   skipped,
+  expandedIds,
   stackLit,
   stackUntil,
 }: {
@@ -541,6 +614,9 @@ function HabitsDragGhost({
   entries: Entry[];
   completed: Set<string>;
   skipped: Set<string>;
+  /** The list's fold state, shared verbatim: the drag math measures the ORIGINAL card's height at
+   *  lift, so a ghost that folded differently would be a different size from the hole it left. */
+  expandedIds: ReadonlySet<string>;
   /** The screen's lighting rules, shared so the ghost carries the lit emblem and its "until"
    *  caption unchanged (it mounts at rest — lifting a card never replays the lighting). */
   stackLit: (stack: HabitStack) => boolean;
@@ -581,6 +657,8 @@ function HabitsDragGhost({
         onUnseal={noop}
         onAct={noop}
         onEditStack={noop}
+        expanded={expandedIds.has(entry.stack.id)}
+        onSetExpanded={noop}
         isCurrentChapter={stackLit(entry.stack)}
         currentChapterUntil={stackUntil(entry.stack)}
       />

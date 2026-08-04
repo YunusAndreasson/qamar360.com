@@ -143,8 +143,10 @@ export type Database = {
       habits: {
         Row: {
           created_at: string | null
+          cue: string | null
           hijri_schedule: Json | null
           id: string
+          instead_of: string | null
           name: string
           position: number
           reminder_time: string | null
@@ -157,8 +159,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          cue?: string | null
           hijri_schedule?: Json | null
           id?: string
+          instead_of?: string | null
           name: string
           position: number
           reminder_time?: string | null
@@ -171,8 +175,10 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          cue?: string | null
           hijri_schedule?: Json | null
           id?: string
+          instead_of?: string | null
           name?: string
           position?: number
           reminder_time?: string | null

@@ -16,6 +16,7 @@ import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
+import { isExchange } from '@/lib/exchange';
 import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
@@ -53,6 +54,11 @@ export type HabitPatch = {
   target_count?: number | null;
   /** Optional unit label shown next to the count ("pages", "cups"); `null` for none. */
   target_unit?: string | null;
+  /** The routine this act displaces ("soft drinks") — non-null makes it an *exchange*
+   *  (`lib/exchange.ts`). Stored mid-sentence: the row renders it after "Instead of ". */
+  instead_of?: string | null;
+  /** The situation that fires the urge ("when I sit down to eat") — an exchange's "if" half. */
+  cue?: string | null;
 };
 
 /** Everything needed to create a habit (name + schedule + optional goal). */
@@ -65,6 +71,11 @@ export type HabitCreate = {
   target_count?: number | null;
   /** Optional unit label shown next to the count ("pages", "cups"). */
   target_unit?: string | null;
+  /** The routine this act displaces ("soft drinks"). Setting it makes the new habit an
+   *  *exchange* — a stackless row ticked on its own, see `lib/exchange.ts`. */
+  instead_of?: string | null;
+  /** The situation that fires the urge ("when I sit down to eat") — an exchange's "if" half. */
+  cue?: string | null;
 };
 
 /** How far back the day-stepper lets you backfill a missed completion. */
@@ -161,6 +172,10 @@ type HabitsContextValue = {
   sealStack: (stackId: string) => Promise<void>;
   /** Re-open a sealed stack: delete `viewDate`'s rows for exactly the acts a seal writes. */
   unsealStack: (stackId: string) => Promise<void>;
+  /** Hold an exchange for `viewDate`, or take it back — the app's second completion gesture, and
+   *  the only per-habit one (see `lib/exchange.ts` for why an exchange is ticked on its own).
+   *  A no-op on an act that is excused today, or on one that isn't an exchange at all. */
+  toggleExchange: (habitId: string) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
@@ -251,13 +266,34 @@ async function deleteCompletions(habitIds: string[], day: string): Promise<void>
   if (error) throw error;
 }
 
+type DayClose = { dayComplete: boolean; doneIds: string[] };
+
+/**
+ * Would `day` be fully closed once `justDoneIds` land? Pure, and shared by *both* completion
+ * gestures — sealing a stack and holding an exchange — so the two can never disagree about
+ * whether the day just ended.
+ *
+ * `justDoneIds` are the habits being marked done right now, read as done here before their
+ * optimistic state has propagated (the same stale-read guard the per-tick path used to need).
+ */
+function dayCloseAfter(
+  habits: Habit[],
+  skipped: Set<string>,
+  completed: Set<string>,
+  justDoneIds: Set<string>,
+  day: string,
+): DayClose {
+  const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
+  const dayComplete = openIds.length > 0 && openIds.every((id) => justDoneIds.has(id) || completed.has(id));
+  // When complete, `openIds` are exactly the day's done (non-skipped, all ticked) ids — handed to
+  // the overlay so its degrees count the just-made ticks before they reach the server (matches Progress).
+  return { dayComplete, doneIds: dayComplete ? openIds : [] };
+}
+
 /**
  * Fire the completion haptics for sealing a stack on `day`: the celebratory, moon-weighted beat
- * when the seal closes every open (scheduled, non-skipped) habit for the day, otherwise the crisp
- * "done" tap followed by the stack's rounder tail beat.
- *
- * `justDoneIds` are the acts the seal is marking done right now — read as done here, before their
- * optimistic state has propagated (the same stale-read guard the per-tick path used to need).
+ * when the seal closes the day, otherwise the crisp "done" tap followed by the stack's rounder
+ * tail beat.
  */
 function celebrateSeal(
   habits: Habit[],
@@ -265,10 +301,9 @@ function celebrateSeal(
   completed: Set<string>,
   justDoneIds: Set<string>,
   day: string,
-): { dayComplete: boolean; doneIds: string[] } {
-  const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
-  const dayComplete = openIds.length > 0 && openIds.every((id) => justDoneIds.has(id) || completed.has(id));
-  if (dayComplete) {
+): DayClose {
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day);
+  if (close.dayComplete) {
     haptics.celebrate(moonLitFor(day));
   } else {
     // The press's crisp confirm, then — a beat later, as the card's border blooms — the rounder
@@ -277,9 +312,25 @@ function celebrateSeal(
     haptics.completed();
     haptics.stackComplete();
   }
-  // When complete, `openIds` are exactly the day's done (non-skipped, all ticked) ids — handed to
-  // the overlay so its degrees count the just-made ticks before they reach the server (matches Progress).
-  return { dayComplete, doneIds: dayComplete ? openIds : [] };
+  return close;
+}
+
+/**
+ * The same close, felt for a single exchange: one crisp confirm and no tail beat. The seal's
+ * rounder second pulse means "a group settled together", and an exchange is one claim standing
+ * on its own — borrowing that beat would say something untrue about what just happened.
+ */
+function celebrateHold(
+  habits: Habit[],
+  skipped: Set<string>,
+  completed: Set<string>,
+  justDoneIds: Set<string>,
+  day: string,
+): DayClose {
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day);
+  if (close.dayComplete) haptics.celebrate(moonLitFor(day));
+  else haptics.completed();
+  return close;
 }
 
 export function HabitsProvider({ children }: { children: ReactNode }) {
@@ -725,6 +776,78 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  /**
+   * Hold an exchange for the viewed day, or take it back.
+   *
+   * The app's other completion gesture is the stack seal, and deliberately so: a stack is one
+   * performance, and ticking its parts separately is busywork. An exchange is not part of a
+   * sequence — it is a separate claim about the whole day — so it gets its own tick, and holding
+   * two of three still counts for two. All-or-nothing here would turn one slip into a lost day,
+   * which is precisely the dynamic (Marlatt's abstinence-violation effect) the feature exists to
+   * avoid.
+   *
+   * What is recorded is the *deed*: an ordinary `done` row, exactly like a sealed act's, so
+   * degrees, streaks and Insights need to know nothing about exchanges. Nothing anywhere records
+   * a day that didn't hold — a miss is simply the absence of a row.
+   */
+  const toggleExchange = useCallback(
+    async (habitId: string) => {
+      if (!userId) return;
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      if (pending.current.has(habitId)) return; // ignore double-taps
+      // Excused today: there is nothing to assert. The row renders inert, but a mid-flight skip
+      // could still land a tap here, and writing a 'done' over a 'skipped' would silently undo it.
+      if (skippedRef.current.has(habitId)) return;
+
+      const day = viewDateRef.current;
+      const wasHeld = completedRef.current.has(habitId);
+      pending.current.add(habitId);
+
+      setCompleted((prev) => {
+        const next = new Set(prev);
+        if (wasHeld) next.delete(habitId);
+        else next.add(habitId);
+        return next;
+      });
+
+      if (wasHeld) {
+        haptics.uncompleted();
+      } else {
+        // The same day-close seam the seal uses, so holding the last open thing of the day raises
+        // the overlay and counts the same degrees the Progress tab will.
+        const res = celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+      }
+
+      try {
+        if (wasHeld) await deleteCompletion(habitId, day);
+        else
+          await upsertCompletion({
+            habit_id: habitId,
+            user_id: userId,
+            completed_at: day,
+            status: 'done',
+            // An exchange is binary by design — there is no partial version of "I did it instead".
+            count: null,
+          });
+      } catch {
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          setCompleted((prev) => {
+            const next = new Set(prev);
+            if (wasHeld) next.add(habitId);
+            else next.delete(habitId);
+            return next;
+          });
+        }
+        setError(UPDATE_ERROR);
+      } finally {
+        pending.current.delete(habitId);
+      }
+    },
+    [userId, showDayComplete],
+  );
+
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
   // (travel, menstruation, …) that shouldn't count against the rate. Mirrors
   // `toggleHabit`: optimistic, single in-flight per habit, rolls back on failure.
@@ -846,6 +969,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         hijri_schedule: input.hijri_schedule ?? null,
         target_count: input.target_count ?? null,
         target_unit: input.target_unit ?? null,
+        instead_of: input.instead_of ?? null,
+        cue: input.cue ?? null,
         stack_id: null,
       }));
       const tempIds = new Set(optimistic.map((o) => o.id));
@@ -864,6 +989,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
               hijri_schedule: input.hijri_schedule ?? null,
               target_count: input.target_count ?? null,
               target_unit: input.target_unit ?? null,
+              instead_of: input.instead_of ?? null,
+              cue: input.cue ?? null,
             })),
           )
           .select();
@@ -1395,6 +1522,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const prevStacks = stacksRef.current;
       const habit = prevHabits.find((h) => h.id === habitId);
       if (!habit || habit.id.startsWith('temp-')) return;
+      // An exchange is anchored to an urge, not to a moment, so it has no business in a stack:
+      // inside one it would be swept up by that stack's seal and lose its own tick. No UI offers
+      // the move, but the guard belongs here — this is the single mutation behind the drag, the
+      // add-to-stack sheet and the member row's "Remove".
+      if (isExchange(habit)) return;
       const { toStackId } = target;
       if (toStackId && !prevStacks.some((s) => s.id === toStackId)) return; // stale drop target
       // Same stack with no explicit placement = already where it's going; WITH a placement it's
@@ -1498,6 +1630,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       createHabits,
       sealStack,
       unsealStack,
+      toggleExchange,
       skipHabit,
       updateHabit,
       deleteHabit,
@@ -1526,6 +1659,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createHabits,
     sealStack,
     unsealStack,
+    toggleExchange,
     skipHabit,
     updateHabit,
     deleteHabit,

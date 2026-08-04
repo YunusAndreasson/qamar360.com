@@ -6,6 +6,7 @@ import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
+import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 
 /**
@@ -18,6 +19,10 @@ import { haptics } from '@/lib/haptics';
  *
  * Presented `fitToContents` from the habits stack layout, the same compact sheet-of-rows as
  * "Manage stack".
+ *
+ * The same sheet serves an *exchange*, minus one row: an exchange is anchored to an urge rather
+ * than to a moment, so it belongs to no stack and there is nowhere to move it to. Everything else
+ * it needs is already here, so it would be a second sheet saying the same things.
  */
 export default function ActActionsScreen() {
   const router = useRouter();
@@ -26,6 +31,8 @@ export default function ActActionsScreen() {
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
   const isSkipped = habit ? skipped.has(habit.id) : false;
+  const exchange = !!habit && isExchange(habit);
+  const noun = exchange ? 'exchange' : 'act';
 
   const toggleSkip = () => {
     if (!habit) return;
@@ -41,7 +48,7 @@ export default function ActActionsScreen() {
 
   const edit = () => {
     if (!habit) return;
-    router.replace({ pathname: '/habits/editor', params: { id: habit.id } });
+    router.replace({ pathname: exchange ? '/habits/exchange' : '/habits/editor', params: { id: habit.id } });
   };
 
   const moveTo = () => {
@@ -54,7 +61,7 @@ export default function ActActionsScreen() {
     // Deleting drops the habit from state; the effect below backs the sheet out (don't also
     // router.back() here, or it pops twice).
     confirmDestructive({
-      title: 'Delete act',
+      title: `Delete ${noun}`,
       message: `Delete “${habit.name}”? Its history goes with it.`,
       onConfirm: () => {
         haptics.removed();
@@ -70,23 +77,34 @@ export default function ActActionsScreen() {
   if (!habit) return null;
 
   return (
-    <FormSheet title={habit.name} subtitle="Act">
+    <FormSheet title={habit.name} subtitle={exchange ? 'Exchange' : 'Act'}>
       <Surface>
         {/* "Today" only when it is: on a backfilled day the row has to name the day it excuses. */}
         <SheetRow
           icon="skip"
           label={isSkipped ? 'Un-skip' : isToday ? 'Skip today' : `Skip ${viewDate}`}
-          sublabel={isSkipped ? 'Put it back in the sequence' : 'Excused — it won’t count against you'}
+          sublabel={
+            isSkipped
+              ? exchange
+                ? 'Put it back in today'
+                : 'Put it back in the sequence'
+              : 'Excused — it won’t count against you'
+          }
           onPress={toggleSkip}
         />
         <RowSeparator />
         <SheetRow icon="insights" label="Insights" onPress={openInsights} />
         <RowSeparator />
-        <SheetRow icon="edit" label="Edit act" onPress={edit} />
+        <SheetRow icon="edit" label={`Edit ${noun}`} onPress={edit} />
+        {/* An exchange has no stack to move between — its anchor is the urge, not a moment. */}
+        {exchange ? null : (
+          <>
+            <RowSeparator />
+            <SheetRow icon="addLink" label="Move to another stack" onPress={moveTo} />
+          </>
+        )}
         <RowSeparator />
-        <SheetRow icon="addLink" label="Move to another stack" onPress={moveTo} />
-        <RowSeparator />
-        <SheetRow icon="delete" label="Delete act" danger onPress={confirmDelete} />
+        <SheetRow icon="delete" label={`Delete ${noun}`} danger onPress={confirmDelete} />
       </Surface>
     </FormSheet>
   );

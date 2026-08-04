@@ -28,7 +28,11 @@ export type HabitsSnapshot = {
   counts: [string, number][];
 };
 
-const CACHE_KEY = 'habits.snapshot.v1';
+// Bumped to v2 for the exchange columns: a v1 row was serialised before `instead_of` existed, so
+// seeding from one would read every exchange as `instead_of: undefined` — not an exchange at all
+// — and drop it into the legacy "Anchor these" orphan card for the one frame before the
+// revalidation lands. Bump this whenever a new `Habit` field decides where a row is rendered.
+const CACHE_KEY = 'habits.snapshot.v2';
 
 // The synchronous SQLite-backed Web Storage shim (same one the catalog, auth session, and
 // theme use), so the snapshot is readable on the very first render without an async hop.
