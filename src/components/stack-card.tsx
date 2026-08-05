@@ -11,18 +11,18 @@ import Animated, {
 
 import { ActRow } from '@/components/act-row';
 import { AppIcon } from '@/components/app-icon';
+import { CompletionRing } from '@/components/completion-ring';
 import { DraggableMemberRow } from '@/components/habit-drag';
 import { RowSeparator } from '@/components/row-separator';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
-import { Collapse, Duration } from '@/constants/motion';
+import { Collapse } from '@/constants/motion';
 import { Face, Pressed, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { MOMENTS, momentOf, type MomentKey } from '@/lib/moments';
 import { isStackComplete } from '@/lib/progress';
-import { stackHeaderContract, type StackHeaderMode } from '@/lib/stack-card-state';
+import { stackHeaderContract } from '@/lib/stack-card-state';
 
 type Props = {
   stack: HabitStack;
@@ -55,12 +55,12 @@ type Props = {
    *  at an already-folded card without a guard here. */
   onSetExpanded: (stackId: string, expanded: boolean) => void;
   /** This stack's moment is current (its band matches the real sun's, or its Friday matches
-   *  today) — its emblem lights up in the header. Computed once in the screen from
+   *  today) — the header carries its closing clock while it is. Computed once in the screen from
    *  `useSunCycle`; never read from a context here (that would bypass the memo below). */
   isCurrentChapter?: boolean;
   /** Preformatted local closing time of the current band ("9:47 PM"), rendered as
-   *  "until 9:47 PM" in the header's status slot while the emblem is lit — so the lighting
-   *  explains itself. Only ever set on the lit sky-moment card (prayer moments carry no clock). */
+   *  "until 9:47 PM" in the header's status slot while the stack's moment is the current one.
+   *  Only ever set on that card, and only for sky moments (prayer moments carry no clock). */
   currentChapterUntil?: string;
 };
 
@@ -70,15 +70,17 @@ type Props = {
  *
  * **The header is the commit.** Tapping the card seals the stack; tapping a sealed one re-opens
  * it — one meaning in either state, so the tap never changes under the user. There is no button
- * at the foot: the stack is the only unit the app tracks, so the card *is* the checkbox, and
- * underneath, sealing writes an ordinary done row per act (which is why Progress and Insights
- * need to know nothing about any of this).
+ * at the foot: the stack is the only unit the app tracks, so the card *is* the checkbox — and the
+ * leading {@link CompletionRing} is where that reads, the ring sweeping shut around a check on the
+ * seal. Underneath, sealing writes an ordinary done row per act (which is why Progress and
+ * Insights need to know nothing about any of this).
  *
  * **Every stack is born folded**, and the trailing chevron unfolds it. Folded, the card is a
- * single bar carrying its emblem, its name, one status mark and the count of what it's hiding —
- * so a day reads as a short column of identical bars, and one lit emblem in that column is
- * finally pre-attentive. Unfolding is for *reading* the sequence, which is the thing you do
- * while you're still learning it; it is not how you operate the card.
+ * single bar carrying its mark, its name and — while its moment is the current one — the clock
+ * that moment closes at, so a day reads as a short column of identical bars with one deadline in
+ * it. Unfolding is for *reading* the sequence, which is the thing you do while you're still
+ * learning it; it is not how you operate the card, and everything that *manages* the stack (the
+ * "⋯") lives inside the fold, out of the way of the commit.
  *
  * In the Today grid the card takes part in the drag vocabulary: hold anywhere on it to lift and
  * reorder the whole stack, hold an act to move it within the sequence or into another stack.
@@ -110,9 +112,9 @@ function StackCardBase({
   // The whole group sealed. Drives the one-shot border flash, the greyed header tone, the status
   // check and the auto-fold; the synced completion haptic is fired from the seal seam in use-habits.
   const stackComplete = isStackComplete(members, completed, skipped);
-  // The emblem lights only while the stack is still open: a sealed stack keeps its greyed
-  // glyph — the recede is the stronger statement than the light.
-  const emblemLit = !!isCurrentChapter && !stackComplete;
+  // The clock is a claim about work still ahead, so it goes the moment the stack seals: a sealed
+  // card recedes whole rather than keeping a deadline it has already met.
+  const momentNow = !!isCurrentChapter && !stackComplete;
   // Any non-empty stack folds. The empty "Add your first act" card has nothing to hide.
   const collapsible = members.length > 0;
 
@@ -121,7 +123,7 @@ function StackCardBase({
     memberCount: members.length,
     openCount: openActs.length,
     sealed: stackComplete,
-    lit: emblemLit,
+    lit: momentNow,
     until: currentChapterUntil,
   });
 
@@ -187,20 +189,16 @@ function StackCardBase({
         ? () => onUnseal(stack.id)
         : () => onSeal(stack.id);
 
-  // The lit card trades its count for its clock: at 360dp a 12-hour clock plus a count leaves
-  // the title ~9 characters. A closed card states one number at a time, and the lit card's
-  // number is its deadline.
-  const clock = emblemLit ? currentChapterUntil : undefined;
-  const showCount = !expanded && header.count !== null && !clock;
+  const clock = momentNow ? currentChapterUntil : undefined;
 
   return (
     <View>
       <Surface>
-        {/* `stretch`, not `center`: the three regions (seal / fold / manage) then tile the whole
-            bar at full height, with no dead strip above or below the trailing glyphs. */}
+        {/* `stretch`, not `center`: the two regions (seal / fold) then tile the whole bar at full
+            height, with no dead strip above or below the chevron. */}
         <View style={styles.headerRow}>
           {/* Gesture-handler's `Touchable` rather than PressableScale: a scale on a flex-1 header
-              would shrink the left 70% of a 56pt bar and leave the chevron and "⋯" behind, and
+              would shrink the left 80% of a 56pt bar and leave the chevron behind, and
               this row lives inside the drag layer's pan — where the house rule (pressable-scale's
               own doc) is a background highlight, because a scale transform fights the gesture
               translate. The highlight is the bar's legend: the instant a finger lands it draws
@@ -232,25 +230,41 @@ function StackCardBase({
               if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
             }}
             style={styles.header}>
-            {/* The leading glyph in the same 32-wide slot the act rows give their numerals, so it
-                sits directly above them and the title lines up with the act names. */}
-            <LeadingGlyph moment={momentOf(stack)} lit={emblemLit} complete={stackComplete} />
+            {/* The commit's mark, in the same 32-wide slot the act rows give their numerals, so it
+                sits directly above them and the title lines up with the act names. An all-excused
+                stack has nothing to assert, so it shows the skip glyph in place of a ring it
+                couldn't fill. */}
+            <View style={styles.leading}>
+              {header.mode === 'excused' ? (
+                <AppIcon name="skip" size={20} color={theme.textSecondary} />
+              ) : (
+                <CompletionRing complete={stackComplete} size={24} strokeWidth={2} />
+              )}
+            </View>
             <ThemedText
               type="rowTitle"
               style={[styles.title, stackComplete && { color: theme.textDisabled }]}
               numberOfLines={1}>
               {stack.name}
             </ThemedText>
-            <StatusMark mode={header.mode} sealed={stackComplete} until={clock} />
+            {/* Why this card is the one to look at: the clock its moment closes at. Tabular so it
+                doesn't dance as the minute turns. flexShrink 0 — Android clips trailing flex-row
+                text otherwise (the "Undo"→"Und" gotcha). */}
+            {clock ? (
+              <View style={styles.status}>
+                <ThemedText type="smallCompact" themeColor="textSecondary">
+                  {`until ${clock}`}
+                </ThemedText>
+              </View>
+            ) : null}
           </Touchable>
 
-          {/* The disclosure. The count lives INSIDE this target on purpose: bound to the chevron
-              by 4pt but belonging to the header's target, a finger aimed at "3 ⌄" that landed on
-              the 3 would seal the stack. Any pixel that looks like the disclosure behaves like
-              it. The number means "3 lines are hidden behind this fold" — a property of the fold,
-              not of the stack — which is why it shows only while folded: once open, the acts are
-              numbered 1..n and the last ordinal IS the count. Tabular, in the same voice as those
-              ordinals, so unfolding hands the number down into their column. */}
+          {/* The disclosure — the bar's only other verb. The wide gap before it is this button's
+              paddingLeft rather than the header's paddingRight on purpose: a finger that lands in
+              the ambiguous space folds the card (free) instead of sealing it (writes a row per
+              act). No count beside it: how many lines a fold hides is bookkeeping, and a number on
+              the bar invites reading it as progress — the one mental model the stacks-only rewrite
+              dropped. */}
           {collapsible ? (
             <Touchable
               onPress={() => onSetExpanded(stack.id, !expanded)}
@@ -263,29 +277,9 @@ function StackCardBase({
               accessibilityLabel={`${stack.name} acts`}
               accessibilityHint={expanded ? 'Collapses the stack.' : 'Expands the stack to read its acts.'}
               style={styles.fold}>
-              {showCount ? (
-                <ThemedText type="smallCompact" themeColor="textDisabled" style={styles.count}>
-                  {header.count}
-                </ThemedText>
-              ) : null}
               <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={18} color={theme.textDisabled} />
             </Touchable>
           ) : null}
-
-          {/* The manage affordance — a quiet "⋯" opening edit / delete / add-acts, reachable in
-              any state (its own tap target + a11y button, a sibling so a screen reader gets it
-              apart from the header's seal). */}
-          <Touchable
-            onPress={() => onEditStack(stack.id)}
-            androidRipple={{ color: theme.backgroundSelected, borderless: true }}
-            // Platform-side dim, the same value the old `pressed && { opacity }` style used.
-            activeOpacity={Pressed.dim}
-            accessibilityRole="button"
-            accessibilityLabel={`Manage ${stack.name} stack`}
-            accessibilityHint="Edit, delete, or add acts."
-            style={styles.manage}>
-            <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
-          </Touchable>
         </View>
 
         {collapsible ? (
@@ -320,6 +314,8 @@ function StackCardBase({
                   </DraggableMemberRow>
                 </View>
               ))}
+              <RowSeparator />
+              <ManageRow stackName={stack.name} onPress={() => onEditStack(stack.id)} />
             </View>
           </Animated.View>
         ) : (
@@ -345,6 +341,10 @@ function StackCardBase({
                 Add your first act
               </ThemedText>
             </Touchable>
+            {/* An empty card has no fold to hide it behind, and it is the one card most likely to
+                need deleting — a stack built by accident. */}
+            <RowSeparator />
+            <ManageRow stackName={stack.name} onPress={() => onEditStack(stack.id)} />
           </View>
         )}
       </Surface>
@@ -358,91 +358,39 @@ function StackCardBase({
 }
 
 /**
- * The header's one status mark, in a slot pinned to the right of the title — so as a day fills
- * in, the marks stack up on a single meridian instead of scattering.
+ * The stack's management door, at the foot of the unfolded card.
  *
- * The three states are mutually exclusive by construction (a sealed stack is never lit; an
- * all-excused stack is never sealed), which lets one narrow slot carry all of them. **A partially
- * done stack shows nothing** — no "2/3": a progress reading on the bar would resurrect exactly
- * the mental model the app dropped when it deleted per-act ticking.
+ * It used to sit on the bar as a third trailing glyph, where it competed with the two verbs that
+ * matter — sealing the stack and unfolding it — and where a finger aimed at the chevron could
+ * open a menu instead. Renaming, re-anchoring, adding acts and deleting are all things you do
+ * *while looking at the sequence*, so they live where the sequence does: behind the fold, one row
+ * below the last act, in the reading tone rather than the accent one. The "Add your first act" row
+ * on an empty card keeps the accent — that one is the next step, not the housekeeping.
  *
- * The check is the card's entire warm budget. `complete` is licensed for "the done check" and
- * forbidden on body text — and warming the title would invert the list's reading order outright,
- * since `complete` is *more* luminous than `text` in the dark theme. So the sealed card still
- * says "done" by receding; this 14pt mark is what explains the grey on the second pass.
+ * It sits INSIDE the measured body, so it folds away with the acts and, while folded, leaves the
+ * a11y tree with them (the clip's `accessibilityElementsHidden`).
  */
-function StatusMark({ mode, sealed, until }: { mode: StackHeaderMode; sealed: boolean; until?: string }) {
+function ManageRow({ stackName, onPress }: { stackName: string; onPress: () => void }) {
   const theme = useTheme();
-  const mark =
-    mode === 'excused' ? (
-      // Circle-enclosed, so it carries at 16 where a bare check carries at 14 — the same optical
-      // sizing the act rows already use for this pair.
-      <AppIcon name="skip" size={16} color={theme.textSecondary} />
-    ) : sealed ? (
-      <AppIcon name="check" size={14} color={theme.complete} />
-    ) : until ? (
-      // Why the emblem is lit: the chapter's closing time. Tabular so it doesn't dance as the
-      // minute turns.
-      <ThemedText type="smallCompact" themeColor="textSecondary">
-        {`until ${until}`}
-      </ThemedText>
-    ) : null;
-  if (!mark) return null;
-  // flexShrink 0 — Android clips trailing flex-row text otherwise (the "Undo"→"Und" gotcha).
-  return <View style={styles.status}>{mark}</View>;
-}
-
-/**
- * The header's leading glyph slot. An un-anchored stack shows the stack icon in the muted
- * secondary tone — in a column of folded bars a luminous accent emblem would be a second
- * attractor competing with the lit one, and it marks no distinction anyway (every card is
- * interactive); "this stack has no moment" is already carried by the glyph's *shape*.
- *
- * An anchored stack wears its moment's emblem, also muted — the emblem is *identity*, worn always
- * (Night wears the moon at 8am and 11:30pm alike; "Going to bed" and "ʿIshāʾ" wear different
- * moons), never a "now" claim — and while the stack's moment is current the emblem *lights up*:
- * warm star-cream by day, starlight in the night band (never the completion gold — warmth must
- * not read as achievement). Icon = meaning, light = now, so a lit moon at 11:30pm reads
- * instantly. The lit overlay cross-fades only on an actual arrival/departure — a card that MOUNTS
- * lit shows it at rest, no animation (the `wasLit` edge guard, mirroring StackCompleteFlash) — so
- * day-steps, drags and list churn never replay the transition. The slot keeps its fixed 32-width
- * in every state: card height never changes, so the drag grid's measured frames stay valid.
- */
-function LeadingGlyph({ moment, lit, complete }: { moment: MomentKey | null; lit: boolean; complete: boolean }) {
-  const theme = useTheme();
-  const reduceMotion = useReducedMotion();
-  // Born at rest at the current value; animated only on the lit-flips-edge below.
-  const presence = useSharedValue(lit ? 1 : 0);
-  const wasLit = useRef(lit);
-  useEffect(() => {
-    if (wasLit.current === lit) return;
-    wasLit.current = lit;
-    if (reduceMotion) {
-      presence.set(lit ? 1 : 0);
-      return;
-    }
-    presence.set(withTiming(lit ? 1 : 0, { duration: Duration.slow, easing: Easing.inOut(Easing.quad) }));
-  }, [lit, reduceMotion, presence]);
-  const mutedStyle = useAnimatedStyle(() => ({ opacity: 1 - presence.get() }));
-  const litStyle = useAnimatedStyle(() => ({ opacity: presence.get() }));
-
-  if (!moment) {
-    return (
-      <View style={styles.leading}>
-        <AppIcon name="stack" size={26} color={complete ? theme.textDisabled : theme.textSecondary} />
-      </View>
-    );
-  }
-  const def = MOMENTS[moment];
   return (
-    <View style={styles.leading}>
-      <Animated.View style={mutedStyle}>
-        <AppIcon name={def.icon} size={24} color={complete ? theme.textDisabled : theme.textSecondary} />
-      </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFill, styles.leadingOverlay, litStyle]} pointerEvents="none">
-        <AppIcon name={def.icon} size={24} color={def.band === 'night' ? theme.starlight : theme.sun} />
-      </Animated.View>
-    </View>
+    <Touchable
+      onPress={onPress}
+      androidRipple={{ color: theme.backgroundSelected }}
+      underlayColor={theme.backgroundSelected}
+      activeUnderlayOpacity={1}
+      accessibilityRole="button"
+      accessibilityLabel={`Manage ${stackName} stack`}
+      accessibilityHint="Add acts, edit, or delete the stack."
+      style={styles.manage}>
+      {/* The same 32-wide leading slot as the act numerals above it, so the glyph lands in their
+          column and the label under their names. */}
+      <View style={styles.leading}>
+        <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
+      </View>
+      <ThemedText type="small" themeColor="textSecondary">
+        Manage stack
+      </ThemedText>
+    </Touchable>
   );
 }
 
@@ -451,9 +399,9 @@ const styles = StyleSheet.create({
   // measures the bare item, so spacing comes from the grid's `gap` + its padding.
   headerRow: {
     flexDirection: 'row',
-    // Every child runs the full height of the bar, so the three regions tile it exactly. Paired
-    // with the absence of `hitSlop` below: with three adjacent full-height targets, hit slop
-    // would only overlap three different verbs 40dp apart.
+    // Both children run the full height of the bar, so the two regions tile it exactly. Paired
+    // with the absence of `hitSlop` below: with two adjacent full-height targets, hit slop would
+    // only overlap two different verbs 40dp apart.
     alignItems: 'stretch',
   },
   // The seal region. 56 rather than the old 44 is set by the drag engine: a card's "drop an act
@@ -469,51 +417,42 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
-  // Leading glyph slot — the same 32-wide box an ActRow gives its numeral, so the stack
-  // emblem centers on the column below it.
+  // Leading mark slot — the same 32-wide box an ActRow gives its numeral, so the completion ring
+  // centers on the column below it. Fixed width in every state: the card's height never changes
+  // with its mark, so the drag grid's measured frames stay valid.
   leading: {
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Centers the lit emblem over the muted one inside the fixed slot (it overlays, never
-  // widens — see LeadingGlyph).
-  leadingOverlay: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   // Sized to the act rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
-  // acts it holds; the semibold weight + leading emblem mark it as the header.
+  // acts it holds; the semibold weight + leading mark set it apart as the header.
   // Semibold via the FACE, never fontWeight: a weight override beside rowTitle's registered
   // family would silently fall back to Roboto on Android (the theme.ts fake-bold gotcha).
-  // flex 1 — with four siblings competing for the row, the title is the one that gives way.
-  // Spacing.three (not two) so the leading glyph → title gap matches the act rows' numeral →
+  // flex 1 — with three siblings competing for the row, the title is the one that gives way.
+  // Spacing.three (not two) so the leading mark → title gap matches the act rows' numeral →
   // name gap, and the title lands in the same column as the act names below.
   title: { flex: 1, marginLeft: Spacing.three, fontFamily: Face.bodySemiBold },
-  // The status mark reads as part of the name ("Morning, until 09:41" / "Before sleep, done"),
-  // so it sits one proximity step closer than the chrome rail beyond it.
+  // The clock reads as part of the name ("Morning, until 09:41"), so it sits one proximity step
+  // closer than the fold button beyond it.
   status: { marginLeft: Spacing.two, flexShrink: 0 },
-  // The proximity ladder that keeps four trailing items from reading as four peers: 4 between
-  // the count and its chevron (one word), against 24 before them (a zone break). The 6:1 ratio
-  // is what makes "3 ⌄" unmistakably one thing and the rail beyond it another. The wide gap is
-  // this button's paddingLeft rather than the header's paddingRight on purpose — a finger that
-  // lands in the ambiguous space folds the card (free) instead of sealing it (writes a row per
-  // act).
+  // 24 of paddingLeft is a zone break: it separates the bar's two verbs, and it belongs to this
+  // button rather than the header's paddingRight on purpose — a finger that lands in the ambiguous
+  // space folds the card (free) instead of sealing it (writes a row per act).
   fold: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: Spacing.four,
+    paddingRight: Spacing.three,
+  },
+  // The body's closing "Manage stack" row. Shorter than an act row (44) — it is chrome at the foot
+  // of the sequence, not part of it — but still clears the 44pt target with its padding.
+  manage: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.one,
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.two,
-  },
-  count: { flexShrink: 0 },
-  // The trailing "⋯" manage button's tap area; its own right-edge padding stands in for the
-  // header's.
-  manage: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: Spacing.two,
+    gap: Spacing.three,
+    minHeight: 44,
+    paddingLeft: Spacing.three,
     paddingRight: Spacing.three,
   },
   // Clips the body as it folds shut; the measured content sits inside in normal flow.
@@ -544,15 +483,12 @@ const styles = StyleSheet.create({
 // commits. Compare the rendered stack fields, the members by the fields their rows read, and the
 // day-state Sets + callbacks by identity (a seal swaps the Set identity, so completions still land).
 // KEEP IN SYNC: any newly *rendered* stack field or prop must be compared here, or the card will
-// silently ignore its changes (`moment`/`day_part`/`isCurrentChapter`/`currentChapterUntil` drive
-// the moment emblem, its lighting and the status clock; `expanded` drives the fold, and without it
-// the chevron would look dead).
+// silently ignore its changes (`isCurrentChapter`/`currentChapterUntil` drive the status clock;
+// `expanded` drives the fold, and without it the chevron would look dead).
 function stackPropsEqual(a: Props, b: Props): boolean {
   if (
     a.stack.id !== b.stack.id ||
     a.stack.name !== b.stack.name ||
-    a.stack.moment !== b.stack.moment ||
-    a.stack.day_part !== b.stack.day_part ||
     a.expanded !== b.expanded ||
     a.onSetExpanded !== b.onSetExpanded ||
     a.isCurrentChapter !== b.isCurrentChapter ||

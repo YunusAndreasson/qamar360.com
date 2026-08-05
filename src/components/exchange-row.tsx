@@ -3,8 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
 import { AppIcon } from '@/components/app-icon';
+import { CompletionRing } from '@/components/completion-ring';
 import { ThemedText } from '@/components/themed-text';
-import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { Pressed, Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { exchangeRowContract } from '@/lib/exchange';
@@ -34,10 +35,11 @@ type Props = {
  * wording preference: a plan phrased as "don't" keeps the old routine primed and measurably
  * strengthens it, while one phrased as "this instead" displaces it.
  *
- * The mark is warm `complete` when held, matching every other done state in the app; unheld is a
- * hollow `controlTrack` ring, the role reserved for an interactive outline that has to clear 3:1
- * on the card. A day that didn't hold has no state of its own — no red, no broken streak, nothing
- * at all — because catastrophising one slip is what turns it into the next three.
+ * The mark is the same {@link CompletionRing} a stack card's header wears — the arc sweeping shut
+ * around a check on the hold — so the two things the app tracks commit with one gesture and rest in
+ * one tone, however different their units. A day that didn't hold has no state of its own — no red,
+ * no broken streak, nothing at all — because catastrophising one slip is what turns it into the
+ * next three.
  */
 function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
   const theme = useTheme();
@@ -70,17 +72,17 @@ function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
         accessibilityState={{ checked: row.checked, disabled: !row.enabled }}
         style={styles.main}>
         {/* The same 32-wide leading slot the act rows give their ordinals, so an exchange's mark
-            sits in the column the stacks above it already established. */}
-        {/* Driven off the contract's `mode`, not off `held`/`skipped` again: the precedence
+            sits in the column the stacks above it already established — and at the same 24pt as a
+            stack header's ring, so the day's two commits read as one column of marks.
+
+            Driven off the contract's `mode`, not off `held`/`skipped` again: the precedence
             between the two (excused outranks held) is resolved once, in the pure module that has
             a test, and the row simply paints what it is told. */}
         <View style={styles.leading}>
           {row.mode === 'excused' ? (
-            <AppIcon name="skip" size={18} color={theme.textSecondary} />
-          ) : row.mode === 'held' ? (
-            <AppIcon name="check" size={18} color={theme.complete} />
+            <AppIcon name="skip" size={20} color={theme.textSecondary} />
           ) : (
-            <View style={[styles.ring, { borderColor: theme.controlTrack }]} />
+            <CompletionRing complete={row.mode === 'held'} size={24} strokeWidth={2} />
           )}
         </View>
         <View style={styles.text}>
@@ -126,9 +128,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   leading: { width: 32, alignItems: 'center', justifyContent: 'center' },
-  // A hollow target, sized between the check that replaces it (18) and the 22pt standard glyph,
-  // so the mark neither grows nor shrinks perceptibly when it fills.
-  ring: { width: 20, height: 20, borderRadius: Radius.full, borderWidth: 1.5 },
   // Spacing.three matches the stack header's glyph→title gap, landing the deed in the same
   // column as the act names and stack titles above it.
   text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },

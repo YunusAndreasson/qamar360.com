@@ -15,6 +15,7 @@ import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/compon
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
+import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
@@ -27,7 +28,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTheme } from '@/hooks/use-theme';
-import { addDaysISO, hijriParts, localDate, scheduledOn } from '@/lib/dates';
+import { addDaysISO, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -210,13 +211,13 @@ export default function HabitsScreen() {
   }, [visibleHabits, habits, stacks]);
 
   // The live day-cycle chapter (updates only at real transitions — ~4× a day, never per minute).
-  // The FIRST *open* stack in list order whose moment lives in the current band gets its emblem
-  // lit, and only on the real today — a past day has no "now". When that stack seals, the light
-  // passes to the next open stack of the band (the day progressing through its stacks). Sky
-  // moments also get the band's closing time ("until 21:47"), so the lighting explains itself;
-  // prayer moments never carry a clock (the no-prayer-times rule). Friday moments (Jumuʿah)
-  // light by weekday, all day, independent of the hourly cursor.
-  const { dayPart, partEndsAt, displayDateISO } = useSunCycle();
+  // The FIRST *open* stack in list order whose moment lives in the current band is the day's
+  // current one, and only on the real today — a past day has no "now". When that stack seals, the
+  // mark passes to the next open stack of the band (the day progressing through its stacks). Sky
+  // moments carry the band's closing time in the header ("until 21:47"); prayer moments never
+  // carry a clock (the no-prayer-times rule). Friday moments (Jumuʿah) count as current by
+  // weekday, all day, independent of the hourly cursor.
+  const { dayPart, partEndsAt } = useSunCycle();
   const inBand = (e: Entry) => momentBand(momentOf(e.stack)) === dayPart;
   // Prefer a populated, still-open stack (the light passes on seal); fall back to any band
   // match so a lone empty card can still invite. All-sealed ends dark either way (the card
@@ -499,8 +500,6 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
-          {isToday ? <HijriDateLine iso={displayDateISO} /> : null}
-          {/* Directly under the Hijri line, so the two calendar whispers read as one almanac. */}
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           {/* One-time, and only until they're all anchored: habits from before every habit had
@@ -519,69 +518,76 @@ export default function HabitsScreen() {
               />
             )
           ) : (
-            <HabitDragProvider
-              scrollRef={scrollRef}
-              order={orderMeta}
-              memberOrder={memberOrder}
-              contentBottomInset={LIST_BOTTOM_INSET}
-              onDragActive={onDragActive}
-              onDropBetween={onDropBetween}
-              onDropInto={onDropInto}
-              onDropReorder={onDropReorder}>
-              {/* One long-press drag vocabulary (hold ~a beat, then move): a stack card reorders
-                  through the gaps as one unit, its acts in tow; an act reorders within its own
-                  card, or joins the card it's dropped onto (accent ring). The dragged item floats
-                  as a ghost above the grid while its original holds the empty slot. Every one of
-                  these has a screen-reader action twin — no capability is gesture-only. */}
-              <DragGrid style={styles.gridBreath}>
-                {entries.map((entry, index) => (
-                  <DraggableEntry
-                    key={`stack-${entry.stack.id}`}
-                    entryKey={`stack:${entry.stack.id}`}
-                    index={index}
-                    kind="stack"
-                    stackId={entry.stack.id}
-                    // The empty "Add your first act" card holds the list's end and has no unit in
-                    // the order math — every drop of it would snap back, so don't offer the lift.
-                    // (It still accepts acts dropped ONTO it, as always.)
-                    draggable={entry.members.length > 0}>
-                    <StackCard
-                      // Remount on a day-step, so the card's edge guards (`firstRun`, the seal
-                      // flash's `wasComplete`, the emblem's `wasLit`) all start from the new day's
-                      // truth at rest — a stack already sealed on the newly-viewed day mounts
-                      // quiet instead of replaying the in-day seal's flash and fold. An in-day
-                      // seal keeps the same key, so its fold still plays. (The fold state itself
-                      // is day-scoped in `expandedIds`, not carried by this key.)
-                      key={viewDate}
-                      stack={entry.stack}
-                      members={entry.members}
-                      completed={completed}
-                      skipped={skipped}
-                      onSeal={sealStack}
-                      onUnseal={unsealStack}
-                      onAct={openAct}
-                      onEditStack={openStackActions}
-                      onMove={moveStackForA11y}
-                      onMoveHabit={moveRowForA11y}
-                      onAddHabits={openAddHabits}
-                      expanded={expandedIds.has(entry.stack.id)}
-                      onSetExpanded={setStackExpanded}
-                      isCurrentChapter={stackLit(entry.stack)}
-                      currentChapterUntil={stackUntil(entry.stack)}
-                    />
-                  </DraggableEntry>
-                ))}
-                <HabitsDragGhost
-                  dragEntryKey={dragEntryKey}
-                  entries={entries}
-                  completed={completed}
-                  skipped={skipped}
-                  expandedIds={expandedIds}
-                  stackLit={stackLit}
-                  stackUntil={stackUntil}
-                />
-              </DragGrid>
-            </HabitDragProvider>
+            <>
+              {/* The day's two units, each under its own caption: the stacks, then the exchanges
+                  below them. Before the label the section stood unnamed while "INSTEAD OF" named
+                  the one beneath it — which read as if the list were the day and the exchanges an
+                  appendix to it. */}
+              <SectionLabel style={styles.stacksLabel}>STACKS</SectionLabel>
+              <HabitDragProvider
+                scrollRef={scrollRef}
+                order={orderMeta}
+                memberOrder={memberOrder}
+                contentBottomInset={LIST_BOTTOM_INSET}
+                onDragActive={onDragActive}
+                onDropBetween={onDropBetween}
+                onDropInto={onDropInto}
+                onDropReorder={onDropReorder}>
+                {/* One long-press drag vocabulary (hold ~a beat, then move): a stack card reorders
+                    through the gaps as one unit, its acts in tow; an act reorders within its own
+                    card, or joins the card it's dropped onto (accent ring). The dragged item floats
+                    as a ghost above the grid while its original holds the empty slot. Every one of
+                    these has a screen-reader action twin — no capability is gesture-only. */}
+                <DragGrid style={styles.gridBreath}>
+                  {entries.map((entry, index) => (
+                    <DraggableEntry
+                      key={`stack-${entry.stack.id}`}
+                      entryKey={`stack:${entry.stack.id}`}
+                      index={index}
+                      kind="stack"
+                      stackId={entry.stack.id}
+                      // The empty "Add your first act" card holds the list's end and has no unit in
+                      // the order math — every drop of it would snap back, so don't offer the lift.
+                      // (It still accepts acts dropped ONTO it, as always.)
+                      draggable={entry.members.length > 0}>
+                      <StackCard
+                        // Remount on a day-step, so the card's edge guards (`firstRun`, and the
+                        // `wasComplete` in both the seal flash and the completion ring) all start
+                        // from the new day's truth at rest — a stack already sealed on the
+                        // newly-viewed day mounts quiet instead of replaying its seal. An in-day
+                        // seal keeps the same key, so its fold still plays. (The fold state itself
+                        // is day-scoped in `expandedIds`, not carried by this key.)
+                        key={viewDate}
+                        stack={entry.stack}
+                        members={entry.members}
+                        completed={completed}
+                        skipped={skipped}
+                        onSeal={sealStack}
+                        onUnseal={unsealStack}
+                        onAct={openAct}
+                        onEditStack={openStackActions}
+                        onMove={moveStackForA11y}
+                        onMoveHabit={moveRowForA11y}
+                        onAddHabits={openAddHabits}
+                        expanded={expandedIds.has(entry.stack.id)}
+                        onSetExpanded={setStackExpanded}
+                        isCurrentChapter={stackLit(entry.stack)}
+                        currentChapterUntil={stackUntil(entry.stack)}
+                      />
+                    </DraggableEntry>
+                  ))}
+                  <HabitsDragGhost
+                    dragEntryKey={dragEntryKey}
+                    entries={entries}
+                    completed={completed}
+                    skipped={skipped}
+                    expandedIds={expandedIds}
+                    stackLit={stackLit}
+                    stackUntil={stackUntil}
+                  />
+                </DragGrid>
+              </HabitDragProvider>
+            </>
           )}
           {/* Below the stacks, and outside the drag layer: an exchange has no slot in the day's
               order to be dragged into, so it is not a unit the grid knows about. */}
@@ -591,7 +597,6 @@ export default function HabitsScreen() {
             skipped={skipped}
             onToggle={toggleHeld}
             onOptions={openAct}
-            isToday={isToday}
           />
         </Animated.ScrollView>
       )}
@@ -617,8 +622,8 @@ function HabitsDragGhost({
   /** The list's fold state, shared verbatim: the drag math measures the ORIGINAL card's height at
    *  lift, so a ghost that folded differently would be a different size from the hole it left. */
   expandedIds: ReadonlySet<string>;
-  /** The screen's lighting rules, shared so the ghost carries the lit emblem and its "until"
-   *  caption unchanged (it mounts at rest — lifting a card never replays the lighting). */
+  /** The screen's "which moment is now" rules, shared so the ghost carries the same "until"
+   *  caption as the card it copies. */
   stackLit: (stack: HabitStack) => boolean;
   stackUntil: (stack: HabitStack) => string | undefined;
 }) {
@@ -667,29 +672,6 @@ function HabitsDragGhost({
 }
 
 const noop = () => {};
-
-/**
- * The whisper of a Hijri date under the large "Today" title — the calendar the app is named
- * for, finally on its main screen. It follows the ISLAMIC day, which begins at sunset: at the
- * real local Maghrib the date quietly turns with the darkening sky (`useSunCycle`'s
- * `displayDateISO` — display only; the tracking day stays midnight-bound). Never uppercased
- * (casing mangles the diacritics), hidden on runtimes without the Islamic calendar, and shown
- * only on the real today — a stepped-back day is a records view with no "now" in it.
- */
-function HijriDateLine({ iso }: { iso: string }) {
-  const parts = hijriParts(iso);
-  if (!parts) return null;
-  const label = `${parts.day} ${parts.monthName} ${parts.year}`;
-  return (
-    <ThemedText
-      type="almanac"
-      themeColor="textSecondary"
-      style={styles.hijriLine}
-      accessibilityLabel={`Hijri date: ${label}`}>
-      {label}
-    </ThemedText>
-  );
-}
 
 /** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
 function DateStepperButtons({
@@ -798,11 +780,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
-  // Sits directly under the collapsing large title, aligned to the banner/list margin — a
-  // subtitle, not a section: no uppercase, no extra weight.
-  hijriLine: { marginHorizontal: Spacing.three, marginTop: Spacing.one, marginBottom: Spacing.one },
-  // A read-only almanac whisper under the Hijri date — same type, tone, and left edge, so
-  // the calendar lines read as one family on one meridian.
+  // A read-only almanac whisper under the title — the tone and left edge the section captions
+  // share, so the strip and the list read on one meridian.
   almanacLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -818,9 +797,13 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  // One deliberate zone break between the almanac strip and the day's checklist — the strip
-  // keeps its tight 4pt beats internally; the sky breathes at this single 16pt step.
-  gridBreath: { paddingTop: Spacing.three },
+  // The zone break between whatever precedes the list and the list's own caption — the widest
+  // step in the 8/16/32 scale, so the sky breathes once here.
+  stacksLabel: { marginTop: Spacing.three },
+  // 8 from the caption to the first card: the same label→card beat the exchanges' section uses,
+  // so both captions sit the same distance above what they name. (The grid's own 4pt
+  // paddingVertical is what this overrides.)
+  gridBreath: { paddingTop: Spacing.two },
   // Only when the list is empty: match the top offset AppScreen gives the Progress empty state
   // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
   // instead of jumping a notch when you switch between them. The populated list keeps its flush top.

@@ -10,8 +10,6 @@ describe('stackHeaderContract', () => {
       const header = stackHeaderContract({ ...base, memberCount: 0, openCount: 0 });
       expect(header.mode).toBe('add');
       expect(header.enabled).toBe(true);
-      // No fold, so no count — and no chevron to put one in.
-      expect(header.count).toBeNull();
       expect(header.checked).toBeUndefined();
       // It only navigates — there is no state to toggle, so it must not announce as a checkbox.
       expect(header.role).toBe('button');
@@ -84,13 +82,13 @@ describe('stackHeaderContract', () => {
       );
     });
 
-    it('explains a lit emblem, with its closing time when the moment publishes one', () => {
+    it('explains the clock, with its closing time when the moment publishes one', () => {
       expect(stackHeaderContract({ ...base, lit: true, until: '9:47 PM' }).label).toBe(
         'Before sleep stack, current time of day until 9:47 PM, 3 acts',
       );
     });
 
-    it('explains a lit emblem without a clock for a moment that has none (the prayers)', () => {
+    it('says the moment is current without a clock for one that has none (the prayers)', () => {
       expect(stackHeaderContract({ ...base, lit: true }).label).toBe(
         'Before sleep stack, current time of day, 3 acts',
       );
@@ -111,18 +109,6 @@ describe('stackHeaderContract', () => {
       const { label } = stackHeaderContract(input);
       expect(label).not.toMatch(/sealed/i);
       expect(label).not.toMatch(/collapsed/i);
-    });
-  });
-
-  describe('count', () => {
-    // What the fold is HIDING — every row it will reveal, excused ones included — not what a
-    // seal would assert. The two differ exactly when an act is excused.
-    it('counts every act the fold hides, not just the ones in play', () => {
-      expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3 }).count).toBe('5');
-    });
-
-    it('stays the row count once sealed', () => {
-      expect(stackHeaderContract({ ...base, sealed: true }).count).toBe('3');
     });
   });
 });

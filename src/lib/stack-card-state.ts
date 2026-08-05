@@ -11,7 +11,7 @@
  * sealed look.
  */
 
-export type StackHeaderMode =
+type StackHeaderMode =
   /** The normal case: the header commits (or un-commits) the group. */
   | 'seal'
   /** Every act excused today — nothing to assert, so the header is inert. */
@@ -31,9 +31,6 @@ export type StackHeaderContract = {
   checked?: boolean;
   label: string;
   hint: string;
-  /** The folded bar's trailing count — how many lines the fold is hiding. Null when the card
-   *  has no fold at all (the empty card), which is also the only card with no chevron. */
-  count: string | null;
 };
 
 function acts(n: number): string {
@@ -54,7 +51,7 @@ export function stackHeaderContract({
   /** The acts actually in play today (excused ones dropped) — what a seal would assert. */
   openCount: number;
   sealed: boolean;
-  /** This stack's moment is current; its emblem is lit. */
+  /** This stack's moment is the current one — the header carries its clock. */
   lit: boolean;
   /** Preformatted closing time of the lit band ("9:47 PM"). Sky moments only. */
   until?: string;
@@ -68,13 +65,12 @@ export function stackHeaderContract({
       // (`draggable={members.length > 0}`), so offering the gesture would be a lie.
       label: `${name} stack, empty`,
       hint: 'Activates to add its first act.',
-      count: null,
     };
   }
 
-  // Why the emblem is lit, said in words. A sealed stack is never lit (the recede outranks the
-  // light), so in practice this clause and a `checked` header don't co-occur — but the contract
-  // simply reports what it's given.
+  // Why this card carries a clock, said in words. A sealed stack never does (the recede outranks
+  // the deadline), so in practice this clause and a `checked` header don't co-occur — but the
+  // contract simply reports what it's given.
   const moment = lit ? `, current time of day${until ? ` until ${until}` : ''}` : '';
 
   if (openCount === 0) {
@@ -85,7 +81,6 @@ export function stackHeaderContract({
       checked: false,
       label: `${name} stack${moment}, ${acts(memberCount)}, every act excused today`,
       hint: 'Hold and drag to reorder it.',
-      count: String(memberCount),
     };
   }
 
@@ -101,6 +96,5 @@ export function stackHeaderContract({
     hint: sealed
       ? 'Re-opens the stack for today. Hold and drag to reorder it.'
       : `Marks all ${acts(openCount)} done for today. Hold and drag to reorder it.`,
-    count: String(memberCount),
   };
 }
