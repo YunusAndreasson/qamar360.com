@@ -56,12 +56,21 @@ describe('exchangeRowContract', () => {
 
   describe('meta', () => {
     it('names what it displaces and the moment it hits', () => {
-      expect(exchangeRowContract(base).meta).toBe('Instead of soft drinks · when I sit down to eat');
+      expect(exchangeRowContract(base).meta).toBe('soft drinks · when I sit down to eat');
     });
 
     it('says less rather than inventing a moment when there is no cue', () => {
-      expect(exchangeRowContract({ ...base, cue: null }).meta).toBe('Instead of soft drinks');
-      expect(exchangeRowContract({ ...base, cue: '' }).meta).toBe('Instead of soft drinks');
+      expect(exchangeRowContract({ ...base, cue: null }).meta).toBe('soft drinks');
+      expect(exchangeRowContract({ ...base, cue: '' }).meta).toBe('soft drinks');
+    });
+
+    // The section this row lives in is captioned INSTEAD OF, so a row that said it again was
+    // restating its own heading — and the three words pushed a plain pairing onto a second line.
+    // The SPOKEN label keeps the phrase (a screen reader has no caption in earshot).
+    it('leaves "instead of" to the section caption, but keeps it in the spoken label', () => {
+      const row = exchangeRowContract(base);
+      expect(row.meta).not.toMatch(/instead of/i);
+      expect(row.label).toContain('instead of soft drinks');
     });
 
     // The row title is the deed alone; the meta carries the rest. If the two overlapped, the

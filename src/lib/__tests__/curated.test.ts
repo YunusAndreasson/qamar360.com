@@ -27,7 +27,7 @@ const PRESETS: SunnahPreset[] = [
 
 const AFTER_FAJR: CuratedStack = {
   id: 'after-fajr',
-  name: 'After Fajr',
+  name: 'Fajr',
   moment: 'fajr',
   blurb: '',
   acts: [{ presetId: 'waking' }, { presetId: 'fajr' }, { presetId: 'ghost-id' }, { presetId: 'adhkar-am' }],
@@ -88,7 +88,7 @@ describe('buildCuratedPlan', () => {
   });
 
   it('matches a same-named existing stack for appending instead of creating a twin', () => {
-    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, names(), [{ id: 's1', name: 'after fajr' }]);
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, names(), [{ id: 's1', name: 'fajr' }]);
     expect(plan!.existingStackId).toBe('s1');
   });
 

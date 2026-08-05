@@ -72,11 +72,13 @@ export function exchangeRowContract({
   /** Excused for the viewed day. Outranks `held`: an excused row can't also be asserting. */
   skipped: boolean;
 }): ExchangeRowContract {
-  // The if-half and the instead-half on one line, in the order they happen: you are in the
-  // situation first, and the old routine is what you are turning away from. A row with no cue
-  // simply says less rather than inventing one — the form requires a cue, but rows created
+  // The displaced routine and the moment it arrives, in that order. **No "Instead of " prefix**
+  // (dropped 2026-08-05): the section caption above the card is literally INSTEAD OF, so every row
+  // was restating its own heading — and the three wasted words pushed a plain pairing onto a
+  // second line. The visible line is a fragment; the spoken one below stays a sentence. A row with
+  // no cue simply says less rather than inventing one — the form requires a cue, but rows created
   // before it did, or edited around it, must still read.
-  const meta = `Instead of ${insteadOf}${cue ? ` · ${cue}` : ''}`;
+  const meta = `${insteadOf}${cue ? ` · ${cue}` : ''}`;
   // Read as one sentence: the deed, then what it replaces, then when. Commas, not the middle
   // dot — a screen reader pauses on a comma and says nothing useful for "·".
   const spoken = `${name}, instead of ${insteadOf}${cue ? `, ${cue}` : ''}`;

@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { CURATED_GROUPS, CURATED_STACKS } from '@/constants/curated-stacks';
 import { SUNNAH_PRESETS } from '@/constants/sunnah-habits';
 import { MOMENTS } from '@/lib/moments';
+import { DAY_PARTS } from '@/lib/sun';
 
 /**
  * The library is hand-authored id lists, so it can only be wrong silently: a typo shrinks a stack
@@ -58,14 +59,16 @@ describe('curated stacks', () => {
     expect(CURATED_STACKS.map((s) => s.id)).toEqual(CURATED_GROUPS.flatMap((g) => g.stacks.map((s) => s.id)));
   });
 
-  // Every stack in the library is an "after": it names the deed it follows, because a stack
-  // anchored to a clock reading ("Evening") or a date ("Friday") has nothing to fire on. This
-  // is the one property of the library a reader can't check by looking — it all renders alike.
-  it('every stack is named for the deed it follows, and anchored to a moment that is one', () => {
+  // Every stack in the library hangs off a DEED — a stack anchored to a clock reading
+  // ("Evening") or a date ("Friday") has nothing to fire on. This is the one property of the
+  // library a reader can't check by looking: it all renders alike.
+  it('every stack is anchored to a deed, never to a bare time of day', () => {
+    const bands = new Set<string>(DAY_PARTS);
     for (const stack of CURATED_STACKS) {
-      expect(stack.name).toMatch(/^After\b/);
-      // …and its anchor is a real deed, not one of the four bare day bands.
-      expect(MOMENTS[stack.moment].stackName).toMatch(/^After\b/);
+      expect(bands.has(stack.moment)).toBe(false);
+      // The name is the occasion itself and must stay prefix-free (2026-08-05): nine of these
+      // opening on "After" put the informative word at a different x on every card.
+      expect(stack.name).not.toMatch(/^After\b/i);
     }
   });
 });

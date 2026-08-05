@@ -10,6 +10,10 @@ import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { exchangeRowContract } from '@/lib/exchange';
 
+// The floated "⋯" button's footprint (glyph + its own padding), reserved by the main region so the
+// two can't drift apart.
+const OPTIONS_BOX = Spacing.two + 18 + Spacing.three;
+
 type Props = {
   habit: Habit;
   /** Held for the viewed day — the deed happened. */
@@ -54,8 +58,10 @@ function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
     row.mode === 'excused' ? theme.textSecondary : row.mode === 'held' ? theme.textDisabled : theme.text;
 
   return (
-    // `stretch` so the tick region and the "⋯" tile the row's full height with no dead strip —
-    // the same three-region construction the stack header uses.
+    // The hold region runs the row's full width and the "⋯" floats over its reserved right edge —
+    // the same construction the stack header uses, and for the same reason: laid out side by side,
+    // the press highlight stopped short of the card's edge and the row looked half-lit under the
+    // finger.
     <View style={styles.row}>
       {/* Gesture-handler's `Touchable`, per the dense-list rule: press feedback is driven
           platform-side, so a tap costs no re-render. No haptic here — the hold's beat is fired
@@ -99,8 +105,9 @@ function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
       </Touchable>
 
       {/* The options affordance, its own tap target and its own a11y button so a screen reader
-          gets it apart from the tick. Reachable even when the row is inert — excusing is the one
-          thing an excused row still needs to undo. */}
+          gets it apart from the tick. Floated over the main region (transparent, so the hold's
+          highlight shows through beneath it) and reachable even when the row is inert — excusing is
+          the one thing an excused row still needs to undo. */}
       <Touchable
         onPress={() => onOptions(habit)}
         androidRipple={{ color: theme.backgroundSelected, borderless: true }}
@@ -116,14 +123,16 @@ function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'stretch' },
+  row: { position: 'relative' },
   // 56 to match the stack cards above it, so the eye keeps one rhythm down the day — though a
   // two-line meta will push past it, which is why this is a floor and not a height.
   main: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: Spacing.three,
+    // The floated "⋯" button's box (glyph + its own padding), reserved so a long deed name stops
+    // where the button begins.
+    paddingRight: OPTIONS_BOX,
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
@@ -132,6 +141,10 @@ const styles = StyleSheet.create({
   // column as the act names and stack titles above it.
   text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },
   options: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: Spacing.two,

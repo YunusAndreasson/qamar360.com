@@ -58,13 +58,21 @@ describe('the moment set', () => {
   });
 
   it('a stack named after a moment reads as the occasion, not the deed', () => {
-    // "Prayed Fajr" is what you anchored to; "After Fajr" is what the card header should say.
+    // "Prayed Fajr" is what you anchored to; "Fajr" is what the card header should say.
     // Only the sky moments (which name no deed) are allowed to reuse one string for both.
     for (const key of Object.keys(MOMENTS) as MomentKey[]) {
       const { label, stackName } = MOMENTS[key];
       if ((DAY_PARTS as readonly string[]).includes(key)) continue;
       expect(stackName).not.toBe(label);
-      expect(stackName).toMatch(/^After\b/);
+    }
+  });
+
+  // 2026-08-05: the defaults dropped their "After " prefix — nine of thirteen started on it, so
+  // a folded day was a column whose first word said nothing. Pinned because the prefix is the
+  // obvious thing to reintroduce when adding a moment.
+  it('no default stack name opens on a preposition', () => {
+    for (const key of Object.keys(MOMENTS) as MomentKey[]) {
+      expect(MOMENTS[key].stackName).not.toMatch(/^(After|Before|At|On|During)\b/i);
     }
   });
 });

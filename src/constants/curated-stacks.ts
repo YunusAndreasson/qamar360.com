@@ -54,7 +54,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
     stacks: [
       {
         id: 'after-waking',
-        name: 'After waking',
+        name: 'Waking up',
         moment: 'waking-up',
         blurb: 'Your eyes open in the same place every day — the most dependable cue you own.',
         acts: [
@@ -66,14 +66,14 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
       },
       {
         id: 'after-rising-at-night',
-        name: 'After rising at night',
+        name: 'Rising at night',
         moment: 'before-dawn',
         blurb: 'Getting up is the hard part, and you have already done it — hang the rest on that.',
         acts: [{ presetId: 'tahajjud' }, { presetId: 'istighfar-100' }, { presetId: 'quran-murajaah' }],
       },
       {
         id: 'after-getting-into-bed',
-        name: 'After getting into bed',
+        name: 'Getting into bed',
         moment: 'bedtime',
         blurb: 'Lying down is the one thing you never skip — so it can carry the rest.',
         acts: [
@@ -92,7 +92,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
     stacks: [
       {
         id: 'after-fajr',
-        name: 'After Fajr',
+        name: 'Fajr',
         moment: 'fajr',
         blurb: 'You are already up and on the mat, and nothing has claimed the day yet.',
         acts: [
@@ -105,7 +105,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
       },
       {
         id: 'after-dhuhr',
-        name: 'After Dhuhr',
+        name: 'Dhuhr',
         moment: 'dhuhr',
         blurb: 'The prayer has already broken the working day open — use the break it made.',
         acts: [
@@ -117,7 +117,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
       },
       {
         id: 'after-asr',
-        name: 'After ʿAṣr',
+        name: 'ʿAṣr',
         moment: 'asr',
         blurb: 'You have just stood up from prayer — the body is already moving, so keep it moving.',
         acts: [
@@ -129,7 +129,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
       },
       {
         id: 'after-maghrib',
-        name: 'After Maghrib',
+        name: 'Maghrib',
         moment: 'maghrib',
         blurb: 'You have just prayed and the household is together — attach what belongs to people.',
         acts: [
@@ -141,7 +141,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
       },
       {
         id: 'after-isha',
-        name: 'After ʿIshāʾ',
+        name: 'ʿIshāʾ',
         moment: 'isha',
         blurb: 'The last prayer already ends your day — let it end it well.',
         acts: [
@@ -159,7 +159,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
     stacks: [
       {
         id: 'after-jumuah',
-        name: 'After Jumuʿah',
+        name: 'Jumuʿah',
         moment: 'jumuah',
         // Anchored to the prayer, not the weekday. "It is Friday" is a fact about the calendar
         // that arrives while you are asleep and never announces itself again; standing up from
@@ -179,7 +179,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
     stacks: [
       {
         id: 'after-waking-body',
-        name: 'After waking, for the body',
+        name: 'Waking up, for the body',
         // Re-anchored off the bare `morning` band: "it became morning" is the one cue in this
         // file that never had a moment you could notice. Every act here already follows getting
         // up, so it hangs on getting up. Shares the anchor with 'after-waking' on purpose —

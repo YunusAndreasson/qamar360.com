@@ -63,7 +63,7 @@ export default function StackRenameScreen() {
         label="NAME"
         value={name}
         onChangeText={setName}
-        placeholder="e.g. After Fajr"
+        placeholder="e.g. Fajr"
         autoCapitalize="sentences"
         accessibilityLabel="Stack name"
         error={isDuplicate ? 'You already have a stack with this name.' : undefined}

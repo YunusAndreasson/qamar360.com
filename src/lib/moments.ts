@@ -33,7 +33,14 @@ export type MomentDef = {
   label: string;
   /**
    * Default name for a stack created on this moment — the occasion as the card header reads it
-   * ("After Fajr"), which is not the same sentence as the deed you anchored to ("Prayed Fajr").
+   * ("Fajr"), which is not the same sentence as the deed you anchored to ("Prayed Fajr").
+   *
+   * **No leading "After"** (dropped 2026-08-05): with nine of thirteen defaults starting on the
+   * same word, a folded day was a column of cards whose first word carried no information and
+   * whose distinguishing word sat at a different x on every row. The relation is not lost — the
+   * stack still *stores* its moment, the picker still files it under PRAYERS / SOMETHING YOU DID,
+   * and "Fajr" as the name of a block of your day is how it is said out loud anyway. Keep new
+   * entries prefix-free; `moments.test.ts` pins it.
    */
   stackName: string;
   /** Emblem in the {@link Icons} registry — the stack's identity glyph. */
@@ -55,26 +62,26 @@ const MOMENT_DEFS = {
   evening: { label: 'Evening', stackName: 'Evening', icon: 'sunset', band: 'evening', until: true },
   night: { label: 'Night', stackName: 'Night', icon: 'moon', band: 'night', until: true },
   // ── Life moments — each one an act with an unmistakable finish ───────────
-  'waking-up': { label: 'Woke up', stackName: 'After waking', icon: 'wake', band: 'morning', until: true },
+  'waking-up': { label: 'Woke up', stackName: 'Waking up', icon: 'wake', band: 'morning', until: true },
   'before-dawn': {
     label: 'Woke in the night',
-    stackName: 'After rising at night',
+    stackName: 'Rising at night',
     icon: 'preDawn',
     band: 'night',
     until: true,
   },
-  bedtime: { label: 'Got into bed', stackName: 'After getting into bed', icon: 'bedtime', band: 'night', until: true },
+  bedtime: { label: 'Got into bed', stackName: 'Getting into bed', icon: 'bedtime', band: 'night', until: true },
   // ── Prayers (sun-position icons — their windows are solar by definition) ─
   // The strongest cues in the app: a prayer has a definite end, happens daily, and is already
   // automatic. The anchor is *having prayed it*, never the hour it falls in.
-  fajr: { label: 'Prayed Fajr', stackName: 'After Fajr', icon: 'fajr', band: 'morning' },
-  dhuhr: { label: 'Prayed Dhuhr', stackName: 'After Dhuhr', icon: 'dhuhr', band: 'midday' },
-  asr: { label: 'Prayed ʿAṣr', stackName: 'After ʿAṣr', icon: 'asr', band: 'midday' },
-  maghrib: { label: 'Prayed Maghrib', stackName: 'After Maghrib', icon: 'maghrib', band: 'evening' },
-  isha: { label: 'Prayed ʿIshāʾ', stackName: 'After ʿIshāʾ', icon: 'isha', band: 'night' },
+  fajr: { label: 'Prayed Fajr', stackName: 'Fajr', icon: 'fajr', band: 'morning' },
+  dhuhr: { label: 'Prayed Dhuhr', stackName: 'Dhuhr', icon: 'dhuhr', band: 'midday' },
+  asr: { label: 'Prayed ʿAṣr', stackName: 'ʿAṣr', icon: 'asr', band: 'midday' },
+  maghrib: { label: 'Prayed Maghrib', stackName: 'Maghrib', icon: 'maghrib', band: 'evening' },
+  isha: { label: 'Prayed ʿIshāʾ', stackName: 'ʿIshāʾ', icon: 'isha', band: 'night' },
   // Anchored to the prayer, not to the weekday: "it became Friday" is a date, "I prayed
   // Jumuʿah" is a deed you can hang something on.
-  jumuah: { label: 'Prayed Jumuʿah', stackName: 'After Jumuʿah', icon: 'jumuah', band: null, friday: true },
+  jumuah: { label: 'Prayed Jumuʿah', stackName: 'Jumuʿah', icon: 'jumuah', band: null, friday: true },
 } satisfies Record<string, MomentDef>;
 
 export type MomentKey = keyof typeof MOMENT_DEFS;
@@ -89,10 +96,14 @@ export const MOMENTS: Record<MomentKey, MomentDef> = MOMENT_DEFS;
  * already automatic), then the other deeds of the day, then the bare times of day last and
  * named for what they are. Leading with "TIME OF DAY", as this list used to, put the one
  * option that cannot remind you of anything at the top of the grid.
+ *
+ * The titles name the *thing*, not the relation ("PRAYERS", not "AFTER A PRAYER"): the relation
+ * is stated once by the picker's own lede, and repeating "after" over every group put the same
+ * word at the head of the screen three times over — the same reason the stack names dropped it.
  */
 export const MOMENT_GROUPS: { key: string; title: string; moments: MomentKey[] }[] = [
-  { key: 'prayers', title: 'AFTER A PRAYER', moments: ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
-  { key: 'life', title: 'AFTER SOMETHING YOU DID', moments: ['waking-up', 'before-dawn', 'bedtime'] },
+  { key: 'prayers', title: 'PRAYERS', moments: ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
+  { key: 'life', title: 'SOMETHING YOU DO', moments: ['waking-up', 'before-dawn', 'bedtime'] },
   { key: 'sky', title: 'JUST A TIME — WEAKEST CUE', moments: ['morning', 'midday', 'evening', 'night'] },
 ];
 

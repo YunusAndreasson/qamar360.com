@@ -24,6 +24,10 @@ import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
 import { stackHeaderContract } from '@/lib/stack-card-state';
 
+// The floated fold button's footprint: its glyph plus its own padding (see `styles.fold`). The
+// header reserves exactly this much on its right so a full-width press region can sit under it.
+const FOLD_BOX = Spacing.four + 18 + Spacing.three;
+
 type Props = {
   stack: HabitStack;
   /** The stack's acts scheduled for the viewed day, in sequence order. */
@@ -259,11 +263,15 @@ function StackCardBase({
             ) : null}
           </Touchable>
 
-          {/* The disclosure — the bar's only other verb. The wide gap before it is this button's
-              paddingLeft rather than the header's paddingRight on purpose: a finger that lands in
-              the ambiguous space folds the card (free) instead of sealing it (writes a row per
-              act). No count beside it: how many lines a fold hides is bookkeeping, and a number on
-              the bar invites reading it as progress — the one mental model the stacks-only rewrite
+          {/* The disclosure — the bar's only other verb — FLOATED over the header's right edge
+              rather than laid out beside it. Side-by-side, the seal's press highlight stopped short
+              of the card's right edge and the bar looked half-lit under the finger; the header is
+              now full-width (with `paddingRight` reserving this button's box, so a long name still
+              can't run under the chevron) and this sits on top of it, transparent, so the highlight
+              reads as one whole row. It keeps its own generous padding, which is what still lets an
+              ambiguous tap near the edge fold the card (free) instead of sealing it (writes a row
+              per act). No count beside it: how many lines a fold hides is bookkeeping, and a number
+              on the bar invites reading it as progress — the mental model the stacks-only rewrite
               dropped. */}
           {collapsible ? (
             <Touchable
@@ -414,6 +422,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: Spacing.three,
+    // The floated fold button's box, reserved so the title and clock stop where it begins. Kept as
+    // one derived constant rather than a literal, so widening the button can't silently start
+    // clipping names.
+    paddingRight: FOLD_BOX,
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
@@ -436,10 +448,16 @@ const styles = StyleSheet.create({
   // The clock reads as part of the name ("Morning, until 09:41"), so it sits one proximity step
   // closer than the fold button beyond it.
   status: { marginLeft: Spacing.two, flexShrink: 0 },
-  // 24 of paddingLeft is a zone break: it separates the bar's two verbs, and it belongs to this
-  // button rather than the header's paddingRight on purpose — a finger that lands in the ambiguous
-  // space folds the card (free) instead of sealing it (writes a row per act).
+  // Floated over the header's reserved right edge (see the render): absolute, full-height, so the
+  // seal's highlight runs the whole bar underneath it. 24 of paddingLeft is still the zone break
+  // between the bar's two verbs — a finger that lands in the ambiguous space folds the card (free)
+  // instead of sealing it (writes a row per act) — and `FOLD_BOX` keeps the header's reserved
+  // padding in step with it, so the two can't drift.
   fold: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: Spacing.four,

@@ -10,10 +10,14 @@ import { MOMENT_GROUPS, MOMENTS, type MomentKey } from '@/lib/moments';
 
 /**
  * The stack editors' moment picker: a uniform grid of icon-over-label cells, one labeled
- * group per row-block (sky, life moments, prayers), so all the choices are visible and
- * column-aligned at once — what you choose IS the emblem the stack's header wears on Today.
- * Always optional: a single selection across all groups; tap the selected cell again to
- * clear (no "None" cell to weigh the grid down).
+ * group per row-block (prayers, other deeds, bare times of day), so all the choices are visible
+ * and column-aligned at once. Always optional: a single selection across all groups; tap the
+ * selected cell again to clear (no "None" cell to weigh the grid down).
+ *
+ * One lede carries the whole relation — the stack runs *after* the deed you pick. It used to be
+ * carried by the group titles ("AFTER A PRAYER"), which meant the screen said "after" three times
+ * and the stack names it prefills said it a fourth; said once here, it is said where the choice is
+ * actually being made.
  */
 export function MomentPicker({
   value,
@@ -25,6 +29,9 @@ export function MomentPicker({
   const theme = useTheme();
   return (
     <>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.lede}>
+        The stack runs right after this.
+      </ThemedText>
       {MOMENT_GROUPS.map((group) => (
         <View key={group.key}>
           <FieldLabel style={styles.label}>{group.title}</FieldLabel>
@@ -74,6 +81,9 @@ export function MomentPicker({
 }
 
 const styles = StyleSheet.create({
+  // Sits above the first group's own marginTop, so the lede belongs to the picker as a whole
+  // rather than to the prayers block under it.
+  lede: { marginTop: Spacing.four },
   label: { marginTop: Spacing.four },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
   // Four uniform columns: fixed basis + a capped grow, so a short last row (3 life moments,

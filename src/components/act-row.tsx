@@ -25,8 +25,8 @@ type Props = {
 /**
  * One act inside a stack: a line you *read*, not a checkbox.
  *
- * The app tracks stacks, not acts — completion belongs to the seal at the foot of the card — so
- * this row carries no ring and no tick target. What it carries is the thing that makes a stack
+ * The app tracks stacks, not acts — completion belongs to the card's header ring — so this row
+ * carries no ring, no tick target, and no done check. What it carries is the thing that makes a stack
  * work: an ordered, memorable sequence. The ordinal is there so the order is legible at a glance
  * and stays learnable ("second comes the page of Qurʾān"); the name is the deed itself; a count
  * goal shows its target as quiet trailing meta, because the target is part of what you're
@@ -79,10 +79,13 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
       {/* The same 32-wide leading slot the header's emblem uses, so the numerals form a clean
           column under it and the act names line up with the stack title. */}
       <View style={styles.leading}>
+        {/* The ordinal, in every state but excused. **A done act shows no check** — the act is not
+            tickable, so a checkmark in the one column a finger would aim at promises a control
+            that does not exist, and the stack's own ring above already says the group is sealed.
+            Done is carried by the greyed name alone. Excused keeps its glyph because that IS a
+            per-act state you can set, from the act's own sheet. */}
         {skipped ? (
           <AppIcon name="skip" size={18} color={theme.textSecondary} />
-        ) : done ? (
-          <AppIcon name="check" size={16} color={theme.textDisabled} />
         ) : (
           <ThemedText type="small" themeColor="textDisabled" style={styles.ordinal}>
             {ordinal}
