@@ -5,31 +5,42 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type LifeProgress, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { MonthDay, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
+export type { LifeProgress, LifeYear, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
 
 /**
- * How far back we pull completions — covers this Hijri year so far. The query
- * returns only rows that exist, so the payload scales with real usage, not the window.
+ * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
+ * card reads (this month, last month, the year's months). The query returns only rows that exist,
+ * so the payload scales with real usage, not the window.
+ *
+ * The Progress *tab* passes no window at all: "This life" is every Hijri year on record, and a
+ * year-long window would silently cut the record off at its edge. All-time is a bounded amount of
+ * data — one row per habit per day actually kept — and the tab fetches it once per focus.
  */
-const WINDOW_DAYS = 370;
+const OVERLAY_WINDOW_DAYS = 370;
 
-/** Pull the raw {@link WINDOW_DAYS}-day window of habits + completions for a user. Shared by the
- *  focus-driven hook and the one-shot {@link loadProgress} (the day-complete celebration fetches
- *  outside the navigator, where `useFocusEffect` can't run). Throws on a query error. */
-async function fetchProgressWindow(userId: string, today: string): Promise<{ habits: Habit[]; completions: CompletionRow[] }> {
-  const since = addDaysISO(today, -(WINDOW_DAYS - 1));
+/** Pull habits + completions for a user, optionally limited to the last `windowDays`. Shared by
+ *  the focus-driven hook (all time) and the one-shot {@link loadProgress} (windowed — the
+ *  day-complete celebration fetches outside the navigator, where `useFocusEffect` can't run).
+ *  Throws on a query error. */
+async function fetchProgressWindow(
+  userId: string,
+  today: string,
+  windowDays?: number,
+): Promise<{ habits: Habit[]; completions: CompletionRow[] }> {
+  const completionsQuery = supabase
+    .from('habit_completions')
+    .select('habit_id, completed_at, status, count')
+    .eq('user_id', userId);
   const [habitsRes, completionsRes] = await Promise.all([
     supabase.from('habits').select('*').eq('user_id', userId).order('position', { ascending: true }),
-    supabase
-      .from('habit_completions')
-      .select('habit_id, completed_at, status, count')
-      .eq('user_id', userId)
-      .gte('completed_at', since),
+    windowDays === undefined
+      ? completionsQuery
+      : completionsQuery.gte('completed_at', addDaysISO(today, -(windowDays - 1))),
   ]);
   if (habitsRes.error) throw habitsRes.error;
   if (completionsRes.error) throw completionsRes.error;
@@ -42,7 +53,7 @@ async function fetchProgressWindow(userId: string, today: string): Promise<{ hab
  *  overlaid via {@link withDoneToday} so the overlay's degrees don't undercount ticks that haven't
  *  yet reached the server, and so match the Progress tab. */
 export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<ProgressDerived> {
-  const { habits, completions } = await fetchProgressWindow(userId, today);
+  const { habits, completions } = await fetchProgressWindow(userId, today, OVERLAY_WINDOW_DAYS);
   return computeProgress(habits, withDoneToday(completions, doneToday, today), today);
 }
 
@@ -58,15 +69,17 @@ type ProgressData = {
   month: MonthProgress | null;
   /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
   year: YearProgress | null;
+  /** Every Hijri year on record — the "This life" card, or `null` before there is any record. */
+  life: LifeProgress | null;
   /** The rising-months statement for the year card, or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
 };
 
 /**
- * Read-only view of the user's recent habit history. Independent of
- * `HabitsProvider` (which lives only on the Habits tab and loads today alone):
- * this pulls a {@link WINDOW_DAYS}-day window and refetches whenever the Progress
- * tab regains focus, so ticks made elsewhere show up on return.
+ * Read-only view of the user's whole habit history. Independent of `HabitsProvider` (which lives
+ * only on the Habits tab and loads today alone): this pulls every completion on record — "This
+ * life" is measured in Hijri years, so a window would cut the record off — and refetches whenever
+ * the Progress tab regains focus, so ticks made elsewhere show up on return.
  */
 export function useProgress(): ProgressData {
   const { user } = useAuth();

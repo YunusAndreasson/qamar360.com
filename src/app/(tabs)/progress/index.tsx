@@ -3,7 +3,7 @@ import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
-import { MonthMoons } from '@/components/month-moons';
+import { LifeYears } from '@/components/life-years';
 import { MonthSummary } from '@/components/month-summary';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
@@ -12,7 +12,7 @@ import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, year, trend } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, year, life, trend } = useProgress();
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -74,11 +74,14 @@ export default function ProgressScreen() {
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
+      {/* Three scales, each one zoomed out from the last: the month you are in, the year it sits
+          in, and every year on record. (The day-by-day moon grid used to sit between the first two;
+          the hero already carries this month's figure, and the grid restated it a day at a time.) */}
       <MonthSummary month={month} />
 
-      <MonthMoons month={month} />
-
       <YearTrend year={year} trend={trend} />
+
+      <LifeYears life={life} />
     </AppScreen>
   );
 }

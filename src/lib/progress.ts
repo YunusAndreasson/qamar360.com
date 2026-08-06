@@ -10,6 +10,7 @@
 import type { Tables } from '@/lib/database.types';
 import {
   addDaysISO,
+  createdDayISO,
   hijriMonthRange,
   hijriParts,
   hijriYearStart,
@@ -139,16 +140,6 @@ export type ProgressHabit = {
 /** The completion-row fields the progress math reads. */
 export type CompletionRow = Pick<Tables<'habit_completions'>, 'habit_id' | 'completed_at' | 'status' | 'count'>;
 
-/** One day of the current Hijri month, for the "This month" bars. */
-export type MonthDay = {
-  /** Day of the Hijri month, 1-based. */
-  day: number;
-  /** completed / possible for that day, 0–1; 0 when nothing was scheduled. */
-  fraction: number;
-  /** 'past' = before today, 'today' = today, 'future' = not yet reached. */
-  state: 'past' | 'today' | 'future';
-};
-
 /**
  * This Hijri month: its date (for the moon hero's lunar phase), its completion so far (the
  * overall %), and its day-by-day shape (the bars). `null` when the platform's `Intl` lacks
@@ -178,8 +169,6 @@ export type MonthProgress = {
   previousRate: number;
   /** Whether last month was tracked at all (false → the user's first month; hide the pace tick). */
   hasPrevious: boolean;
-  /** Every day of the month, 1 → last — the per-day bars (future days empty). */
-  days: MonthDay[];
 };
 
 /** One Hijri month of the current year, for the "This year" bars. */
@@ -205,6 +194,30 @@ export type YearProgress = {
   months: YearMonth[];
 };
 
+/** One Hijri year of a life — the unit of the "This life" card. */
+export type LifeYear = {
+  /** Hijri year, e.g. 1447. */
+  year: number;
+  /** Completion rate, 0–1: done ÷ scheduled across the whole year (to date, for the current one). */
+  fraction: number;
+  /** 'past' = fully elapsed, 'current' = contains today. */
+  state: 'past' | 'current';
+};
+
+/**
+ * Every Hijri year the user has kept anything at all — the long view, from the first year with
+ * something scheduled in it to the one running now. `null` when the Islamic calendar is
+ * unavailable; `years` is never empty when it isn't (a user with no history at all yields `null`).
+ */
+export type LifeProgress = {
+  /** Oldest year first, ending with the current one. */
+  years: LifeYear[];
+  /** The Hijri month the record opens in, e.g. "Rajab" — where the whole thing began. */
+  sinceMonthName: string;
+  /** The Hijri year the record opens in. */
+  sinceYear: number;
+};
+
 /**
  * The improvement trend, read off COMPLETE Hijri months only: how many consecutive closed
  * months (ending with the most recent one) rose strictly, whole-month rate over whole-month
@@ -227,6 +240,8 @@ export type ProgressDerived = {
   month: MonthProgress | null;
   /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
   year: YearProgress | null;
+  /** Every Hijri year on record — the "This life" card, or `null` if there is no record yet. */
+  life: LifeProgress | null;
   /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
 };
@@ -290,20 +305,6 @@ export function computeProgress(
   // {@link creditFor}): `null` = excused (drop from numerator AND denominator); otherwise 0–1.
   const habitCredit = (h: ProgressHabit, iso: string): number | null => creditFor(h, rowByDate.get(iso)?.get(h.id));
 
-  // A day's completion fraction (credit ÷ scheduled, minus excused), for the per-day month bars.
-  const dayFraction = (iso: string): number => {
-    let c = 0;
-    let p = 0;
-    for (const h of habits) {
-      if (!scheduledOn(h, iso)) continue;
-      const credit = habitCredit(h, iso);
-      if (credit === null) continue; // excused — out of the rate entirely
-      p += 1;
-      c += credit;
-    }
-    return p ? c / p : 0;
-  };
-
   // This Hijri month vs last, as a completion *rate* (done / scheduled). A rate
   // normalises across changing habit counts and month lengths, so 100% always
   // means a perfect month regardless of how many acts that is.
@@ -350,12 +351,6 @@ export function computeProgress(
       : null;
     const previousThrough = previousRange && previousLimit ? tallyRange(previousRange.start, previousLimit) : { done: 0, possible: 0 };
     const previousWhole = previousRange ? tallyRange(previousRange.start, previousRange.end) : { done: 0, possible: 0 };
-    const days: MonthDay[] = [];
-    for (let i = 0; i < thisRange.length; i += 1) {
-      const iso = addDaysISO(thisRange.start, i);
-      const state: MonthDay['state'] = iso < today ? 'past' : iso === today ? 'today' : 'future';
-      days.push({ day: i + 1, fraction: state === 'future' ? 0 : dayFraction(iso), state });
-    }
     month = {
       monthName: thisRange.monthName,
       year: thisRange.year,
@@ -366,7 +361,6 @@ export function computeProgress(
       previousMonthName: previousRange?.monthName ?? '',
       previousRate: previousWhole.possible > 0 ? previousThrough.done / previousWhole.possible : 0,
       hasPrevious: previousWhole.possible > 0,
-      days,
     };
   }
 
@@ -406,6 +400,54 @@ export function computeProgress(
     if (months.length === 12) year = { year: yearStart.year, months };
   }
 
+  // Every Hijri year on record — the long view. Walk BACK from this year, one Hijri year at a
+  // time, taking each year's whole-year rate, and stop at the first year with nothing scheduled in
+  // it: that is where the record begins (habits carry `created_at`, so `scheduledOn` is already
+  // false before a habit existed). The current year is measured like the current month on the year
+  // strip — done-to-date over the WHOLE year's possible — so it fills gradually instead of
+  // snapping full in Muḥarram.
+  //
+  // Bounded at 120 years, which is a guard against a corrupt date rather than a real limit.
+  let life: LifeProgress | null = null;
+  const currentYear = hijriYearStart(today);
+  if (currentYear) {
+    const years: LifeYear[] = [];
+    let cursor: string | null = currentYear.start;
+    for (let back = 0; cursor && back < 120; back += 1) {
+      const yearStartISO: string = cursor;
+      const startParts = hijriParts(yearStartISO);
+      if (!startParts) break;
+      // The last day of this Hijri year = the day before the next year's 1 Muḥarram. For the
+      // current year that lies in the future, which is exactly what the denominator wants.
+      const nextStart = hijriYearStart(addDaysISO(yearStartISO, 400))?.start;
+      const yearEnd = nextStart ? addDaysISO(nextStart, -1) : today;
+      const whole = tallyRange(yearStartISO, yearEnd);
+      if (whole.possible === 0) break; // before anything was ever scheduled — the record starts after this
+      const isCurrent = yearStartISO <= today && today <= yearEnd;
+      const done = isCurrent ? tallyRange(yearStartISO, today).done : whole.done;
+      years.push({
+        year: startParts.year,
+        fraction: whole.possible ? done / whole.possible : 0,
+        state: isCurrent ? 'current' : 'past',
+      });
+      cursor = hijriYearStart(addDaysISO(yearStartISO, -1))?.start ?? null;
+    }
+    // Where the record opens: the oldest habit's own first day. Read off `created_at` rather than
+    // by hunting for the first scheduled day — that hunt would be another day-by-day sweep, and
+    // the two answers differ by at most the few days between creating a habit and its first
+    // scheduled one.
+    const opened = habits.reduce<string | null>((oldest, h) => {
+      if (!h.created_at) return oldest; // an optimistic row not yet persisted — it has no history
+      const day = createdDayISO(h.created_at);
+      return oldest === null || day < oldest ? day : oldest;
+    }, null);
+    const openRange = opened ? hijriMonthRange(opened) : null;
+    if (years.length > 0 && openRange) {
+      years.reverse(); // oldest first — a life reads forward
+      life = { years, sinceMonthName: openRange.monthName, sinceYear: openRange.year };
+    }
+  }
+
   // The improvement trend: walk BACK from this month across closed months (crossing the Hijri
   // year boundary — the year strip above can't power this, it restarts every Muḥarram), collecting
   // each one's whole-month rate until the first month with nothing scheduled (before tracking
@@ -432,5 +474,5 @@ export function computeProgress(
         : { risingMonths: 0, sinceMonthName: null };
   }
 
-  return { habitsCount: habits.length, month, year, trend };
+  return { habitsCount: habits.length, month, year, life, trend };
 }

@@ -264,9 +264,10 @@ type Schedulable = { created_at: string | null; schedule_days: number[]; hijri_s
 
 /** created_at timestamp → its local `YYYY-MM-DD`, cached: {@link scheduledOn} runs per
  *  habit × day across whole-year sweeps, and each miss re-parses the same timestamp into a
- *  `Date`. Bounded by the number of distinct habits, so no cap needed. */
+ *  `Date`. Bounded by the number of distinct habits, so no cap needed. Exported for the lifetime
+ *  view, which dates the start of the record by the oldest habit's first day. */
 const createdDayCache = new Map<string, string>();
-function createdDayISO(createdAt: string): string {
+export function createdDayISO(createdAt: string): string {
   let day = createdDayCache.get(createdAt);
   if (day === undefined) {
     day = todayLocalISO(new Date(createdAt));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
+import { addDaysISO, createdDayISO, hijriMonthRange, hijriParts, hijriYearStart, scheduledOn } from '@/lib/dates';
 import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
 
 describe('clamp01', () => {
@@ -150,6 +150,19 @@ const dailyHabit = (id: string): ProgressHabit => ({
   hijri_schedule: null,
 });
 
+/**
+ * A habit scheduled on ONE Hijri day of the month. With only these in play, the month's whole
+ * possible is exactly the habits due on that day — so `thisRate` reads back that single day's
+ * fraction, which is how the day-level completion rule is asserted now that the per-day grid is
+ * gone from both the screen and the math.
+ */
+const oneDayHabit = (id: string, monthDay: number): ProgressHabit => ({
+  id,
+  created_at: null,
+  schedule_days: [],
+  hijri_schedule: { monthDays: [monthDay] },
+});
+
 /** A White-Days habit (13th–15th of every Hijri month) — exercises the Hijri-schedule path. */
 const whiteDaysHabit = (id: string): ProgressHabit => ({
   id,
@@ -210,7 +223,7 @@ describe('computeProgress', () => {
     expect(hijriMonthRange('2026-06-15')).not.toBeNull();
   });
 
-  describe("a day's cell = done ÷ scheduled, with excused acts removed", () => {
+  describe("a day's completion = done ÷ scheduled, with excused acts removed", () => {
     // A mid-month "today" so 'past'/'today' states are unambiguous.
     const start = monthShape('2026-06-15').start;
     const today = addDaysISO(start, 5); // 6th of the Hijri month
@@ -229,13 +242,12 @@ describe('computeProgress', () => {
     ])(
       '$total acts, $doneCount done, $skipCount excused → fraction $expected',
       ({ total, doneCount, skipCount, expected }) => {
-        const habits = Array.from({ length: total }, (_, i) => dailyHabit(`h${i}`));
+        const habits = Array.from({ length: total }, (_, i) => oneDayHabit(`h${i}`, dom));
         const comps: CompletionRow[] = [];
         for (let i = 0; i < doneCount; i += 1) comps.push(done(`h${i}`, today));
         for (let i = 0; i < skipCount; i += 1) comps.push(skip(`h${doneCount + i}`, today));
-        const cell = computeProgress(habits, comps, today).month!.days[dom - 1]!;
-        expect(cell.state).toBe('today');
-        expect(cell.fraction).toBeCloseTo(expected, 10);
+        // Everything is due on this one day, so the month's rate IS the day's fraction.
+        expect(computeProgress(habits, comps, today).month!.thisRate).toBeCloseTo(expected, 10);
       },
     );
   });
@@ -245,15 +257,12 @@ describe('computeProgress', () => {
     const today = addDaysISO(start, 5); // day 6
     const yesterday = addDaysISO(today, -1); // day 5
 
-    it('a completion dated yesterday fills yesterday\'s cell, leaving today empty', () => {
-      const { month } = computeProgress([dailyHabit('a')], [done('a', yesterday)], today);
-      const yDay = monthShape(yesterday).dayOfMonth;
-      const yCell = month!.days[yDay - 1]!;
-      const tCell = month!.days[monthShape(today).dayOfMonth - 1]!;
-      expect(yCell.state).toBe('past');
-      expect(yCell.fraction).toBe(1);
-      expect(tCell.state).toBe('today');
-      expect(tCell.fraction).toBe(0);
+    it('a completion is credited to the day it is dated, not to today', () => {
+      // Due on yesterday's Hijri day alone: a row dated yesterday closes the month, and the same
+      // row dated today closes nothing — the two halves of "backfill lands where you put it".
+      const habit = oneDayHabit('a', monthShape(yesterday).dayOfMonth);
+      expect(computeProgress([habit], [done('a', yesterday)], today).month!.thisRate).toBe(1);
+      expect(computeProgress([habit], [done('a', today)], today).month!.thisRate).toBe(0);
     });
   });
 
@@ -324,16 +333,8 @@ describe('computeProgress — invariants across a year of months', () => {
 
     const m = computeProgress(habits, completions, today).month!;
 
-    // Shape: one cell per real day; Hijri months are only ever 29 or 30 days.
-    expect(m.days).toHaveLength(length);
+    // Shape: Hijri months are only ever 29 or 30 days.
     expect([29, 30]).toContain(length);
-
-    // Every per-day cell is a valid fraction; future cells are always empty.
-    for (const cell of m.days) {
-      expect(cell.fraction).toBeGreaterThanOrEqual(0);
-      expect(cell.fraction).toBeLessThanOrEqual(1);
-      if (cell.state === 'future') expect(cell.fraction).toBe(0);
-    }
 
     // The whole-month rate is a valid fraction…
     expect(m.thisRate).toBeGreaterThanOrEqual(0);
@@ -360,15 +361,100 @@ describe('computeProgress — Hijri-scheduled (White Days) acts count only on th
     const comps = [13, 14, 15].map((d) => done('w', addDaysISO(start, d - 1)));
     const m = computeProgress([whiteDaysHabit('w')], comps, today).month!;
     expect(m.thisRate).toBe(1); // 3 of 3 — a non-daily habit still reaches a full orbit when complete
-    expect(m.days[12]!.fraction).toBe(1); // the 13th closed
-    expect(m.days[0]!.fraction).toBe(0); // the 1st has no scheduled act → empty cell
+  });
+
+  it('a day with no scheduled act contributes nothing either way', () => {
+    // Done on the 1st, where the White-Days habit isn't due: the rate stays at zero, so an
+    // unscheduled day can neither earn credit nor dilute it.
+    const m = computeProgress([whiteDaysHabit('w')], [done('w', start)], today).month!;
+    expect(m.thisRate).toBe(0);
   });
 
   it('only the 13th done → whole-month rate is 1/3', () => {
     const m = computeProgress([whiteDaysHabit('w')], [done('w', addDaysISO(start, 12))], today).month!;
-    expect(m.thisRate).toBeCloseTo(1 / 3, 10);
-    expect(m.days[12]!.fraction).toBe(1); // 13th done
-    expect(m.days[13]!.fraction).toBe(0); // 14th scheduled but not done
+    expect(m.thisRate).toBeCloseTo(1 / 3, 10); // the other two White Days are scheduled but unmet
+  });
+});
+
+// ── This life: every Hijri year on record ────────────────────────────────────────────────────
+describe('computeProgress — the lifetime years', () => {
+  // A habit that has existed since early 2024 — a couple of Hijri years before "today".
+  const bornEarly2024 = (id: string): ProgressHabit => ({ ...dailyHabit(id), created_at: '2024-01-05T09:00:00Z' });
+  const today = '2026-06-15';
+
+  it('runs from the year the record opens to the year running now, oldest first', () => {
+    const { life } = computeProgress([bornEarly2024('a')], [], today);
+    const years = life!.years.map((y) => y.year);
+    expect(years.length).toBeGreaterThanOrEqual(2);
+    // Ascending, contiguous — a life has no gaps in it, even years nothing was kept in.
+    expect([...years].sort((x, z) => x - z)).toEqual(years);
+    for (let i = 1; i < years.length; i += 1) expect(years[i]).toBe(years[i - 1]! + 1);
+    expect(years[years.length - 1]).toBe(hijriYearStart(today)!.year);
+  });
+
+  it('marks exactly one year as the one running now — the last', () => {
+    const { life } = computeProgress([bornEarly2024('a')], [], today);
+    const current = life!.years.filter((y) => y.state === 'current');
+    expect(current).toHaveLength(1);
+    expect(current[0]!.year).toBe(life!.years[life!.years.length - 1]!.year);
+  });
+
+  it('stops at the year before anything was ever scheduled', () => {
+    const { life } = computeProgress([bornEarly2024('a')], [], today);
+    const opening = hijriParts(createdDayISO('2024-01-05T09:00:00Z'))!.year;
+    expect(life!.years[0]!.year).toBe(opening);
+  });
+
+  it('a closed year kept in full reads as a complete orbit', () => {
+    const habit = bornEarly2024('a');
+    // Fill every scheduled day of the year BEFORE the current one.
+    const currentStart = hijriYearStart(today)!.start;
+    const prevStart = hijriYearStart(addDaysISO(currentStart, -1))!.start;
+    const prevEnd = addDaysISO(currentStart, -1);
+    const comps: CompletionRow[] = [];
+    for (let d = prevStart; d <= prevEnd; d = addDaysISO(d, 1)) if (scheduledOn(habit, d)) comps.push(done('a', d));
+
+    const { life } = computeProgress([habit], comps, today);
+    const prevYear = hijriParts(prevStart)!.year;
+    expect(life!.years.find((y) => y.year === prevYear)!.fraction).toBe(1);
+  });
+
+  // The same rule the month ring and the year strip follow: the period in progress is measured
+  // against its WHOLE possible, so it fills gradually instead of snapping full on day one.
+  it('measures the running year against the whole year, so a perfect start is not a full orbit', () => {
+    // A "today" ~100 days into its Hijri year (a year runs ~354), so most of it is still ahead —
+    // `today` above sits at the very end of 1447, where perfect-so-far correctly IS a full orbit.
+    const yearStart = hijriYearStart(today)!.start;
+    const midYear = addDaysISO(yearStart, 100);
+    const habit = bornEarly2024('a');
+    const comps: CompletionRow[] = [];
+    for (let d = yearStart; d <= midYear; d = addDaysISO(d, 1)) if (scheduledOn(habit, d)) comps.push(done('a', d));
+
+    const { life } = computeProgress([habit], comps, midYear);
+    const current = life!.years.find((y) => y.state === 'current')!;
+    expect(current.fraction).toBeGreaterThan(0);
+    expect(current.fraction).toBeLessThan(1);
+  });
+
+  it('dates the record from the oldest habit', () => {
+    const older = { ...dailyHabit('old'), created_at: '2024-01-05T09:00:00Z' };
+    const newer = { ...dailyHabit('new'), created_at: '2026-01-05T09:00:00Z' };
+    const { life } = computeProgress([newer, older], [], today);
+    const opened = hijriMonthRange(createdDayISO('2024-01-05T09:00:00Z'))!;
+    expect(life!.sinceMonthName).toBe(opened.monthName);
+    expect(life!.sinceYear).toBe(opened.year);
+  });
+
+  it('has no life to show before there are any habits', () => {
+    expect(computeProgress([], [], today).life).toBeNull();
+  });
+
+  it('every year is a valid fraction', () => {
+    const { life } = computeProgress([bornEarly2024('a'), whiteDaysHabit('w')], [], today);
+    for (const y of life!.years) {
+      expect(y.fraction).toBeGreaterThanOrEqual(0);
+      expect(y.fraction).toBeLessThanOrEqual(1);
+    }
   });
 });
 
@@ -394,29 +480,34 @@ describe('computeProgress — count goals earn partial credit', () => {
   const today = addDaysISO(start, 5); // day 6, mid-month → an unambiguous 'today' cell
   const dom = monthShape(today).dayOfMonth;
 
-  const cellToday = (habits: ProgressHabit[], comps: CompletionRow[]) =>
-    computeProgress(habits, comps, today).month!.days[dom - 1]!;
+  /** A count goal due on today's Hijri day alone, so the month's rate is that day's credit. */
+  const countToday = (target: number) => ({ ...countHabit('c', target), schedule_days: [], hijri_schedule: { monthDays: [dom] } });
+  const rateToday = (habits: ProgressHabit[], comps: CompletionRow[]) =>
+    computeProgress(habits, comps, today).month!.thisRate;
 
-  it("a partial count (3 of 5) fills 3/5 of that day's cell", () => {
-    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 3, 'partial')]).fraction).toBeCloseTo(3 / 5, 10);
+  it("a partial count (3 of 5) earns 3/5 of that day's credit", () => {
+    expect(rateToday([countToday(5)], [countRow('c', today, 3, 'partial')])).toBeCloseTo(3 / 5, 10);
   });
 
-  it('reaching the target closes the cell (1)', () => {
-    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 5, 'done')]).fraction).toBe(1);
+  it('reaching the target earns full credit (1)', () => {
+    expect(rateToday([countToday(5)], [countRow('c', today, 5, 'done')])).toBe(1);
   });
 
-  it('no row → an empty cell (0)', () => {
-    expect(cellToday([countHabit('c', 5)], []).fraction).toBe(0);
+  it('no row → no credit (0)', () => {
+    expect(rateToday([countToday(5)], [])).toBe(0);
   });
 
   it('a count beyond the target never exceeds full credit', () => {
-    expect(cellToday([countHabit('c', 5)], [countRow('c', today, 99, 'done')]).fraction).toBe(1);
+    expect(rateToday([countToday(5)], [countRow('c', today, 99, 'done')])).toBe(1);
   });
 
   it("mixes with a binary habit as the average of the two acts' credit", () => {
-    // binary done (credit 1) + count goal 1 of 4 (credit 0.25) → cell = (1 + 0.25) / 2.
-    const cell = cellToday([dailyHabit('b'), countHabit('c', 4)], [done('b', today), countRow('c', today, 1, 'partial')]);
-    expect(cell.fraction).toBeCloseTo((1 + 0.25) / 2, 10);
+    // binary done (credit 1) + count goal 1 of 4 (credit 0.25) → the day = (1 + 0.25) / 2.
+    const rate = rateToday(
+      [oneDayHabit('b', dom), countToday(4)],
+      [done('b', today), countRow('c', today, 1, 'partial')],
+    );
+    expect(rate).toBeCloseTo((1 + 0.25) / 2, 10);
   });
 
   it('a partial count feeds the whole-month ring proportionally', () => {
@@ -428,9 +519,9 @@ describe('computeProgress — count goals earn partial credit', () => {
   });
 
   it('a skipped count goal leaves the rate entirely (excused, like a binary skip)', () => {
-    // Skip the count goal on a 2-habit day → the day reads off the other (done) habit only.
-    const cell = cellToday([dailyHabit('b'), countHabit('c', 4)], [done('b', today), skip('c', today)]);
-    expect(cell.fraction).toBe(1); // 'c' excused → 1 of 1 remaining
+    // Skip the count goal on a 2-act day → the day reads off the other (done) act only.
+    const rate = rateToday([oneDayHabit('b', dom), countToday(4)], [done('b', today), skip('c', today)]);
+    expect(rate).toBe(1); // 'c' excused → 1 of 1 remaining
   });
 });
 

@@ -15,7 +15,6 @@ function month(over: Partial<MonthProgress> = {}): MonthProgress {
     previousMonthName: 'Dhū al-Ḥijjah',
     previousRate: 0.4,
     hasPrevious: true,
-    days: [],
     ...over,
   };
 }
