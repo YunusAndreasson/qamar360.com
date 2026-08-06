@@ -13,6 +13,8 @@ import type { Task } from '@/lib/tasks';
 type Props = {
   /** The viewed day's tasks, open ones first (`lib/tasks.visibleTasks`). */
   tasks: Task[];
+  /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
+  topGap: number;
   /** The real today, so a task carried forward can say where it came from. */
   today: string;
   /** Whether the viewed day is today — a past day is a record, not somewhere to write. */
@@ -42,6 +44,7 @@ type Props = {
  */
 export function TaskSection({
   tasks,
+  topGap,
   today,
   isToday,
   composeRequested,
@@ -111,7 +114,7 @@ export function TaskSection({
   }
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { paddingTop: topGap }]}>
       <SectionLabel>TO DO</SectionLabel>
       <Surface>
         {tasks.map((task, i) => (
@@ -145,6 +148,9 @@ export function TaskSection({
 const styles = StyleSheet.create({
   // The same 16pt horizontal inset `DragGrid` gives the stack cards — this section sits outside
   // the drag layer (a task has no slot in the day's order to be dragged into), so it reproduces
-  // the alignment rather than inheriting it, exactly as the exchanges' section does.
-  section: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
+  // the alignment rather than inheriting it, exactly as the exchanges' section does. The caption's
+  // own 16 then lands it 32 in from the screen edge, the indent every section caption in the app
+  // keeps. Top space comes from the screen (`topGap`), which is the only place that knows what
+  // this section follows.
+  section: { gap: Spacing.two, paddingHorizontal: Spacing.three },
 });

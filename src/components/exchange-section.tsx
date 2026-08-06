@@ -10,6 +10,8 @@ import type { Habit } from '@/hooks/use-habits';
 type Props = {
   /** The day's exchanges, in position order. */
   exchanges: Habit[];
+  /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
+  topGap: number;
   completed: Set<string>;
   skipped: Set<string>;
   onToggle: (habit: Habit) => void;
@@ -29,11 +31,11 @@ type Props = {
  * make three small commitments look like three more stacks. Nothing renders at all when there are
  * none — the section is not an empty state waiting to be filled, and the way in is the "+" menu.
  */
-export function ExchangeSection({ exchanges, completed, skipped, onToggle, onOptions }: Props) {
+export function ExchangeSection({ exchanges, topGap, completed, skipped, onToggle, onOptions }: Props) {
   if (exchanges.length === 0) return null;
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { paddingTop: topGap }]}>
       <SectionLabel>INSTEAD OF</SectionLabel>
       <Surface>
         {exchanges.map((habit, i) => (
@@ -56,10 +58,7 @@ export function ExchangeSection({ exchanges, completed, skipped, onToggle, onOpt
 const styles = StyleSheet.create({
   // The same 16pt horizontal inset `DragGrid` gives the stack cards — this section sits outside
   // the drag layer, so it has to reproduce the alignment rather than inherit it, or the card edges
-  // would step in and out down the day.
-  //
-  // 32 above it: the widest step in the app's 8/16/32 whitespace scale, because this is a bigger
-  // break than the 16pt one between the almanac and the list. What follows is not another card in
-  // the same sequence but a different unit of tracking, with its own caption.
-  section: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.five },
+  // would step in and out down the day. Top space comes from the screen (`topGap`): the break
+  // between two units is one number, and only the screen knows what this section follows.
+  section: { gap: Spacing.two, paddingHorizontal: Spacing.three },
 });

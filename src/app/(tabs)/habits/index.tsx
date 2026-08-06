@@ -53,6 +53,18 @@ import type { Task } from '@/lib/tasks';
 // (card gap 8 → zone break 16 → closing exhale 32).
 const LIST_BOTTOM_INSET = BottomTabInset + Spacing.five;
 
+// The day's vertical rhythm, in two numbers — every section caption takes one of them, so no
+// section can drift from its neighbours.
+//
+//   LEAD  — the first section under the header. It follows the title (and, once, the anchoring
+//           card), not another unit, so it takes the middle step.
+//   BREAK — between two sections. The widest step in the 8/16/32 scale, because what follows is
+//           not another card in the same sequence but a different unit of tracking, with its own
+//           caption. (INSTEAD OF already claimed this; TO DO and STACKS were on 8 and 16, which is
+//           what made the day read as three loosely-related lists rather than one.)
+const SECTION_LEAD = Spacing.three;
+const SECTION_BREAK = Spacing.five;
+
 function viewDateTitle(viewDate: string, today: string): string {
   if (viewDate === today) return 'Today';
   if (viewDate === addDaysISO(today, -1)) return 'Yesterday';
@@ -539,6 +551,7 @@ export default function HabitsScreen() {
               until there is a list — the way in is the header "+". */}
           <TaskSection
             tasks={tasks}
+            topGap={SECTION_LEAD}
             today={today}
             isToday={isToday}
             composeRequested={compose === 'task'}
@@ -565,7 +578,10 @@ export default function HabitsScreen() {
                   below them. Before the label the section stood unnamed while "INSTEAD OF" named
                   the one beneath it — which read as if the list were the day and the exchanges an
                   appendix to it. */}
-              <SectionLabel style={styles.stacksLabel}>STACKS</SectionLabel>
+              <SectionLabel
+                style={[styles.stacksLabel, { paddingTop: tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD }]}>
+                STACKS
+              </SectionLabel>
               <HabitDragProvider
                 scrollRef={scrollRef}
                 order={orderMeta}
@@ -635,6 +651,8 @@ export default function HabitsScreen() {
               order to be dragged into, so it is not a unit the grid knows about. */}
           <ExchangeSection
             exchanges={exchanges}
+            // A break when something precedes it, the lead when the day is exchanges only.
+            topGap={entries.length > 0 || tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD}
             completed={completed}
             skipped={skipped}
             onToggle={toggleHeld}
@@ -840,9 +858,12 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  // The zone break between whatever precedes the list and the list's own caption — the widest
-  // step in the 8/16/32 scale, so the sky breathes once here.
-  stacksLabel: { marginTop: Spacing.three },
+  // The one caption that isn't inside a 16pt-inset section of its own — the stacks live in the
+  // drag grid, which insets its cards itself. Without this padding the caption hung 16 in from the
+  // screen edge while TO DO and INSTEAD OF hung 32, so the three captions stepped in and out down
+  // the day. (Its own `marginLeft: 16` from SectionLabel plus this 16 = the 32 every caption in
+  // the app keeps from the card edge.) The top space is set inline, from the day's two constants.
+  stacksLabel: { paddingHorizontal: Spacing.three },
   // 8 from the caption to the first card: the same label→card beat the exchanges' section uses,
   // so both captions sit the same distance above what they name. (The grid's own 4pt
   // paddingVertical is what this overrides.)
