@@ -79,7 +79,7 @@ export default function AddToStackScreen() {
     // No router.back() on confirm: deleting drops the habit from state, which makes the `stale`
     // effect below close the sheet. Doing both fires GO_BACK twice.
     confirmDestructive({
-      title: 'Delete habit',
+      title: 'Delete act',
       message: `Delete “${habit.name}”? Its history goes with it.`,
       onConfirm: () => {
         haptics.removed();
@@ -122,7 +122,7 @@ export default function AddToStackScreen() {
         {orphan ? (
           <>
             <RowSeparator />
-            <SheetRow icon="delete" label="Delete habit" danger onPress={confirmDelete} />
+            <SheetRow icon="delete" label="Delete act" danger onPress={confirmDelete} />
           </>
         ) : null}
       </Surface>

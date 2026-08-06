@@ -103,8 +103,8 @@ export default function StackLibraryScreen() {
         <Surface>
           <SettingsRow
             icon="stack"
-            label="Build your own stack"
-            sublabel="Name it, anchor it, add your acts"
+            label="Your own stack"
+            sublabel="Name it, anchor it to a moment, then add your acts"
             onPress={() => router.replace('/habits/stack-new')}
           />
           <RowSeparator />

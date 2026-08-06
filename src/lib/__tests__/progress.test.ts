@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
+import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -90,6 +90,50 @@ describe('sealableActs', () => {
 
   it('is empty for a stack with nothing due — the card has nothing to seal', () => {
     expect(sealableActs(acts, set(), 'no-such-stack', '2026-07-25')).toEqual([]);
+  });
+});
+
+describe('openUnitsOn', () => {
+  const set = (...ids: string[]) => new Set(ids);
+  const DAY = '2026-07-25'; // a Saturday
+  const act = (id: string, stackId: string | null, schedule = [0, 1, 2, 3, 4, 5, 6]) => ({
+    id,
+    stack_id: stackId,
+    created_at: '2026-01-01T00:00:00Z',
+    schedule_days: schedule,
+    hijri_schedule: null,
+  });
+
+  // The point of the whole function: a morning of five acts is ONE thing to do.
+  it('counts a stack once, however many acts it holds', () => {
+    const five = ['a', 'b', 'c', 'd', 'e'].map((id) => act(id, 's1'));
+    expect(openUnitsOn(five, set(), set(), DAY)).toBe(1);
+  });
+
+  it('stops counting a stack once it is sealed', () => {
+    const two = [act('a', 's1'), act('b', 's1')];
+    expect(openUnitsOn(two, set('a'), set(), DAY)).toBe(1); // half-sealed is still outstanding
+    expect(openUnitsOn(two, set('a', 'b'), set(), DAY)).toBe(0);
+  });
+
+  it('does not count a stack whose acts are all excused', () => {
+    const two = [act('a', 's1'), act('b', 's1')];
+    expect(openUnitsOn(two, set(), set('a', 'b'), DAY)).toBe(0);
+  });
+
+  it('counts each stackless row for itself — an exchange, or a legacy unanchored act', () => {
+    expect(openUnitsOn([act('x', null), act('y', null)], set(), set(), DAY)).toBe(2);
+    expect(openUnitsOn([act('x', null), act('y', null)], set('x'), set(), DAY)).toBe(1);
+  });
+
+  it('adds up across stacks and loose rows', () => {
+    const rows = [act('a', 's1'), act('b', 's1'), act('c', 's2'), act('x', null)];
+    expect(openUnitsOn(rows, set(), set(), DAY)).toBe(3);
+  });
+
+  it('ignores what isn’t due today, and rows still being inserted', () => {
+    const rows = [act('friday', 's1', [5]), act('temp-1', 's2')];
+    expect(openUnitsOn(rows, set(), set(), DAY)).toBe(0);
   });
 });
 

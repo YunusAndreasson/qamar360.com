@@ -1,10 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { HabitsProvider, useHabits } from '@/hooks/use-habits';
+import { TasksProvider, useTasks } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
+import { setAppBadgeCount } from '@/lib/notifications';
 
 const { Trigger } = NativeTabs;
 
@@ -16,9 +20,15 @@ export default function TabsLayout() {
   // `HabitsProvider` is hoisted to the tab-group root (it used to wrap only the Habits
   // stack) so the tab bar can read a live "remaining today" count for the badge, and so
   // the Habits list and its editor/stack-editor modals all share this one provider instance.
+  //
+  // `TasksProvider` nests inside it: the day itself (viewDate, today, the midnight rollover) and
+  // the habits state a closing day is judged against both live in the habits provider, so tasks
+  // has to sit underneath to read them.
   return (
     <HabitsProvider>
-      <Tabs />
+      <TasksProvider>
+        <Tabs />
+      </TasksProvider>
     </HabitsProvider>
   );
 }
@@ -28,9 +38,26 @@ function Tabs() {
   // appearance override too — otherwise it stays on the system theme.
   const colors = useTheme();
   const scheme = useEffectiveScheme();
-  // The hook's own "open today" count — the same number it puts on the OS app-icon badge,
-  // so the tab badge and the home-screen badge can never disagree.
+  // What the day still asks of you, counted in **units**: one per unsealed stack (never one per
+  // act inside it — the stack is what you do and seal), one per open exchange, one per task still
+  // on the list. Summed here because it is the one place both providers are in view.
   const { remainingToday } = useHabits();
+  const { openToday } = useTasks();
+  const { user } = useAuth();
+  const remaining = remainingToday + openToday;
+
+  // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
+  // it — a firing lunar update carries no `badge`. Zeroed on unmount too: leaving the authed tree
+  // (sign-out) must not leave the previous user's count sitting on the icon at the sign-in screen.
+  useEffect(() => {
+    void setAppBadgeCount(user ? remaining : 0);
+  }, [user, remaining]);
+  useEffect(
+    () => () => {
+      void setAppBadgeCount(0);
+    },
+    [],
+  );
 
   return (
     <NativeTabs
@@ -58,8 +85,8 @@ function Tabs() {
       }}
       indicatorColor={colors.backgroundSelected}>
       <Trigger name="habits">
-        {/* How many acts are still open today — a quiet nudge from any tab. Hidden at zero. */}
-        {remainingToday > 0 ? <Trigger.Badge>{String(remainingToday)}</Trigger.Badge> : null}
+        {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. */}
+        {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
         <Trigger.Label>Habits</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="sun.max.fill" />

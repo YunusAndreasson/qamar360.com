@@ -91,6 +91,41 @@ export function sealableActs<T extends StackMember>(
   );
 }
 
+/**
+ * How many things the day still asks of you — the number on the tab and the app icon.
+ *
+ * Counted in **units, not acts**: the stack is what the app tracks and seals, so a five-act Fajr
+ * stack is one thing to do, not five. (The badge counted acts from before the stacks-only rewrite,
+ * which put a "5" on the tab for a single morning.) An exchange is its own unit because it is
+ * ticked on its own, and a legacy stackless act counts for itself because nothing else will count
+ * it.
+ *
+ * A stack whose due acts are all excused is not outstanding, and neither is a sealed one — the
+ * same "open acts" notion {@link sealableActs} resolves, so the badge and the seal can't disagree.
+ * Tasks are added by the caller (they live in another table entirely).
+ */
+export function openUnitsOn(
+  habits: readonly StackMember[],
+  completed: Set<string>,
+  skipped: Set<string>,
+  day: string,
+  hijriOffset?: number,
+): number {
+  // stack id → does it still have an act to do; standalone rows count themselves as they're seen.
+  const stackOpen = new Map<string, boolean>();
+  let loose = 0;
+  for (const h of habits) {
+    if (h.id.startsWith('temp-')) continue; // not persisted — nothing to seal yet
+    if (!scheduledOn(h, day, hijriOffset) || skipped.has(h.id)) continue;
+    const open = !completed.has(h.id);
+    if (h.stack_id) stackOpen.set(h.stack_id, (stackOpen.get(h.stack_id) ?? false) || open);
+    else if (open) loose += 1; // an exchange, or a legacy unanchored act: one unit each
+  }
+  let units = loose;
+  for (const open of stackOpen.values()) if (open) units += 1;
+  return units;
+}
+
 /** The minimal habit shape {@link computeProgress} needs — `Habit` satisfies it structurally. */
 export type ProgressHabit = {
   id: string;

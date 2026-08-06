@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
@@ -18,6 +18,7 @@ import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
 import { Surface } from '@/components/surface';
+import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
@@ -27,6 +28,7 @@ import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
+import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { addDaysISO, localDate, scheduledOn } from '@/lib/dates';
 import {
@@ -43,6 +45,7 @@ import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
+import type { Task } from '@/lib/tasks';
 
 // The scroll's bottom inset — one constant shared by the layout and the drag layer's
 // auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
@@ -95,6 +98,22 @@ export default function HabitsScreen() {
     refresh,
     reload,
   } = useHabits();
+  // The day's one-off things. Their own provider and their own table — a task earns no degrees
+  // (see lib/tasks.ts), so nothing about it reaches the progress math.
+  const {
+    tasks,
+    createTask,
+    toggleTask,
+    renameTask,
+    deleteTask,
+    error: taskError,
+    dismissError: dismissTaskError,
+    refresh: refreshTasks,
+  } = useTasks();
+  // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
+  // you type, so the field is the row it becomes. Cleared the moment it is honoured.
+  const { compose } = useLocalSearchParams<{ compose?: string }>();
+  const clearCompose = useCallback(() => router.setParams({ compose: undefined }), [router]);
   // Refetch when the tab regains focus, so changes made outside this provider (e.g. resetting
   // progress from Settings) are reflected on return — mirrors the Progress tab. The FIRST focus
   // coincides with the provider's own mount load (both mount on entering the tabs), so it is
@@ -107,7 +126,8 @@ export default function HabitsScreen() {
         return;
       }
       void refresh();
-    }, [refresh]),
+      void refreshTasks();
+    }, [refresh, refreshTasks]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -118,7 +138,7 @@ export default function HabitsScreen() {
   // launch, so a pull on Today is the one in-session way to retry it (e.g. after a network
   // blip at launch silently left Discover on a stale snapshot).
   const { refresh: refreshCatalog } = useCatalog();
-  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshCatalog()]));
+  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshTasks(), refreshCatalog()]));
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
@@ -264,6 +284,13 @@ export default function HabitsScreen() {
   // Stable across renders so the exchange rows' memo comparator holds — a fresh arrow each render
   // would defeat it on every day-step and every drag settle.
   const toggleHeld = useCallback((habit: Habit) => void toggleExchange(habit.id), [toggleExchange]);
+
+  // The same discipline for the task rows: the composer re-renders this screen on every keystroke,
+  // and an arrow minted here would rebuild every row in the card behind it.
+  const addTask = useCallback((title: string) => void createTask(title), [createTask]);
+  const tickTask = useCallback((task: Task) => void toggleTask(task.id), [toggleTask]);
+  const rewriteTask = useCallback((task: Task, title: string) => void renameTask(task.id, title), [renameTask]);
+  const removeTask = useCallback((task: Task) => void deleteTask(task.id), [deleteTask]);
 
   // The stack card's "⋯" opens the native manage menu (add acts / edit / delete) — an iOS action
   // sheet or an Android bottom sheet.
@@ -502,15 +529,30 @@ export default function HabitsScreen() {
           keyboardShouldPersistTaps="handled">
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
+          <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
           {/* One-time, and only until they're all anchored: habits from before every habit had
               to live in a stack. It leads the day because an unanchored habit is invisible
               otherwise — it has no card to appear on. */}
           {orphans.length > 0 ? <AnchorTheseCard habits={orphans} /> : null}
+          {/* The day's one-off things, above the practice: a stack missed today comes round again
+              tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
+              until there is a list — the way in is the header "+". */}
+          <TaskSection
+            tasks={tasks}
+            today={today}
+            isToday={isToday}
+            composeRequested={compose === 'task'}
+            onComposeHandled={clearCompose}
+            onCreate={addTask}
+            onToggle={tickTask}
+            onRename={rewriteTask}
+            onDelete={removeTask}
+          />
           {entries.length === 0 ? (
-            // The empty state is for a day with nothing on it at all. Exchanges count as
-            // something: a user who tracks only exchanges has a day, and inviting them to anchor
-            // their first stack above their own list would read as if it hadn't registered.
-            orphans.length > 0 || exchanges.length > 0 ? null : (
+            // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
+            // something: a user who tracks only those has a day, and inviting them to anchor their
+            // first stack above their own list would read as if it hadn't registered.
+            orphans.length > 0 || exchanges.length > 0 || tasks.length > 0 ? null : (
               <HabitsEmptyState
                 hasHabits={habits.length > 0}
                 isToday={isToday}
@@ -759,8 +801,9 @@ function HabitsEmptyState({
       <AppButton onPress={() => router.push('/habits/stack-library')} accessibilityLabel="Choose an anchor">
         Choose an anchor
       </AppButton>
-      <AppButton variant="secondary" onPress={onBuild} accessibilityLabel="Build your own stack" hitSlop={8}>
-        Build your own
+      {/* Names the noun, like every other way in: "your own" alone never said your own *what*. */}
+      <AppButton variant="secondary" onPress={onBuild} accessibilityLabel="Create your own stack" hitSlop={8}>
+        Your own stack
       </AppButton>
     </EmptyState>
   );

@@ -206,7 +206,7 @@ export function HabitEditorForm({
     // screen's "habit no longer exists" effect navigate back. Calling both fires router.back()
     // twice — the second has nothing to pop and logs "The action 'GO_BACK' was not handled…".
     confirmDestructive({
-      title: 'Delete habit',
+      title: 'Delete act',
       message: `Delete “${habit.name}”? This can’t be undone.`,
       onConfirm: () => {
         // The soft "release" — the counterpart of deleting a stack, so destruction always
@@ -221,7 +221,10 @@ export function HabitEditorForm({
     <FormScreen>
       <Stack.Screen
         options={{
-          title: isNew ? 'New Habit' : 'Edit Habit',
+          // "Act", not "habit": inside a stack this is one deed of a sequence, and that is the
+          // word every other surface uses for it (the card rows, the options sheet, Discover).
+          // Sentence case, like every other title in this stack.
+          title: isNew ? 'New act' : 'Edit act',
           // Center the title so it doesn't crowd the "Cancel" button on Android's
           // left-aligned header (iOS centers it already).
           headerTitleAlign: 'center',
@@ -234,11 +237,13 @@ export function HabitEditorForm({
         label="NAME"
         value={name}
         onChangeText={setName}
-        placeholder="Habit name"
+        // An example, not a restatement of the label: it shows the house style in one glance —
+        // past tense, first person, one specific deed — which "Habit name" never taught.
+        placeholder="e.g. Read a page of Qurʾān"
         autoCapitalize="sentences"
         autoFocus={isNew}
-        accessibilityLabel="Habit name"
-        error={isDuplicate ? 'You already have a habit with this name.' : undefined}
+        accessibilityLabel="Act name"
+        error={isDuplicate ? 'You already use that name.' : undefined}
       />
 
       {/* Goal — a single daily act, or counting toward a numeric target (e.g. 5 pages).

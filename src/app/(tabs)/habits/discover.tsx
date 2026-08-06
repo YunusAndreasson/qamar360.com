@@ -259,7 +259,7 @@ export default function DiscoverScreen() {
                 variant="secondary"
                 onPress={goCreateHabit}
                 accessibilityLabel="Create your own act">
-                Create your own
+                Create your own act
               </AppButton>
             </EmptyState>
           </View>
@@ -363,7 +363,7 @@ export default function DiscoverScreen() {
           `hideWhenScrolling` is off so findability stays pinned for this ~60-item library;
           its own clear (✕) and Cancel replace the custom ones. */}
       <Stack.SearchBar
-        placeholder="Search Sunnah habits"
+        placeholder="Search Sunnah acts"
         autoCapitalize="none"
         hideWhenScrolling={false}
         onChangeText={(e) => setQuery(e.nativeEvent.text)}

@@ -14,17 +14,16 @@ import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
-import { addDaysISO, hijriMonthRange, hijriParts, scheduledOn, todayLocalISO, type HijriSchedule } from '@/lib/dates';
+import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
+import { dayCloseAfter, moonLitFor, openTasksOn, type DayClose } from '@/lib/day-close';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
-import { moonIllumination } from '@/lib/moon';
-import { setAppBadgeCount } from '@/lib/notifications';
 import { usePreference } from '@/lib/preferences';
-import { sealableActs } from '@/lib/progress';
+import { openUnitsOn, sealableActs } from '@/lib/progress';
 import type { DayPart } from '@/lib/sun';
 import { supabase } from '@/lib/supabase';
 
@@ -98,16 +97,6 @@ const LOAD_TIMEOUT_MS = 12000;
  *  of stepper taps, short enough that a quick tick-and-background still gets cached. */
 const SNAPSHOT_DEBOUNCE_MS = 400;
 
-/** Tonight's moon illumination (0–1) for a given local date, so the day-complete haptic can carry
- *  the weight of the moon. `undefined` when the runtime has no Islamic calendar (the haptic then
- *  falls back to its default beat). */
-function moonLitFor(iso: string): number | undefined {
-  const parts = hijriParts(iso);
-  const range = hijriMonthRange(iso);
-  if (!parts || !range) return undefined;
-  return moonIllumination(parts.day, range.length).illumination;
-}
-
 /**
  * Rewrite the full habit id order so `orderedMemberIds` sit contiguously (in the given
  * order) at the slot of the FIRST ordered member, preserving the order of the rest.
@@ -152,8 +141,13 @@ type HabitsContextValue = {
   minViewDate: string;
   /** Whether `viewDate` is today. */
   isToday: boolean;
-  /** Habits still open (scheduled, unticked, unskipped) for the real today — the tab badge and
-   *  the OS app-icon badge read this same number, so the two can never disagree. */
+  /**
+   * How many *units* of practice are still open for the real today — one per unsealed stack, one
+   * per open exchange, one per legacy unanchored act (see {@link openUnitsOn}). Not a count of
+   * acts: the stack is what the app tracks and seals, so a five-act morning is one thing left to
+   * do, not five. The tabs layout adds the day's open tasks to this and feeds the result to both
+   * the tab badge and the OS app-icon badge, so the two can never disagree.
+   */
   remainingToday: number;
   dismissError: () => void;
   /** Re-pull habits, stacks, and the viewed day's completions (used on Habits-tab focus).
@@ -266,30 +260,6 @@ async function deleteCompletions(habitIds: string[], day: string): Promise<void>
   if (error) throw error;
 }
 
-type DayClose = { dayComplete: boolean; doneIds: string[] };
-
-/**
- * Would `day` be fully closed once `justDoneIds` land? Pure, and shared by *both* completion
- * gestures — sealing a stack and holding an exchange — so the two can never disagree about
- * whether the day just ended.
- *
- * `justDoneIds` are the habits being marked done right now, read as done here before their
- * optimistic state has propagated (the same stale-read guard the per-tick path used to need).
- */
-function dayCloseAfter(
-  habits: Habit[],
-  skipped: Set<string>,
-  completed: Set<string>,
-  justDoneIds: Set<string>,
-  day: string,
-): DayClose {
-  const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
-  const dayComplete = openIds.length > 0 && openIds.every((id) => justDoneIds.has(id) || completed.has(id));
-  // When complete, `openIds` are exactly the day's done (non-skipped, all ticked) ids — handed to
-  // the overlay so its degrees count the just-made ticks before they reach the server (matches Progress).
-  return { dayComplete, doneIds: dayComplete ? openIds : [] };
-}
-
 /**
  * Fire the completion haptics for sealing a stack on `day`: the celebratory, moon-weighted beat
  * when the seal closes the day, otherwise the crisp "done" tap followed by the stack's rounder
@@ -302,7 +272,7 @@ function celebrateSeal(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day);
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
   if (close.dayComplete) {
     haptics.celebrate(moonLitFor(day));
   } else {
@@ -327,7 +297,7 @@ function celebrateHold(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day);
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
   if (close.dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
   return close;
@@ -606,27 +576,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   });
 
   const remainingToday = useMemo(
-    () =>
-      habits.filter(
-        (h) => scheduledOn(h, today, hijriOffset) && !completed.has(h.id) && !skipped.has(h.id),
-      ).length,
+    () => openUnitsOn(habits, completed, skipped, today, hijriOffset),
     [habits, completed, skipped, today, hijriOffset],
-  );
-
-  // Keep the home-screen app icon badge aligned with the same "open today" count shown in
-  // the Habits tab badge. Nothing else writes it — a firing lunar update carries no `badge`.
-  useEffect(() => {
-    void setAppBadgeCount(userId ? remainingToday : 0);
-  }, [userId, remainingToday]);
-
-  // Unmount = leaving the authed tree (sign-out): zero the badge, so the previous user's count
-  // doesn't sit on the icon at the sign-in screen. Clearing the lunar schedule is the matching
-  // job of {@link useLunarUpdates}, which unmounts with this provider.
-  useEffect(
-    () => () => {
-      void setAppBadgeCount(0);
-    },
-    [],
   );
 
   // The `users` row backing `habits.user_id` is not auto-created on signup, so

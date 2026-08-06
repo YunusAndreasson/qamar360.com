@@ -38,6 +38,9 @@ export const Icons = {
   // An exchange: one thing going out as another comes in. Two arrows passing, not a cycle —
   // nothing here repeats, and a refresh glyph would say the wrong thing entirely.
   exchange: { sf: 'arrow.left.arrow.right', material: 'swap-horiz' },
+  // A one-off task: a written list with things struck off it. Not a checkmark — that glyph is
+  // "done" everywhere else in the app, and this names the kind of thing, not its state.
+  task: { sf: 'checklist', material: 'checklist' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────

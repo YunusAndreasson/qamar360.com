@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
 import { FormSheet } from '@/components/form-sheet';
+import { SectionLabel } from '@/components/section-label';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
@@ -12,42 +13,64 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * "Add" — the native bottom sheet behind Today's "+".
  *
- * The first two forks make a *stack*: take one ready-made, or build your own and add acts into
- * it. The ready-made path leads, since an anchor someone else has already thought through beats a
- * blank name field for almost everyone.
+ * Four choices, and the whole point of the sheet is that you leave it knowing which of the app's
+ * four things you just made. So each card **names its noun** — stack, exchange, task — rather than
+ * describing an action ("Build your own", which never said your own *what*), and the two captions
+ * above them answer the question the nouns can't: does this thing come back tomorrow, or not?
  *
- * The third is a different shape of change altogether — not a deed added to the day but one put
- * where an old routine keeps taking its place. It sits last because it presumes something the
- * first two don't: that you have already noticed a specific moment going the wrong way.
+ * REPEATING: the first two make a *stack* — take one ready-made, or start an empty one and add
+ * acts into it. The ready-made path leads, since an anchor someone else has already thought
+ * through beats a blank name field for almost everyone. The exchange is a different shape of
+ * change altogether — not a deed added to the day but one put where an old routine keeps taking
+ * its place — and sits last of the three because it presumes what the others don't: that you have
+ * already noticed a specific moment going the wrong way.
  *
- * The two choices are given room to breathe as separate cards — an icon chip, a title, and a
- * one-line explanation, so the choice teaches the vocabulary as it's made. Presented
- * `fitToContents` from the habits stack layout. `replace` (not push) hands off to the next modal
- * so dismissing it returns to Today, not back to this sheet.
+ * ONE-OFF: the task, which asks nothing of the future. It is the only choice that leads back to
+ * Today instead of on to a form — a task is a line you type, so the field is the row it becomes.
+ *
+ * The choices are given room to breathe as separate cards — an icon chip, a noun, and a one-line
+ * explanation, so the choice teaches the vocabulary as it's made. Presented `fitToContents` from
+ * the habits stack layout. `replace` (not push) hands off to the next modal so dismissing it
+ * returns to Today, not back to this sheet.
  */
 export default function AddMenuScreen() {
   const router = useRouter();
 
   return (
     <FormSheet title="Add">
-      <View style={styles.choices}>
+      <View style={styles.group}>
+        <SectionLabel>REPEATING</SectionLabel>
+        <View style={styles.choices}>
+          <ChoiceCard
+            icon="sparkle"
+            label="Ready-made stack"
+            sublabel="A short sequence anchored to a prayer, waking, or bedtime."
+            onPress={() => router.replace('/habits/stack-library')}
+          />
+          <ChoiceCard
+            icon="stack"
+            label="Your own stack"
+            sublabel="Name it, anchor it to a moment, then add your acts."
+            onPress={() => router.replace('/habits/stack-new')}
+          />
+          <ChoiceCard
+            icon="exchange"
+            label="Exchange"
+            sublabel="Put a good act where an old one keeps happening."
+            onPress={() => router.replace('/habits/exchange-library')}
+          />
+        </View>
+      </View>
+
+      <View style={styles.group}>
+        <SectionLabel>ONE-OFF</SectionLabel>
         <ChoiceCard
-          icon="sparkle"
-          label="Ready-made stack"
-          sublabel="A short sequence anchored to a prayer, waking, or bedtime."
-          onPress={() => router.replace('/habits/stack-library')}
-        />
-        <ChoiceCard
-          icon="stack"
-          label="Build your own"
-          sublabel="Name it, anchor it, then add your acts."
-          onPress={() => router.replace('/habits/stack-new')}
-        />
-        <ChoiceCard
-          icon="exchange"
-          label="Exchange"
-          sublabel="Put a good act where an old one keeps happening."
-          onPress={() => router.replace('/habits/exchange-library')}
+          icon="task"
+          label="Task"
+          sublabel="Something to do once, not to keep."
+          // `dismissTo`, not `replace`: this one goes *back* down the stack to the day itself
+          // (carrying the param), where `replace` would stack a second Today on top of the sheet.
+          onPress={() => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } })}
         />
       </View>
     </FormSheet>
@@ -94,6 +117,8 @@ function ChoiceCard({
 }
 
 const styles = StyleSheet.create({
+  // Caption → its cards, at the same 8pt beat every section caption on Today keeps.
+  group: { gap: Spacing.two },
   choices: {
     gap: Spacing.two,
   },

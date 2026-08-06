@@ -32,11 +32,11 @@ export default function HabitsStackLayout() {
       />
       {/* Add an act: search/filter the curated Sunnah library or create your own — a native
           modal sheet (from the bottom, the same idiom as the editor it sits beside in the empty
-          state), with a centered "Add Act" title, a native search bar, and a left-aligned
+          state), with a centered "Add acts" title, a native search bar, and a left-aligned
           Close; the pinned chips sit below it. With a `stackId` param it adds into that stack. */}
       <Stack.Screen
         name="discover"
-        options={{ ...modalHeaderOptions(theme), title: 'Add Act', headerLeft: headerCloseAction(() => router.back()) }}
+        options={{ ...modalHeaderOptions(theme), title: 'Add acts', headerLeft: headerCloseAction(() => router.back()) }}
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />

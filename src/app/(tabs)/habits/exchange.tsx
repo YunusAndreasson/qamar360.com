@@ -73,7 +73,8 @@ export default function ExchangeFormScreen() {
     <FormScreen>
       <Stack.Screen
         options={{
-          title: isNew ? 'New Exchange' : 'Edit Exchange',
+          // Sentence case, like every other title in this stack ("New act", "New stack").
+          title: isNew ? 'New exchange' : 'Edit exchange',
           // Centered so it doesn't crowd "Cancel" on Android's left-aligned header.
           headerTitleAlign: 'center',
           ...formHeaderActions({ onCancel: () => router.back(), onSave: save, canSave }),
@@ -112,7 +113,7 @@ export default function ExchangeFormScreen() {
         placeholder="Drank a glass of water"
         autoCapitalize="sentences"
         accessibilityLabel="What you did instead"
-        error={isDuplicate ? 'You already have a habit with this name.' : undefined}
+        error={isDuplicate ? 'You already use that name.' : undefined}
         hint={isDuplicate ? undefined : 'Something actually to hand in that moment.'}
       />
 

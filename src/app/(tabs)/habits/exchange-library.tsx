@@ -87,8 +87,8 @@ export default function ExchangeLibraryScreen() {
         <Surface>
           <SettingsRow
             icon="exchange"
-            label="Write your own"
-            sublabel="Name the moment, the routine, and what you do instead"
+            label="Your own exchange"
+            sublabel="The moment, the routine you turn from, and the deed instead"
             onPress={() => router.replace({ pathname: '/habits/exchange', params: { id: 'new' } })}
           />
           <RowSeparator />
