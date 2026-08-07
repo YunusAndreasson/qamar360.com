@@ -65,7 +65,7 @@ function Bar({
     reveal.set(
       reduceMotion
         ? 1
-        : withDelay(PageEnter.grid + index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Easing.out(Easing.cubic) })),
+        : withDelay(PageEnter.second + index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Easing.out(Easing.cubic) })),
     );
   }, [reduceMotion, reveal, index]);
   const fillStyle = useAnimatedStyle(() => ({ height: targetHeight * reveal.get() }));

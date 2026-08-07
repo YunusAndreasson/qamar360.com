@@ -8,7 +8,7 @@ import { HabitStatsHero } from '@/components/habit-stats-hero';
 import { HabitStreakCard } from '@/components/habit-streak-card';
 import { HabitTrendChart } from '@/components/habit-trend-chart';
 import { HabitWeekdayBars } from '@/components/habit-weekday-bars';
-import { ProgressSkeleton } from '@/components/progress-skeleton';
+import { InsightsSkeleton } from '@/components/progress-skeleton';
 import { useHabitStats } from '@/hooks/use-habit-stats';
 import { useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -38,7 +38,7 @@ export default function HabitStatsScreen() {
   if (loading || (habitsLoading && !habit)) {
     return (
       <AppScreen transparent>
-        <ProgressSkeleton />
+        <InsightsSkeleton />
       </AppScreen>
     );
   }

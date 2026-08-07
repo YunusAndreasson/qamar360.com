@@ -5,12 +5,12 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type LifeProgress, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type DayPoint, type LifeProgress, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { LifeProgress, LifeYear, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
+export type { DayPoint, LifeProgress, LifeYear, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
 
 /**
  * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
@@ -73,6 +73,9 @@ type ProgressData = {
   life: LifeProgress | null;
   /** The rising-months statement for the year card, or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
+  /** The last season day by day — the Over-time chart's finest scale, and the only one that moves
+   *  on a second day of use. */
+  daily: DayPoint[];
 };
 
 /**

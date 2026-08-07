@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, createdDayISO, hijriMonthRange, hijriParts, hijriYearStart, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
+import { clamp01, computeProgress, DAILY_WINDOW_DAYS, isStackComplete, openUnitsOn, sealableActs, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -350,6 +350,132 @@ describe('computeProgress — invariants across a year of months', () => {
       expect(m.thisRate).toBe(1);
       expect(toDegrees(m.thisRate)).toBe(360);
     }
+  });
+});
+
+// ── The pace: where the month itself has got to ───────────────────────────────────────────────
+// The hero's always-present benchmark. It must be on the SAME scale as `thisRate` (both are
+// fractions of the whole month's possible), because the two are drawn as arcs on one ring and
+// read against each other — a second scale in the same ° unit is the bug this measure avoids.
+describe('computeProgress — paceRate', () => {
+  it.each(SWEEP)('%s: you can never be ahead of what the month has asked (thisRate <= paceRate)', (today) => {
+    const { start } = monthShape(today);
+    const habits = [dailyHabit('daily'), whiteDaysHabit('white'), countHabit('count', 5)];
+    // Perfect so far — the strictest case: if the invariant holds when everything is done, the
+    // pace is genuinely the ceiling and not merely bigger than a partial score.
+    const completions: CompletionRow[] = [];
+    for (let d = start; d <= today; d = addDaysISO(d, 1))
+      for (const h of habits)
+        if (scheduledOn(h, d)) completions.push(h.id === 'count' ? countRow(h.id, d, 5, 'done') : done(h.id, d));
+
+    const m = computeProgress(habits, completions, today).month!;
+    expect(m.paceRate).toBeGreaterThanOrEqual(m.thisRate);
+    expect(m.paceRate).toBeLessThanOrEqual(1);
+  });
+
+  it('a perfect record sits exactly ON the pace — the two arc heads meet', () => {
+    const { start } = monthShape('2026-06-15');
+    const today = addDaysISO(start, 9); // ten days in, all kept
+    const completions: CompletionRow[] = [];
+    for (let d = start; d <= today; d = addDaysISO(d, 1)) completions.push(done('daily', d));
+    const m = computeProgress([dailyHabit('daily')], completions, today).month!;
+    expect(m.thisRate).toBeCloseTo(m.paceRate, 10);
+  });
+
+  it('the month closes at a full orbit of pace on its last day', () => {
+    const { start, length } = monthShape('2026-06-15');
+    const m = computeProgress([dailyHabit('daily')], [], addDaysISO(start, length - 1)).month!;
+    expect(m.paceRate).toBe(1);
+  });
+
+  it('day one of a month asks for exactly one day of it', () => {
+    const { start, length } = monthShape('2026-06-15');
+    const m = computeProgress([dailyHabit('daily')], [], start).month!;
+    expect(m.paceRate).toBeCloseTo(1 / length, 10);
+  });
+
+  it('measures elapsed SCHEDULE, not elapsed days — White Days pace in exact thirds', () => {
+    // The only act runs on the 13th–15th, so after the 13th the month has asked for one of its
+    // three acts: 1/3 of pace on day 13 of ~30, where a day count would have said ~43%.
+    const { start } = monthShape('2026-06-15');
+    const m = computeProgress([whiteDaysHabit('w')], [], addDaysISO(start, 12)).month!;
+    expect(m.paceRate).toBeCloseTo(1 / 3, 10);
+    // …and nothing at all before the 13th, however far into the month it is.
+    expect(computeProgress([whiteDaysHabit('w')], [], addDaysISO(start, 11)).month!.paceRate).toBe(0);
+  });
+
+  it('an excused day is not asked of you — it leaves the pace as well as the score', () => {
+    const { start } = monthShape('2026-06-15');
+    const today = addDaysISO(start, 2);
+    const bare = computeProgress([dailyHabit('daily')], [], today).month!;
+    const excused = computeProgress([dailyHabit('daily')], [skip('daily', addDaysISO(start, 1))], today).month!;
+    expect(excused.paceRate).toBeLessThan(bare.paceRate);
+  });
+
+  it('is zero when the month asks nothing at all', () => {
+    expect(computeProgress([], [], '2026-06-15').month!.paceRate).toBe(0);
+  });
+});
+
+// ── The daily series: the only scale that moves on a second day ────────────────────────────────
+describe('computeProgress — the daily series', () => {
+  const today = '2026-06-15';
+
+  it('carries the window, oldest first, ending on today', () => {
+    const { daily } = computeProgress([dailyHabit('daily')], [], today);
+    expect(daily).toHaveLength(DAILY_WINDOW_DAYS);
+    expect(daily[daily.length - 1]!.iso).toBe(today);
+    expect(daily[0]!.iso).toBe(addDaysISO(today, -(DAILY_WINDOW_DAYS - 1)));
+  });
+
+  it('marks today, and only today, as still running', () => {
+    const { daily } = computeProgress([dailyHabit('daily')], [], today);
+    expect(daily.filter((p) => p.pending).map((p) => p.iso)).toEqual([today]);
+  });
+
+  it("reads a day against its own schedule — one of two acts done is that day's half", () => {
+    const comps = [done('a', today)];
+    const { daily } = computeProgress([dailyHabit('a'), dailyHabit('b')], comps, today);
+    expect(daily[daily.length - 1]).toMatchObject({ rate: 0.5, possible: 2 });
+  });
+
+  it('leaves a day nothing was due carrying no signal, rather than a zero', () => {
+    // White Days only: the 1st has nothing due, the 13th has one act.
+    const { start } = monthShape(today);
+    const { daily } = computeProgress([whiteDaysHabit('w')], [], addDaysISO(start, 12));
+    const byDay = new Map(daily.map((p) => [p.iso, p]));
+    expect(byDay.get(start)).toMatchObject({ possible: 0, rate: 0 });
+    expect(byDay.get(addDaysISO(start, 12))).toMatchObject({ possible: 1, rate: 0 });
+  });
+
+  it('excuses a skipped day out of the reading entirely', () => {
+    const yesterday = addDaysISO(today, -1);
+    const { daily } = computeProgress([dailyHabit('a'), dailyHabit('b')], [skip('a', yesterday), done('b', yesterday)], today);
+    // 'a' is excused, so the day is one act of one — a full day, not a half.
+    expect(daily.find((p) => p.iso === yesterday)).toMatchObject({ possible: 1, rate: 1 });
+  });
+
+  it('gives a count goal its partial credit for the day', () => {
+    const { daily } = computeProgress([countHabit('c', 4)], [countRow('c', today, 1, 'partial')], today);
+    expect(daily[daily.length - 1]!.rate).toBeCloseTo(0.25, 10);
+  });
+
+  it('is empty of signal before anything existed — the chart has nothing to draw, not a floor of misses', () => {
+    const born = addDaysISO(today, -2);
+    const habit: ProgressHabit = { ...dailyHabit('h'), created_at: `${born}T09:00:00.000Z` };
+    const { daily } = computeProgress([habit], [], today);
+    expect(daily.every((p) => p.iso >= born || p.possible === 0)).toBe(true);
+    expect(daily.filter((p) => p.possible > 0)).toHaveLength(3); // born, +1, today
+  });
+
+  it('agrees with the month it sits inside — the days of a month sum to its tally', () => {
+    // A day can never disagree with the ring above it: both come from the same sweep.
+    const { start } = monthShape(today);
+    const comps = [done('daily', start), done('daily', addDaysISO(start, 1))];
+    const { daily, month } = computeProgress([dailyHabit('daily')], comps, today);
+    const inMonth = daily.filter((p) => p.iso >= start && p.iso <= today);
+    const doneSum = inMonth.reduce((n, p) => n + p.rate * p.possible, 0);
+    expect(doneSum / (month!.monthLength * 1)).toBeCloseTo(month!.thisRate, 10);
   });
 });
 

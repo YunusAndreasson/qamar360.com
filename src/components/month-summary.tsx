@@ -9,7 +9,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Polygon } from 'react-native-svg';
+import Svg, { Circle, Path, Polygon } from 'react-native-svg';
 
 import { MoonPhase } from '@/components/moon-phase';
 import { HeroGlow } from '@/components/ornament/hero-glow';
@@ -50,6 +50,9 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 // (they had: the old CSS-triangle legend was 8×7 against the ring's 10×10).
 const TICK_LENGTH = 10;
 const TICK_HALF_BASE = 5;
+// The pace legend's glyph box — a touch wider than the tail tick's, so a bowed arc reads as an arc
+// rather than a thick dot at this size. Height stays `TICK_LENGTH`: both legends sit on one line.
+const SWATCH_SIZE = 14;
 
 /** Month-to-date progress wrapped around the real moon for today's Hijri date. */
 export function MonthSummary({ month }: { month: MonthProgress | null }) {
@@ -66,16 +69,23 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
   if (!month) return null;
 
-  const { monthName, year, dayOfMonth, monthLength, thisRate, previousRate, hasPrevious } = month;
+  const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, previousRate, hasPrevious } = month;
   const thisDegrees = toDegrees(thisRate);
+  // Where the month itself stands — what it has asked of you so far, on the same orbit scale. The
+  // one benchmark that exists on a first day, so the ring always has a mark to catch.
+  const paceDegrees = toDegrees(paceRate);
   // Last month's pace by this same day, on the *same* absolute orbit scale as the headline —
   // so the two read as comparable positions (188° vs 360°), and last month's number is exactly
   // where its marker sits. No signed delta to be misread as a position.
   const previousDegrees = toDegrees(previousRate);
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
-  const a11y = hasPrevious
-    ? `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is at ${thisDegrees} degrees of the orbit; ${month.previousMonthName} had reached ${previousDegrees} degrees by the same day.`
-    : `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}. This month is ${thisDegrees} degrees complete.`;
+  const a11y = [
+    `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
+    `This month is at ${thisDegrees} degrees of the orbit; the month itself has reached ${paceDegrees} degrees.`,
+    hasPrevious ? `${month.previousMonthName} had reached ${previousDegrees} degrees by the same day.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <StatCard pattern patternVariant="hero" accessible accessibilityLabel={a11y}>
@@ -89,7 +99,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           {/* The sacred geometry firms up as the month fills — faintest at the new month, clearest
               when complete: "the moon generates the order", clarified by your consistency. */}
           <MoonHalo size={HALO_SIZE} strokeOpacity={0.1 + 0.12 * thisRate} />
-          <ProgressOrbit current={thisRate} previous={hasPrevious ? previousRate : 0} />
+          <ProgressOrbit current={thisRate} pace={paceRate} previous={hasPrevious ? previousRate : 0} />
           {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
               moonlight, still opaque) and lets the bright ring + the degrees readout lead,
               brightening to full only when the month is done (where the glow also lights). It
@@ -99,30 +109,38 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           </Animated.View>
         </View>
 
+        {/* One bold datum (the degrees) over up to two quiet readings of what to catch. Both are
+            ABSOLUTE positions on the same orbit, never signed deltas: a "−16°" beside a "188°"
+            gets read as a position, and two reference frames in one ° unit is exactly the
+            confusion these lines exist to avoid. The pace line is first and always present, so
+            the block never reflows when last month's line appears in the second month. */}
         <View style={styles.metrics}>
           <HeroDegrees degrees={thisDegrees} />
-          <View style={styles.pace}>
-            {hasPrevious ? (
-              <>
-                {/* The same tick that marks last month's pace on the orbit — a tiny legend
-                    so the line on the ring reads unmistakably as "last month". Only shown
-                    when the ring actually has a tick (last month had some pace by this day),
-                    so the legend never references a mark that isn't there. */}
-                {previousRate > 0 ? <LegendTick /> : null}
-                {/* "This day last month", not "last month" — the number is last month's pace by
-                    this same day, and the shorter label read as last month's final total. One
-                    quiet smallCompact run (the screen-wide readout voice, middot-joined), so the
-                    hero holds exactly one bold datum: the degrees above. */}
-                <ThemedText type="smallCompact" themeColor="textSecondary">
-                  This day last month · {previousDegrees}°
-                </ThemedText>
-              </>
-            ) : (
-              <ThemedText type="smallCompact" themeColor="textSecondary">
-                Your first month
-              </ThemedText>
-            )}
+          <View style={styles.benchmark}>
+            {/* The same tone the elapsed stretch of the track is drawn in — a legend for the arc
+                you are chasing, cut from the ring's own geometry so the two can't drift. */}
+            <ArcSwatch />
+            {/* "The month so far", not "on pace": the number is where the month itself has got to,
+                and catching it means the two arc heads meet. True on a first day, when there is no
+                past self to race. */}
+            <ThemedText type="smallCompact" themeColor="textSecondary">
+              The month so far · {paceDegrees}°
+            </ThemedText>
           </View>
+          {hasPrevious ? (
+            <View style={styles.benchmark}>
+              {/* The same tick that marks last month's pace on the orbit — a tiny legend
+                  so the line on the ring reads unmistakably as "last month". Only shown
+                  when the ring actually has a tick (last month had some pace by this day),
+                  so the legend never references a mark that isn't there. */}
+              {previousRate > 0 ? <LegendTick /> : null}
+              {/* "This day last month", not "last month" — the number is last month's pace by
+                  this same day, and the shorter label read as last month's final total. */}
+              <ThemedText type="smallCompact" themeColor="textSecondary">
+                This day last month · {previousDegrees}°
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
       </View>
     </StatCard>
@@ -150,12 +168,52 @@ function LegendTick() {
   );
 }
 
+/**
+ * The pace arc's legend: a short segment of the ring itself. Same tone and same stroke-to-radius
+ * proportion as the elapsed stretch of the orbit's track, so the glyph reads as "that band up
+ * there" rather than as a new mark — the sibling of {@link LegendTick}, which quotes the caret the
+ * same way. The arc bows because the thing it names is curved; a straight dash would read as a
+ * rule or a divider.
+ */
+function ArcSwatch() {
+  const theme = useTheme();
+  const stroke = SWATCH_SIZE * (RING_STROKE / ORBIT_SIZE) * 2.4;
+  const r = (SWATCH_SIZE - stroke) / 2;
+  const c = SWATCH_SIZE / 2;
+  return (
+    <Svg width={SWATCH_SIZE} height={TICK_LENGTH} viewBox={`0 0 ${SWATCH_SIZE} ${TICK_LENGTH}`}>
+      {/* The top third of a circle, centred below the glyph box — a gentle bow, not a full ring. */}
+      <Path
+        d={`M ${c - r * 0.72} ${c - r * 0.69} A ${r} ${r} 0 0 1 ${c + r * 0.72} ${c - r * 0.69}`}
+        stroke={theme.accentTrack}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-function ProgressOrbit({ current, previous }: { current: number; previous: number }) {
+/**
+ * The month as four concentric readings on one ring, each a step brighter than the last — the
+ * whole hierarchy is tone, so nothing new is drawn to carry it:
+ *
+ *   accentTrackMuted   the month still to come
+ *   accentTrack        the month elapsed — what it has asked of you (always present)
+ *   accentTrackStrong  last month by this same day (from the second month)
+ *   accent / complete  you
+ *
+ * Every benchmark is an ARC, never a lone mark. A point on a ring is ambiguous where 0° and 360°
+ * meet at the top; an arc *length* is not, and the stretch where a dimmer band shows past the
+ * bright one IS the gap — read directly, with no arithmetic.
+ */
+function ProgressOrbit({ current, pace, previous }: { current: number; pace: number; previous: number }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const currentRate = clamp01(current);
+  const paceRate = clamp01(pace);
   const previousRate = clamp01(previous);
   // The orbit carries the two-temperature signal: cool steel while the month is in progress, warm
   // `complete` moonlight the instant it's done — so a finished orbit reads warm, matching the moon.
@@ -175,6 +233,10 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
     strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.get()),
   }));
 
+  // The month's own reach, laid over the untouched remainder: the track brightens across the
+  // stretch that has already come due. It costs no extra ink — the ring was always a full circle —
+  // and it means the very first day has an arc to close on rather than a bare loop.
+  const paceArc = RING_CIRCUMFERENCE * paceRate;
   // Last month's pace at this same day is shown as a faint "ghost" arc of its fill, and the
   // bright live arc is measured against it: the stretch where the ghost shows past the bright
   // arc IS the "vs last month" deficit (and vice-versa when ahead). A full orbit (≈100% last
@@ -199,14 +261,31 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
 
   return (
     <Svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={styles.ring}>
+      {/* The month still to come — the dimmest step, so the elapsed stretch above it reads as a
+          brightening rather than as a separate object laid on top. */}
       <Circle
         cx={RING_CENTER}
         cy={RING_CENTER}
         r={RING_RADIUS}
-        stroke={theme.accentTrack}
+        stroke={theme.accentTrackMuted}
         strokeWidth={RING_STROKE}
         fill="none"
       />
+      {/* The month elapsed — the mark to catch, and the only one a first month has. Butt-capped,
+          not round: a round cap would overhang its exact position by half the stroke, and this
+          band's head is the thing the bright arc is measured against. */}
+      {paceArc > 0 ? (
+        <Circle
+          cx={RING_CENTER}
+          cy={RING_CENTER}
+          r={RING_RADIUS}
+          stroke={theme.accentTrack}
+          strokeWidth={RING_STROKE}
+          strokeDasharray={`${paceArc} ${RING_CIRCUMFERENCE}`}
+          fill="none"
+          transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
+        />
+      ) : null}
       {/* Last month's fill — the faint benchmark the bright arc is measured against. */}
       {previousArc > 0 ? (
         <Circle
@@ -241,8 +320,8 @@ function ProgressOrbit({ current, previous }: { current: number; previous: numbe
 }
 
 const styles = StyleSheet.create({
-  // One card gap across all three Progress stat cards (this hero, MonthMoons, YearTrend) so
-  // their header→content rhythm reads identically down the screen.
+  // One card gap across both Progress stat cards (this hero and OverTime) so their
+  // header→content rhythm reads identically down the screen.
   hero: { alignItems: 'center', gap: Spacing.three },
   orbit: {
     width: ORBIT_SIZE,
@@ -253,5 +332,5 @@ const styles = StyleSheet.create({
   ring: { position: 'absolute', top: -TAIL_OUT, left: -TAIL_OUT },
   moon: { alignItems: 'center', justifyContent: 'center' },
   metrics: { alignItems: 'center', gap: Spacing.one },
-  pace: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  benchmark: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

@@ -3,16 +3,15 @@ import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
-import { LifeYears } from '@/components/life-years';
 import { MonthSummary } from '@/components/month-summary';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
+import { OverTime } from '@/components/over-time';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
-import { YearTrend } from '@/components/year-trend';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, year, life, trend } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, year, life, trend, daily } = useProgress();
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -48,7 +47,7 @@ export default function ProgressScreen() {
         <EmptyState
           art={<MoonEmblem />}
           title="Your moons will rise here"
-          body="Add a habit and complete it — each day fills a moon across your month.">
+          body="Anchor a habit and keep it. The orbit fills as the month goes, and your line starts on the second day.">
           <BrowseHabitsButton />
         </EmptyState>
       </AppScreen>
@@ -74,14 +73,15 @@ export default function ProgressScreen() {
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
-      {/* Three scales, each one zoomed out from the last: the month you are in, the year it sits
-          in, and every year on record. (The day-by-day moon grid used to sit between the first two;
-          the hero already carries this month's figure, and the grid restated it a day at a time.) */}
+      {/* Two instruments, one question each. The orbit answers "where am I in this month?" against
+          a mark that always exists — how far the month itself has got. The line answers "which way
+          am I going?", at whichever scale the record can fill: days from the second day, months and
+          years as they arrive. (Days, months and years were three separate cards; stacked line
+          charts invited comparisons between scales that aren't comparable, and two of the three
+          were empty for anyone new.) */}
       <MonthSummary month={month} />
 
-      <YearTrend year={year} trend={trend} />
-
-      <LifeYears life={life} />
+      <OverTime daily={daily} year={year} life={life} trend={trend} />
     </AppScreen>
   );
 }

@@ -53,15 +53,17 @@ export const Tick = {
 } as const;
 
 /**
- * The Progress screen's entrance clock — start OFFSETS (ms from screen appear), not durations.
- * One cascade so the three cards read in order (orbit → moons → year arc) instead of all firing
- * at once: the grid's wave begins as the orbit establishes, its last moon settles
- * (~grid + 29 stagger-steps + slow ≈ 880ms) just as the orbit lands (`Duration.orbit`), and the
- * year line draws on last, into a settled page. Total lead stays ≤ 320ms — a reading order, not
- * staged theater. `hero` is 0 and deliberately unwrapped at its site: the orbit re-animates on
- * live rate changes (refetch), and a delay must never contaminate those. Tune here, never inline.
+ * A stats page's entrance clock — start OFFSETS (ms from screen appear), not durations. One cascade
+ * so a screen's cards read in order instead of all firing at once: Progress runs `first` (the month
+ * orbit sweeps) then `second` (the Over-time line draws on, into a page that has already
+ * established); Habits → Insights runs all three (ring, weekday bars, trend line).
+ *
+ * `first` is 0 and deliberately unwrapped at its site: a hero re-animates on live rate changes
+ * (refetch), and a delay must never contaminate those. Total lead stays ≤ 320ms — a reading order,
+ * not staged theater. Positional rather than named after any one card, so deleting a card can't
+ * leave the ladder describing something that is no longer there. Tune here, never inline.
  */
-export const PageEnter = { hero: 0, grid: 160, year: 320 } as const;
+export const PageEnter = { first: 0, second: 160, third: 320 } as const;
 
 /**
  * A stack card collapsing shut once its group is sealed. `duration` is the app's layout-

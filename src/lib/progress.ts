@@ -160,6 +160,21 @@ export type MonthProgress = {
    * small slice, and rate 1 (360°) means the whole month is actually complete.
    */
   thisRate: number;
+  /**
+   * Where the MONTH itself has got to, 0–1: acts that have come *due* month-to-date ÷ acts
+   * scheduled across the whole month. Same denominator as {@link thisRate}, so the two are
+   * directly comparable positions on one orbit — and `thisRate <= paceRate` always holds (an act
+   * cannot be completed before it comes due), which is what makes the gap between the two arcs
+   * read as "what's outstanding".
+   *
+   * Deliberately elapsed *schedule*, not elapsed days (`dayOfMonth / monthLength`): habits are not
+   * uniformly scheduled — White Days, Mondays/Thursdays — so a day count would misstate how much
+   * of the month has actually been asked of you.
+   *
+   * Unlike {@link previousRate} this exists from the first day of the first month: it is the
+   * calendar, not a past self, so a new user always has a mark to catch.
+   */
+  paceRate: number;
   /** Previous Hijri month name, for the pace comparison ("vs last month"). */
   previousMonthName: string;
   /**
@@ -192,6 +207,31 @@ export type YearProgress = {
   year: number;
   /** Muharram → Dhul-Hijjah, always length 12. */
   months: YearMonth[];
+};
+
+/**
+ * How many days the daily series carries — a season. Long enough that a rhythm is visible and a
+ * change of pace is unmistakable, short enough that the line keeps day-level resolution on a phone
+ * (a year of dots at this width is a smear). Zooming out past a season is what the month and year
+ * scales are for.
+ */
+export const DAILY_WINDOW_DAYS = 90;
+
+/** One day of the record — the finest scale the Progress chart draws. */
+export type DayPoint = {
+  /** The day, `YYYY-MM-DD`. */
+  iso: string;
+  /** That day's own completion, 0–1: credit earned ÷ acts scheduled on it (excused ones dropped). */
+  rate: number;
+  /**
+   * Acts scheduled that day, after excusals. `0` means the day carries no signal — before the
+   * first habit existed, or a day nothing was due — and its x-slot is left EMPTY rather than
+   * drawn as a 0° miss on the floor (the rule {@link import('./habit-stats').computeHabitStats}'s
+   * trend already uses at week scale).
+   */
+  possible: number;
+  /** Today — still in progress, so it is drawn provisionally and left out of the trend fit. */
+  pending: boolean;
 };
 
 /** One Hijri year of a life — the unit of the "This life" card. */
@@ -244,6 +284,12 @@ export type ProgressDerived = {
   life: LifeProgress | null;
   /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
+  /**
+   * The last {@link DAILY_WINDOW_DAYS} days, oldest first, ending with today — the finest scale
+   * the chart draws, and the only one that moves on a user's second day. Needs no calendar, so it
+   * is present even where `Intl` lacks Umm al-Qura.
+   */
+  daily: DayPoint[];
 };
 
 /**
@@ -358,6 +404,9 @@ export function computeProgress(
       monthLength: thisRange.length,
       // Computed once here so every chart reads the same rate (no inline done/possible divides).
       thisRate: whole.possible > 0 ? here.done / whole.possible : 0,
+      // The month's own position on that same orbit: what it has ASKED so far over what it asks in
+      // full. `here.possible` was already swept for the numerator's sake — the benchmark is free.
+      paceRate: whole.possible > 0 ? here.possible / whole.possible : 0,
       previousMonthName: previousRange?.monthName ?? '',
       previousRate: previousWhole.possible > 0 ? previousThrough.done / previousWhole.possible : 0,
       hasPrevious: previousWhole.possible > 0,
@@ -474,5 +523,19 @@ export function computeProgress(
         : { risingMonths: 0, sinceMonthName: null };
   }
 
-  return { habitsCount: habits.length, month, year, life, trend };
+  // The finest scale: one point per day across the last season, oldest first. Every other figure on
+  // the screen is a whole-PERIOD rate, so a day is measured the same way against its own schedule —
+  // 360° is a day fully kept. This is the only series that moves on a second day of use, which is
+  // why it exists: a month ring and a year strip are both still flat then.
+  //
+  // Each day is `tallyRange(iso, iso)`, so it rides the same memo and the same excusal/count-goal
+  // rules as every other figure — a day can never disagree with the month that contains it.
+  const daily: DayPoint[] = [];
+  const dailyStart = addDaysISO(today, -(DAILY_WINDOW_DAYS - 1));
+  for (let iso = dailyStart; iso <= today; iso = addDaysISO(iso, 1)) {
+    const { done, possible } = tallyRange(iso, iso);
+    daily.push({ iso, rate: possible > 0 ? done / possible : 0, possible, pending: iso === today });
+  }
+
+  return { habitsCount: habits.length, month, year, life, trend, daily };
 }

@@ -17,36 +17,19 @@ import { Duration, PageEnter } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { TrendPoint } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
+import { buildPaths, columnBounds, pointAt, polylineLength, spanFor, type PlotBox } from '@/lib/chart';
 import { haptics } from '@/lib/haptics';
-import { clamp01, toDegrees } from '@/lib/progress';
+import { toDegrees } from '@/lib/progress';
 
-const H = 120;
-const PAD_Y = 12;
-const PAD_X = 12;
+const BOX: PlotBox = { height: 120, padY: 12, padX: 12 };
+const H = BOX.height;
 const DOT_R = 3;
 const CURRENT_R = 4.5;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-type Pt = { x: number; y: number };
-
-function pointFor(index: number, fraction: number, width: number, count: number): Pt {
-  const span = count > 1 ? index / (count - 1) : 0;
-  const x = PAD_X + (width - 2 * PAD_X) * span;
-  const y = PAD_Y + (1 - clamp01(fraction)) * (H - 2 * PAD_Y);
-  return { x, y };
-}
-
-function polylineLength(points: Pt[]): number {
-  let len = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
-    if (!a || !b) continue;
-    len += Math.hypot(b.x - a.x, b.y - a.y);
-  }
-  return len;
-}
+const pointFor = (index: number, fraction: number, width: number, count: number) =>
+  pointAt(spanFor(index, count), fraction, width, BOX);
 
 /** "This week" for the latest sample, else "N weeks ago" — the trend's time grammar. */
 function weekLabel(index: number, count: number): string {
@@ -83,12 +66,12 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
     reveal.set(
       reduceMotion
         ? 1
-        : withDelay(PageEnter.year, withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) })),
+        : withDelay(PageEnter.third, withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) })),
     );
   }, [width, reduceMotion, reveal]);
 
   const count = trend.length;
-  const baselineY = H - PAD_Y;
+  const baselineY = H - BOX.padY;
   // Only weeks the habit actually ran in carry signal (`scheduledCount > 0`). Weeks without —
   // before the habit existed, or an off-season Hijri schedule — are absent from the line and
   // dots (their x-slots stay empty, keeping the time axis honest) instead of being drawn as 0°
@@ -97,13 +80,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
   const points =
     width > 0 ? signalIdx.map((i) => ({ index: i, ...pointFor(i, trend[i]!.rate, width, count) })) : [];
   const lineLength = polylineLength(points);
-
-  const first = points[0];
-  const last = points[points.length - 1];
-  const hasLine = points.length >= 2 && !!first && !!last;
-  const spine = points.map((p) => `${p.x} ${p.y}`).join(' L ');
-  const linePath = hasLine ? `M ${spine}` : '';
-  const areaPath = hasLine && first && last ? `M ${first.x} ${baselineY} L ${spine} L ${last.x} ${baselineY} Z` : '';
+  const { line: linePath, area: areaPath } = buildPaths(points, baselineY);
 
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: lineLength * (1 - reveal.get()) }));
 
@@ -121,16 +98,6 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
   const a11y = `Completion over the last ${count} weeks: ${trend
     .map((p, i) => `${weekLabel(i, count)} ${p.scheduledCount === 0 ? 'not scheduled' : `${toDegrees(p.rate)} degrees`}`)
     .join(', ')}.`;
-
-  // Column boundaries: midpoints between adjacent point x-positions, edge columns run to the card
-  // edge — 12 tap targets tiling the plot (the year chart's pattern).
-  const step = width > 0 && count > 1 ? (width - 2 * PAD_X) / (count - 1) : 0;
-  const columnBounds = (index: number): { left: number; width: number } => {
-    const { x } = pointFor(index, 0, width, count);
-    const left = index === 0 ? 0 : x - step / 2;
-    const right = index === count - 1 ? width : x + step / 2;
-    return { left, width: right - left };
-  };
 
   return (
     <StatCard>
@@ -157,7 +124,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
                 </LinearGradient>
               </Defs>
 
-              <Line x1={PAD_X} y1={baselineY} x2={width - PAD_X} y2={baselineY} stroke={theme.accentTrack} strokeWidth={1} />
+              <Line x1={BOX.padX} y1={baselineY} x2={width - BOX.padX} y2={baselineY} stroke={theme.accentTrack} strokeWidth={1} />
 
               {hasData && areaPath ? <Path d={areaPath} fill={`url(#${areaFillId})`} /> : null}
 
@@ -187,7 +154,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
 
         {width > 0
           ? trend.map((_, i) => {
-              const { left, width: colWidth } = columnBounds(i);
+              const { left, width: colWidth } = columnBounds(i, count, width, BOX);
               return (
                 <Pressable
                   key={i}
