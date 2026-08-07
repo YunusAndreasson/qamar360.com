@@ -11,9 +11,9 @@ import type { Tables } from '@/lib/database.types';
 import {
   addDaysISO,
   createdDayISO,
+  daysBetweenISO,
   hijriMonthRange,
   hijriParts,
-  hijriYearStart,
   scheduledOn,
   type HijriSchedule,
 } from '@/lib/dates';
@@ -186,77 +186,52 @@ export type MonthProgress = {
   hasPrevious: boolean;
 };
 
-/** One Hijri month of the current year, for the "This year" bars. */
-export type YearMonth = {
-  /** 1-based Hijri month number (1 = Muharram … 12 = Dhul-Hijjah). */
-  month: number;
-  /** Hijri month name, e.g. "Rajab". */
-  monthName: string;
-  /** Completion rate, 0–1 — full month for the past, whole-month progress for the current, 0 for the future. */
-  fraction: number;
-  /** 'past' = fully elapsed, 'current' = contains today, 'future' = not yet begun. */
-  state: 'past' | 'current' | 'future';
-};
+
 
 /**
- * This Hijri year as its 12 months — the "year in moons" strip. `null` when the
- * Islamic calendar is unavailable.
+ * The most points the record is ever drawn with. Past this the line stops being a shape and starts
+ * being a texture, and a phone has nowhere to put them.
  */
-export type YearProgress = {
-  /** Hijri year, e.g. 1448. */
-  year: number;
-  /** Muharram → Dhul-Hijjah, always length 12. */
-  months: YearMonth[];
-};
+export const SERIES_MAX_POINTS = 80;
 
-/**
- * How many days the daily series carries — a season. Long enough that a rhythm is visible and a
- * change of pace is unmistakable, short enough that the line keeps day-level resolution on a phone
- * (a year of dots at this width is a smear). Zooming out past a season is what the month and year
- * scales are for.
- */
-export const DAILY_WINDOW_DAYS = 90;
-
-/** One day of the record — the finest scale the Progress chart draws. */
-export type DayPoint = {
-  /** The day, `YYYY-MM-DD`. */
+/** One bucket of the record — a day while the record is short, a wider span once it isn't. */
+export type SeriesPoint = {
+  /** First day of the bucket, `YYYY-MM-DD`. */
   iso: string;
-  /** That day's own completion, 0–1: credit earned ÷ acts scheduled on it (excused ones dropped). */
+  /** Last day of the bucket, inclusive. Equals {@link iso} while buckets are single days. */
+  endISO: string;
+  /** The bucket's completion, 0–1: credit earned ÷ acts scheduled in it (excused ones dropped). */
   rate: number;
   /**
-   * Acts scheduled that day, after excusals. `0` means the day carries no signal — before the
-   * first habit existed, or a day nothing was due — and its x-slot is left EMPTY rather than
-   * drawn as a 0° miss on the floor (the rule {@link import('./habit-stats').computeHabitStats}'s
-   * trend already uses at week scale).
+   * Acts scheduled in the bucket, after excusals. `0` means it carries no signal — nothing was due
+   * — and its x-slot is left EMPTY rather than drawn as a 0° miss on the floor (the rule
+   * {@link import('./habit-stats').computeHabitStats}'s trend already uses at week scale).
    */
   possible: number;
-  /** Today — still in progress, so it is drawn provisionally and left out of the trend fit. */
+  /** The bucket containing today: still being lived, so drawn provisionally and left out of any fit. */
   pending: boolean;
 };
 
-/** One Hijri year of a life — the unit of the "This life" card. */
-export type LifeYear = {
-  /** Hijri year, e.g. 1447. */
-  year: number;
-  /** Completion rate, 0–1: done ÷ scheduled across the whole year (to date, for the current one). */
-  fraction: number;
-  /** 'past' = fully elapsed, 'current' = contains today. */
-  state: 'past' | 'current';
+/**
+ * The whole record as one line — every day of it, bucketed only as far as it must be to stay
+ * legible.
+ *
+ * There is deliberately **no scale to choose**. `bucketDays` grows continuously with the length of
+ * the record (1 while it is short, 2 at five months, 10 after two years), so the line thins out by
+ * degrees instead of jumping the moment some threshold is crossed — which is what a Days / Months /
+ * Years control makes you do by hand, and what it makes you notice. The reading is always the whole
+ * story at the finest grain that fits.
+ */
+export type RecordSeries = {
+  /** Oldest first, ending with the bucket that contains today. Empty before anything was scheduled. */
+  points: SeriesPoint[];
+  /** Days per bucket. 1 means the line is drawn day by day. */
+  bucketDays: number;
+  /** The day the record opens, or `null` when nothing has ever been scheduled. */
+  sinceISO: string | null;
 };
 
-/**
- * Every Hijri year the user has kept anything at all — the long view, from the first year with
- * something scheduled in it to the one running now. `null` when the Islamic calendar is
- * unavailable; `years` is never empty when it isn't (a user with no history at all yields `null`).
- */
-export type LifeProgress = {
-  /** Oldest year first, ending with the current one. */
-  years: LifeYear[];
-  /** The Hijri month the record opens in, e.g. "Rajab" — where the whole thing began. */
-  sinceMonthName: string;
-  /** The Hijri year the record opens in. */
-  sinceYear: number;
-};
+
 
 /**
  * The improvement trend, read off COMPLETE Hijri months only: how many consecutive closed
@@ -278,18 +253,13 @@ export type ProgressDerived = {
   habitsCount: number;
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
-  /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
-  year: YearProgress | null;
-  /** Every Hijri year on record — the "This life" card, or `null` if there is no record yet. */
-  life: LifeProgress | null;
   /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
   /**
-   * The last {@link DAILY_WINDOW_DAYS} days, oldest first, ending with today — the finest scale
-   * the chart draws, and the only one that moves on a user's second day. Needs no calendar, so it
-   * is present even where `Intl` lacks Umm al-Qura.
+   * The whole record as one line. Moves on a user's second day, and still reads after five years.
+   * Needs no calendar, so it is present even where `Intl` lacks Umm al-Qura.
    */
-  daily: DayPoint[];
+  series: RecordSeries;
 };
 
 /**
@@ -413,89 +383,19 @@ export function computeProgress(
     };
   }
 
-  // This Hijri year as its 12 months — Muharram → Dhul-Hijjah. Past months carry their
-  // full rate, the current month its whole-month progress (done-to-date over the whole
-  // month), future months are empty (new moons). Walks forward month by month from 1
-  // Muharram using the same day arithmetic.
-  let year: YearProgress | null = null;
-  const yearStart = hijriYearStart(today);
-  if (yearStart) {
-    const months: YearMonth[] = [];
-    let cursor = yearStart.start;
-    for (let m = 1; m <= 12; m += 1) {
-      const range = hijriMonthRange(cursor);
-      if (!range) break;
-      let state: YearMonth['state'];
-      let tally = { done: 0, possible: 0 };
-      if (range.start > today) {
-        state = 'future';
-      } else if (range.end <= today) {
-        state = 'past';
-        tally = tallyRange(range.start, range.end); // a fully elapsed month — full-month rate
-      } else {
-        state = 'current';
-        // Same whole-month denominator as the month ring (done month-to-date, possible over the
-        // whole month), so the current moon fills gradually instead of snapping full on day 1.
-        tally = { done: tallyRange(range.start, today).done, possible: tallyRange(range.start, range.end).possible };
-      }
-      months.push({
-        month: m,
-        monthName: range.monthName,
-        fraction: tally.possible ? tally.done / tally.possible : 0,
-        state,
-      });
-      cursor = addDaysISO(range.end, 1); // the 1st of the next Hijri month
-    }
-    if (months.length === 12) year = { year: yearStart.year, months };
-  }
-
-  // Every Hijri year on record — the long view. Walk BACK from this year, one Hijri year at a
-  // time, taking each year's whole-year rate, and stop at the first year with nothing scheduled in
-  // it: that is where the record begins (habits carry `created_at`, so `scheduledOn` is already
-  // false before a habit existed). The current year is measured like the current month on the year
-  // strip — done-to-date over the WHOLE year's possible — so it fills gradually instead of
-  // snapping full in Muḥarram.
+  // Where the record opens: the oldest habit's own first day, and so where the line begins. Read
+  // off `created_at` rather than by hunting for the first scheduled day — that hunt would be
+  // another day-by-day sweep, and the two answers differ by at most the few days between creating
+  // a habit and its first scheduled one.
   //
-  // Bounded at 120 years, which is a guard against a corrupt date rather than a real limit.
-  let life: LifeProgress | null = null;
-  const currentYear = hijriYearStart(today);
-  if (currentYear) {
-    const years: LifeYear[] = [];
-    let cursor: string | null = currentYear.start;
-    for (let back = 0; cursor && back < 120; back += 1) {
-      const yearStartISO: string = cursor;
-      const startParts = hijriParts(yearStartISO);
-      if (!startParts) break;
-      // The last day of this Hijri year = the day before the next year's 1 Muḥarram. For the
-      // current year that lies in the future, which is exactly what the denominator wants.
-      const nextStart = hijriYearStart(addDaysISO(yearStartISO, 400))?.start;
-      const yearEnd = nextStart ? addDaysISO(nextStart, -1) : today;
-      const whole = tallyRange(yearStartISO, yearEnd);
-      if (whole.possible === 0) break; // before anything was ever scheduled — the record starts after this
-      const isCurrent = yearStartISO <= today && today <= yearEnd;
-      const done = isCurrent ? tallyRange(yearStartISO, today).done : whole.done;
-      years.push({
-        year: startParts.year,
-        fraction: whole.possible ? done / whole.possible : 0,
-        state: isCurrent ? 'current' : 'past',
-      });
-      cursor = hijriYearStart(addDaysISO(yearStartISO, -1))?.start ?? null;
-    }
-    // Where the record opens: the oldest habit's own first day. Read off `created_at` rather than
-    // by hunting for the first scheduled day — that hunt would be another day-by-day sweep, and
-    // the two answers differ by at most the few days between creating a habit and its first
-    // scheduled one.
-    const opened = habits.reduce<string | null>((oldest, h) => {
-      if (!h.created_at) return oldest; // an optimistic row not yet persisted — it has no history
-      const day = createdDayISO(h.created_at);
-      return oldest === null || day < oldest ? day : oldest;
-    }, null);
-    const openRange = opened ? hijriMonthRange(opened) : null;
-    if (years.length > 0 && openRange) {
-      years.reverse(); // oldest first — a life reads forward
-      life = { years, sinceMonthName: openRange.monthName, sinceYear: openRange.year };
-    }
-  }
+  // (This used to be the tail of a walk back through every Hijri year, beside a second walk across
+  // the twelve months of this one. The chart draws the whole record at a grain that follows its
+  // length, so both were computing, at two fixed scales, what one series now says at every scale.)
+  const opened = habits.reduce<string | null>((oldest, h) => {
+    if (!h.created_at) return oldest; // an optimistic row not yet persisted — it has no history
+    const day = createdDayISO(h.created_at);
+    return oldest === null || day < oldest ? day : oldest;
+  }, null);
 
   // The improvement trend: walk BACK from this month across closed months (crossing the Hijri
   // year boundary — the year strip above can't power this, it restarts every Muḥarram), collecting
@@ -523,19 +423,30 @@ export function computeProgress(
         : { risingMonths: 0, sinceMonthName: null };
   }
 
-  // The finest scale: one point per day across the last season, oldest first. Every other figure on
-  // the screen is a whole-PERIOD rate, so a day is measured the same way against its own schedule —
-  // 360° is a day fully kept. This is the only series that moves on a second day of use, which is
-  // why it exists: a month ring and a year strip are both still flat then.
+  // The whole record as one line. Every other figure on the screen is a whole-PERIOD rate, so a
+  // bucket is measured the same way against its own schedule — a full orbit is a span fully kept.
   //
-  // Each day is `tallyRange(iso, iso)`, so it rides the same memo and the same excusal/count-goal
-  // rules as every other figure — a day can never disagree with the month that contains it.
-  const daily: DayPoint[] = [];
-  const dailyStart = addDaysISO(today, -(DAILY_WINDOW_DAYS - 1));
-  for (let iso = dailyStart; iso <= today; iso = addDaysISO(iso, 1)) {
-    const { done, possible } = tallyRange(iso, iso);
-    daily.push({ iso, rate: possible > 0 ? done / possible : 0, possible, pending: iso === today });
+  // Buckets are laid backwards from today, so the newest is the one being lived and any short
+  // bucket falls at the far end where it is oldest and least read. Each is a `tallyRange`, riding
+  // the same memo and the same excusal/count-goal rules as every other figure — a point can never
+  // disagree with the month that contains it.
+  const points: SeriesPoint[] = [];
+  let bucketDays = 1;
+  if (opened && opened <= today) {
+    const span = daysBetweenISO(opened, today) + 1;
+    // Continuous, not stepped: the line thins by degrees as the record lengthens instead of
+    // lurching to a coarser grain the day some threshold is passed.
+    bucketDays = Math.max(1, Math.ceil(span / SERIES_MAX_POINTS));
+    for (let end = today; end >= opened; ) {
+      const reach = addDaysISO(end, -(bucketDays - 1));
+      const start = reach < opened ? opened : reach;
+      const { done, possible } = tallyRange(start, end);
+      points.push({ iso: start, endISO: end, rate: possible > 0 ? done / possible : 0, possible, pending: end === today });
+      end = addDaysISO(start, -1);
+    }
+    points.reverse(); // built newest-first; a record reads forward
   }
+  const series: RecordSeries = { points, bucketDays, sinceISO: opened };
 
-  return { habitsCount: habits.length, month, year, life, trend, daily };
+  return { habitsCount: habits.length, month, trend, series };
 }

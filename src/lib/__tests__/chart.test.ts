@@ -8,6 +8,7 @@ import {
   pointAt,
   polylineLength,
   project,
+  buildSmoothPaths,
   spanFor,
   trailingMean,
   type PlotBox,
@@ -69,6 +70,58 @@ describe('buildPaths', () => {
     const { line, area } = buildPaths([{ x: 0, y: 10 }, { x: 20, y: 30 }], 100);
     expect(line).toBe('M 0 10 L 20 30');
     expect(area).toBe('M 0 100 L 0 10 L 20 30 L 20 100 Z');
+  });
+});
+
+describe('buildSmoothPaths', () => {
+  /** Every coordinate the path visits — anchors and Bézier controls alike. A control point outside
+   *  the data's range is exactly how a spline bulges past it. */
+  const ys = (d: string): number[] =>
+    (d.match(/-?\d+(\.\d+)?\s+-?\d+(\.\d+)?/g) ?? []).map((pair) => Number(pair.split(/\s+/)[1]));
+
+  it('draws nothing below two points', () => {
+    expect(buildSmoothPaths([{ x: 1, y: 2 }], 100)).toEqual({ line: '', area: '' });
+    expect(buildSmoothPaths([], 100)).toEqual({ line: '', area: '' });
+  });
+
+  it('is a curve, not a polyline', () => {
+    const { line } = buildSmoothPaths([{ x: 0, y: 50 }, { x: 10, y: 20 }, { x: 20, y: 40 }], 100);
+    expect(line).toContain('C');
+    expect(line).not.toContain('L');
+  });
+
+  it('passes through every point it was given', () => {
+    const pts = [{ x: 0, y: 50 }, { x: 10, y: 20 }, { x: 20, y: 40 }];
+    const { line } = buildSmoothPaths(pts, 100);
+    for (const p of pts) expect(line).toContain(`${p.x} ${p.y}`);
+  });
+
+  // The guarantee that makes this monotone cubic rather than Catmull-Rom. A peak here is a period
+  // fully kept; an overshoot would draw the curve above a complete orbit — a rate the app defines
+  // as impossible — and would do it right where the eye is drawn.
+  it('never overshoots a peak', () => {
+    // A spike: flat, up hard, flat again. A cardinal spline bulges above the peak on both sides.
+    const pts = [{ x: 0, y: 90 }, { x: 10, y: 90 }, { x: 20, y: 10 }, { x: 30, y: 90 }, { x: 40, y: 90 }];
+    const { line } = buildSmoothPaths(pts, 100);
+    // y is inverted in screen space, so the peak is the MINIMUM y.
+    expect(Math.min(...ys(line))).toBeGreaterThanOrEqual(10);
+    expect(Math.max(...ys(line))).toBeLessThanOrEqual(90);
+  });
+
+  it('never dips below a trough at the end of a fall', () => {
+    const pts = [{ x: 0, y: 10 }, { x: 10, y: 20 }, { x: 20, y: 80 }, { x: 30, y: 90 }];
+    expect(Math.max(...ys(buildSmoothPaths(pts, 100).line))).toBeLessThanOrEqual(90);
+  });
+
+  it('keeps a flat run flat — no arcing off a plateau and back', () => {
+    const pts = [{ x: 0, y: 40 }, { x: 10, y: 40 }, { x: 20, y: 40 }];
+    expect(new Set(ys(buildSmoothPaths(pts, 100).line))).toEqual(new Set([40]));
+  });
+
+  it('closes the area down to the baseline at both ends', () => {
+    const { area } = buildSmoothPaths([{ x: 5, y: 10 }, { x: 25, y: 30 }], 100);
+    expect(area.startsWith('M 5 100 L 5 10')).toBe(true);
+    expect(area.endsWith('L 25 100 Z')).toBe(true);
   });
 });
 

@@ -40,6 +40,15 @@ export function addDaysISO(iso: string, n: number): string {
 const weekdayCache = new Map<string, number>();
 const WEEKDAY_CACHE_MAX = 4000;
 
+/**
+ * Whole days from `from` to `to` (negative when `to` is earlier). Built on {@link localDate}, so
+ * both ends are local midnights; `Math.round` absorbs the 23- and 25-hour days a DST crossing puts
+ * between them, which plain division would leave at 0.958 or 1.042 of a day.
+ */
+export function daysBetweenISO(from: string, to: string): number {
+  return Math.round((localDate(to).getTime() - localDate(from).getTime()) / 86_400_000);
+}
+
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */
 export function weekdayIndex(iso: string): number {
   let wd = weekdayCache.get(iso);
@@ -191,26 +200,6 @@ export function hijriMonthRange(
   return { start, end, length, monthName: parts.monthName, year: parts.year };
 }
 
-/**
- * The Gregorian date (`YYYY-MM-DD`) of 1 Muḥarram — the first day of the Hijri
- * year that contains `iso` — plus that Hijri year. Walks back month by month
- * from the current Hijri month to Muḥarram (month 1). Returns `null` when the
- * Islamic calendar is unavailable.
- */
-export function hijriYearStart(iso: string): { start: string; year: number } | null {
-  const p = hijriParts(iso);
-  if (!p) return null;
-  let first = addDaysISO(iso, -(p.day - 1)); // 1st of the current Hijri month
-  let mp = hijriParts(first);
-  for (let guard = 0; mp && mp.month !== 1 && guard < 13; guard += 1) {
-    const prevMonthLast = addDaysISO(first, -1);
-    const pp = hijriParts(prevMonthLast);
-    if (!pp) return null;
-    first = addDaysISO(prevMonthLast, -(pp.day - 1)); // 1st of the previous Hijri month
-    mp = hijriParts(first);
-  }
-  return mp && mp.month === 1 ? { start: first, year: mp.year } : null;
-}
 
 /** One-letter weekday labels indexed 0=Sunday … 6=Saturday — for the schedule picker. */
 export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;

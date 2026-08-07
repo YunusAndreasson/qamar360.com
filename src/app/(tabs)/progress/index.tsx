@@ -11,7 +11,7 @@ import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, year, life, trend, daily } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, trend, series } = useProgress();
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -54,10 +54,11 @@ export default function ProgressScreen() {
     );
   }
 
-  // A runtime whose `Intl` lacks the Umm al-Qura calendar derives no month and no year — every
-  // card below would render null, leaving a wordless blank screen. Every layer beneath defends
-  // against the missing calendar; this final composition must name it too.
-  if (month === null && year === null) {
+  // A runtime whose `Intl` lacks the Umm al-Qura calendar derives no month, so the hero — the
+  // screen's primary instrument, and the whole reason completion is measured in orbits — cannot
+  // render. The line below it would still draw (it counts days, not months), but a lone chart with
+  // no explanation is a worse answer than naming what is missing.
+  if (month === null) {
     return (
       <AppScreen transparent centered>
         <EmptyState
@@ -81,7 +82,7 @@ export default function ProgressScreen() {
           were empty for anyone new.) */}
       <MonthSummary month={month} />
 
-      <OverTime daily={daily} year={year} life={life} trend={trend} />
+      <OverTime series={series} trend={trend} />
     </AppScreen>
   );
 }

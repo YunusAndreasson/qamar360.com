@@ -72,6 +72,76 @@ export function buildPaths(points: readonly Pt[], baselineY: number): { line: st
 }
 
 /**
+ * Tangent at each point for a **monotone** cubic through them (Fritsch–Carlson, 1980).
+ *
+ * The guarantee is the reason this is not a plain Catmull–Rom or cardinal spline: those overshoot
+ * around a peak, and here a peak is a period fully kept. An overshoot would bulge the curve above a
+ * complete orbit and below an empty one — drawing rates this app defines as impossible, and doing it
+ * exactly where the eye is drawn. Fritsch–Carlson clips the tangents into the region where the
+ * cubic cannot leave the interval its endpoints span, so the curve is smooth *and* stays honest: it
+ * only rises where the data rises, and it never exceeds a value it was given.
+ */
+function monotoneTangents(pts: readonly Pt[]): number[] {
+  const n = pts.length;
+  const secant: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1]!.x - pts[i]!.x;
+    secant.push(dx === 0 ? 0 : (pts[i + 1]!.y - pts[i]!.y) / dx);
+  }
+  // Endpoints take their one neighbouring secant; interior points the average of both.
+  const m: number[] = [secant[0] ?? 0];
+  for (let i = 1; i < n - 1; i++) m.push((secant[i - 1]! + secant[i]!) / 2);
+  m.push(secant[n - 2] ?? 0);
+
+  for (let i = 0; i < n - 1; i++) {
+    // A flat run must stay flat: any tangent through a plateau would arc off it and come back.
+    if (secant[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i]! / secant[i]!;
+    const b = m[i + 1]! / secant[i]!;
+    const h = a * a + b * b;
+    // Outside the circle of radius 3 the cubic can leave the interval — pull the pair back onto it.
+    if (h > 9) {
+      const t = 3 / Math.sqrt(h);
+      m[i] = t * a * secant[i]!;
+      m[i + 1] = t * b * secant[i]!;
+    }
+  }
+  return m;
+}
+
+/**
+ * The same two paths {@link buildPaths} returns, drawn as a smooth monotone curve instead of
+ * straight segments between the points.
+ *
+ * A polyline through daily readings reads as a saw — the eye follows the corners rather than the
+ * shape, and a rhythm that is genuinely steady looks agitated. The curve is what makes the line
+ * legible as a *trend*; that it cannot overshoot is what keeps it honest while doing so.
+ */
+export function buildSmoothPaths(points: readonly Pt[], baselineY: number): { line: string; area: string } {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (points.length < 2 || !first || !last) return { line: '', area: '' };
+
+  const m = monotoneTangents(points);
+  let spine = '';
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i]!;
+    const q = points[i + 1]!;
+    // Control points a third of the span along each tangent — the Hermite-to-Bézier conversion.
+    const third = (q.x - p.x) / 3;
+    spine += ` C ${p.x + third} ${p.y + m[i]! * third}, ${q.x - third} ${q.y - m[i + 1]! * third}, ${q.x} ${q.y}`;
+  }
+  return {
+    line: `M ${first.x} ${first.y}${spine}`,
+    area: `M ${first.x} ${baselineY} L ${first.x} ${first.y}${spine} L ${last.x} ${baselineY} Z`,
+  };
+}
+
+/**
  * The touch column for slot `index`: bounds at the midpoints between adjacent slot x-positions,
  * with the edge columns running out to the plot's edge. NOT `width / count` — the slots are inset
  * by `padX`, so equal-width columns would drift off their points at both ends.

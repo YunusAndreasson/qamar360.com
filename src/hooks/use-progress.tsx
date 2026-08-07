@@ -5,12 +5,12 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type DayPoint, type LifeProgress, type MonthProgress, type ProgressDerived, type TrendSummary, type YearProgress } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type TrendSummary } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { DayPoint, LifeProgress, LifeYear, MonthProgress, TrendSummary, YearMonth, YearProgress } from '@/lib/progress';
+export type { MonthProgress, RecordSeries, SeriesPoint, TrendSummary } from '@/lib/progress';
 
 /**
  * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
@@ -67,15 +67,11 @@ type ProgressData = {
   habitsCount: number;
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
-  /** This Hijri year as 12 months — the year bars, or `null` if unavailable. */
-  year: YearProgress | null;
-  /** Every Hijri year on record — the "This life" card, or `null` before there is any record. */
-  life: LifeProgress | null;
-  /** The rising-months statement for the year card, or `null` if the calendar is unavailable. */
+  /** The rising-months statement for the Over-time card, or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
-  /** The last season day by day — the Over-time chart's finest scale, and the only one that moves
-   *  on a second day of use. */
-  daily: DayPoint[];
+  /** The whole record as one line — the Over-time chart, and the only reading that moves on a
+   *  second day of use. */
+  series: RecordSeries;
 };
 
 /**
