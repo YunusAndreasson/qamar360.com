@@ -60,7 +60,7 @@ const LIST_BOTTOM_INSET = BottomTabInset + Spacing.five;
 //           card), not another unit, so it takes the middle step.
 //   BREAK — between two sections. The widest step in the 8/16/32 scale, because what follows is
 //           not another card in the same sequence but a different unit of tracking, with its own
-//           caption. (INSTEAD OF already claimed this; TO DO and STACKS were on 8 and 16, which is
+//           caption. (EXCHANGES already claimed this; TO DO and STACKS were on 8 and 16, which is
 //           what made the day read as three loosely-related lists rather than one.)
 const SECTION_LEAD = Spacing.three;
 const SECTION_BREAK = Spacing.five;
@@ -575,8 +575,8 @@ export default function HabitsScreen() {
           ) : (
             <>
               {/* The day's two units, each under its own caption: the stacks, then the exchanges
-                  below them. Before the label the section stood unnamed while "INSTEAD OF" named
-                  the one beneath it — which read as if the list were the day and the exchanges an
+                  below them. Before the label the section stood unnamed while the one beneath it
+                  was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
                 style={[styles.stacksLabel, { paddingTop: tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD }]}>
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
   },
   // The one caption that isn't inside a 16pt-inset section of its own — the stacks live in the
   // drag grid, which insets its cards itself. Without this padding the caption hung 16 in from the
-  // screen edge while TO DO and INSTEAD OF hung 32, so the three captions stepped in and out down
+  // screen edge while TO DO and EXCHANGES hung 32, so the three captions stepped in and out down
   // the day. (Its own `marginLeft: 16` from SectionLabel plus this 16 = the 32 every caption in
   // the app keeps from the card edge.) The top space is set inline, from the day's two constants.
   stacksLabel: { paddingHorizontal: Spacing.three },

@@ -35,6 +35,28 @@ export function isExchange(habit: Exchangeable): boolean {
   return !!habit.instead_of;
 }
 
+/**
+ * The plan under an exchange's name, wherever it is shown: what is being displaced, then the moment
+ * it arrives — "instead of soft drinks · when I sit down to eat".
+ *
+ * Lowercase and unpunctuated because it is not a label but the second half of a sentence the title
+ * begins: *Drank a glass of water* / *instead of soft drinks*. That makes the visible line and the
+ * spoken one the same sentence, and it is why the words are here rather than in a caption.
+ *
+ * They were dropped on 2026-08-05 as clutter, on the grounds that the section above the card was
+ * captioned INSTEAD OF and every row was restating its own heading. That caption is now EXCHANGES —
+ * named for its unit, like STACKS and TO DO beside it — so the preposition has nowhere else to live,
+ * and a bare "soft drinks · when I sit down to eat" no longer says what soft drinks *is*.
+ *
+ * One definition, used by the day's row and the library's card, which previously carried the same
+ * template twice with a comment on one asking that it match the other.
+ */
+export function exchangePlanLine(insteadOf: string, cue?: string | null): string {
+  // A row with no cue simply says less rather than inventing one — the form requires a cue, but
+  // rows created before it did, or edited around it, must still read.
+  return `instead of ${insteadOf}${cue ? ` · ${cue}` : ''}`;
+}
+
 export type ExchangeRowContract = {
   mode:
     /** In play today and not yet held — the tap commits. */
@@ -72,15 +94,10 @@ export function exchangeRowContract({
   /** Excused for the viewed day. Outranks `held`: an excused row can't also be asserting. */
   skipped: boolean;
 }): ExchangeRowContract {
-  // The displaced routine and the moment it arrives, in that order. **No "Instead of " prefix**
-  // (dropped 2026-08-05): the section caption above the card is literally INSTEAD OF, so every row
-  // was restating its own heading — and the three wasted words pushed a plain pairing onto a
-  // second line. The visible line is a fragment; the spoken one below stays a sentence. A row with
-  // no cue simply says less rather than inventing one — the form requires a cue, but rows created
-  // before it did, or edited around it, must still read.
-  const meta = `${insteadOf}${cue ? ` · ${cue}` : ''}`;
-  // Read as one sentence: the deed, then what it replaces, then when. Commas, not the middle
-  // dot — a screen reader pauses on a comma and says nothing useful for "·".
+  const meta = exchangePlanLine(insteadOf, cue);
+  // The same sentence as the visible line, punctuated for the ear: the deed, then what it replaces,
+  // then when. Commas, not the middle dot — a screen reader pauses on a comma and says nothing
+  // useful for "·".
   const spoken = `${name}, instead of ${insteadOf}${cue ? `, ${cue}` : ''}`;
 
   if (skipped) {

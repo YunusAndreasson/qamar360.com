@@ -56,20 +56,22 @@ describe('exchangeRowContract', () => {
 
   describe('meta', () => {
     it('names what it displaces and the moment it hits', () => {
-      expect(exchangeRowContract(base).meta).toBe('soft drinks · when I sit down to eat');
+      expect(exchangeRowContract(base).meta).toBe('instead of soft drinks · when I sit down to eat');
     });
 
     it('says less rather than inventing a moment when there is no cue', () => {
-      expect(exchangeRowContract({ ...base, cue: null }).meta).toBe('soft drinks');
-      expect(exchangeRowContract({ ...base, cue: '' }).meta).toBe('soft drinks');
+      expect(exchangeRowContract({ ...base, cue: null }).meta).toBe('instead of soft drinks');
+      expect(exchangeRowContract({ ...base, cue: '' }).meta).toBe('instead of soft drinks');
     });
 
-    // The section this row lives in is captioned INSTEAD OF, so a row that said it again was
-    // restating its own heading — and the three words pushed a plain pairing onto a second line.
-    // The SPOKEN label keeps the phrase (a screen reader has no caption in earshot).
-    it('leaves "instead of" to the section caption, but keeps it in the spoken label', () => {
+    // The row has to say what it displaces on its own. The phrase used to be left to the section
+    // caption — literally INSTEAD OF at the time — but that caption is now EXCHANGES, named for its
+    // unit like STACKS and TO DO beside it, so a bare "soft drinks · when I sit down to eat" would
+    // never say what soft drinks *is*. Lowercase: it continues the title's sentence rather than
+    // labelling a field, which is also what keeps it identical to the spoken line.
+    it('carries "instead of" itself — no caption supplies it', () => {
       const row = exchangeRowContract(base);
-      expect(row.meta).not.toMatch(/instead of/i);
+      expect(row.meta).toMatch(/^instead of /);
       expect(row.label).toContain('instead of soft drinks');
     });
 

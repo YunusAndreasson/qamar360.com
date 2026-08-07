@@ -36,7 +36,12 @@ export function ExchangeSection({ exchanges, topGap, completed, skipped, onToggl
 
   return (
     <View style={[styles.section, { paddingTop: topGap }]}>
-      <SectionLabel>INSTEAD OF</SectionLabel>
+      {/* Named for the unit, like `STACKS` and `TO DO` beside it — not "INSTEAD OF", which this
+          label used to read. That phrase is the editor's field for the routine being displaced
+          ("soft drinks"), and using it here made one wording mean the whole feature on the day and
+          one field of one item in the editor. Every other way in — the "+" menu, the act sheet, the
+          library, the guide — already says exchange; the day was the last screen that didn't. */}
+      <SectionLabel>EXCHANGES</SectionLabel>
       <Surface>
         {exchanges.map((habit, i) => (
           <View key={habit.id}>

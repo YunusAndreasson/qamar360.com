@@ -17,6 +17,7 @@ import { Face, Pressed, Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { DAILY_SCHEDULE } from '@/lib/dates';
+import { exchangePlanLine } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { normalizeName } from '@/lib/names';
 
@@ -130,9 +131,10 @@ function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: 
               {entry.name}
             </ThemedText>
           </View>
-          {/* The plan, in the Today row's exact grammar: displaced routine · the moment. */}
+          {/* The plan, in the Today row's exact grammar — from the same function, so "exact" is
+              enforced rather than asked for. */}
           <ThemedText type="small" themeColor="textSecondary">
-            {`${entry.insteadOf} · ${entry.cue}`}
+            {exchangePlanLine(entry.insteadOf, entry.cue)}
           </ThemedText>
           <ThemedText type="small" themeColor="textDisabled">
             {entry.detail}
