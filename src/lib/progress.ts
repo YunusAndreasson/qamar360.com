@@ -227,7 +227,7 @@ export type RecordSeries = {
   points: SeriesPoint[];
   /** Days per bucket. 1 means the line is drawn day by day. */
   bucketDays: number;
-  /** The day the record opens, or `null` when nothing has ever been scheduled. */
+  /** The first day the record asked anything of you, or `null` when nothing ever has. */
   sinceISO: string | null;
 };
 
@@ -430,7 +430,7 @@ export function computeProgress(
   // bucket falls at the far end where it is oldest and least read. Each is a `tallyRange`, riding
   // the same memo and the same excusal/count-goal rules as every other figure — a point can never
   // disagree with the month that contains it.
-  const points: SeriesPoint[] = [];
+  let points: SeriesPoint[] = [];
   let bucketDays = 1;
   if (opened && opened <= today) {
     const span = daysBetweenISO(opened, today) + 1;
@@ -445,8 +445,15 @@ export function computeProgress(
       end = addDaysISO(start, -1);
     }
     points.reverse(); // built newest-first; a record reads forward
+    // The record begins where it first ASKED something, not where a habit was created. A habit made
+    // on a Tuesday and scheduled for Fridays leaves days that were never anyone's to keep, and
+    // carrying them would open the line with a stretch it cannot draw — leaving the curve hanging
+    // short of the left edge with no way to tell that the emptiness was the point.
+    const first = points.findIndex((p) => p.possible > 0);
+    points = first <= 0 ? points : points.slice(first);
+    if (first < 0) points = [];
   }
-  const series: RecordSeries = { points, bucketDays, sinceISO: opened };
+  const series: RecordSeries = { points, bucketDays, sinceISO: points[0]?.iso ?? null };
 
   return { habitsCount: habits.length, month, trend, series };
 }

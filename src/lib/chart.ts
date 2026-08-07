@@ -36,7 +36,33 @@ export function pointAt(span: number, fraction: number, width: number, box: Plot
 /** Evenly-spaced span for slot `index` of `count`. A lone slot is centred — pinned to the left
  *  edge it reads as a chart that failed to draw rather than as a record one entry long. */
 export function spanFor(index: number, count: number): number {
+  'worklet';
   return count > 1 ? index / (count - 1) : 0.5;
+}
+
+/**
+ * The x a slot is drawn at — {@link pointAt}'s horizontal half, on its own so a scrub cursor can be
+ * placed from a worklet without the value math (and its `clamp01`) coming along for the ride.
+ */
+export function slotX(index: number, total: number, width: number, box: PlotBox): number {
+  'worklet';
+  return box.padX + (width - 2 * box.padX) * spanFor(index, total);
+}
+
+/**
+ * Which slot an x falls on — the exact inverse of {@link slotX}, clamped into the series.
+ *
+ * Solved from the same geometry rather than re-derived, because a scrub that computes its position
+ * a second way is a scrub that can disagree with the curve it is reading. The round trip is pinned
+ * by a test for exactly that reason.
+ */
+export function slotAtX(x: number, total: number, width: number, box: PlotBox): number {
+  'worklet';
+  if (total <= 1) return 0;
+  const inner = width - 2 * box.padX;
+  if (inner <= 0) return 0;
+  const i = Math.round(((x - box.padX) / inner) * (total - 1));
+  return i < 0 ? 0 : i > total - 1 ? total - 1 : i;
 }
 
 /**
@@ -159,28 +185,6 @@ export function columnBounds(
   return { left, width: Math.max(0, right - left) };
 }
 
-/**
- * A trailing mean over `window` samples, ending at each point — the raw signal smoothed just
- * enough to read as a direction rather than a zig-zag.
- *
- * The window is the caller's `min(window, i + 1)`: an early sample averages only what exists, so a
- * second day of use already produces a real two-point line instead of waiting a week for the
- * window to fill. It grows into the full window with the record, with no cliff where the meaning
- * of the line suddenly changes.
- */
-export function trailingMean(values: readonly number[], window: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < values.length; i++) {
-    // Each window is summed from scratch rather than carried as a running total. A rolling sum
-    // accumulates float error as terms are added and subtracted back out, so `window: 1` — which
-    // must be the identity for series that are already aggregated — drifted off its own input.
-    const from = Math.max(0, i - window + 1);
-    let sum = 0;
-    for (let k = from; k <= i; k++) sum += values[k]!;
-    out.push(sum / (i - from + 1));
-  }
-  return out;
-}
 
 /**
  * Least-squares fit of `values` against their indices — `slope` per step, `intercept` at index 0.

@@ -486,12 +486,33 @@ describe('computeProgress — the record series', () => {
     expect(series.points[series.points.length - 1]).toMatchObject({ rate: 0.5, possible: 2 });
   });
 
-  it('carries no signal where nothing was due, rather than a zero', () => {
-    // White Days only: across a bucketed record most days ask nothing at all.
+  // The line must reach the left edge of its plot. It is drawn through the buckets that carry a
+  // reading, so if the record opens with days that asked nothing, the curve starts inset and hangs
+  // short — with nothing to tell you the emptiness was the point.
+  it('opens where the record first asked something, not where a habit was created', () => {
+    const { start } = monthShape(today);
+    // Created on the 1st, but scheduled only on the White Days: the 13th is the first real day.
+    const habit: ProgressHabit = { ...whiteDaysHabit('w'), created_at: `${start}T09:00:00.000Z` };
+    const { series } = computeProgress([habit], [], addDaysISO(start, 20));
+    expect(series.points[0]!.possible).toBeGreaterThan(0);
+    expect(series.points[0]!.iso).toBe(addDaysISO(start, 12)); // the 13th
+    expect(series.sinceISO).toBe(addDaysISO(start, 12));
+  });
+
+  it('has nothing to draw when the record has not asked anything yet', () => {
     const { start } = monthShape(today);
     const habit: ProgressHabit = { ...whiteDaysHabit('w'), created_at: `${start}T09:00:00.000Z` };
     const { series } = computeProgress([habit], [], addDaysISO(start, 11)); // before the 13th
-    expect(series.points.every((p) => p.possible === 0)).toBe(true);
+    expect(series.points).toHaveLength(0);
+    expect(series.sinceISO).toBeNull();
+  });
+
+  it('keeps a gap in the middle — a day nothing was due is not a miss', () => {
+    const { start } = monthShape(today);
+    const habit: ProgressHabit = { ...whiteDaysHabit('w'), created_at: `${start}T09:00:00.000Z` };
+    const { series } = computeProgress([habit], [], addDaysISO(start, 20));
+    // The 16th onward asked nothing, and those slots stay in the series carrying no signal.
+    expect(series.points.some((p) => p.possible === 0)).toBe(true);
   });
 
   it('excuses a skipped day out of the reading entirely', () => {

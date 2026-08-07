@@ -19,7 +19,7 @@ import { Duration, PageEnter } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { RecordSeries, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
-import { buildSmoothPaths, pointAt, polylineLength, project, spanFor, trailingMean, type PlotBox, type Pt } from '@/lib/chart';
+import { buildSmoothPaths, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { toDegrees } from '@/lib/progress';
@@ -32,10 +32,6 @@ const BASELINE_Y = BOX.height - BOX.padY;
 
 const CURRENT_R = 4.5;
 
-/** The trailing window at day grain — one turn of the weekly schedule most habits run on, so a
- *  Monday-only act stops reading as six misses and a spike. Wider buckets are already averages of
- *  their own span and are not smoothed twice. */
-const DAILY_TREND_WINDOW = 7;
 /** How far back the projection is fitted — recent shape only, so an old rhythm can't anchor it. */
 const FIT_WINDOW = 14;
 /** The furthest ahead the line ever looks, in buckets. */
@@ -85,13 +81,14 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
   const count = points.length;
 
   // Closed buckets carry the settled curve; the one still running and the projection carry the dash.
+  //
+  // **A bucket's own rate is the value — there is no second, smoothed series.** The curve used to be
+  // drawn through a trailing mean while the scrub dot and the readout used the raw rate, so the two
+  // disagreed by construction: the dot landed off the line and reported a number the line was not
+  // showing. Legibility is the cubic's job, and the bucket width already averages as the record
+  // grows, so the smoothing bought a mismatch and nothing else. One array, one meaning: what you
+  // scrub is what is drawn is what is said.
   const closed = useMemo(() => points.map((p, i) => ({ p, i })).filter((x) => x.p.possible > 0 && !x.p.pending), [points]);
-  const means = useMemo(
-    // A bucket wider than a day is already an average of its own span; smoothing it again would be
-    // averaging twice and would flatten the very changes the line exists to show.
-    () => trailingMean(closed.map((x) => x.p.rate), series.bucketDays > 1 ? 1 : DAILY_TREND_WINDOW),
-    [closed, series.bucketDays],
-  );
 
   // Room ahead grows with what is behind: a quarter of the record, capped. A fixed horizon would
   // swallow half the plot on a two-day chart and read as mostly speculation.
@@ -99,8 +96,8 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
   const projection = useMemo(
     // Fitted on closed buckets only. A day still being lived reads near zero in the morning, and a
     // forecast that dives at breakfast and recovers by night is noise wearing the clothes of a trend.
-    () => (horizon > 0 ? project(means, { horizon, fitWindow: FIT_WINDOW }) : null),
-    [horizon, means],
+    () => (horizon > 0 ? project(closed.map((x) => x.p.rate), { horizon, fitWindow: FIT_WINDOW }) : null),
+    [horizon, closed],
   );
 
   // The room ahead is only real if something is drawn in it — otherwise a lone first day would sit
@@ -117,7 +114,7 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
 
   const at = (index: number, rate: number): Pt => pointAt(spanFor(index, total), rate, width, BOX);
 
-  const settled: Pt[] = width > 0 ? closed.map((x, k) => at(x.i, means[k]!)) : [];
+  const settled: Pt[] = width > 0 ? closed.map((x) => at(x.i, x.p.rate)) : [];
   const nowIndex = points.findIndex((p) => p.pending);
   const nowPoint = width > 0 && nowIndex >= 0 && points[nowIndex]!.possible > 0 ? at(nowIndex, points[nowIndex]!.rate) : null;
   // The dashed run: on from the settled curve, through the span still open, out to where the slope
@@ -165,12 +162,13 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
     'worklet';
     const w = widthSV.get();
     if (w <= 0 || count === 0) return;
-    const inner = Math.max(1, w - 2 * BOX.padX);
-    const raw = Math.round(((x - BOX.padX) / inner) * (total > 1 ? total - 1 : 1));
+    const raw = slotAtX(x, total, w, BOX);
     // Never past the last real bucket: the projection is where you are heading, not somewhere you
     // can stand and take a reading.
-    const i = raw < 0 ? 0 : raw > count - 1 ? count - 1 : raw;
-    cursorX.set(BOX.padX + inner * (total > 1 ? i / (total - 1) : 0.5));
+    const i = raw > count - 1 ? count - 1 : raw;
+    // The cursor is placed by the same function that places the curve's points, so the two cannot
+    // drift apart — the hairline lands exactly on the slot whose reading is being shown.
+    cursorX.set(slotX(i, total, w, BOX));
     cursorOn.set(1);
     if (lastIndex.get() === i) return; // ratchet: one beat per bucket crossed, never per frame
     lastIndex.set(i);
@@ -204,20 +202,25 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
   const focusProps = useAnimatedProps(() => ({ opacity: cursorOn.get() }));
 
   // ── The reading ──────────────────────────────────────────────────────────────────────────────
-  const latestMean = means[means.length - 1];
+  const latest = closed[closed.length - 1]?.p.rate;
   const focusedPoint = focused != null ? (points[focused] ?? null) : null;
   const restingText =
     // The screen's one multi-month sentence, when the run is real — a direction, with the curve
     // below as its evidence.
     trend && trend.risingMonths >= 3 && trend.sinceMonthName
       ? `Rising since ${trend.sinceMonthName}`
-      : projection && latestMean !== undefined
-        ? `${projection.direction} · ${toDegrees(latestMean)}°`
+      : projection && latest !== undefined
+        ? `${projection.direction} · ${toDegrees(latest)}°`
         : count > 0
           ? `Today · ${toDegrees(points[count - 1]!.rate)}° so far`
           : null;
   const readoutText = focusedPoint
-    ? `${bucketLabel(focusedPoint)} · ${toDegrees(focusedPoint.rate)}°${focusedPoint.pending ? ' so far' : ''}`
+    ? // A span that asked nothing has no reading. "0°" would be a score for something that was never
+      // yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
+      // floor, said in words.
+      focusedPoint.possible === 0
+      ? `${bucketLabel(focusedPoint)} · nothing due`
+      : `${bucketLabel(focusedPoint)} · ${toDegrees(focusedPoint.rate)}°${focusedPoint.pending ? ' so far' : ''}`
     : restingText;
 
   const since = series.sinceISO ? hijriParts(series.sinceISO) : null;

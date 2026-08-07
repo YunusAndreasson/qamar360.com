@@ -8,9 +8,10 @@ import {
   pointAt,
   polylineLength,
   project,
+  slotAtX,
+  slotX,
   buildSmoothPaths,
   spanFor,
-  trailingMean,
   type PlotBox,
 } from '@/lib/chart';
 
@@ -125,6 +126,42 @@ describe('buildSmoothPaths', () => {
   });
 });
 
+// A scrub that computes its position independently of the curve is a scrub that can disagree with
+// it — the cursor lands between points, or reports a slot it isn't over. These pin the two together.
+describe('slotX / slotAtX', () => {
+  it('places a slot exactly where the curve draws it', () => {
+    for (let i = 0; i < 9; i++) {
+      expect(slotX(i, 9, WIDTH, BOX)).toBeCloseTo(pointAt(spanFor(i, 9), 0, WIDTH, BOX).x, 10);
+    }
+  });
+
+  it('round-trips: the x of a slot reads back as that slot', () => {
+    for (const total of [2, 3, 9, 47, 80]) {
+      for (let i = 0; i < total; i++) {
+        expect(slotAtX(slotX(i, total, WIDTH, BOX), total, WIDTH, BOX)).toBe(i);
+      }
+    }
+  });
+
+  it('snaps to the nearest slot from anywhere between two', () => {
+    const total = 5;
+    const a = slotX(1, total, WIDTH, BOX);
+    const b = slotX(2, total, WIDTH, BOX);
+    expect(slotAtX(a + (b - a) * 0.2, total, WIDTH, BOX)).toBe(1);
+    expect(slotAtX(a + (b - a) * 0.8, total, WIDTH, BOX)).toBe(2);
+  });
+
+  it('clamps outside the plot rather than running off the series', () => {
+    expect(slotAtX(-500, 6, WIDTH, BOX)).toBe(0);
+    expect(slotAtX(WIDTH + 500, 6, WIDTH, BOX)).toBe(5);
+  });
+
+  it('survives a plot with no width yet, and a series of one', () => {
+    expect(slotAtX(120, 6, 0, BOX)).toBe(0);
+    expect(slotAtX(120, 1, WIDTH, BOX)).toBe(0);
+  });
+});
+
 describe('columnBounds', () => {
   it('tiles the plot edge to edge, with no gaps and no overlap', () => {
     const count = 6;
@@ -143,29 +180,6 @@ describe('columnBounds', () => {
   });
 });
 
-describe('trailingMean', () => {
-  it('averages only what exists at the start, so a second sample already moves the line', () => {
-    expect(trailingMean([1, 0], 7)).toEqual([1, 0.5]);
-  });
-
-  it('grows into the full window and then holds it', () => {
-    const values = [1, 1, 1, 1, 0, 0, 0, 0];
-    const means = trailingMean(values, 4);
-    expect(means[0]).toBe(1); // window of 1
-    expect(means[3]).toBe(1); // window of 4, all ones
-    expect(means[5]).toBeCloseTo(0.5, 10); // last four: 1,1,0,0
-    expect(means[7]).toBe(0); // last four: all zeros — the old ones have left
-  });
-
-  it('leaves an already-aggregated series alone at window 1', () => {
-    const values = [0.2, 0.9, 0.4];
-    expect(trailingMean(values, 1)).toEqual(values);
-  });
-
-  it('returns one mean per sample', () => {
-    expect(trailingMean([0.1, 0.2, 0.3, 0.4], 7)).toHaveLength(4);
-  });
-});
 
 describe('linearFit', () => {
   it('has no direction below two points — the whole failure mode a projection must avoid', () => {
