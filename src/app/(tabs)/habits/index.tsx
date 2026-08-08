@@ -94,6 +94,7 @@ export default function HabitsScreen() {
     completed,
     skipped,
     loading,
+    completionsLoading,
     error,
     today,
     viewDate,
@@ -620,6 +621,7 @@ export default function HabitsScreen() {
                         members={entry.members}
                         completed={completed}
                         skipped={skipped}
+                        settling={completionsLoading}
                         onSeal={sealStack}
                         onUnseal={unsealStack}
                         onAct={openAct}

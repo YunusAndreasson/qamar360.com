@@ -327,5 +327,14 @@ export const Pressed = { dim: 0.6 } as const;
 /** Opacity for a control disabled by dimming (rather than a colour swap, as `AppButton` does). */
 export const Disabled = 0.4;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+// Android's value was tuned for a full-width Material bottom nav; the floating NativeTabs pill
+// this app actually renders has a noticeably smaller footprint, so the old figure left a large
+// dead gap after the last card on every screen (most visible below a short one, like Progress's
+// last stat card). Re-measured against the pill's actual on-screen height.
+export const BottomTabInset = Platform.select({ ios: 50, android: 64 }) ?? 0;
 export const MaxContentWidth = 800;
+
+/** The leading mark slot every row/card header shares — an act's ordinal, an exchange's mark, a
+ *  task's own leading slot, and a stack header's completion ring all centre in this same 32-wide
+ *  box, so their columns line up regardless of which kind of row it is. */
+export const RowLeadingSlot = { width: 32, alignItems: 'center', justifyContent: 'center' } as const satisfies ViewStyle;

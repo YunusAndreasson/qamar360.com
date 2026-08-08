@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, type ListRenderItemInfo } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -12,8 +12,9 @@ import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
-import { isRepeatablePreset, scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
+import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -44,22 +45,19 @@ const rowKey = (row: Row) => (row.type === 'category' ? `category-${row.category
 const SectionGap = () => <View style={styles.gap} />;
 
 /**
- * Discover — a curated, evidence-backed library of SMART Sunnah habits. Search or filter to
- * find one fast, then add it with a single tap from the row (no need to expand first); once
- * added, a trailing ＋ adds another independent copy — for a habit you keep in more than one
- * place (a page of Qurʾān in both Morning and Evening). Expand to read how it's tracked and its
- * Sunnah source. The library leads: the starter set for new
- * users, then the categories; "Create your own" closes the list as a quiet row for the rarer
- * from-scratch path. A native modal sheet of the Habits Stack (from the bottom, like the
- * editor), so it shares `HabitsProvider`; a left-aligned Close dismisses it (set in the
- * layout). The body is a virtualized FlatList of section cards, so only visible sections mount.
- *
- * With a `stackId` param (the empty card's "Add your first habit" and the ⋯ menu's "Add
- * habits") the same screen adds *into* that stack: the title says so, rows answer "in this
- * stack?" rather than "exists?", adds land as members (a loose habit you already have moves in;
- * one already in another stack is copied here as its own row, never pulled out of it), the ✓ tap
- * un-members rather than deletes, and a "Your habits" section offers the lone habits you already
- * have.
+ * Discover — a curated, evidence-backed library of SMART Sunnah habits, always reached scoped to
+ * a stack (the empty card's "Add your first act" and the ⋯ menu's "Add habits" both pass
+ * `stackId`; every habit lives in a stack, so there is nowhere else for an add to land). Search or
+ * filter to find one fast, then add it with a single tap from the row (no need to expand first) —
+ * a tap answers "in this stack?" rather than "exists?", so a loose habit you already have moves
+ * in, one already in another stack is copied here as its own row (never pulled out of it), and the
+ * ✓ tap un-members rather than deletes. Expand a row to read how it's tracked and its Sunnah
+ * source. The library leads: the starter set for new users, then the categories, then a "Your
+ * habits" section offering the lone habits you already have; "Create your own" closes the list as
+ * a quiet row for the rarer from-scratch path. A native modal sheet of the Habits Stack (from the
+ * bottom, like the editor), so it shares `HabitsProvider`; a left-aligned Close dismisses it (set
+ * in the layout). The body is a virtualized FlatList of section cards, so only visible sections
+ * mount.
  */
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -81,9 +79,7 @@ export default function DiscoverScreen() {
   const scoped = stack !== null;
 
   // Scoped to a stack that no longer exists (deleted while this modal was up): back out.
-  useEffect(() => {
-    if (stackId && !stack) router.back();
-  }, [stackId, stack, router]);
+  useBackIfStale(!!stackId && !stack);
 
   // All → one chip per category, from the live category list.
   const filters: Filter[] = [
@@ -127,12 +123,7 @@ export default function DiscoverScreen() {
   };
 
   const addPreset = (preset: SunnahPreset) => {
-    if (!scoped) {
-      // Unscoped, an act has no home yet: ask which stack it joins rather than mint an orphan.
-      // (The picker can also start a new stack, so "none of these" is still a way forward.)
-      router.push({ pathname: '/habits/add-to-stack', params: { presetId: preset.id } });
-      return;
-    }
+    if (!stack) return;
     const found = habitByName.get(normalizeName(preset.name));
     if (!found) {
       // Not a habit anywhere yet — create it straight into this stack.
@@ -159,21 +150,6 @@ export default function DiscoverScreen() {
     const habit = habitByName.get(normalizeName(preset.name));
     if (!habit) return;
     void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
-  };
-
-  // "Add another" (the trailing ＋ on an already-added row): a second, independent copy for a
-  // habit you want in more than one place — a page of Qurʾān in both Morning and Evening. Names
-  // carry the app's habit identity (the editors reject a collision), so the copy takes the next
-  // free "… 2"/"… 3" — distinct on Today, and one tap from a rename via the toast. Plain screen
-  // only: inside a stack the same tap means "put the existing one in this stack".
-  const addAnother = async (preset: SunnahPreset) => {
-    const name = dedupeName(preset.name, existing);
-    const [created] = await createHabits([{ ...toCreate(preset), name }]);
-    if (!created) return; // createHabits already surfaced the error
-    toast.show(`Added another “${preset.name}”`, 'success', {
-      label: 'Rename',
-      onPress: () => router.push({ pathname: '/habits/editor', params: { id: created.id } }),
-    });
   };
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
@@ -277,7 +253,6 @@ export default function DiscoverScreen() {
                   added={addedFor(preset)}
                   onAdd={() => addPreset(preset)}
                   onRemove={() => removePreset(preset)}
-                  onAddAnother={scoped || !isRepeatablePreset(preset) ? undefined : () => void addAnother(preset)}
                 />
               ))}
             </SettingsSection>
@@ -322,7 +297,6 @@ export default function DiscoverScreen() {
                     added={addedFor(preset)}
                     onAdd={() => addPreset(preset)}
                     onRemove={() => removePreset(preset)}
-                    onAddAnother={scoped || !isRepeatablePreset(preset) ? undefined : () => void addAnother(preset)}
                   />
                 ))}
               </SettingsSection>

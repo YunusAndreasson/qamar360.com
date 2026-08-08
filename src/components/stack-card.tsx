@@ -18,7 +18,7 @@ import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Collapse } from '@/constants/motion';
-import { Face, Pressed, Spacing } from '@/constants/theme';
+import { Face, Pressed, RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
@@ -35,6 +35,10 @@ type Props = {
   completed: Set<string>;
   /** Ids of acts skipped (excused) for the viewed day. */
   skipped: Set<string>;
+  /** The viewed day's completions are being (re)fetched after a day-step — `completed`/`skipped`
+   *  are the blanked pre-fetch state, not yet the day's truth. Suppresses the seal flash and
+   *  auto-fold for the transition where a stack merely catches up to a day already sealed. */
+  settling?: boolean;
   /** Mark the whole stack done for the viewed day — fired by a tap on the header. */
   onSeal: (stackId: string) => void;
   /** Re-open a sealed stack — fired by a tap on the header of a sealed one. */
@@ -96,6 +100,7 @@ function StackCardBase({
   members,
   completed,
   skipped,
+  settling = false,
   onSeal,
   onUnseal,
   onAct,
@@ -139,13 +144,18 @@ function StackCardBase({
   // lands as a no-op. Seal-then-unseal inside the lead is handled for free — the effect re-runs
   // and React clears the pending timer first.
   const wasComplete = useRef(stackComplete);
+  // See `CompletionRing`'s `settling` doc: read the PRIOR render's value, since the fetch that
+  // ends the settling window can land `stackComplete`'s catch-up in that very same render.
+  const wasSettling = useRef(settling);
   useEffect(() => {
+    const wasSettlingBefore = wasSettling.current;
+    wasSettling.current = settling;
     if (wasComplete.current === stackComplete) return;
     wasComplete.current = stackComplete;
-    if (!stackComplete) return;
+    if (!stackComplete || settling || wasSettlingBefore) return;
     const timer = setTimeout(() => onSetExpanded(stack.id, false), Collapse.lead);
     return () => clearTimeout(timer);
-  }, [stackComplete, stack.id, onSetExpanded]);
+  }, [stackComplete, settling, stack.id, onSetExpanded]);
 
   // The body's animated clip. `progress` 1 = open, 0 = folded: height interpolates the measured
   // content height and opacity fades the rows as it shuts. Born at rest so the first frame is
@@ -429,14 +439,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
-  // Leading mark slot — the same 32-wide box an ActRow gives its numeral, so the completion ring
-  // centers on the column below it. Fixed width in every state: the card's height never changes
-  // with its mark, so the drag grid's measured frames stay valid.
-  leading: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  // Leading mark slot — fixed width in every state: the card's height never changes with its
+  // mark, so the drag grid's measured frames stay valid.
+  leading: RowLeadingSlot,
   // Sized to the act rows (rowTitle, 17pt) so the stack's own name never reads smaller than the
   // acts it holds; the semibold weight + leading mark set it apart as the header.
   // Semibold via the FACE, never fontWeight: a weight override beside rowTitle's registered

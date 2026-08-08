@@ -58,11 +58,19 @@ export function CompletionRing({
   complete,
   size,
   strokeWidth,
+  settling = false,
 }: {
   /** Done for the viewed day — a stack sealed, or an exchange held. */
   complete: boolean;
   size: number;
   strokeWidth: number;
+  /**
+   * The viewed day's completions are being (re)fetched after a day-step — `complete` may still
+   * flip from the blanked pre-fetch state to the day's real truth while this is true, which is
+   * data catching up, not a fresh commit. Suppresses the sweep for that one transition so a stack
+   * already sealed on the newly-viewed day renders settled instead of replaying its seal.
+   */
+  settling?: boolean;
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
@@ -84,10 +92,18 @@ export function CompletionRing({
   // at that state's rest, so the effect's early return is reached before anything animates —
   // cards that load already-sealed render settled.
   const wasComplete = useRef(complete);
+  // A day-step blanks `complete` to `false` and re-fetches; `settling` covers that window. Reading
+  // the PRIOR render's `settling` (not this one's) matters because the fetch's own commit can flip
+  // `settling` back to `false` in the very same render that `complete` catches up — so a plain
+  // `if (settling) return` would miss exactly the render it needs to catch.
+  const wasSettling = useRef(settling);
   useEffect(() => {
     const was = wasComplete.current;
+    const wasSettlingBefore = wasSettling.current;
     wasComplete.current = complete;
+    wasSettling.current = settling;
     if (was === complete) return;
+    if (settling || wasSettlingBefore) return; // the day's data catching up, not a fresh commit
     if (reduceMotion) {
       // Land on the resting state — the shape change alone conveys completion.
       progress.set(complete ? 1 : 0);
@@ -115,7 +131,7 @@ export function CompletionRing({
     flash.set(1);
     quiet.set(withTiming(0, { duration: Duration.fast }));
     progress.set(0);
-  }, [complete, reduceMotion, progress, checkDraw, flash, quiet]);
+  }, [complete, settling, reduceMotion, progress, checkDraw, flash, quiet]);
 
   // Zero-length dashes with round caps can render as a stray dot, so each stroke hides
   // itself entirely until it has any length to show.

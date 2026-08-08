@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
@@ -58,6 +58,17 @@ function Tabs() {
     },
     [],
   );
+  // Re-assert on every foreground, not just when `remaining` itself changes: the OS owns this
+  // number once set, and can hold a stale one across a background stretch (a backfilled day
+  // left `remaining` momentarily wrong before this session ever saw the correction, a lunar
+  // update fired while backgrounded, or the launcher simply didn't apply an earlier write) — the
+  // in-app tab badge always reads live, so only the icon can drift.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void setAppBadgeCount(user ? remaining : 0);
+    });
+    return () => sub.remove();
+  }, [user, remaining]);
 
   return (
     <NativeTabs

@@ -29,7 +29,16 @@ import { useTheme } from '@/hooks/use-theme';
  * layer is purely visual and never buzzes. Reduce Motion: no flash — every row already showing its
  * done mark says the group is finished.
  */
-export function StackCompleteFlash({ complete }: { complete: boolean }) {
+export function StackCompleteFlash({
+  complete,
+  settling = false,
+}: {
+  complete: boolean;
+  /** The viewed day's completions are being (re)fetched after a day-step — see `CompletionRing`'s
+   *  `settling` doc. Suppresses the bloom for the transition where `complete` merely catches up
+   *  to a day that was already sealed. */
+  settling?: boolean;
+}) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const flash = useSharedValue(0);
@@ -38,10 +47,15 @@ export function StackCompleteFlash({ complete }: { complete: boolean }) {
   // `wasComplete` guard: a card that loads already-complete, or re-renders while still complete,
   // never flashes. Born at `complete` so the first run is a no-op for an already-sealed stack.
   const wasComplete = useRef(complete);
+  // See `CompletionRing`: read the PRIOR render's `settling`, since the fetch that ends the
+  // settling window can land `complete`'s catch-up in that very same render.
+  const wasSettling = useRef(settling);
   useEffect(() => {
     const was = wasComplete.current;
+    const wasSettlingBefore = wasSettling.current;
     wasComplete.current = complete;
-    if (reduceMotion || !complete || was) return;
+    wasSettling.current = settling;
+    if (reduceMotion || !complete || was || settling || wasSettlingBefore) return;
     flash.set(
       withSequence(
         // Bloom to full as the last ring closes and the haptic tail lands.
@@ -50,7 +64,7 @@ export function StackCompleteFlash({ complete }: { complete: boolean }) {
         withDelay(Tick.settleDelay - Tick.sweep, withTiming(0, { duration: Tick.settle, easing: Easing.inOut(Easing.quad) })),
       ),
     );
-  }, [complete, reduceMotion, flash]);
+  }, [complete, settling, reduceMotion, flash]);
 
   const style = useAnimatedStyle(() => ({ opacity: flash.get() }));
 

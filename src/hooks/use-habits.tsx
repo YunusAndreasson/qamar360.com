@@ -12,6 +12,7 @@ import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
+import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
@@ -131,6 +132,14 @@ type HabitsContextValue = {
   counts: Map<string, number>;
   /** True only during the first load. */
   loading: boolean;
+  /**
+   * True while `viewDate`'s completions are being (re)fetched after a day-step — `completed`/
+   * `skipped`/`counts` are the blanked pre-fetch state during this window, not yet the day's
+   * real truth. Lets a card tell "the day's data just landed" apart from "the user just acted
+   * on it" so a stack that was already sealed on the newly-viewed day doesn't replay its seal
+   * animation the instant its real data arrives (see `StackCard`'s `settling` guard).
+   */
+  completionsLoading: boolean;
   /** Plain-language message for the last failed action, or null. */
   error: string | null;
   /** The real local `YYYY-MM-DD` today (upper bound of the stepper). */
@@ -319,18 +328,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set(seed?.skipped));
   const [counts, setCounts] = useState<Map<string, number>>(() => new Map(seed?.counts));
   const [loading, setLoading] = useState(() => !seed);
+  const [completionsLoading, setCompletionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
   const [viewDate, setViewDateState] = useState<string>(() => todayLocalISO());
 
   // Refs mirror state so async handlers read the latest values without stale closures.
-  const habitsRef = useRef(habits);
-  const stacksRef = useRef(stacks);
-  const completedRef = useRef(completed);
-  const skippedRef = useRef(skipped);
-  const countsRef = useRef(counts);
-  const todayRef = useRef(today);
-  const viewDateRef = useRef(viewDate);
+  const habitsRef = useLatestRef(habits);
+  const stacksRef = useLatestRef(stacks);
+  const completedRef = useLatestRef(completed);
+  const skippedRef = useLatestRef(skipped);
+  const countsRef = useLatestRef(counts);
+  const todayRef = useLatestRef(today);
+  const viewDateRef = useLatestRef(viewDate);
   const ensuredUserRow = useRef(false);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
   const completionsInFlight = useRef(0); // open fetchCompletions calls (gates the snapshot write)
@@ -343,28 +353,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
-
-  useEffect(() => {
-    habitsRef.current = habits;
-  }, [habits]);
-  useEffect(() => {
-    stacksRef.current = stacks;
-  }, [stacks]);
-  useEffect(() => {
-    completedRef.current = completed;
-  }, [completed]);
-  useEffect(() => {
-    skippedRef.current = skipped;
-  }, [skipped]);
-  useEffect(() => {
-    countsRef.current = counts;
-  }, [counts]);
-  useEffect(() => {
-    todayRef.current = today;
-  }, [today]);
-  useEffect(() => {
-    viewDateRef.current = viewDate;
-  }, [viewDate]);
 
   const fetchHabits = useCallback(async () => {
     if (!userId) return true;
@@ -417,6 +405,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         // fetch the day-switch issued owns the view now — discard this one. (The mutation
         // paths all guard on `viewDateRef` the same way.)
         if (viewDateRef.current !== day) return true;
+        // This day's real truth has landed (or failed to) — either way, `completed`/`skipped`
+        // stop being the blanked pre-fetch placeholder from here.
+        setCompletionsLoading(false);
         if (completionsError) {
           setError(LOAD_ERROR);
           return false;
@@ -438,7 +429,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         completionsInFlight.current -= 1;
       }
     },
-    [userId],
+    [userId, viewDateRef],
   );
 
   // Re-pull habits, stacks, and the viewed day's completions. Called on Habits-tab focus so
@@ -447,7 +438,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const results = await Promise.all([fetchHabits(), fetchStacks(), fetchCompletions(viewDateRef.current)]);
     return results.every(Boolean);
-  }, [fetchHabits, fetchStacks, fetchCompletions]);
+  }, [fetchHabits, fetchStacks, fetchCompletions, viewDateRef]);
 
   // One full load, raced against a timeout so a hung client (a stale session, a dropped
   // socket) surfaces a retryable error instead of an endless spinner. A late-settling query
@@ -533,6 +524,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     setCompleted(new Set());
     setSkipped(new Set());
     setCounts(new Map());
+    setCompletionsLoading(true);
     void fetchCompletions(viewDate);
   }, [viewDate, fetchCompletions]);
 
@@ -554,7 +546,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => sub.remove();
-  }, [userId, fetchHabits, fetchStacks, fetchCompletions]);
+  }, [userId, fetchHabits, fetchStacks, fetchCompletions, todayRef, viewDateRef]);
 
   const hijriOffset = usePreference('hijriOffset');
 
@@ -595,7 +587,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const max = todayRef.current;
     const min = addDaysISO(max, -BACKFILL_DAYS);
     setViewDateState(iso > max ? max : iso < min ? min : iso);
-  }, []);
+  }, [todayRef]);
 
   /**
    * Seal a stack: mark every act it has due on the viewed day done, in one write.
@@ -670,7 +662,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(stackId);
       }
     },
-    [userId, showDayComplete],
+    [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
   );
 
   /**
@@ -724,7 +716,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(stackId);
       }
     },
-    [userId],
+    [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
   );
 
   /**
@@ -796,7 +788,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, showDayComplete],
+    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef],
   );
 
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
@@ -881,7 +873,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId],
+    [userId, completedRef, countsRef, skippedRef, viewDateRef],
   );
 
   // Temp-id rows the user removed while their insert was still in flight. Without this,
@@ -974,7 +966,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return [];
       }
     },
-    [userId, ensureUserRow],
+    [userId, ensureUserRow, habitsRef],
   );
 
   const updateHabit = useCallback(
@@ -1079,7 +1071,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError(UPDATE_ERROR);
       }
     },
-    [userId],
+    [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
   );
 
   const deleteHabit = useCallback(
@@ -1153,7 +1145,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError('Could not delete that habit. Check your connection.');
       }
     },
-    [userId],
+    [userId, completedRef, habitsRef, skippedRef, stacksRef],
   );
 
   const reorderHabits = useCallback(
@@ -1188,7 +1180,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError('Could not save the new order. Check your connection.');
       }
     },
-    [userId],
+    [userId, habitsRef],
   );
 
   // Persist new positions + stack_id for the given habits (optimistic state already set).
@@ -1300,7 +1292,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
       return stackId;
     },
-    [userId, ensureUserRow, persistGrouping],
+    [userId, ensureUserRow, persistGrouping, habitsRef],
   );
 
   const deleteStack = useCallback(
@@ -1377,7 +1369,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError('Could not delete that stack. Check your connection.');
       }
     },
-    [userId],
+    [userId, completedRef, habitsRef, skippedRef, stacksRef],
   );
 
   const updateStack = useCallback(
@@ -1455,7 +1447,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError('Could not save the stack. Check your connection.');
       }
     },
-    [userId, deleteStack, persistGrouping],
+    [userId, deleteStack, persistGrouping, habitsRef, stacksRef],
   );
 
   // Move a single habit into a stack, out to the top level, or to a new slot within its
@@ -1540,7 +1532,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         if (delErr) restoreShell();
       }
     },
-    [userId, persistGrouping],
+    [userId, persistGrouping, habitsRef, stacksRef],
   );
 
   // Create-into-a-stack is the two proven mutations chained (not a stack_id on the insert):
@@ -1554,7 +1546,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!stacksRef.current.some((s) => s.id === stackId)) return; // stack gone — habit stays standalone
       await moveHabit(habit.id, { toStackId: stackId, placement: { type: 'member-append' } });
     },
-    [createHabits, moveHabit],
+    [createHabits, moveHabit, stacksRef],
   );
 
   const dismissError = useCallback(() => setError(null), []);
@@ -1568,6 +1560,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       skipped,
       counts,
       loading,
+      completionsLoading,
       error,
       today,
       viewDate,
@@ -1599,6 +1592,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     skipped,
     counts,
     loading,
+    completionsLoading,
     error,
     today,
     viewDate,

@@ -52,7 +52,7 @@ function bucketLabel({ iso, endISO, pending }: SeriesPoint): string {
 }
 
 /**
- * "Over time" — the whole record as one line.
+ * "Life time" — the whole record as one line.
  *
  * The screen's second instrument, and the only one that moves on a second day of use: the hero
  * measures the month you are in, this measures whether you are becoming someone who keeps it.
@@ -238,7 +238,7 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
     <StatCard>
       <View style={styles.head}>
         {/* The record's opening, said once, so the span has an anchor without a ruler under it. */}
-        <StatCardHeader title="Over time" trailing={since ? `since ${since.monthName} ${since.year}` : undefined} />
+        <StatCardHeader title="Life time" trailing={since ? `since ${since.monthName} ${since.year}` : undefined} />
         {readoutText ? (
           <StatReadout text={readoutText} refreshKey={focused ?? 'resting'} />
         ) : null}
@@ -311,7 +311,10 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
                     strokeDasharray="2 5"
                     fill="none"
                   />
-                  <Caret points={unsettled} color={theme.accent} />
+                  {/* The caret claims a heading, which only a fitted slope has earned — without
+                      one (too little closed history to fit) the dashed run still bridges to
+                      today's live reading, but ends plainly rather than pointing anywhere. */}
+                  {projection ? <Caret points={unsettled} color={theme.accent} /> : null}
                 </AnimatedG>
               ) : null}
 
