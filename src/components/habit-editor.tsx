@@ -18,7 +18,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import { DAILY_SCHEDULE, type HijriSchedule } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { normalizeName } from '@/lib/names';
+import { isDuplicateName } from '@/lib/names';
 
 /** The White Days of every Hijri month (Ayyām al-Bīḍ) — the one-tap monthly fill. */
 const WHITE_DAYS = [13, 14, 15];
@@ -53,10 +53,6 @@ type Props = {
   existingNames: string[];
   /** Name of the stack this habit belongs to, or null. Editing only. */
   stackName?: string | null;
-  /** Existing stacks the habit could join — shown in the picker when it isn't grouped yet. */
-  joinableStacks?: { id: string; name: string }[];
-  /** Add this habit to an existing stack. Editing only. */
-  onJoinStack?: (stackId: string) => void;
   /** Edit the stack this habit already belongs to. Editing only. */
   onEditStack?: () => void;
   onClose: () => void;
@@ -74,8 +70,6 @@ export function HabitEditorForm({
   habit,
   existingNames,
   stackName,
-  joinableStacks,
-  onJoinStack,
   onEditStack,
   onClose,
   onCreate,
@@ -101,18 +95,11 @@ export function HabitEditorForm({
   const [hijriDates, setHijriDates] = useState<Set<string>>(
     () => new Set((initialHijri?.dates ?? []).map(dateKey)),
   );
-  const [stackPickerOpen, setStackPickerOpen] = useState(false);
 
   const trimmedName = name.trim();
   // Reject a name that matches another habit — no DB constraint enforces this, so two
-  // identical rows would otherwise be indistinguishable. Folded through the SAME
-  // normalizer as `existingNames` (stack-new/stack-rename do the same): comparing the
-  // raw lower-cased name against the diacritic-stripped set would wave through
-  // "Read 1 page of Qurʾān" as a "new" name beside an identical existing habit.
-  const isDuplicate = useMemo(
-    () => trimmedName.length > 0 && existingNames.includes(normalizeName(trimmedName)),
-    [trimmedName, existingNames],
-  );
+  // identical rows would otherwise be indistinguishable.
+  const isDuplicate = useMemo(() => isDuplicateName(trimmedName, existingNames), [trimmedName, existingNames]);
   const hijriValid = monthDays.size > 0 || months.size > 0 || hijriDates.size > 0;
   // A count goal needs a whole-number target ≥ 1; 'once' carries no target.
   const targetCount = Number.parseInt(targetText, 10);
@@ -351,71 +338,28 @@ export function HabitEditorForm({
         </>
       )}
 
-      {/* Stack (editing only) — this habit's grouping: edit the stack it's in, or join an
-          existing one. Hidden when there's nothing to show or join — new stacks aren't made
-          here; you start one on Today by dropping one habit onto another. */}
-      {!isNew && (stackName || (joinableStacks?.length ?? 0) > 0) ? (
+      {/* Stack (editing only) — this habit's grouping, with a shortcut to edit it. New stacks
+          aren't made here; you start one on Today by dropping one habit onto another. */}
+      {!isNew && stackName ? (
         <>
           <FieldLabel>STACK</FieldLabel>
-          {stackName ? (
-            // Already grouped — show the stack and a shortcut to edit it.
-            <Pressable
-              onPress={onEditStack}
-              accessibilityRole="button"
-              accessibilityLabel={`In stack ${stackName}. Edit Stack.`}
-              style={({ pressed }) => [
-                styles.stackRow,
-                { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-                pressed && styles.stackRowPressed,
-              ]}>
-              <AppIcon name="link" color={theme.accent} />
-              <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
-                {stackName}
-              </ThemedText>
-              <ThemedText type="small" themeColor="accent" style={styles.stackAction}>
-                Edit
-              </ThemedText>
-            </Pressable>
-          ) : (
-            // Not grouped — a tappable picker: join one of the existing stacks.
-            <View style={[styles.stackGroup, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-              <Pressable
-                // Disclosure of the stack picker — clear visual feedback, no haptic.
-                onPress={() => setStackPickerOpen((v) => !v)}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: stackPickerOpen }}
-                accessibilityLabel="Add to a stack"
-                style={({ pressed }) => [styles.stackHeaderRow, pressed && styles.stackRowPressed]}>
-                <AppIcon name="link" color={theme.accent} />
-                <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
-                  Not in a stack
-                </ThemedText>
-                <ThemedText type="small" themeColor="accent" style={styles.stackAction}>
-                  {stackPickerOpen ? 'Close' : 'Add to a stack'}
-                </ThemedText>
-              </Pressable>
-              {stackPickerOpen
-                ? (joinableStacks ?? []).map((s) => (
-                    <Pressable
-                      key={s.id}
-                      onPress={() => onJoinStack?.(s.id)}
-                      android_ripple={{ color: theme.backgroundSelected }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Add to ${s.name}`}
-                      style={({ pressed }) => [
-                        styles.stackOption,
-                        { borderTopColor: theme.border },
-                        pressed && styles.stackRowPressed,
-                      ]}>
-                      <AppIcon name="add" color={theme.accent} />
-                      <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
-                        {s.name}
-                      </ThemedText>
-                    </Pressable>
-                  ))
-                : null}
-            </View>
-          )}
+          <Pressable
+            onPress={onEditStack}
+            accessibilityRole="button"
+            accessibilityLabel={`In stack ${stackName}. Edit Stack.`}
+            style={({ pressed }) => [
+              styles.stackRow,
+              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+              pressed && styles.stackRowPressed,
+            ]}>
+            <AppIcon name="link" color={theme.accent} />
+            <ThemedText type="default" style={styles.stackName} numberOfLines={1}>
+              {stackName}
+            </ThemedText>
+            <ThemedText type="small" themeColor="accent" style={styles.stackAction}>
+              Edit
+            </ThemedText>
+          </Pressable>
         </>
       ) : null}
 
@@ -433,9 +377,6 @@ export function HabitEditorForm({
 }
 
 const styles = StyleSheet.create({
-  // Pill shape/size overrides; SelectablePill owns the border, radius, centring and colour.
-  days: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.one },
-  day: { width: 40, height: 40, borderRadius: Radius.full, paddingHorizontal: 0, paddingVertical: 0 },
   hint: { marginTop: Spacing.one },
   modeRow: { marginTop: Spacing.one },
   goalCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginTop: Spacing.two },
@@ -454,26 +395,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
-  },
-  stackGroup: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  stackHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-  },
-  stackOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   stackRowPressed: { opacity: Pressed.dim },
   stackName: { flex: 1 },

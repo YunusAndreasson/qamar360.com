@@ -11,7 +11,7 @@ import { useHabits } from '@/hooks/use-habits';
 import { habitInputFor } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
-import { normalizeName, otherNames } from '@/lib/names';
+import { isDuplicateName, otherNames } from '@/lib/names';
 
 /**
  * Name a new stack — the modal behind the add menu's "Build your own" (a name, plus an optional
@@ -57,7 +57,7 @@ export default function StackNewScreen() {
   // Existing stacks' folded names — a new stack can't collide with one (same fold as rename).
   const existingNames = useMemo(() => otherNames(stacks), [stacks]);
   const trimmed = name.trim();
-  const isDuplicate = trimmed.length > 0 && existingNames.includes(normalizeName(trimmed));
+  const isDuplicate = isDuplicateName(trimmed, existingNames);
   const canSave = trimmed.length > 0 && !isDuplicate;
 
   const save = () => {

@@ -10,20 +10,13 @@ import type { ViewProps } from 'react-native';
  * Rounded surface card (Apple Health style) used to group a stat and its label.
  * Wraps the app's `backgroundElement` so cards read consistently in light/dark. Plain stat
  * cards stay clean (the sky shows behind them); only the Progress moon hero opts in via
- * `pattern patternVariant="hero"` for the seed-of-life that blends with the moon.
+ * `pattern` for the seed-of-life that blends with the moon.
  */
-export function StatCard({
-  style,
-  pattern = false,
-  patternVariant,
-  ...rest
-}: ViewProps & { pattern?: boolean; patternVariant?: 'card' | 'hero' }) {
+export function StatCard({ style, pattern = false, ...rest }: ViewProps & { pattern?: boolean }) {
   // A stat card's `style` is content rhythm, so it rides the inner content layer — the outer card
   // keeps the elevation shadow. One shared header→content gap so every Progress stat card reads
   // with the same rhythm (callers used to each re-declare it); an override can still be passed.
-  return (
-    <Surface padded pattern={pattern} patternVariant={patternVariant} contentStyle={[styles.card, style]} {...rest} />
-  );
+  return <Surface padded pattern={pattern} contentStyle={[styles.card, style]} {...rest} />;
 }
 
 /**

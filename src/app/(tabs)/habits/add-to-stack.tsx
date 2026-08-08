@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Fragment, useEffect } from 'react';
+import { Fragment } from 'react';
 
 import { FormSheet, SheetRow } from '@/components/form-sheet';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { useToast } from '@/components/toast';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
@@ -99,9 +100,7 @@ export default function AddToStackScreen() {
 
   // Nothing to place (the act was deleted, or the preset id is unknown to the catalog): close.
   const stale = !habit && !preset;
-  useEffect(() => {
-    if (stale) router.back();
-  }, [stale, router]);
+  useBackIfStale(stale);
   if (stale) return null;
 
   return (

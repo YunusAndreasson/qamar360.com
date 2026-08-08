@@ -5,7 +5,7 @@ import { Touchable } from 'react-native-gesture-handler';
 import { AppIcon } from '@/components/app-icon';
 import { CompletionRing } from '@/components/completion-ring';
 import { ThemedText } from '@/components/themed-text';
-import { Pressed, Spacing } from '@/constants/theme';
+import { Pressed, RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { exchangeRowContract } from '@/lib/exchange';
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
-  leading: { width: 32, alignItems: 'center', justifyContent: 'center' },
+  leading: RowLeadingSlot,
   // Spacing.three matches the stack header's glyph→title gap, landing the deed in the same
   // column as the act names and stack titles above it.
   text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },

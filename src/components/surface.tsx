@@ -7,15 +7,11 @@ import { useTheme } from '@/hooks/use-theme';
 type Props = ViewProps & {
   padded?: boolean;
   /**
-   * Faint flower-of-life watermark behind the content (clipped by the card radius). Off by
-   * default: the ambient texture lives on the screen backdrop, so plain cards stay clean and
-   * legible. Opt in only where the motif is a deliberate accent — accent-coloured cards (the
-   * Discover "essentials" card) and the Progress moon hero.
+   * Faint flower-of-life watermark behind the content (clipped by the card radius) — the large
+   * seed-of-life reserved for the Progress moon hero, where it blends with the moon disc. Off
+   * by default: the ambient texture lives on the screen backdrop, so plain cards stay clean.
    */
   pattern?: boolean;
-  /** `'card'` (default) is the fine small-circle texture; `'hero'` is the large seed-of-life
-   *  reserved for the Progress moon card, where it blends with the moon disc. */
-  patternVariant?: 'card' | 'hero';
   /**
    * Styles for the inner content layer (gap, padding overrides, a colour tint) — distinct from
    * `style`, which positions the whole card (margins, opacity) and carries the elevation shadow.
@@ -31,7 +27,6 @@ export function Surface({
   contentStyle,
   padded,
   pattern = false,
-  patternVariant = 'card',
   children,
   ...props
 }: Props) {
@@ -57,7 +52,7 @@ export function Surface({
           padded && styles.padded,
           contentStyle,
         ]}>
-        {pattern ? <GeometricBackdrop variant={patternVariant} /> : null}
+        {pattern ? <GeometricBackdrop variant="hero" /> : null}
         {children}
       </View>
     </View>

@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { HabitEditorForm } from '@/components/habit-editor';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { type HabitCreate, useHabits } from '@/hooks/use-habits';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { otherNames } from '@/lib/names';
@@ -18,7 +19,7 @@ import { otherNames } from '@/lib/names';
 export default function HabitEditorScreen() {
   const router = useRouter();
   const { id, stackId } = useLocalSearchParams<{ id?: string; stackId?: string }>();
-  const { habits, stacks, createHabitInStack, updateHabit, deleteHabit, updateStack } = useHabits();
+  const { habits, stacks, createHabitInStack, updateHabit, deleteHabit } = useHabits();
 
   const isNew = !id || id === 'new';
   const habit = isNew ? null : (habits.find((h) => h.id === id) ?? null);
@@ -30,24 +31,11 @@ export default function HabitEditorScreen() {
     if (targetStack) void createHabitInStack(input, targetStack.id);
   };
 
-  // The stack this act belongs to (if any) + handlers for the editor's STACK picker: edit the
-  // current stack, or join an existing one. (New stacks are made from the "+" menu, not here.)
+  // The stack this act belongs to (editor.tsx is never opened for an unanchored habit — see
+  // `HabitEditorScreen`'s doc comment) + a handler to edit that stack.
   const stackName = habit?.stack_id ? (stacks.find((s) => s.id === habit.stack_id)?.name ?? null) : null;
-  const joinableStacks = useMemo(
-    () => (habit && !habit.stack_id ? stacks.map((s) => ({ id: s.id, name: s.name })) : []),
-    [habit, stacks],
-  );
   const openStackActions = useStackActions();
   const onEditStack = habit && habit.stack_id ? () => openStackActions(habit.stack_id!) : undefined;
-  const onJoinStack = habit
-    ? (stackId: string) => {
-        const memberIds = habits
-          .filter((h) => h.stack_id === stackId)
-          .sort((a, b) => a.position - b.position)
-          .map((h) => h.id);
-        void updateStack(stackId, { orderedMemberIds: [...memberIds, habit.id] });
-      }
-    : undefined;
 
   // Normalized names of the *other* habits — the form rejects a name that
   // collides with one of these, so the user can't create an indistinguishable
@@ -59,9 +47,7 @@ export default function HabitEditorScreen() {
   // no stack to land in (a stack deleted mid-flow): back out rather than render a form that can't
   // commit.
   const stale = isNew ? !targetStack : !habit;
-  useEffect(() => {
-    if (stale) router.back();
-  }, [stale, router]);
+  useBackIfStale(stale);
   if (stale) return null;
 
   return (
@@ -69,8 +55,6 @@ export default function HabitEditorScreen() {
       habit={habit}
       existingNames={existingNames}
       stackName={stackName}
-      joinableStacks={joinableStacks}
-      onJoinStack={onJoinStack}
       onEditStack={onEditStack}
       onClose={() => router.back()}
       onCreate={onCreate}

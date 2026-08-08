@@ -1,6 +1,7 @@
 import 'expo-sqlite/localStorage/install';
 
 import type { Habit, HabitStack } from '@/hooks/use-habits';
+import { getWebStorage } from '@/lib/web-storage';
 
 /**
  * A last-known snapshot of the Habits tab, persisted so a cold start paints real content on
@@ -34,13 +35,7 @@ export type HabitsSnapshot = {
 // revalidation lands. Bump this whenever a new `Habit` field decides where a row is rendered.
 const CACHE_KEY = 'habits.snapshot.v2';
 
-// The synchronous SQLite-backed Web Storage shim (same one the catalog, auth session, and
-// theme use), so the snapshot is readable on the very first render without an async hop.
-type WebStorageLike = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
-const storage = (globalThis as unknown as { localStorage?: WebStorageLike }).localStorage;
+const storage = getWebStorage();
 
 export function readHabitsSnapshot(): HabitsSnapshot | null {
   try {

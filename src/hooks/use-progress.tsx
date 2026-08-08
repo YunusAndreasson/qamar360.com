@@ -1,9 +1,9 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
+import { useLatestRef } from '@/hooks/use-latest-ref';
+import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
 import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type TrendSummary } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
@@ -90,17 +90,11 @@ export function useProgress(): ProgressData {
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
 
-  const todayRef = useRef(today);
-  useEffect(() => {
-    todayRef.current = today;
-  }, [today]);
+  const todayRef = useLatestRef(today);
 
   // The user this hook instance currently serves — a fetch that lands after a user switch must
   // neither be reused nor write its rows.
-  const userRef = useRef(userId);
-  useEffect(() => {
-    userRef.current = userId;
-  }, [userId]);
+  const userRef = useLatestRef(userId);
 
   // Concurrent callers (the mount preload, a focus refetch, pull-to-refresh) share one request:
   // each fetch is two queries plus a whole-year recompute on landing, so overlapping identical
@@ -128,40 +122,9 @@ export function useProgress(): ProgressData {
     })();
     inFlight.current = { key: userId, work };
     return work;
-  }, [userId]);
+  }, [userId, userRef]);
 
-  // Preload on mount. Under NativeTabs every tab screen is mounted eagerly (all tabs
-  // pre-render and never unmount), so this fetch runs in the background the moment the user
-  // enters the tabs — while they're still on Habits. By the time they open Progress the data
-  // (and its one-time entrance animation) is already settled, so the screen pops with content
-  // instead of a skeleton. https://docs.expo.dev/router/advanced/native-tabs/
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      await fetchData();
-      if (active) setLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [fetchData]);
-
-  // Refetch on focus so ticks made on the Habits tab appear on return. Silent — the mount
-  // preload owns the one-time loading gate, so this never re-shows the skeleton.
-  useFocusEffect(
-    useCallback(() => {
-      void fetchData();
-    }, [fetchData]),
-  );
-
-  // Day rollover while the tab stays focused in the background (focus won't fire).
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !userId) return;
-      if (todayLocalISO() !== todayRef.current) void fetchData();
-    });
-    return () => sub.remove();
-  }, [userId, fetchData]);
+  useRefreshLifecycle(userId, fetchData, todayRef, setLoading);
 
   const dismissError = useCallback(() => setError(null), []);
 

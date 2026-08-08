@@ -1,9 +1,9 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit } from '@/hooks/use-habits';
+import { useLatestRef } from '@/hooks/use-latest-ref';
+import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
 import { computeHabitStats, STATS_WINDOW_DAYS, type HabitStats } from '@/lib/habit-stats';
 import type { CompletionRow } from '@/lib/progress';
@@ -60,14 +60,8 @@ export function useHabitStats(habitId: string): HabitStatsData {
   // The identity this hook instance currently serves — a fetch that lands after the identity
   // moved on (user switch, habit param change) must neither be reused nor write its rows.
   const identity = `${userId}:${habitId}`;
-  const identityRef = useRef(identity);
-  useEffect(() => {
-    identityRef.current = identity;
-  }, [identity]);
-  const todayRef = useRef(today);
-  useEffect(() => {
-    todayRef.current = today;
-  }, [today]);
+  const identityRef = useLatestRef(identity);
+  const todayRef = useLatestRef(today);
 
   // Concurrent callers (mount preload, a focus refetch, pull-to-refresh) share one request — the
   // one already in flight is milliseconds old and just as fresh. Keyed by identity so a request
@@ -94,37 +88,9 @@ export function useHabitStats(habitId: string): HabitStatsData {
     })();
     inFlight.current = { key, work };
     return work;
-  }, [userId, habitId]);
+  }, [userId, habitId, identityRef]);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      await fetchData();
-      if (active) setLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [fetchData]);
-
-  // Refetch on focus so ticks made on the Today tab appear on return. Silent — the mount preload
-  // owns the one-time loading gate.
-  useFocusEffect(
-    useCallback(() => {
-      void fetchData();
-    }, [fetchData]),
-  );
-
-  // Day rollover while the app sits backgrounded on this screen (focus won't fire): without
-  // this, `today` stays yesterday and the streak/pending logic reads a day behind — the same
-  // listener `use-progress` carries for the same reason.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !userId) return;
-      if (todayLocalISO() !== todayRef.current) void fetchData();
-    });
-    return () => sub.remove();
-  }, [userId, fetchData]);
+  useRefreshLifecycle(userId, fetchData, todayRef, setLoading);
 
   const dismissError = useCallback(() => setError(null), []);
 

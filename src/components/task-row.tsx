@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CompletionRing } from '@/components/completion-ring';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Task } from '@/lib/tasks';
 import { taskRowContract } from '@/lib/tasks';
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
-  leading: { width: 32, alignItems: 'center', justifyContent: 'center' },
+  leading: RowLeadingSlot,
   // Spacing.three matches the stack header's glyph→title gap, landing the task in the same column
   // as the act names and stack titles below it.
   text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },

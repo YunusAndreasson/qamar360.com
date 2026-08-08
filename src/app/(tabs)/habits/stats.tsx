@@ -1,5 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
@@ -9,6 +8,7 @@ import { HabitStreakCard } from '@/components/habit-streak-card';
 import { HabitTrendChart } from '@/components/habit-trend-chart';
 import { HabitWeekdayBars } from '@/components/habit-weekday-bars';
 import { InsightsSkeleton } from '@/components/progress-skeleton';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabitStats } from '@/hooks/use-habit-stats';
 import { useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -21,7 +21,6 @@ import { describeHijriSchedule } from '@/lib/dates';
  * pushed transparent screen so the fixed sky shows behind the cards, exactly like Progress.
  */
 export default function HabitStatsScreen() {
-  const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
   const { loading, error, dismissError, refresh, habit, stats } = useHabitStats(habitId ?? '');
   const { loading: habitsLoading } = useHabits();
@@ -31,9 +30,7 @@ export default function HabitStatsScreen() {
   // than render an empty shell (the editor's guard). `habit` comes from the habits list, which is
   // empty while ITS first load runs (a cold start whose snapshot seed was rejected) — that load
   // must have settled too, or this pops the screen for a habit that exists.
-  useEffect(() => {
-    if (!loading && !habitsLoading && !habit) router.back();
-  }, [loading, habitsLoading, habit, router]);
+  useBackIfStale(!loading && !habitsLoading && !habit);
 
   if (loading || (habitsLoading && !habit)) {
     return (

@@ -15,11 +15,11 @@ import { MoonPhase } from '@/components/moon-phase';
 import { HeroGlow } from '@/components/ornament/hero-glow';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
+import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { MonthProgress } from '@/hooks/use-progress';
-import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
 import { clamp01, toDegrees } from '@/lib/progress';
@@ -88,7 +88,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
     .join(' ');
 
   return (
-    <StatCard pattern patternVariant="hero" accessible accessibilityLabel={a11y}>
+    <StatCard pattern accessible accessibilityLabel={a11y}>
       <StatCardHeader title={`${monthName} ${year} H`} trailing={`Day ${dayOfMonth} of ${monthLength}`} />
 
       <View style={styles.hero}>
@@ -115,7 +115,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
             confusion these lines exist to avoid. The pace line is first and always present, so
             the block never reflows when last month's line appears in the second month. */}
         <View style={styles.metrics}>
-          <HeroDegrees degrees={thisDegrees} />
+          <TallyDegrees degrees={thisDegrees} />
           <View style={styles.benchmark}>
             {/* The same tone the elapsed stretch of the track is drawn in — a legend for the arc
                 you are chasing, cut from the ring's own geometry so the two can't drift. */}
@@ -145,16 +145,6 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
       </View>
     </StatCard>
   );
-}
-
-/**
- * The hero readout, isolated so the tally's ~60fps re-renders touch only this text — the
- * orbit/moon SVG siblings stay still. Tallied over `Duration.orbit` with the sweep's own
- * easing, so the number and the arc land on the same frame: one instrument, not two animations.
- */
-function HeroDegrees({ degrees }: { degrees: number }) {
-  const shown = useTallyUp(degrees, Duration.orbit);
-  return <ThemedText type="display">{shown}°</ThemedText>;
 }
 
 /** The orbit's "last month" tail tick as an inline legend glyph — drawn from the same

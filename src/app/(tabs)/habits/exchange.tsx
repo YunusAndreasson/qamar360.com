@@ -1,14 +1,15 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { WeekdayPicker } from '@/components/weekday-picker';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { DAILY_SCHEDULE } from '@/lib/dates';
-import { normalizeName, otherNames } from '@/lib/names';
+import { isDuplicateName, otherNames } from '@/lib/names';
 
 /**
  * The new/edit-exchange form — one params-driven modal for both, the way `editor.tsx` is for
@@ -42,7 +43,7 @@ export default function ExchangeFormScreen() {
   // Same duplicate guard the act editor runs, folded through the same normalizer: nothing in the
   // DB enforces name uniqueness, so two identical rows would be indistinguishable in Insights.
   const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
-  const isDuplicate = trimmedName.length > 0 && existingNames.includes(normalizeName(trimmedName));
+  const isDuplicate = isDuplicateName(trimmedName, existingNames);
   const canSave =
     trimmedName.length > 0 && insteadOf.trim().length > 0 && cue.trim().length > 0 && !isDuplicate && days.size > 0;
 
@@ -64,9 +65,7 @@ export default function ExchangeFormScreen() {
   // Editing one that no longer exists (stale deep link, or deleted from another screen): back out
   // rather than render a form with nothing behind it.
   const stale = !isNew && !habit;
-  useEffect(() => {
-    if (stale) router.back();
-  }, [stale, router]);
+  useBackIfStale(stale);
   if (stale) return null;
 
   return (

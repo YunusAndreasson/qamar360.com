@@ -28,25 +28,16 @@ import { horizonTint, starVisibility, type DaylightStarsMode } from '@/lib/sun';
  *    of construction circles gathered at that corner ({@link CornerBloom}), waxing gently with
  *    the real lunar phase while the faint stars wash out beneath it — one light rises, the
  *    others yield. "The moon generates the order."
- *  - `card`   — a fine, small-circle flower-of-life field. Its bloom + fade lean to the
- *    (upper-)right toward the same light, so the texture is strongest on the right and dissolves
- *    to the left, clearing the edge where a card's title/label sits. Kept small on purpose:
- *    large circles read as UI elements.
  *  - `hero`   — the large 7-circle seed of life, centred. Reserved for the Progress moon card,
  *    where the rosette blends with the moon disc sitting at its heart — the light source seen up close.
  *
  * A mask dissolves each lattice toward its edges so it never meets a hard clip line.
  */
-type Variant = 'screen' | 'card' | 'hero';
+type Variant = 'screen' | 'hero';
 
-/** Centred radial dissolve, or a directional linear one (transparent at the start, solid for
- *  the last `solid` fraction toward the end). */
-type Fade =
-  | { kind: 'radial'; cx: string; cy: string; r: string; solid: number }
-  | { kind: 'linear'; x1: string; y1: string; x2: string; y2: string; solid: number };
+/** Centred radial dissolve: solid for the innermost `solid` fraction, then fading to the edge. */
+type Fade = { cx: string; cy: string; r: string; solid: number };
 
-// Both lattices share the same viewBox, aspect handling, and slice mode — only their circle
-// pattern and edge fade differ, so those are all the config carries.
 type FieldConfig = { circles: GCircle[]; fade: Fade };
 
 const CARD_VB = 300;
@@ -61,22 +52,14 @@ const STROKE_OPACITY = 0.12;
 /** The corner bloom's own, heavier weight — see the note in {@link CornerBloom}. */
 const BLOOM_STROKE_OPACITY = 0.26;
 
-const CONFIG: Record<'card' | 'hero', FieldConfig> = {
-  // Tiny-circle texture, bloom focal in the upper-right (toward the same light) with a right→left
-  // linear fade, so the field is strongest on the right and clears the left where text sits.
-  card: {
-    circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 22, 4, { x: CARD_VB * 0.78, y: CARD_VB * 0.4 }),
-    fade: { kind: 'linear', x1: '0%', y1: '0%', x2: '100%', y2: '0%', solid: 0.45 },
-  },
-  // The big seed-of-life that reads beautifully behind the Progress moon — left untouched.
-  hero: {
-    circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 56, 1),
-    fade: { kind: 'radial', cx: '50%', cy: '50%', r: '60%', solid: 0.2 },
-  },
+// The big seed-of-life that reads beautifully behind the Progress moon.
+const HERO_CONFIG: FieldConfig = {
+  circles: flowerOfLife(CARD_VB / 2, CARD_VB / 2, 56, 1),
+  fade: { cx: '50%', cy: '50%', r: '60%', solid: 0.2 },
 };
 
 export function GeometricBackdrop({ variant }: { variant: Variant }) {
-  return variant === 'screen' ? <ScreenSky /> : <RosetteField variant={variant} />;
+  return variant === 'screen' ? <ScreenSky /> : <RosetteField />;
 }
 
 /**
@@ -201,15 +184,15 @@ function OverheadGlow({ illumination, sunAlt, tilt }: { illumination: number; su
   );
 }
 
-/** The card/hero lattice — a masked flower-of-life field, unchanged from the original ground
+/** The hero lattice — a masked flower-of-life field, unchanged from the original ground
  *  texture (the screen variant grew into {@link ScreenSky}). */
-function RosetteField({ variant }: { variant: 'card' | 'hero' }) {
+function RosetteField() {
   const theme = useTheme();
   const scheme = useEffectiveScheme();
   const uid = useId();
   // See ScreenSky — the same gentle light-mode dimming.
   const dim = scheme === 'light' ? 0.8 : 1;
-  const cfg = CONFIG[variant];
+  const cfg = HERO_CONFIG;
   const gradId = `bd-grad-${uid}`;
   const maskId = `bd-mask-${uid}`;
 
@@ -217,21 +200,11 @@ function RosetteField({ variant }: { variant: 'card' | 'hero' }) {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width="100%" height="100%" viewBox={`0 0 ${CARD_VB} ${CARD_VB}`} preserveAspectRatio={ASPECT}>
         <Defs>
-          {cfg.fade.kind === 'linear' ? (
-            // Directional dissolve: transparent at the start (left), ramping to solid for the
-            // last `solid` fraction toward the end (right).
-            <LinearGradient id={gradId} x1={cfg.fade.x1} y1={cfg.fade.y1} x2={cfg.fade.x2} y2={cfg.fade.y2}>
-              <Stop offset="0" stopColor="#fff" stopOpacity="0" />
-              <Stop offset={String(1 - cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
-              <Stop offset="1" stopColor="#fff" stopOpacity="1" />
-            </LinearGradient>
-          ) : (
-            <RadialGradient id={gradId} cx={cfg.fade.cx} cy={cfg.fade.cy} r={cfg.fade.r}>
-              <Stop offset="0" stopColor="#fff" stopOpacity="1" />
-              <Stop offset={String(cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
-              <Stop offset="1" stopColor="#fff" stopOpacity="0" />
-            </RadialGradient>
-          )}
+          <RadialGradient id={gradId} cx={cfg.fade.cx} cy={cfg.fade.cy} r={cfg.fade.r}>
+            <Stop offset="0" stopColor="#fff" stopOpacity="1" />
+            <Stop offset={String(cfg.fade.solid)} stopColor="#fff" stopOpacity="1" />
+            <Stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </RadialGradient>
           <Mask id={maskId}>
             <Rect x="0" y="0" width={CARD_VB} height={CARD_VB} fill={`url(#${gradId})`} />
           </Mask>

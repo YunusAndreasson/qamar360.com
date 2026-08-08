@@ -1,14 +1,9 @@
-import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { AppIcon } from '@/components/app-icon';
+import { GuideSheet } from '@/components/guide-sheet';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 
 /**
- * The case for exchanges, in the same four-block shape as {@link StackingGuide} — a claim from
- * the research, then the Sunnah that says it first. Presented `fitToContents`; the sheet doesn't
+ * The case for exchanges, in the same four-block shape as `StackingGuide` — a claim from the
+ * research, then the Sunnah that says it first. Presented `fitToContents`; the sheet doesn't
  * scroll, so the copy stays these four short blocks.
  *
  * Reached from the exchange library and from Settings → About, alongside the stacking guide: the
@@ -16,16 +11,8 @@ import { useTheme } from '@/hooks/use-theme';
  * keeps happening.
  */
 export function ExchangeGuide() {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
-      <View style={styles.header}>
-        <AppIcon name="exchange" color={theme.accent} />
-        <ThemedText type="heading">Exchanges</ThemedText>
-      </View>
-
+    <GuideSheet icon="exchange" title="Exchanges">
       <ThemedText type="default">
         <ThemedText type="defaultSemiBold">Replace, don’t resist. </ThemedText>
         A plan phrased as a refusal keeps the thing it names in mind, and in trials it made the
@@ -50,21 +37,6 @@ export function ExchangeGuide() {
         that predicted giving up. So a day that didn’t hold records nothing at all: no red, no
         broken streak. Take account of yourself at day’s end, mark what held, and begin again.
       </ThemedText>
-    </View>
+    </GuideSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  // Padded content of a `fitToContents` sheet — the grabber sits above this; the safe-area
-  // bottom inset is added inline so the last block clears the home indicator.
-  sheet: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    gap: Spacing.three,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-});

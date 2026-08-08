@@ -10,11 +10,11 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 
 import { StatCard, StatCardHeader } from '@/components/stat-card';
+import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { TrendPoint } from '@/hooks/use-habit-stats';
-import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { clamp01, toDegrees } from '@/lib/progress';
 
@@ -40,14 +40,6 @@ function trendDescriptor(trend: TrendPoint[]): string | null {
   // "monthAgo" predates its creation and its 0 rate would make any current rate read "Rising".
   if (last.scheduledCount === 0 || monthAgo.scheduledCount === 0) return null;
   return last.rate > monthAgo.rate + 0.08 ? 'Rising' : null;
-}
-
-/** The consistency figure, isolated so the tally's ~60fps re-renders touch only this text — the
- *  ring SVG sibling stays still. Tallied over `Duration.orbit` with the sweep's own easing, so
- *  the number and the arc land on the same frame (the Progress hero's pattern). */
-function ConsistencyDegrees({ degrees }: { degrees: number }) {
-  const shown = useTallyUp(degrees, Duration.orbit);
-  return <ThemedText type="display">{shown}°</ThemedText>;
 }
 
 /**
@@ -118,7 +110,7 @@ export function HabitStatsHero({
           </Svg>
           {/* The degrees figure sits centred in the ring's interior. */}
           <View style={styles.center} pointerEvents="none">
-            <ConsistencyDegrees degrees={degrees} />
+            <TallyDegrees degrees={degrees} />
           </View>
         </View>
 

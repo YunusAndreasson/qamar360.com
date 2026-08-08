@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits } from '@/hooks/use-habits';
+import { useLatestRef } from '@/hooks/use-latest-ref';
 import { todayLocalISO } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, setOpenTasksProbe } from '@/lib/day-close';
 import { haptics } from '@/lib/haptics';
@@ -77,21 +78,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   // Refs mirror state so async handlers and the day-close probe read the latest values.
-  const rowsRef = useRef(rows);
-  const viewDateRef = useRef(viewDate);
-  const todayRef = useRef(today);
+  const rowsRef = useLatestRef(rows);
+  const viewDateRef = useLatestRef(viewDate);
+  const todayRef = useLatestRef(today);
   const pending = useRef<Set<string>>(new Set()); // task ids with an in-flight write
   const cancelledTempIds = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
-  useEffect(() => {
-    viewDateRef.current = viewDate;
-  }, [viewDate]);
-  useEffect(() => {
-    todayRef.current = today;
-  }, [today]);
 
   /**
    * Fetch the rows the viewed day could need: everything ticked *that* day, plus every open task
@@ -118,10 +109,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       setRows(data ?? []);
       return true;
     },
-    [userId],
+    [userId, viewDateRef],
   );
 
-  const refresh = useCallback(() => fetchTasks(viewDateRef.current), [fetchTasks]);
+  const refresh = useCallback(() => fetchTasks(viewDateRef.current), [fetchTasks, viewDateRef]);
 
   // First load, and every day-step or midnight rollover after it. Unlike the habits list this
   // doesn't blank on a day change: an open task is on both days, so clearing would flash the
@@ -139,7 +130,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   // Publish "how many tasks are open on this day" for the day-close rule in `lib/day-close.ts`.
   // Registered once and reading refs, so it always answers from current state without re-arming.
-  useEffect(() => setOpenTasksProbe((day) => openCountOn(rowsRef.current, day, todayRef.current)), []);
+  useEffect(
+    () => setOpenTasksProbe((day) => openCountOn(rowsRef.current, day, todayRef.current)),
+    [rowsRef, todayRef],
+  );
 
   // Persist the day's rows for the next cold start (trailing, so a burst of ticks writes once).
   useEffect(() => {
@@ -197,7 +191,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setError('Could not add that. Check your connection.');
       }
     },
-    [userId],
+    [userId, rowsRef, viewDateRef],
   );
 
   /**
@@ -260,7 +254,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         pending.current.delete(taskId);
       }
     },
-    [userId, habits, completed, skipped, showDayComplete],
+    [userId, habits, completed, skipped, showDayComplete, rowsRef, viewDateRef, todayRef],
   );
 
   const renameTask = useCallback(async (taskId: string, title: string) => {
@@ -279,7 +273,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       rowsRef.current = rowsRef.current.map((t) => (t.id === taskId ? { ...t, title: previous.title } : t));
       setError(SAVE_ERROR);
     }
-  }, []);
+  }, [rowsRef]);
 
   const deleteTask = useCallback(async (taskId: string) => {
     const removed = rowsRef.current.find((t) => t.id === taskId);
@@ -301,7 +295,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       rowsRef.current = [...rowsRef.current, removed].sort((a, b) => a.position - b.position);
       setError('Could not delete that. Check your connection.');
     }
-  }, []);
+  }, [rowsRef]);
 
   const value = useMemo(
     () => ({

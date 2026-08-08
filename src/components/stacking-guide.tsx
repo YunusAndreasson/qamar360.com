@@ -1,10 +1,5 @@
-import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { AppIcon } from '@/components/app-icon';
+import { GuideSheet } from '@/components/guide-sheet';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 
 /**
  * The habit-stacking guide — the short case for the way the whole app works: anchor to a cue you
@@ -14,16 +9,8 @@ import { useTheme } from '@/hooks/use-theme';
  * doesn't scroll, so the copy stays these four short blocks.
  */
 export function StackingGuide() {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
-      <View style={styles.header}>
-        <AppIcon name="stack" color={theme.accent} />
-        <ThemedText type="heading">Habit stacking</ThemedText>
-      </View>
-
+    <GuideSheet icon="stack" title="Habit stacking">
       <ThemedText type="default">
         <ThemedText type="defaultSemiBold">Anchor, don’t add. </ThemedText>
         A stack attaches a good deed to something already fixed in your day: after Fajr, I read one
@@ -46,21 +33,6 @@ export function StackingGuide() {
         that the deeds most beloved to Allah are those kept consistently, even when small (Bukhari
         6464); keep the sequence short enough that you can always finish it.
       </ThemedText>
-    </View>
+    </GuideSheet>
   );
 }
-
-const styles = StyleSheet.create({
-  // Padded content of a `fitToContents` sheet — the grabber sits above this; the safe-area
-  // bottom inset is added inline so the last block clears the home indicator.
-  sheet: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    gap: Spacing.three,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-});

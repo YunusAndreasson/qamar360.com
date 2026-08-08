@@ -11,6 +11,7 @@ import {
 import type { Tables } from '@/lib/database.types';
 import type { HijriSchedule } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
+import { getWebStorage } from '@/lib/web-storage';
 
 /**
  * The shared Sunnah catalog (categories, presets) — the curated library shown in
@@ -40,13 +41,7 @@ const BUNDLED: Catalog = {
   presets: SUNNAH_PRESETS,
 };
 
-// The synchronous SQLite-backed Web Storage shim (same one the auth session and theme use),
-// so the cached catalog is readable on the very first render without an async dependency.
-type WebStorageLike = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
-const storage = (globalThis as unknown as { localStorage?: WebStorageLike }).localStorage;
+const storage = getWebStorage();
 
 function readCache(): Catalog | null {
   try {

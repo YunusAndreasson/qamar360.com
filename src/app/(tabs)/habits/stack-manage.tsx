@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
 
 import { FormSheet, SheetRow } from '@/components/form-sheet';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { useConfirmDeleteStack } from '@/hooks/use-stack-actions';
 
@@ -23,30 +23,25 @@ export default function StackManageScreen() {
 
   const stack = stacks.find((s) => s.id === id) ?? null;
 
+  // Managing a stack that no longer exists (deleted here or elsewhere): close. `stack` is
+  // narrowed non-null for the rest of the component from here on.
+  useBackIfStale(!!id && !stack);
+  if (!stack) return null;
+
   // `replace` (not push) so the next modal's Save/Close returns to the list, not back to
   // this sheet.
   const addActs = () => {
-    if (!stack) return;
     router.replace({ pathname: '/habits/discover', params: { stackId: stack.id } });
   };
 
   const rename = () => {
-    if (!stack) return;
     router.replace({ pathname: '/habits/stack-rename', params: { id: stack.id } });
   };
 
   // The prompt (and the "…and its acts?" question a populated stack raises) is shared with the
-  // iOS action sheet. Deleting drops the stack from state; the effect below backs the sheet out
+  // iOS action sheet. Deleting drops the stack from state; the effect above backs the sheet out
   // (don't also router.back() here, or it pops twice).
-  const confirmDelete = () => {
-    if (stack) confirmDeleteStack(stack.id);
-  };
-
-  // Managing a stack that no longer exists (deleted here or elsewhere): close.
-  useEffect(() => {
-    if (id && !stack) router.back();
-  }, [id, stack, router]);
-  if (!stack) return null;
+  const confirmDelete = () => confirmDeleteStack(stack.id);
 
   return (
     <FormSheet title={stack.name} subtitle="Stack">

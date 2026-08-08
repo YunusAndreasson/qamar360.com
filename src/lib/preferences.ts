@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 
 import { setHijriOffset } from '@/lib/dates';
 import type { DayBands } from '@/lib/sun';
+import { getWebStorage } from '@/lib/web-storage';
 
 /**
  * Local app preferences — one table, sane defaults, no provider.
@@ -24,14 +25,9 @@ import type { DayBands } from '@/lib/sun';
  * modules that have no component to hang it on.
  */
 
-type WebStorageLike = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
 /** Resolved per call rather than captured at module scope: the shim above installs it on import,
- *  and a lazy read can't be tripped by module evaluation order (in a test host there is none at
- *  all, and the store must degrade to its defaults rather than throw). */
-const storage = () => (globalThis as unknown as { localStorage?: WebStorageLike }).localStorage;
+ *  and a lazy read can't be tripped by module evaluation order. */
+const storage = getWebStorage;
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 /** 0 = Sunday, 1 = Monday, 6 = Saturday — the three starts in common use. */

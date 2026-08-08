@@ -1,6 +1,7 @@
 import 'expo-sqlite/localStorage/install';
 
 import type { Task } from '@/lib/tasks';
+import { getWebStorage } from '@/lib/web-storage';
 
 /**
  * A last-known snapshot of the day's tasks, persisted so a cold start paints the TO DO section on
@@ -25,13 +26,7 @@ export type TasksSnapshot = {
 
 const CACHE_KEY = 'tasks.snapshot.v1';
 
-// The synchronous SQLite-backed Web Storage shim (same one the habits snapshot, catalog, auth
-// session and theme use), so the snapshot is readable on the very first render with no async hop.
-type WebStorageLike = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
-const storage = (globalThis as unknown as { localStorage?: WebStorageLike }).localStorage;
+const storage = getWebStorage();
 
 export function readTasksSnapshot(): TasksSnapshot | null {
   try {

@@ -24,6 +24,13 @@ export const normalizeName = (name: string) =>
 export const otherNames = <T extends { id: string; name: string }>(items: T[], id?: string) =>
   items.filter((item) => item.id !== id).map((item) => normalizeName(item.name));
 
+/** Whether `trimmed` collides with an {@link otherNames} set once folded through
+ *  {@link normalizeName} — an empty candidate never counts as a duplicate. Shared by every
+ *  name-collecting form (habit, exchange, and stack create/rename), so "no DB uniqueness
+ *  constraint, the app enforces it" stays one rule instead of four re-implementations. */
+export const isDuplicateName = (trimmed: string, existingNames: string[]) =>
+  trimmed.length > 0 && existingNames.includes(normalizeName(trimmed));
+
 /**
  * Append the smallest numeric suffix that makes `base` unique against `taken` (a set of names
  * already folded through {@link normalizeName}): "Qurʾān" → "Qurʾān 2" → "Qurʾān 3" …. Returns

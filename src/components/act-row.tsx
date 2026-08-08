@@ -4,7 +4,7 @@ import { Touchable } from 'react-native-gesture-handler';
 
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -119,11 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: Spacing.three,
   },
-  leading: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  leading: RowLeadingSlot,
   // Tabular figures so the numerals sit in a true column as the list crosses 9 → 10.
   ordinal: { fontVariant: ['tabular-nums'] },
   name: { flex: 1 },

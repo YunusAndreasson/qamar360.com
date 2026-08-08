@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
 
 import { FormSheet, SheetRow } from '@/components/form-sheet';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
+import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
 import { isExchange } from '@/lib/exchange';
@@ -30,35 +30,36 @@ export default function ActActionsScreen() {
   const { habits, skipped, skipHabit, deleteHabit, isToday, viewDate } = useHabits();
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
-  const isSkipped = habit ? skipped.has(habit.id) : false;
-  const exchange = !!habit && isExchange(habit);
+
+  // An act deleted (here or elsewhere) while the sheet is up has nothing left to act on. `habit`
+  // is narrowed non-null for the rest of the component from here on.
+  useBackIfStale(!!habitId && !habit);
+  if (!habit) return null;
+
+  const isSkipped = skipped.has(habit.id);
+  const exchange = isExchange(habit);
   const noun = exchange ? 'exchange' : 'act';
 
   const toggleSkip = () => {
-    if (!habit) return;
     void skipHabit(habit.id);
     router.back();
   };
 
   // `replace` (not push) so the next modal's Save/Close returns to Today, not back to this sheet.
   const openInsights = () => {
-    if (!habit) return;
-    router.replace({ pathname: '/habits/stats', params: { id: habit.id } });
+    router.replace({ pathname: '/habits/stats', params: { habitId: habit.id } });
   };
 
   const edit = () => {
-    if (!habit) return;
     router.replace({ pathname: exchange ? '/habits/exchange' : '/habits/editor', params: { id: habit.id } });
   };
 
   const moveTo = () => {
-    if (!habit) return;
     router.replace({ pathname: '/habits/add-to-stack', params: { habitId: habit.id } });
   };
 
   const confirmDelete = () => {
-    if (!habit) return;
-    // Deleting drops the habit from state; the effect below backs the sheet out (don't also
+    // Deleting drops the habit from state; the effect above backs the sheet out (don't also
     // router.back() here, or it pops twice).
     confirmDestructive({
       title: `Delete ${noun}`,
@@ -69,12 +70,6 @@ export default function ActActionsScreen() {
       },
     });
   };
-
-  // An act deleted (here or elsewhere) while the sheet is up has nothing left to act on.
-  useEffect(() => {
-    if (habitId && !habit) router.back();
-  }, [habitId, habit, router]);
-  if (!habit) return null;
 
   return (
     <FormSheet title={habit.name} subtitle={exchange ? 'Exchange' : 'Act'}>
