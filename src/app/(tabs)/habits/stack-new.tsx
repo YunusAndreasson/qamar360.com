@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
+import { GuideLink } from '@/components/guide-link';
 import { MomentPicker } from '@/components/moment-picker';
 import { useToast } from '@/components/toast';
 import { useCatalog } from '@/hooks/use-catalog';
@@ -105,6 +106,10 @@ export default function StackNewScreen() {
       />
 
       <MomentPicker value={moment} onChange={pickMoment} />
+
+      {/* Reachable without passing the library (Today's empty state opens this form directly), so
+          the case for anchoring stays one tap away from the blank field too. */}
+      <GuideLink label="Why anchoring works" href="/habits/stacking-info" />
     </FormScreen>
   );
 }

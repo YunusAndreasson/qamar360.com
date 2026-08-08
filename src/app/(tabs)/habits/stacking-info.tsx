@@ -1,6 +1,7 @@
-import { StackingGuide } from '@/components/stacking-guide';
+import { GuideScreen } from '@/components/guide-screen';
+import { STACKING_GUIDE } from '@/constants/guides';
 
-/** The habit-stacking guide, opened from the ready-made stack library (see {@link StackingGuide}). */
+/** The habit-stacking guide, pushed from the "New stack" form (see {@link GuideScreen}). */
 export default function StackingInfoScreen() {
-  return <StackingGuide />;
+  return <GuideScreen guide={STACKING_GUIDE} />;
 }

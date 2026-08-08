@@ -21,8 +21,8 @@ export default function HabitsStackLayout() {
     <TabStack>
       {/* Transparent so the fixed sky behind the stack shows through the (transparent) list. */}
       <Stack.Screen name="index" options={transparentScreen} />
-      {/* The "+" fork: a ready-made stack or one you build — a compact form sheet whose two rows
-          explain the choice. */}
+      {/* The "+" fork: stack, exchange, or a one-off task — a compact form sheet whose three cards
+          name the noun each one makes. */}
       <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
       {/* The library of ready-made stacks, each anchored to a moment the day already has — a
           native modal sheet with a left-aligned Close, like Discover beside it. */}
@@ -55,8 +55,11 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="act-actions" options={formSheetOptions(theme)} />
       {/* "Manage stack" (edit / delete / add acts) for a stack card — raised by its ⋯. */}
       <Stack.Screen name="stack-manage" options={formSheetOptions(theme)} />
-      {/* The habit-stacking guide — a short educational sheet, opened from the Today hint. */}
-      <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />
+      {/* The habit-stacking guide. A pushed screen, not a sheet: it carries a photograph and four
+          sections, which a `fitToContents` sheet can neither scroll nor grow to hold. It is opened
+          from inside the "New stack" modal, so pushing (a back button, a real title) beats
+          stacking a second modal on the first. Its title comes from the guide data. */}
+      <Stack.Screen name="stacking-info" />
       {/* The library of ready-made exchanges — the other half of the "+" fork, presented like the
           stack library beside it. */}
       <Stack.Screen
@@ -69,8 +72,8 @@ export default function HabitsStackLayout() {
       />
       {/* New / edit exchange — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
-      {/* The exchange guide — the sibling of `stacking-info`, opened from the library. */}
-      <Stack.Screen name="exchange-info" options={formSheetOptions(theme)} />
+      {/* The exchange guide — the sibling of `stacking-info`, opened from the "New exchange" form. */}
+      <Stack.Screen name="exchange-info" />
     </TabStack>
   );
 }

@@ -1,19 +1,19 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
-import { FadeInView } from '@/components/fade-in-view';
-import { RowSeparator } from '@/components/row-separator';
+import { DisclosureRow } from '@/components/disclosure-row';
+import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { type CuratedExchange, EXCHANGE_GROUPS } from '@/constants/exchanges';
-import { Face, Pressed, Spacing } from '@/constants/theme';
+import { EXCHANGE_GUIDE } from '@/constants/guides';
+import { Face, Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { DAILY_SCHEDULE } from '@/lib/dates';
@@ -63,9 +63,10 @@ export default function ExchangeLibraryScreen() {
 
   return (
     <AppScreen>
-      <ThemedText type="small" themeColor="textSecondary" style={styles.lede}>
-        Put a good act where an old one keeps happening — the same moment, a different answer.
-      </ThemedText>
+      {/* The case for replacing rather than resisting, at the head of the screen where the
+          replacement is chosen. Its disclosure is labelled "Why replacing works", not "Why this
+          works" — the cards below each carry that phrase for their own evidence. */}
+      <GuideIntro guide={EXCHANGE_GUIDE} />
 
       {EXCHANGE_GROUPS.map((group) => (
         <View key={group.key} style={styles.group}>
@@ -84,6 +85,7 @@ export default function ExchangeLibraryScreen() {
         </View>
       ))}
 
+      {/* The from-scratch path. The "why" that used to sit beside it now opens the screen. */}
       <View style={styles.group}>
         <Surface>
           <SettingsRow
@@ -91,13 +93,6 @@ export default function ExchangeLibraryScreen() {
             label="Your own exchange"
             sublabel="The moment, the routine you turn from, and the deed instead"
             onPress={() => router.replace({ pathname: '/habits/exchange', params: { id: 'new' } })}
-          />
-          <RowSeparator />
-          <SettingsRow
-            icon="help"
-            label="Why replacing works"
-            sublabel="The short version, with the Sunnah behind it"
-            onPress={() => router.push('/habits/exchange-info')}
           />
         </Surface>
       </View>
@@ -119,7 +114,6 @@ export default function ExchangeLibraryScreen() {
  */
 function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: boolean; onAdd: () => void }) {
   const theme = useTheme();
-  const [showEvidence, setShowEvidence] = useState(false);
 
   return (
     <View style={styles.card}>
@@ -139,36 +133,18 @@ function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: 
           <ThemedText type="small" themeColor="textDisabled">
             {entry.detail}
           </ThemedText>
-          {/* The disclosure. A quiet text row, not a chevron-and-divider affair — it is the least
-              of the three things on the card and must not out-dress the plan above it.
-
-              RN `Pressable`, not gesture-handler's `Touchable`, which is what the rest of the day's
-              rows use: inside this card's Surface the Touchable took the press (its underlay lit and
-              latched) and never fired `onPress` on release — verified twice on device, with and
-              without the underlay. `Pressable` is what `SettingsRow` uses lower down this same
-              screen, where tapping has always worked. */}
-          <Pressable
-            onPress={() => setShowEvidence((v) => !v)}
-            android_ripple={{ color: theme.backgroundSelected }}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showEvidence }}
+          {/* Per-entry sourcing, one tap down. `DisclosureRow` is the shared row this card used to
+              hand-roll — it carries the `Pressable`-not-`Touchable` finding that made it work
+              inside a Surface, and the intro at the top of this screen now uses it too. */}
+          <DisclosureRow
+            label="Why this works"
             accessibilityLabel={`Why this works: ${entry.name}`}
-            accessibilityHint={showEvidence ? 'Hides the evidence.' : 'Shows the evidence behind it.'}
-            style={({ pressed }) => [styles.whyRow, pressed && { opacity: Pressed.dim }]}>
-            <ThemedText type="small" themeColor="textDisabled">
-              Why this works
+            expandHint="Shows the evidence behind it."
+            collapseHint="Hides the evidence.">
+            <ThemedText type="small" themeColor="textSecondary">
+              {entry.evidence}
             </ThemedText>
-            <AppIcon name={showEvidence ? 'expandLess' : 'expandMore'} size={16} color={theme.textDisabled} />
-          </Pressable>
-          {/* A shared-value mount fade, never reanimated `entering` — the SDK 57 Fabric preset bug
-              (see FadeInView). */}
-          {showEvidence ? (
-            <FadeInView>
-              <ThemedText type="small" themeColor="textDisabled">
-                {entry.evidence}
-              </ThemedText>
-            </FadeInView>
-          ) : null}
+          </DisclosureRow>
           {owned ? (
             <View style={styles.added}>
               <AppIcon name="check" size={16} color={theme.textDisabled} />
@@ -192,7 +168,6 @@ function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: 
 }
 
 const styles = StyleSheet.create({
-  lede: { marginHorizontal: Spacing.three, marginBottom: Spacing.four },
   group: { marginBottom: Spacing.four },
   // Hung to the section label's inset, and given air before the first card so it reads as the
   // group's line rather than the first card's.
@@ -202,7 +177,5 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   // Semibold via the FACE, never fontWeight (the Android fake-bold gotcha).
   cardTitle: { flex: 1, fontFamily: Face.bodySemiBold },
-  // The evidence toggle: a 44pt row so it is a real target, its glyph bound to its label.
-  whyRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, minHeight: 44 },
   added: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 44 },
 });

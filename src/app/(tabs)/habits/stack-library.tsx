@@ -5,13 +5,14 @@ import { StyleSheet, View } from 'react-native';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
-import { RowSeparator } from '@/components/row-separator';
+import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { CURATED_GROUPS, type CuratedStack } from '@/constants/curated-stacks';
+import { STACKING_GUIDE } from '@/constants/guides';
 import { Face, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
@@ -78,9 +79,10 @@ export default function StackLibraryScreen() {
 
   return (
     <AppScreen>
-      <ThemedText type="small" themeColor="textSecondary" style={styles.lede}>
-        Anchor a stack to something you already do — the cue you never forget.
-      </ThemedText>
+      {/* The case for anchoring, at the head of the screen where the anchoring is chosen — the
+          photograph and the thesis always, the argument behind one tap. It used to be a row in the
+          footer, below every card: an explanation offered after the decision it informs. */}
+      <GuideIntro guide={STACKING_GUIDE} />
 
       {CURATED_GROUPS.map((group) => (
         <View key={group.key} style={styles.group}>
@@ -97,8 +99,8 @@ export default function StackLibraryScreen() {
         </View>
       ))}
 
-      {/* The from-scratch path stays one tap away without shouting over the library, and the
-          short "why this works" sits beside it for anyone who wants the reasoning first. */}
+      {/* The from-scratch path stays one tap away without shouting over the library. The "why"
+          that used to sit beside it now opens the screen instead. */}
       <View style={styles.group}>
         <Surface>
           <SettingsRow
@@ -106,13 +108,6 @@ export default function StackLibraryScreen() {
             label="Your own stack"
             sublabel="Name it, anchor it to a moment, then add your acts"
             onPress={() => router.replace('/habits/stack-new')}
-          />
-          <RowSeparator />
-          <SettingsRow
-            icon="help"
-            label="Why anchoring works"
-            sublabel="The short version, with the Sunnah behind it"
-            onPress={() => router.push('/habits/stacking-info')}
           />
         </Surface>
       </View>
@@ -187,7 +182,6 @@ function CuratedCard({
 }
 
 const styles = StyleSheet.create({
-  lede: { marginHorizontal: Spacing.three, marginBottom: Spacing.four },
   group: { marginBottom: Spacing.four },
   card: { marginBottom: Spacing.two },
   cardBody: { padding: Spacing.three, gap: Spacing.two },

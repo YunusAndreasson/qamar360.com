@@ -1,6 +1,7 @@
-import { ExchangeGuide } from '@/components/exchange-guide';
+import { GuideScreen } from '@/components/guide-screen';
+import { EXCHANGE_GUIDE } from '@/constants/guides';
 
-/** The exchange guide, opened from the ready-made exchange library (see {@link ExchangeGuide}). */
+/** The exchange guide, pushed from the "New exchange" form (see {@link GuideScreen}). */
 export default function ExchangeInfoScreen() {
-  return <ExchangeGuide />;
+  return <GuideScreen guide={EXCHANGE_GUIDE} />;
 }

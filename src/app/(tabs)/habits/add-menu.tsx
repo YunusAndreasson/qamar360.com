@@ -13,17 +13,20 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * "Add" — the native bottom sheet behind Today's "+".
  *
- * Four choices, and the whole point of the sheet is that you leave it knowing which of the app's
- * four things you just made. So each card **names its noun** — stack, exchange, task — rather than
- * describing an action ("Build your own", which never said your own *what*), and the two captions
- * above them answer the question the nouns can't: does this thing come back tomorrow, or not?
+ * The sheet asks **one** question: what kind of thing is this? So each card names its noun —
+ * stack, exchange, task — rather than describing an action ("Build your own", which never said
+ * your own *what*), and the two captions above them answer the only thing the nouns can't: does
+ * it come back tomorrow, or not?
  *
- * REPEATING: the first two make a *stack* — take one ready-made, or start an empty one and add
- * acts into it. The ready-made path leads, since an anchor someone else has already thought
- * through beats a blank name field for almost everyone. The exchange is a different shape of
- * change altogether — not a deed added to the day but one put where an old routine keeps taking
- * its place — and sits last of the three because it presumes what the others don't: that you have
- * already noticed a specific moment going the wrong way.
+ * It used to offer four choices, two of which ("Ready-made stack", "Your own stack") were both
+ * stacks — so before you could say what you wanted you had to say how you wanted to make it, and
+ * the second card competed with a row that already exists inside the library the first one opens.
+ * Both stack doors now live behind one card, where the choice between them can be made with the
+ * ready-made ones actually in view.
+ *
+ * REPEATING: a stack adds a deed to the day; an exchange puts one where an old routine keeps
+ * taking its place. The exchange sits second because it presumes what the stack doesn't — that you
+ * have already noticed a specific moment going the wrong way.
  *
  * ONE-OFF: the task, which asks nothing of the future. It is the only choice that leads back to
  * Today instead of on to a form — a task is a line you type, so the field is the row it becomes.
@@ -42,16 +45,10 @@ export default function AddMenuScreen() {
         <SectionLabel>REPEATING</SectionLabel>
         <View style={styles.choices}>
           <ChoiceCard
-            icon="sparkle"
-            label="Ready-made stack"
+            icon="stack"
+            label="Stack"
             sublabel="A short sequence anchored to a prayer, waking, or bedtime."
             onPress={() => router.replace('/habits/stack-library')}
-          />
-          <ChoiceCard
-            icon="stack"
-            label="Your own stack"
-            sublabel="Name it, anchor it to a moment, then add your acts."
-            onPress={() => router.replace('/habits/stack-new')}
           />
           <ChoiceCard
             icon="exchange"

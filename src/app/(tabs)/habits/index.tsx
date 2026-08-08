@@ -499,11 +499,12 @@ export default function HabitsScreen() {
               {Platform.OS !== 'ios' ? (
                 <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
               ) : null}
-              {/* One door to add: the sheet forks to a ready-made stack or one you build. */}
+              {/* One door to add: the sheet forks to a stack, an exchange, or a one-off task —
+                  hence the bare "Add", which is all this button can honestly promise. */}
               <HeaderIconButton
                 icon={Icons.add}
                 color={theme.accent}
-                accessibilityLabel="Add a stack"
+                accessibilityLabel="Add"
                 onPress={() => router.push('/habits/add-menu')}
               />
             </HeaderActions>

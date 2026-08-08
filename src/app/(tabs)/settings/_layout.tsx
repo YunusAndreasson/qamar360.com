@@ -13,9 +13,12 @@ export default function SettingsStackLayout() {
       {/* Pushed sub-screen; title + Save live in the screen's own <Stack.Screen>. Stays opaque
           (no transparentScreen) — a plain form over the themed background. */}
       <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
-      {/* The habit-stacking guide — the same sheet the Today hint opens, registered here too so
-          reaching it from Settings never switches tabs. */}
-      <Stack.Screen name="stacking-info" options={formSheetOptions(theme)} />
+      {/* The two guides — the app's method, in the tab where you go looking for it rather than
+          only where you'd act on it. Registered here as well as under Today so reaching one from
+          Settings never switches tabs. Plain pushed screens: each carries a photograph and four
+          sections, and each sets its own title from the guide data. */}
+      <Stack.Screen name="stacking-info" />
+      <Stack.Screen name="exchange-info" />
       {/* The two settings that need more than a switch: each is a compact picker over one
           value, so it's a sheet rather than a pushed screen — the list stays one level deep. */}
       <Stack.Screen name="hijri-adjust" options={formSheetOptions(theme)} />

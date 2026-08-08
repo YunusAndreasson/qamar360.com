@@ -325,14 +325,21 @@ export default function SettingsScreen() {
         <SettingsRow icon="signOut" label="Sign out" onPress={confirmSignOut} />
       </SettingsSection>
 
-      {/* Guide — the in-app how-to for the app's core method, split out from the external
+      {/* Guide — the in-app how-to for the app's two methods, split out from the external
           legal/support links in "About" so a "learn how it works" row doesn't read as fine print.
-          (Same sheet the Today hint opens, findable here once that one-shot hint has retired.) */}
+          Both guides also open from the library each one explains; this is where you find them
+          when you are not in the middle of adding anything. */}
       <SettingsSection title="Guide">
         <SettingsRow
           icon="stack"
           label="Habit stacking"
           onPress={() => router.push('/settings/stacking-info')}
+          showChevron
+        />
+        <SettingsRow
+          icon="exchange"
+          label="Exchanges"
+          onPress={() => router.push('/settings/exchange-info')}
           showChevron
         />
       </SettingsSection>

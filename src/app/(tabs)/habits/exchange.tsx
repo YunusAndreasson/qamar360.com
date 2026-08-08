@@ -5,6 +5,7 @@ import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
+import { GuideLink } from '@/components/guide-link';
 import { WeekdayPicker } from '@/components/weekday-picker';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
@@ -118,6 +119,10 @@ export default function ExchangeFormScreen() {
 
       <FieldLabel>REPEAT</FieldLabel>
       <WeekdayPicker days={days} onChange={setDays} />
+
+      {/* Three fields is a lot to ask of someone who hasn't been told why each one matters, and
+          this form can be opened without passing the library that explains it. */}
+      <GuideLink label="Why replacing works" href="/habits/exchange-info" />
     </FormScreen>
   );
 }
