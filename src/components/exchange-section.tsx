@@ -14,6 +14,10 @@ type Props = {
   topGap: number;
   completed: Set<string>;
   skipped: Set<string>;
+  /** The viewed day's completions are being (re)fetched after a day-step — see `CompletionRing`'s
+   *  `settling` doc. Passed straight through to the rows, which persist across a day-step (they are
+   *  keyed by habit, not by day) and would otherwise replay their sweep as the data lands. */
+  settling: boolean;
   onToggle: (habit: Habit) => void;
   onOptions: (habit: Habit) => void;
 };
@@ -31,7 +35,7 @@ type Props = {
  * make three small commitments look like three more stacks. Nothing renders at all when there are
  * none — the section is not an empty state waiting to be filled, and the way in is the "+" menu.
  */
-export function ExchangeSection({ exchanges, topGap, completed, skipped, onToggle, onOptions }: Props) {
+export function ExchangeSection({ exchanges, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
   if (exchanges.length === 0) return null;
 
   return (
@@ -50,6 +54,7 @@ export function ExchangeSection({ exchanges, topGap, completed, skipped, onToggl
               habit={habit}
               held={completed.has(habit.id)}
               skipped={skipped.has(habit.id)}
+              settling={settling}
               onToggle={onToggle}
               onOptions={onOptions}
             />

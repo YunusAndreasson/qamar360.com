@@ -157,7 +157,9 @@ function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: 
               variant="secondary"
               onPress={onAdd}
               accessibilityLabel={`Add the exchange: ${entry.name} instead of ${entry.insteadOf}`}
-              accessibilityHint={`Adds it to today, ${entry.cue}.`}>
+              // "Its moment:" rather than running the cue straight on, now that a cue is the bare
+              // moment ("headphones on") instead of a "when I…" clause that could finish a sentence.
+              accessibilityHint={`Adds it to today. Its moment: ${entry.cue}.`}>
               Add this exchange
             </AppButton>
           )}

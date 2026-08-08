@@ -658,6 +658,7 @@ export default function HabitsScreen() {
             topGap={entries.length > 0 || tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD}
             completed={completed}
             skipped={skipped}
+            settling={completionsLoading}
             onToggle={toggleHeld}
             onOptions={openAct}
           />

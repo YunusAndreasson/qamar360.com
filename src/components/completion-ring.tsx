@@ -34,7 +34,8 @@ const checkLengthFor = (size: number) =>
  * and an exchange row (holding the deed) — so both commits read as the same gesture in the same
  * column, whatever their unit.
  *
- * Open is a quiet hollow ring (the row's press highlight shows through). At rest, done does NOT
+ * Open is a hollow ring in `text` — the same tone as the title it sits beside, so an unfinished unit
+ * reads as one bright thing (the row's press highlight shows through it). At rest, done does NOT
  * stay lit: the ring closes around a small check, both in `textDisabled` — the exact muted tone of
  * the receded label beside it — so a finished unit recedes as one quiet thing. A check, not a
  * filled dot: ring-with-dot reads as a radio button's "selected", and a solid disc reads as a moon
@@ -151,11 +152,27 @@ export function CompletionRing({
   });
   // One worklet for the whole quiet layer — both nodes fade as a single unit.
   const quietProps = useAnimatedProps(() => ({ opacity: quiet.get() }));
+  // The open track is the exact inverse of the quiet layer, so the two cross-fade rather than
+  // stack: an unfilled ring carries the full title tone, and a done one is only ever the muted
+  // mark. Fading it out (instead of leaving it underneath) is what keeps the brighter stroke from
+  // fringing the edges of the muted circle drawn over it.
+  const trackProps = useAnimatedProps(() => ({ opacity: 1 - quiet.get() }));
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {/* The open track the arc fills over. */}
-      <Circle cx={radius} cy={radius} r={ringRadius} stroke={theme.controlTrack} strokeWidth={strokeWidth} fill="none" />
+      {/* The open track the arc fills over — `text`, the same tone as the title beside it, so an
+          unfinished unit reads as one bright thing rather than a strong label with a faint mark.
+          (It was `controlTrack`, the interactive-outline step: legible, but a full stop dimmer than
+          the name it belongs to.) */}
+      <AnimatedCircle
+        cx={radius}
+        cy={radius}
+        r={ringRadius}
+        stroke={theme.text}
+        strokeWidth={strokeWidth}
+        animatedProps={trackProps}
+        fill="none"
+      />
       {/* The flash: the accent arc (12 o'clock, clockwise — same as the Progress orbit)
           and the check that draws in behind its landing. */}
       <AnimatedCircle

@@ -48,6 +48,23 @@ describe('pointAt', () => {
     expect(pointAt(0.5, 1.4, WIDTH, BOX).y).toBe(BOX.padY);
     expect(pointAt(0.5, -0.3, WIDTH, BOX).y).toBe(BOX.height - BOX.padY);
   });
+
+  // `padBottom` exists so a chart that draws nothing under its baseline can stop reserving room
+  // there (OverTime). It must move the baseline WITHOUT squeezing the plot: shortening the box by
+  // exactly what comes off the bottom inset has to leave every reading at the y it already had.
+  it('takes a separate bottom inset, keeping the top inset for headroom', () => {
+    const cropped: PlotBox = { height: 108, padY: 12, padBottom: 0, padX: 12 };
+    expect(pointAt(0, 1, WIDTH, cropped).y).toBe(cropped.padY);
+    expect(pointAt(0, 0, WIDTH, cropped).y).toBe(cropped.height);
+    // Same plot area as the symmetric BOX above (96pt), so a mid reading lands identically.
+    expect(pointAt(0, 0.5, WIDTH, cropped).y).toBe(pointAt(0, 0.5, WIDTH, BOX).y);
+  });
+
+  it('falls back to padY when no bottom inset is given', () => {
+    const { padBottom, ...symmetric } = { ...BOX, padBottom: 3 };
+    expect(padBottom).toBe(3); // the spread above really did drop it
+    expect(pointAt(0, 0, WIDTH, symmetric).y).toBe(BOX.height - BOX.padY);
+  });
 });
 
 describe('polylineLength', () => {

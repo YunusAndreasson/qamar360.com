@@ -82,16 +82,19 @@ export default function ExchangeFormScreen() {
       />
 
       {/* Lowercase placeholders throughout: the row renders these mid-sentence, inside
-          "Instead of soft drinks · when I sit down to eat". */}
+          "instead of soft drinks · sitting down to eat". The WHEN placeholder is the bare moment,
+          not "when I sit down to eat" — the label already says when, and the day's row is read
+          tired, where a leading "when I" on every exchange is a third of the line spent on
+          grammar. The hint asks for the same brevity in words. */}
       <FormField
         label="WHEN"
         value={cue}
         onChangeText={setCue}
-        placeholder="when I sit down to eat"
+        placeholder="sitting down to eat"
         autoCapitalize="none"
         autoFocus={isNew}
         accessibilityLabel="When this happens"
-        hint="A moment you would notice arriving."
+        hint="A moment you would notice arriving — a few words."
       />
 
       <FormField

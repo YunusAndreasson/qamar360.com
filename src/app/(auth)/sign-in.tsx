@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
@@ -9,11 +9,12 @@ import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
 import { APP_NAME } from '@/constants/app';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Pressed, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
-import { socialAuthAvailable } from '@/lib/social-auth';
+import { googleAuthAvailable, socialAuthAvailable } from '@/lib/social-auth';
 
+import type { ReactNode } from 'react';
 import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
@@ -32,12 +33,33 @@ const SUBMIT_LABELS: Record<Mode, string> = {
   reset: 'Update password',
 };
 
+/**
+ * The way in — and the app's first screen, so it is mostly photograph.
+ *
+ * It used to put everything it could do on one page: two social buttons, a rule, two fields, a
+ * filled submit and two more full-width buttons under that. Nine controls stacked from the floor,
+ * which left the hero image as a strip of sky above a wall of chrome — and made the two most
+ * common ways in look no more likely than "Forgot password?".
+ *
+ * So the screen has one job at rest: Apple, Google, and a quiet line offering email. The email form
+ * is a door rather than a wall — it opens in place of the social block (never above it, which would
+ * rebuild the same stack), and everything rarer than "sign in" is small print beneath it. What that
+ * buys is the photograph: the walking figure and the moon stay uncovered, which is the whole reason
+ * the image is there.
+ *
+ * The one thing that must never happen is a screen with no way in, so the form opens by default
+ * wherever the social buttons cannot render (see `anySocial`).
+ */
 export default function SignInScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { signIn, signUp, signInWithApple, signInWithGoogle, resetPassword, verifyRecovery, updatePassword, signOut } =
     useAuth();
   const [mode, setMode] = useState<Mode>('sign-in');
+  // Whether the email form has been asked for. Not a `Mode` of its own: 'sign-in' means the same
+  // thing on both sides of this door, and folding the two together would need every label map
+  // below to carry an entry that has no submit button.
+  const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(''); // also the new password in 'reset' mode
   const [code, setCode] = useState('');
@@ -59,6 +81,12 @@ export default function SignInScreen() {
     // could silently become the account's new password.
     setPassword('');
     setMode(next);
+  }
+
+  /** Back to the landing: the social buttons, and the email door shut again. */
+  function closeEmail() {
+    goTo('sign-in');
+    setEmailOpen(false);
   }
 
   async function handleSocial(provider: 'apple' | 'google') {
@@ -134,11 +162,21 @@ export default function SignInScreen() {
     }
   }
 
-  const showEmail = mode !== 'reset';
-  const showPassword = mode === 'sign-in' || mode === 'sign-up';
-  // Social sign-in leads the sign-in / sign-up screens; hidden during password recovery, and in
-  // Expo Go (the native modules aren't bundled there).
-  const showSocial = socialAuthAvailable && (mode === 'sign-in' || mode === 'sign-up');
+  // Password recovery is an email flow by definition — there is no social door into it.
+  const emailFlow = mode === 'forgot' || mode === 'reset';
+  // Is there anything to lead with? `socialAuthAvailable` only says the native modules loaded;
+  // whether a button actually draws is stricter — Google needs its web client id, and Apple is
+  // iOS-only. Apple's real check is async (`appleAuthAvailable`), but it is effectively always true
+  // on iOS 13+, so the platform stands in for it synchronously and there is no landing that flickers
+  // between two layouts on the first frame. Being wrong here only starts the email door shut, one
+  // tap from open — never a screen with no way in.
+  const anySocial = socialAuthAvailable && (Platform.OS === 'ios' || googleAuthAvailable);
+  const showForm = emailOpen || emailFlow || !anySocial;
+  // The form takes the social block's place rather than sitting under it — stacked, the two would
+  // rebuild exactly the wall this screen was rewritten to remove.
+  const showSocial = anySocial && !showForm;
+  const showEmailField = mode !== 'reset';
+  const showPasswordField = mode === 'sign-in' || mode === 'sign-up';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -156,126 +194,162 @@ export default function SignInScreen() {
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator={false}>
-      <View style={[styles.safeArea, { paddingBottom: insets.bottom + Spacing.four }]}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
-          {SUBTITLES[mode]}
-        </ThemedText>
-
-        {showSocial ? (
-          <View style={styles.social}>
-            <AppleSignInButton onPress={() => handleSocial('apple')} />
-            <GoogleSignInButton onPress={() => handleSocial('google')} busy={socialBusy === 'google'} />
-            <View style={styles.divider}>
-              <View style={[styles.rule, { backgroundColor: theme.border }]} />
-              <ThemedText type="small" themeColor="textSecondary">
-                or
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}>
+          <View style={[styles.safeArea, { paddingBottom: insets.bottom + Spacing.four }]}>
+            {/* Only over the form. On the landing the two buttons say what they do, and a line
+                telling you to sign in above two sign-in buttons is a caption on a caption. */}
+            {showForm ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
+                {SUBTITLES[mode]}
               </ThemedText>
-              <View style={[styles.rule, { backgroundColor: theme.border }]} />
+            ) : null}
+
+            {/* Above the controls in both states: a social failure and a form failure are both
+                about the attempt you just made, and this is where the eye already is. */}
+            {error ? (
+              <ThemedText type="small" themeColor="danger" role="alert" accessibilityLiveRegion="polite"
+                style={styles.centeredText}>
+                {error}
+              </ThemedText>
+            ) : null}
+            {notice ? (
+              <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite"
+                style={styles.centeredText}>
+                {notice}
+              </ThemedText>
+            ) : null}
+
+            {showSocial ? (
+              <View style={styles.social}>
+                <AppleSignInButton onPress={() => handleSocial('apple')} />
+                <GoogleSignInButton onPress={() => handleSocial('google')} busy={socialBusy === 'google'} />
+              </View>
+            ) : null}
+
+            {showForm ? (
+              <>
+                {showEmailField ? (
+                  <FormField
+                    placeholder="Email"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                    returnKeyType={showPasswordField ? 'next' : 'go'}
+                    onSubmitEditing={() => {
+                      if (showPasswordField) passwordRef.current?.focus();
+                      else void onSubmit();
+                    }}
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                ) : null}
+
+                {mode === 'reset' ? (
+                  <FormField
+                    placeholder="6-digit code"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    returnKeyType="next"
+                    onSubmitEditing={() => newPasswordRef.current?.focus()}
+                    value={code}
+                    onChangeText={setCode}
+                  />
+                ) : null}
+
+                {showPasswordField ? (
+                  <FormField
+                    placeholder="Password"
+                    autoCapitalize="none"
+                    ref={passwordRef}
+                    secureTextEntry
+                    textContentType="password"
+                    autoComplete={mode === 'sign-up' ? 'new-password' : 'password'}
+                    returnKeyType="go"
+                    onSubmitEditing={() => void onSubmit()}
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                ) : null}
+
+                {mode === 'reset' ? (
+                  <FormField
+                    placeholder="New password"
+                    autoCapitalize="none"
+                    ref={newPasswordRef}
+                    secureTextEntry
+                    textContentType="newPassword"
+                    autoComplete="new-password"
+                    returnKeyType="go"
+                    onSubmitEditing={() => void onSubmit()}
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                ) : null}
+
+                <AppButton variant="primary" busy={busy} onPress={onSubmit}>
+                  {SUBMIT_LABELS[mode]}
+                </AppButton>
+              </>
+            ) : null}
+
+            {/* Everything rarer than "sign in", as small print. Two on one line where they pair —
+                a second and third full-width button is what made three equal-looking verbs out of
+                one likely one. */}
+            <View style={styles.links}>
+              {showForm ? (
+                mode === 'sign-in' ? (
+                  <View style={styles.linkRow}>
+                    <TextLink onPress={() => goTo('sign-up')}>Create an account</TextLink>
+                    <ThemedText type="small" themeColor="textDisabled">
+                      ·
+                    </ThemedText>
+                    <TextLink onPress={() => goTo('forgot')}>Forgot password?</TextLink>
+                  </View>
+                ) : (
+                  <TextLink onPress={() => goTo('sign-in')}>
+                    {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
+                  </TextLink>
+                )
+              ) : (
+                <TextLink onPress={() => setEmailOpen(true)}>Continue with email</TextLink>
+              )}
+
+              {/* The way back out of the door, from wherever the email flow has gone. Absent when
+                  there is nothing behind it — with no social buttons the form IS the screen. */}
+              {showForm && anySocial ? <TextLink onPress={closeEmail}>Other ways to sign in</TextLink> : null}
             </View>
           </View>
-        ) : null}
-
-        {showEmail ? (
-          <FormField
-            placeholder="Email"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
-            returnKeyType={showPassword ? 'next' : 'go'}
-            onSubmitEditing={() => {
-              if (showPassword) passwordRef.current?.focus();
-              else void onSubmit();
-            }}
-            value={email}
-            onChangeText={setEmail}
-          />
-        ) : null}
-
-        {mode === 'reset' ? (
-          <FormField
-            placeholder="6-digit code"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            autoComplete="one-time-code"
-            returnKeyType="next"
-            onSubmitEditing={() => newPasswordRef.current?.focus()}
-            value={code}
-            onChangeText={setCode}
-          />
-        ) : null}
-
-        {showPassword ? (
-          <FormField
-            placeholder="Password"
-            autoCapitalize="none"
-            ref={passwordRef}
-            secureTextEntry
-            textContentType="password"
-            autoComplete={mode === 'sign-up' ? 'new-password' : 'password'}
-            returnKeyType="go"
-            onSubmitEditing={() => void onSubmit()}
-            value={password}
-            onChangeText={setPassword}
-          />
-        ) : null}
-
-        {mode === 'reset' ? (
-          <FormField
-            placeholder="New password"
-            autoCapitalize="none"
-            ref={newPasswordRef}
-            secureTextEntry
-            textContentType="newPassword"
-            autoComplete="new-password"
-            returnKeyType="go"
-            onSubmitEditing={() => void onSubmit()}
-            value={password}
-            onChangeText={setPassword}
-          />
-        ) : null}
-
-        {error ? (
-          <ThemedText type="small" themeColor="danger" role="alert" accessibilityLiveRegion="polite">
-            {error}
-          </ThemedText>
-        ) : null}
-        {notice ? (
-          <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite">
-            {notice}
-          </ThemedText>
-        ) : null}
-
-        <AppButton variant="primary" busy={busy} onPress={onSubmit} style={styles.submitButton}>
-          {SUBMIT_LABELS[mode]}
-        </AppButton>
-
-        {mode === 'sign-in' ? (
-          <>
-            <AppButton variant="secondary" onPress={() => goTo('sign-up')}>
-              Need an account? Sign up
-            </AppButton>
-            <AppButton variant="secondary" onPress={() => goTo('forgot')}>
-              Forgot password?
-            </AppButton>
-          </>
-        ) : (
-          <AppButton variant="secondary" onPress={() => goTo('sign-in')}>
-            {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
-          </AppButton>
-        )}
-      </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
+  );
+}
+
+/**
+ * The screen's small print: a text affordance rather than a button, so the things you rarely want
+ * stop competing with the two you usually do. RN `Pressable` (not gesture-handler's `Touchable`,
+ * which has form on small rows swallowing their own release) and a 44pt box under a `small` label,
+ * so quiet to the eye is still full-size to a thumb.
+ */
+function TextLink({ children, onPress }: { children: ReactNode; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.link, pressed && { opacity: Pressed.dim }]}>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
+        {children}
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -305,9 +379,8 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center' },
   social: { gap: Spacing.two },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, marginTop: Spacing.one },
-  rule: { flex: 1, height: StyleSheet.hairlineWidth },
-  submitButton: {
-    marginTop: Spacing.two,
-  },
+  // Tighter than the block gap above: the small print is one group, not more sections.
+  links: { gap: 0, alignItems: 'center' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.two },
 });

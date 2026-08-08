@@ -4,8 +4,8 @@
  * Every entry here is one replacement implementation intention — *when [situation], I do [deed]
  * instead of [routine]* — and each part is load-bearing:
  *
- *  - the **situation** has to be one you would actually notice arriving. "When I sit down to eat"
- *    is a moment; "when I feel like it" is not, and a plan with no recognisable trigger is not a
+ *  - the **situation** has to be one you would actually notice arriving. "Sitting down to eat" is
+ *    a moment; "when I feel like it" is not, and a plan with no recognisable trigger is not a
  *    plan. This is the same requirement the stacks make of their anchors.
  *  - the **deed** has to be a real act, not the absence of one, and above all one that is actually
  *    to hand at the cue — a glass within reach, a phone that can be set down, somewhere to sit.
@@ -18,7 +18,7 @@
  *    was hired to displace.
  *
  * Nothing here is a general resolution. "Ate better" is not an exchange; "drank water instead of
- * soft drinks when I sit down to eat" is. If an entry below could not be answered yes or no by
+ * soft drinks, sitting down to eat" is. If an entry below could not be answered yes or no by
  * bedtime, it does not belong.
  *
  * `name` is a past-tense first-person deed, like every other habit in the app, because it is read
@@ -38,7 +38,13 @@ export type CuratedExchange = {
   name: string;
   /** The displaced routine, mid-sentence and lowercase: it renders after "Instead of ". */
   insteadOf: string;
-  /** The situation, specific enough that you notice it arrive. Renders after a middle dot. */
+  /**
+   * The situation, specific enough that you notice it arrive. Renders after a middle dot, on a row
+   * read at the end of a long day — so it is stripped to the moment itself ("headphones on"), not
+   * a sentence about it ("when I put my headphones on"). The field is labelled WHEN in the editor
+   * and follows "instead of …" in the row, so the framing is already said; repeating "when I" in
+   * every entry spent a third of the line saying nothing. Keep new ones to about three words.
+   */
   cue: string;
   /** What counts as held today — the unambiguous bar, in the imperative. */
   detail: string;
@@ -60,7 +66,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   {
     key: 'table',
     title: 'THE TABLE',
-    blurb: 'Eating is already a ritual with a beginning — so the swap can be made before the first bite.',
+    blurb: 'A meal has a clear beginning. That’s where the swap goes, before the first bite.',
     exchanges: [
       {
         id: 'water-not-soft-drinks',
@@ -69,8 +75,8 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         // would end up with "Drank water" and "Drank water 2" and no way to tell them apart.
         name: 'Drank a glass of water',
         insteadOf: 'soft drinks',
-        cue: 'when I sit down to eat',
-        detail: 'Pour the water before the meal starts, so it is the glass already in your hand.',
+        cue: 'sitting down to eat',
+        detail: 'Pour it before the meal starts, so it’s the glass already in your hand.',
         evidence:
           'Across randomised trials, replacing sugar-sweetened drinks with a non-caloric one lowered BMI by about 0.31 kg/m² (Tobiassen et al., Obesity Reviews, 2024).',
       },
@@ -78,8 +84,8 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         id: 'dates-nuts-not-sweets',
         name: 'Ate dates and nuts',
         insteadOf: 'crisps and sweets',
-        cue: 'when I want something to snack on',
-        detail: 'A small handful, eaten deliberately — not straight from an open bag.',
+        cue: 'reaching for a snack',
+        detail: 'A small handful on a plate, not straight from the bag.',
         evidence:
           '“A household with no dates in it is a household whose people are hungry” (Muslim 2046b). Pooled across 61 controlled trials, eating tree nuts lowered LDL cholesterol and triglycerides (Del Gobbo et al., Am J Clin Nutr, 2015).',
       },
@@ -87,8 +93,8 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         id: 'ate-at-the-table',
         name: 'Ate at the table',
         insteadOf: 'eating in front of a screen',
-        cue: 'when I pick up my plate',
-        detail: 'The plate goes to the table and the screen stays behind. Sit down to eat it.',
+        cue: 'picking up my plate',
+        detail: 'Plate to the table, screen left behind. Sit down to eat.',
         evidence:
           'Eating while distracted increases how much is eaten at the meal and later in the day — a consistent finding across experimental studies (Robinson et al., Am J Clin Nutr, 2013).',
       },
@@ -97,17 +103,17 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   {
     key: 'screen',
     title: 'THE SCREEN',
-    blurb: 'The phone is reached for in a handful of very specific moments — name one and you can meet it.',
+    blurb: 'You reach for your phone at the same few moments. Name one, and put something else there.',
     exchanges: [
       {
         id: 'quran-not-music',
-        // Listening, not reading — deliberately the same channel the music would have used. A
-        // competing response holds because you cannot do both at once, and you can read a page
-        // of Qurʾān with a playlist still running.
+        // Listening, not reading: at this cue the headphones are already on, so what is actually to
+        // hand is something to play. Reading is not — you can do that with the playlist still
+        // running. (Availability is the requirement, not incompatibility; see the header.)
         name: 'Listened to Qurʾān',
         insteadOf: 'music',
-        cue: 'when I put my headphones on',
-        detail: 'Any amount — one sūrah in the place the playlist would have gone.',
+        cue: 'headphones on',
+        detail: 'One sūrah counts. Play it where the playlist would have gone.',
         evidence:
           'The Prophet ﷺ said the best of you is the one who learns the Qurʾān and teaches it (Bukhari 5027).',
       },
@@ -115,26 +121,25 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         id: 'dua-not-scrolling',
         name: 'Made duʿāʾ while waiting',
         insteadOf: 'scrolling',
-        cue: 'when I am waiting with nothing to do',
-        detail: 'One duʿāʾ, in the queue or at the lights — the pocket is where the phone stays.',
-        evidence:
-          'The Prophet ﷺ called duʿāʾ “worship itself” (Abu Dawud 1479, ṣaḥīḥ). The dead moments of a day are the ones a habit takes without asking.',
+        cue: 'stuck waiting',
+        detail: 'One duʿāʾ in the queue or at the lights, with the phone still in your pocket.',
+        evidence: 'The Prophet ﷺ called duʿāʾ “worship itself” (Abu Dawud 1479, ṣaḥīḥ).',
       },
       {
         id: 'phone-across-the-room',
         name: 'Left the phone across the room',
         insteadOf: 'scrolling in bed',
-        cue: 'when I get into bed',
-        detail: 'The phone is put down out of arm’s reach before you lie down, not after.',
+        cue: 'getting into bed',
+        detail: 'Put it down out of reach before you lie down, not after.',
         evidence:
-          'Screen use in bed is associated with taking longer to fall asleep and sleeping less; putting the device out of reach is the change with the best support, because it removes the cue rather than resisting it.',
+          'Having a phone within reach at bedtime — not only using one — was associated with worse sleep and more daytime sleepiness in a meta-analysis of children and adolescents (Carter et al., JAMA Pediatrics, 2016). Out of reach removes the cue instead of fighting it.',
       },
     ],
   },
   {
     key: 'tongue',
     title: 'THE TONGUE',
-    blurb: 'The words are out before you decide on them — which is exactly why a prepared reply works.',
+    blurb: 'The words are out before you decide on them, so decide on them beforehand.',
     exchanges: [
       {
         id: 'istighfar-not-backbiting',
@@ -142,19 +147,20 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         // is what fills the space it leaves. Also keeps it clear of the `istighfar-100` preset.
         name: 'Stopped and said istighfār',
         insteadOf: 'talking about someone',
-        cue: 'when I catch myself starting',
-        detail: 'Stop the sentence and say astaghfiru-Llāh. Held if you caught it, even once.',
+        cue: 'catching myself',
+        detail: 'Stop mid-sentence and say astaghfiru-Llāh. Once is enough.',
         evidence:
           '“…and do not backbite one another” (Qurʾān 49:12). The Prophet ﷺ taught: follow a bad deed with a good deed and it will wipe it out (Tirmidhi 1987, ḥasan ṣaḥīḥ).',
       },
       {
         id: 'good-word-not-complaining',
         // Deliberately not "Made duʿāʾ for them": that act already exists in the catalogue as
-        // `dua-for-a-brother`. Saying something good is also the tighter competing response —
-        // you cannot say it and the complaint in the same breath.
+        // `dua-for-a-brother`. Saying something good also happens to be incompatible with the
+        // complaint — you cannot say both in one breath — which is appealing but, per the header,
+        // not the reason it is here.
         name: 'Said something good about them',
         insteadOf: 'complaining about someone',
-        cue: 'when someone has irritated me',
+        cue: 'someone annoys me',
         detail: 'One true good thing, out loud, to whoever was about to hear the complaint.',
         evidence:
           '“Whoever believes in Allah and the Last Day, let him speak good or stay silent” (Bukhari 6018, Muslim 47).',
@@ -164,16 +170,16 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   {
     key: 'impulse',
     title: 'THE IMPULSE',
-    blurb: 'A moment where you act before you think — so what is needed is one action decided in advance.',
+    blurb: 'You move before you think. Pick the move now, while you’re calm.',
     exchanges: [
       {
         id: 'sat-down-sought-refuge',
         name: 'Sat down and sought refuge',
         insteadOf: 'raising my voice',
-        cue: 'when I feel the anger rising',
-        detail: 'Sit if you are standing, and say aʿūdhu bi-Llāhi min al-shayṭān al-rajīm.',
+        cue: 'anger rising',
+        detail: 'Sit down if you’re standing, then say aʿūdhu bi-Llāhi min al-shayṭān al-rajīm.',
         evidence:
-          '“When one of you becomes angry while standing, let him sit down” (Abu Dawud 4782). And: “I know a word which, if he said it, what he finds would leave him — aʿūdhu bi-Llāhi min al-shayṭān” (Bukhari 3282). Changing posture is a textbook competing response: you cannot do the old thing from the new position.',
+          '“When one of you becomes angry while standing, let him sit down” (Abu Dawud 4782). And: “I know a word which, if he said it, what he finds would leave him — aʿūdhu bi-Llāhi min al-shayṭān” (Bukhari 3282).',
       },
       {
         id: 'sadaqah-not-impulse-buy',
@@ -181,8 +187,8 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         // thing that makes it work: it happens in the moment the money was going to move.
         name: 'Gave ṣadaqah on the spot',
         insteadOf: 'an impulse purchase',
-        cue: 'when I am about to buy something I do not need',
-        detail: 'Give something instead — any amount. The point is that the money moves the other way.',
+        cue: 'about to buy',
+        detail: 'Give something instead, any amount. The money moves the other way.',
         evidence: 'Ṣadaqah extinguishes sin as water extinguishes fire (Tirmidhi 2616, ḥasan ṣaḥīḥ).',
       },
     ],

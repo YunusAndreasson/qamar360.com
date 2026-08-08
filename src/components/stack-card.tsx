@@ -252,7 +252,7 @@ function StackCardBase({
               {header.mode === 'excused' ? (
                 <AppIcon name="skip" size={20} color={theme.textSecondary} />
               ) : (
-                <CompletionRing complete={stackComplete} size={24} strokeWidth={2} />
+                <CompletionRing complete={stackComplete} size={24} strokeWidth={2} settling={settling} />
               )}
             </View>
             <ThemedText
@@ -370,7 +370,7 @@ function StackCardBase({
           overlays the whole card at its rounded rect and flashes when the stack seals. Around a
           folded bar this ring is the seal's main confirmation, and proportionally far louder than
           it ever was around a full card. */}
-      <StackCompleteFlash complete={stackComplete} />
+      <StackCompleteFlash complete={stackComplete} settling={settling} />
     </View>
   );
 }

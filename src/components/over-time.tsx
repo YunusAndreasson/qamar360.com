@@ -27,8 +27,15 @@ import { toDegrees } from '@/lib/progress';
 // Taller than the 120 the small Insights charts use, and with real headroom at the top: this is the
 // screen's second instrument, and a run of full orbits was jamming flat against the ceiling where a
 // curve needs somewhere to sit.
-const BOX: PlotBox = { height: 148, padY: 18, padX: 14 };
-const BASELINE_Y = BOX.height - BOX.padY;
+//
+// Asymmetric on purpose. Nothing in this chart is ever drawn below the baseline — no axis labels,
+// no ticks; every mark terminates on it — so a bottom inset matching the top's 18 reserved a strip
+// for no one, and as the last card on Progress that empty band read as slack under the whole
+// screen. The plot area is unchanged (112pt, exactly as it was at height 148): the 14 comes off the
+// dead space alone, so the curve keeps its full vertical range and its headroom.
+const PAD_BOTTOM = 4;
+const BOX: PlotBox = { height: 134, padY: 18, padBottom: PAD_BOTTOM, padX: 14 };
+const BASELINE_Y = BOX.height - PAD_BOTTOM;
 
 const CURRENT_R = 4.5;
 

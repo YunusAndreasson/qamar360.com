@@ -20,6 +20,9 @@ type Props = {
   held: boolean;
   /** Excused for the viewed day: out of the rate entirely, and the row goes inert. */
   skipped: boolean;
+  /** The viewed day's completions are being (re)fetched after a day-step — see `CompletionRing`'s
+   *  `settling` doc. Keeps a day already held from replaying its sweep as the data catches up. */
+  settling: boolean;
   /** Hold it, or take it back. */
   onToggle: (habit: Habit) => void;
   /** Open the act sheet — skip today, insights, edit, delete. */
@@ -45,7 +48,7 @@ type Props = {
  * no broken streak, nothing at all — because catastrophising one slip is what turns it into the
  * next three.
  */
-function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
+function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions }: Props) {
   const theme = useTheme();
   const row = exchangeRowContract({
     name: habit.name,
@@ -88,7 +91,7 @@ function ExchangeRowBase({ habit, held, skipped, onToggle, onOptions }: Props) {
           {row.mode === 'excused' ? (
             <AppIcon name="skip" size={20} color={theme.textSecondary} />
           ) : (
-            <CompletionRing complete={row.mode === 'held'} size={24} strokeWidth={2} />
+            <CompletionRing complete={row.mode === 'held'} size={24} strokeWidth={2} settling={settling} />
           )}
         </View>
         <View style={styles.text}>
@@ -164,6 +167,7 @@ function exchangePropsEqual(a: Props, b: Props): boolean {
     a.habit.cue === b.habit.cue &&
     a.held === b.held &&
     a.skipped === b.skipped &&
+    a.settling === b.settling &&
     a.onToggle === b.onToggle &&
     a.onOptions === b.onOptions
   );

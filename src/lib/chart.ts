@@ -17,6 +17,14 @@ export type PlotBox = {
   height: number;
   /** Vertical inset — keeps a 360° point off the top edge and a 0° point off the baseline. */
   padY: number;
+  /**
+   * The inset below the baseline, when it should differ from `padY`. Defaults to `padY`, which is
+   * the right answer for a chart carrying axis labels under its floor — but a chart that draws
+   * nothing below the baseline is reserving that strip for no one, and the empty band shows as
+   * slack at the foot of its card. Set it small there and keep `padY` for the headroom a full
+   * orbit needs at the top.
+   */
+  padBottom?: number;
   /** Horizontal inset — at minimum half an axis label, so edge labels stay centred on their dot. */
   padX: number;
 };
@@ -29,7 +37,7 @@ export type PlotBox = {
  */
 export function pointAt(span: number, fraction: number, width: number, box: PlotBox): Pt {
   const x = box.padX + (width - 2 * box.padX) * span;
-  const y = box.padY + (1 - clamp01(fraction)) * (box.height - 2 * box.padY);
+  const y = box.padY + (1 - clamp01(fraction)) * (box.height - box.padY - (box.padBottom ?? box.padY));
   return { x, y };
 }
 
