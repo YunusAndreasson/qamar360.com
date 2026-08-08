@@ -1,19 +1,23 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { FormSheet, SheetRow } from '@/components/form-sheet';
-import { RowSeparator } from '@/components/row-separator';
-import { Surface } from '@/components/surface';
+import { FormSheet, SheetActions } from '@/components/form-sheet';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { useConfirmDeleteStack } from '@/hooks/use-stack-actions';
 
 /**
- * "Manage stack" — a native bottom sheet raised by tapping a stack card's header (the ⋯). It
- * holds the things you can't do to a stack by direct manipulation on Today: add acts to it,
- * edit it (name + moment anchor), or delete it (acts are reordered by dragging them on the card).
- * Presented `fitToContents` from the habits stack layout — the same compact sheet-of-rows as
- * "Add to stack". Add acts and Edit stack hand off to their own modals so no keyboard or list has
- * to live inside the sheet.
+ * "Manage stack" — the native bottom sheet the card's "Manage stack" row raises. It holds the
+ * things you can't do to a stack by direct manipulation on Today: add acts to it, read its
+ * history, edit it (name + moment anchor), or delete it (acts are reordered by dragging them on
+ * the card). Presented `fitToContents` from the habits stack layout.
+ *
+ * It is deliberately the *same object* as an act's or an exchange's sheet (`act-actions`): the
+ * same `FormSheet` heading, the same {@link SheetActions} card, and Insights in the same slot —
+ * second, under whatever the sheet's stateful first row happens to be. A stack and an exchange are
+ * the two things this app tracks, and the same gesture on them has to answer in the same voice.
+ *
+ * Add acts and Edit stack hand off to their own modals so no keyboard or list has to live inside
+ * the sheet.
  */
 export default function StackManageScreen() {
   const router = useRouter();
@@ -34,6 +38,10 @@ export default function StackManageScreen() {
     router.replace({ pathname: '/habits/discover', params: { stackId: stack.id } });
   };
 
+  const openInsights = () => {
+    router.replace({ pathname: '/habits/stack-stats', params: { id: stack.id } });
+  };
+
   const rename = () => {
     router.replace({ pathname: '/habits/stack-rename', params: { id: stack.id } });
   };
@@ -45,13 +53,14 @@ export default function StackManageScreen() {
 
   return (
     <FormSheet title={stack.name} subtitle="Stack">
-      <Surface>
-        <SheetRow icon="add" label="Add acts" onPress={addActs} />
-        <RowSeparator />
-        <SheetRow icon="edit" label="Edit stack" onPress={rename} />
-        <RowSeparator />
-        <SheetRow icon="delete" label="Delete stack" danger onPress={confirmDelete} />
-      </Surface>
+      <SheetActions
+        actions={[
+          { icon: 'add', label: 'Add acts', onPress: addActs },
+          { icon: 'insights', label: 'Insights', onPress: openInsights },
+          { icon: 'edit', label: 'Edit stack', onPress: rename },
+          { icon: 'delete', label: 'Delete stack', danger: true, onPress: confirmDelete },
+        ]}
+      />
     </FormSheet>
   );
 }

@@ -12,27 +12,31 @@ import { otherNames } from '@/lib/names';
  * sheet by the Habits Stack. `id="new"` creates; any other id edits that act.
  * Save/Delete (and Cancel) just `router.back()` to the list.
  *
- * Creating REQUIRES a `stackId`: an act lives in a stack or nowhere, so there is no unanchored
- * create path to fall back to. Every caller supplies one (the stack-scoped Add screen, the empty
- * card's "Add your first act"); the guard below closes the screen rather than mint an orphan.
+ * A `stackId` is honoured but no longer required. It used to be: creating without one closed the
+ * screen rather than "mint an orphan", back when a habit lived in a stack or nowhere. A habit with
+ * no stack is now an ordinary unit of the day (see `HabitSection`), so this screen is its create
+ * path too — reached from the "+" menu's **Habit** card, and from Discover's "create your own" when
+ * that library is opened unscoped, which until now pushed here only to be popped straight back.
  */
 export default function HabitEditorScreen() {
   const router = useRouter();
   const { id, stackId } = useLocalSearchParams<{ id?: string; stackId?: string }>();
-  const { habits, stacks, createHabitInStack, updateHabit, deleteHabit } = useHabits();
+  const { habits, stacks, createHabits, createHabitInStack, updateHabit, deleteHabit } = useHabits();
 
   const isNew = !id || id === 'new';
   const habit = isNew ? null : (habits.find((h) => h.id === id) ?? null);
 
-  // Opened from the stack-scoped Add screen: the new act lands straight in that stack.
+  // Opened from the stack-scoped Add screen: the new act lands straight in that stack. Without one
+  // it lands loose — `createHabits` writes `stack_id` null, which is exactly what an unanchored
+  // habit is (the same call the exchange form makes).
   const targetStack = isNew && stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
-  // Only ever called in create mode, where the guard below has already proved `targetStack`.
   const onCreate = (input: HabitCreate) => {
     if (targetStack) void createHabitInStack(input, targetStack.id);
+    else void createHabits([input]);
   };
 
-  // The stack this act belongs to (editor.tsx is never opened for an unanchored habit — see
-  // `HabitEditorScreen`'s doc comment) + a handler to edit that stack.
+  // The stack this act belongs to, if any, + a handler to edit it. Both stay null for a loose
+  // habit, and the form simply omits that block.
   const stackName = habit?.stack_id ? (stacks.find((s) => s.id === habit.stack_id)?.name ?? null) : null;
   const openStackActions = useStackActions();
   const onEditStack = habit && habit.stack_id ? () => openStackActions(habit.stack_id!) : undefined;
@@ -43,10 +47,11 @@ export default function HabitEditorScreen() {
   // edited is excluded so keeping its own name is fine.
   const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
 
-  // Editing an act that no longer exists (stale deep link / deleted elsewhere), or creating with
-  // no stack to land in (a stack deleted mid-flow): back out rather than render a form that can't
-  // commit.
-  const stale = isNew ? !targetStack : !habit;
+  // Editing an act that no longer exists (stale deep link / deleted elsewhere): back out rather
+  // than render a form that can't commit. Creating is never stale — with no stack the habit is
+  // simply created loose, and a `stackId` that went missing mid-flow degrades to the same thing
+  // rather than throwing the half-typed form away.
+  const stale = isNew ? false : !habit;
   useBackIfStale(stale);
   if (stale) return null;
 
@@ -55,6 +60,9 @@ export default function HabitEditorScreen() {
       habit={habit}
       existingNames={existingNames}
       stackName={stackName}
+      // An act belongs to a sequence; a habit stands on its own. Decided by whether there is a
+      // stack in the picture at all — the one being created into, or the one being edited from.
+      noun={targetStack || habit?.stack_id ? 'act' : 'habit'}
       onEditStack={onEditStack}
       onClose={() => router.back()}
       onCreate={onCreate}

@@ -44,14 +44,16 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
         underlayColor={theme.backgroundSelected}
         activeUnderlayOpacity={1}
         accessibilityRole="button"
-        accessibilityLabel="Add a task"
+        accessibilityLabel="Add a to-do"
         accessibilityHint="Opens a field to write one down."
         style={styles.row}>
         <View style={styles.leading}>
           <AppIcon name="add" size={20} color={theme.accent} />
         </View>
+        {/* "To-do", the one word the user is shown for this record — the section above reads TO DO
+            and the add menu offers a To-do. The code still says task. */}
         <ThemedText type="rowTitle" style={[styles.text, { color: theme.textSecondary }]}>
-          Add a task
+          Add a to-do
         </ThemedText>
       </Touchable>
     );
@@ -78,7 +80,7 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
         returnKeyType="done"
         placeholder="Something to do once"
         placeholderTextColor={theme.textSecondary}
-        accessibilityLabel="Task"
+        accessibilityLabel="To-do"
         style={[styles.text, styles.input, { color: theme.text }]}
       />
       {/* Deleting lives here, in the state where you are already changing the thing — so a task
@@ -91,7 +93,7 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
           onPressIn={onDelete}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Delete this task"
+          accessibilityLabel="Delete this to-do"
           style={styles.delete}>
           <AppIcon name="delete" size={20} color={theme.danger} />
         </Pressable>

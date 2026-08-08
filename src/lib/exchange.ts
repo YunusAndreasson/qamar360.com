@@ -23,6 +23,8 @@
  * {@link stackHeaderContract} lives outside `StackCard`.
  */
 
+import type { LooseRowContract } from '@/lib/loose-row';
+
 /** The only field the discriminator needs — `Habit` satisfies it structurally. */
 export type Exchangeable = { instead_of: string | null };
 
@@ -62,7 +64,7 @@ export function exchangePlanLine(insteadOf: string, cue?: string | null): string
 }
 
 /**
- * Why the day's row does NOT show the cue.
+ * Why the day's row does not show the cue *until you ask for it*.
  *
  * The moment is what makes an exchange a plan, and it is read where the plan is *made* — the
  * library card you choose from, and the editor's WHEN field. It is not read where the plan is
@@ -76,27 +78,22 @@ export function exchangePlanLine(insteadOf: string, cue?: string | null): string
  * That shape is the day's, not this feature's — it is the same two-line grammar a stack card's
  * header uses, which is why an exchange can sit under the stacks without announcing itself as a
  * different kind of thing.
+ *
+ * The cue does have a home on the day, and it is the row's **fold** (`ExchangeRow`) — which is not
+ * a softening of the rule above but the point of it. A fold is where you go looking; nothing in it
+ * is *shown* to you nightly. A stack unfolds to read its sequence and an exchange unfolds to read
+ * its plan, so the two units keep one grammar in the collapsed state, where the reading actually
+ * happens, and each keeps its own detail one deliberate tap away.
+ *
+ * The shape itself is {@link LooseRowContract}, shared with the plain stackless habit beside it —
+ * the two rows are one component. Only the *words* are this feature's: an exchange is **held**,
+ * a habit is **done**.
  */
-export type ExchangeRowContract = {
-  mode:
-    /** In play today and not yet held — the tap commits. */
-    | 'open'
-    /** Held today; the tap takes it back. */
-    | 'held'
-    /** Excused for the viewed day. Nothing to assert, so the row is inert. */
-    | 'excused';
-  /** The row responds to a tap at all. `false` ⟹ render it with no ripple and no underlay:
-   *  a press feedback the row can't honour is a promise it can't keep. */
-  enabled: boolean;
-  /** Always a checkbox — the row *is* the control, the way a stack card's header is. */
-  role: 'checkbox';
-  checked: boolean;
-  label: string;
-  hint: string;
-  /** The second line, and the last: what this displaces. */
-  meta: string;
-};
+export type ExchangeRowContract = LooseRowContract;
 
+/** Note the cue is absent from every field here: the collapsed row's text, and its spoken label,
+ *  are the same two lines. What the fold reveals is read straight off the habit — the contract
+ *  describes the bar, which is the part with a state matrix worth testing. */
 export function exchangeRowContract({
   name,
   insteadOf,
@@ -124,9 +121,10 @@ export function exchangeRowContract({
       enabled: false,
       role: 'checkbox',
       checked: false,
+      title: name,
       label: `${spoken}, excused today`,
       // A statement rather than an instruction: activating this row does nothing at all, and a
-      // hint that described an action would be describing the ⋯ button beside it instead.
+      // hint that described an action would be describing the fold's manage row instead.
       hint: 'Excused for today — nothing to record.',
       meta,
     };
@@ -137,6 +135,7 @@ export function exchangeRowContract({
     enabled: true,
     role: 'checkbox',
     checked: held,
+    title: name,
     // No ", held" here: that state is carried by `checked` on this same element, and saying it
     // twice is exactly what the stack header's label was cleaned up to stop doing.
     label: spoken,

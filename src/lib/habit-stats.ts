@@ -8,6 +8,12 @@
  * it's the shared {@link creditFor} from `progress.ts`, so a single habit and the whole-app
  * rate can never disagree. Rates stay 0–1 throughout; the degrees convention is applied at the
  * presentation edge (the charts call `toDegrees`).
+ *
+ * This module also owns the {@link HabitStats} shape and the sweep that derives it
+ * ({@link statsFromDailyCredit}), which `stack-stats.ts` reuses for the *stack* Insights screen.
+ * The two units differ only in what one day is worth; every rule after that — what "pending" means,
+ * what an excused day does to a streak, how a best day is chosen — is decided once, here, so the
+ * two screens can't quietly grow different arithmetic behind the same four cards.
  */
 
 import { addDaysISO, scheduledOn, weekdayIndex } from '@/lib/dates';
@@ -74,23 +80,30 @@ export type HabitStats = {
 };
 
 /**
- * Derive every per-habit stat from that habit's raw completion rows. Pure — easy to reason about
- * and test. `completions` may contain rows for other habits (the caller's window); rows whose
- * `habit_id` differs are ignored, so a filtered or unfiltered array both work.
+ * What one day was worth to the unit being measured:
+ * - `undefined` — the unit wasn't due that day, and the day is **invisible** to every stat;
+ * - `null` — **excused**, so it leaves the rate entirely and is neutral for the streak;
+ * - `0`–`1` — the credit earned.
+ *
+ * A habit reads this straight off {@link creditFor}; a stack resolves it across its acts. Splitting
+ * the day's worth from everything downstream is what lets both share one sweep.
  */
-export function computeHabitStats(
-  habit: ProgressHabit,
-  completions: CompletionRow[],
+export type DailyCredit = number | null | undefined;
+
+/**
+ * The sweep every Insights screen is built from: consistency, weekday buckets, both streaks and
+ * the over-time trend, derived from nothing but "what was each day worth" ({@link DailyCredit}).
+ *
+ * Shared by {@link computeHabitStats} and `computeStackStats` so the two units can't disagree about
+ * the rules that aren't about their difference — chiefly that a still-open **today is pending**
+ * (never a miss, never in the sample) and that an **excused day is neutral** rather than a zero.
+ */
+export function statsFromDailyCredit(
+  creditOnDay: (iso: string) => DailyCredit,
   today: string,
+  weekdayApplicable: boolean,
   windowDays = STATS_WINDOW_DAYS,
 ): HabitStats {
-  // date → this habit's completion row for that day (one row per habit per day).
-  const rowByDate = new Map<string, CompletionRow>();
-  for (const row of completions) {
-    if (row.habit_id !== habit.id) continue;
-    rowByDate.set(row.completed_at, row);
-  }
-
   const start = addDaysISO(today, -(windowDays - 1));
 
   // ── Consistency + weekday buckets, and the streaks, in one chronological sweep ──
@@ -104,8 +117,8 @@ export function computeHabitStats(
   let run = 0;
   let longestStreak = 0;
   for (let iso = start; iso <= today; iso = addDaysISO(iso, 1)) {
-    if (!scheduledOn(habit, iso)) continue; // a day this habit wasn't due — invisible to every stat
-    const credit = creditFor(habit, rowByDate.get(iso));
+    const credit = creditOnDay(iso);
+    if (credit === undefined) continue; // a day this unit wasn't due — invisible to every stat
 
     // Streak state for this scheduled day.
     if (credit === 1) {
@@ -167,8 +180,9 @@ export function computeHabitStats(
     let wDone = 0;
     let wScheduled = 0;
     for (let iso = windowStart; iso <= weekEnd; iso = addDaysISO(iso, 1)) {
-      if (iso > today || !scheduledOn(habit, iso)) continue;
-      const credit = creditFor(habit, rowByDate.get(iso));
+      if (iso > today) continue;
+      const credit = creditOnDay(iso);
+      if (credit === undefined) continue; // not due that day
       if (credit === null) continue; // excused
       if (iso === today && credit < 1) continue; // pending — same rule as the main sweep
       wScheduled += 1;
@@ -186,6 +200,32 @@ export function computeHabitStats(
     currentStreak,
     longestStreak,
     trend,
-    weekdayApplicable: !habit.hijri_schedule,
+    weekdayApplicable,
   };
+}
+
+/**
+ * Derive every per-habit stat from that habit's raw completion rows. Pure — easy to reason about
+ * and test. `completions` may contain rows for other habits (the caller's window); rows whose
+ * `habit_id` differs are ignored, so a filtered or unfiltered array both work.
+ */
+export function computeHabitStats(
+  habit: ProgressHabit,
+  completions: CompletionRow[],
+  today: string,
+  windowDays = STATS_WINDOW_DAYS,
+): HabitStats {
+  // date → this habit's completion row for that day (one row per habit per day).
+  const rowByDate = new Map<string, CompletionRow>();
+  for (const row of completions) {
+    if (row.habit_id !== habit.id) continue;
+    rowByDate.set(row.completed_at, row);
+  }
+
+  return statsFromDailyCredit(
+    (iso) => (scheduledOn(habit, iso) ? creditFor(habit, rowByDate.get(iso)) : undefined),
+    today,
+    !habit.hijri_schedule,
+    windowDays,
+  );
 }

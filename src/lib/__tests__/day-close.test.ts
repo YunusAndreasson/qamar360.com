@@ -78,3 +78,26 @@ describe('the open-tasks probe', () => {
     setOpenTasksProbe(() => 0)();
   });
 });
+
+describe('dayCloseAfter — a habit that belongs to no stack', () => {
+  // The rule reads a flat list of habits and knows nothing about stacks, which is what made an
+  // unanchored habit a real bug until it became tickable: it counted toward the day exactly like a
+  // stacked act, while no gesture in the app could ever put it in `completed`. So the day never
+  // closed, the celebration never fired, and the badge never reached zero. These two cases pin the
+  // behaviour the fix relies on — that such a habit is an ordinary participant, no more and no less.
+  it('holds the day open while it is untouched', () => {
+    // 'a' is a sealed stack's act, 'loose' belongs to nothing. The stack is done; the day is not.
+    expect(dayCloseAfter([habit('a'), habit('loose')], none, new Set(['a']), none, DAY, 0).dayComplete).toBe(false);
+  });
+
+  it('closes the day once it is ticked, and earns its degrees', () => {
+    const close = dayCloseAfter([habit('a'), habit('loose')], none, new Set(['a']), new Set(['loose']), DAY, 0);
+    expect(close.dayComplete).toBe(true);
+    expect(close.doneIds.sort()).toEqual(['a', 'loose']);
+  });
+
+  it('can close a day made only of loose habits', () => {
+    const close = dayCloseAfter([habit('x'), habit('y')], none, new Set(['x', 'y']), none, DAY, 0);
+    expect(close.dayComplete).toBe(true);
+  });
+});

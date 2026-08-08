@@ -27,7 +27,7 @@ import { readTasksSnapshot, writeTasksSnapshot } from '@/lib/tasks-cache';
  * `lib/day-close.ts`, because a parent can't read its child's context.
  */
 
-const LOAD_ERROR = 'Could not load your tasks. Check your connection and try again.';
+const LOAD_ERROR = 'Could not load your to-dos. Check your connection and try again.';
 const SAVE_ERROR = 'Could not save that. Check your connection.';
 
 /** Trailing delay before persisting the cold-start snapshot — the habits provider's rationale. */

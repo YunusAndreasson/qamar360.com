@@ -181,10 +181,11 @@ type HabitsContextValue = {
   sealStack: (stackId: string) => Promise<void>;
   /** Re-open a sealed stack: delete `viewDate`'s rows for exactly the acts a seal writes. */
   unsealStack: (stackId: string) => Promise<void>;
-  /** Hold an exchange for `viewDate`, or take it back — the app's second completion gesture, and
-   *  the only per-habit one (see `lib/exchange.ts` for why an exchange is ticked on its own).
-   *  A no-op on an act that is excused today, or on one that isn't an exchange at all. */
-  toggleExchange: (habitId: string) => Promise<void>;
+  /** Tick a **stackless** habit for `viewDate`, or take it back — the app's second completion
+   *  gesture, and the only per-habit one. Serves both things that stand on their own: an exchange
+   *  (see `lib/exchange.ts`) and a plain habit with no stack. A no-op on one that is excused today.
+   *  Acts inside a stack are completed by its seal instead, never by this. */
+  toggleLoose: (habitId: string) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
   updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
@@ -774,20 +775,25 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * Hold an exchange for the viewed day, or take it back.
+   * Tick a stackless habit for the viewed day, or take it back — an exchange, or a plain habit
+   * that belongs to no stack.
    *
    * The app's other completion gesture is the stack seal, and deliberately so: a stack is one
-   * performance, and ticking its parts separately is busywork. An exchange is not part of a
-   * sequence — it is a separate claim about the whole day — so it gets its own tick, and holding
-   * two of three still counts for two. All-or-nothing here would turn one slip into a lost day,
-   * which is precisely the dynamic (Marlatt's abstinence-violation effect) the feature exists to
-   * avoid.
+   * performance, and ticking its parts separately is busywork. Neither of these is part of a
+   * sequence — each is a separate claim about the day — so each gets its own tick, and doing two of
+   * three still counts for two. All-or-nothing here would turn one slip into a lost day, which is
+   * precisely the dynamic (Marlatt's abstinence-violation effect) an exchange exists to avoid.
+   *
+   * An unanchored habit was not always tickable, and that was a bug rather than a rule:
+   * `dayCloseAfter` counts every scheduled, unexcused habit, so one with no way to complete it held
+   * the day open forever, kept a phantom on the tab badge, and sat in the Progress denominator with
+   * a numerator that could never be anything but zero. This seam is the fix.
    *
    * What is recorded is the *deed*: an ordinary `done` row, exactly like a sealed act's, so
-   * degrees, streaks and Insights need to know nothing about exchanges. Nothing anywhere records
-   * a day that didn't hold — a miss is simply the absence of a row.
+   * degrees, streaks and Insights need to know nothing about any of this. Nothing anywhere records
+   * a day that didn't happen — a miss is simply the absence of a row.
    */
-  const toggleExchange = useCallback(
+  const toggleLoose = useCallback(
     async (habitId: string) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
@@ -1628,7 +1634,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       createHabits,
       sealStack,
       unsealStack,
-      toggleExchange,
+      toggleLoose,
       skipHabit,
       updateHabit,
       deleteHabit,
@@ -1659,7 +1665,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createHabits,
     sealStack,
     unsealStack,
-    toggleExchange,
+    toggleLoose,
     skipHabit,
     updateHabit,
     deleteHabit,

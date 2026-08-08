@@ -53,6 +53,10 @@ type Props = {
   existingNames: string[];
   /** Name of the stack this habit belongs to, or null. Editing only. */
   stackName?: string | null;
+  /** What this deed is called on the surfaces around the form. Inside a stack it is an **act** —
+   *  one deed of a sequence, which is the word the card rows, the options sheet and Discover all
+   *  use. Standing on its own it is a **habit**, which is what the "+" menu offered to make. */
+  noun?: 'act' | 'habit';
   /** Edit the stack this habit already belongs to. Editing only. */
   onEditStack?: () => void;
   onClose: () => void;
@@ -70,6 +74,7 @@ export function HabitEditorForm({
   habit,
   existingNames,
   stackName,
+  noun = 'act',
   onEditStack,
   onClose,
   onCreate,
@@ -193,7 +198,7 @@ export function HabitEditorForm({
     // screen's "habit no longer exists" effect navigate back. Calling both fires router.back()
     // twice — the second has nothing to pop and logs "The action 'GO_BACK' was not handled…".
     confirmDestructive({
-      title: 'Delete act',
+      title: `Delete ${noun}`,
       message: `Delete “${habit.name}”? This can’t be undone.`,
       onConfirm: () => {
         // The soft "release" — the counterpart of deleting a stack, so destruction always
@@ -208,10 +213,10 @@ export function HabitEditorForm({
     <FormScreen>
       <Stack.Screen
         options={{
-          // "Act", not "habit": inside a stack this is one deed of a sequence, and that is the
-          // word every other surface uses for it (the card rows, the options sheet, Discover).
-          // Sentence case, like every other title in this stack.
-          title: isNew ? 'New act' : 'Edit act',
+          // "Act" inside a stack — one deed of a sequence, the word every other surface uses for it
+          // (the card rows, the options sheet, Discover) — and "habit" when it stands on its own,
+          // matching the "+" menu's card. Sentence case, like every other title in this stack.
+          title: `${isNew ? 'New' : 'Edit'} ${noun}`,
           // Center the title so it doesn't crowd the "Cancel" button on Android's
           // left-aligned header (iOS centers it already).
           headerTitleAlign: 'center',

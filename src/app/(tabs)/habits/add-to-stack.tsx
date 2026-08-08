@@ -8,7 +8,6 @@ import { useToast } from '@/components/toast';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
-import { confirmDestructive } from '@/lib/alerts';
 import { habitInputFor } from '@/lib/curated';
 import { placementToRestore } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
@@ -16,14 +15,17 @@ import { haptics } from '@/lib/haptics';
 /**
  * The stack picker — "where does this act live?".
  *
- * Since a habit only exists inside a stack, every path that would once have created a loose one
- * ends here: adding a preset from the browsable library, moving an act out of one sequence into
- * another, or giving a home to an un-anchored habit from before the rule. Whichever way it was
- * raised, the question is the same, so the sheet is the same.
+ * Raised from every path that has to answer that: adding a preset from the browsable library,
+ * moving an act out of one sequence into another, or giving a moment to a habit that stands on its
+ * own. Whichever way it was raised the question is the same, so the sheet is the same.
  *
  * "New stack…" leads, because "none of these" must never be a dead end: it hands the act to the
- * new-stack modal, which lands it the moment the stack exists. "Nowhere — I'm done with it" is a
- * real answer too, so an act that has no stack yet can be deleted from here (see below).
+ * new-stack modal, which lands it the moment the stack exists.
+ *
+ * It used to carry a Delete row for an unanchored habit, because Today could render only stacks and
+ * such a habit had no options sheet to be reached from — it was the one habit in the app that
+ * couldn't be deleted. It has its own row and its own sheet now (`HabitSection` → `act-actions`),
+ * so deleting lives there with every other unit's and this sheet asks one question again.
  *
  * Presented `fitToContents` so the sheet is exactly as tall as its options.
  */
@@ -31,19 +33,12 @@ export default function AddToStackScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { habitId, presetId } = useLocalSearchParams<{ habitId?: string; presetId?: string }>();
-  const { habits, stacks, moveHabit, createHabitInStack, deleteHabit } = useHabits();
+  const { habits, stacks, moveHabit, createHabitInStack } = useHabits();
   const { presets } = useCatalog();
 
   const habit = habitId ? (habits.find((h) => h.id === habitId) ?? null) : null;
   const preset = presetId ? (presets.find((p) => p.id === presetId) ?? null) : null;
   const subject = habit?.name ?? preset?.name ?? '';
-  // An un-anchored habit — one left over from before every habit had to live in a stack, or one
-  // whose stack was deleted out from under it. Today can only render stacks, so it has no act
-  // sheet to be reached from, which made it the one habit in the app that couldn't be deleted:
-  // this sheet is its only screen, so this is where its delete lives. An anchored act keeps its
-  // own in `act-actions` — offering it again here, on the way to "move", would only add a slip.
-  const orphan = !!habit && !habit.stack_id;
-
   // Each stack with its current act count for the sub-line. Recomputed from `habits`, so a change
   // elsewhere stays in sync. (No useMemo — the React Compiler memoizes derived values.)
   const options = stacks.map((s) => ({
@@ -75,20 +70,6 @@ export default function AddToStackScreen() {
     router.back();
   };
 
-  const confirmDelete = () => {
-    if (!habit) return;
-    // No router.back() on confirm: deleting drops the habit from state, which makes the `stale`
-    // effect below close the sheet. Doing both fires GO_BACK twice.
-    confirmDestructive({
-      title: 'Delete act',
-      message: `Delete “${habit.name}”? Its history goes with it.`,
-      onConfirm: () => {
-        haptics.removed();
-        void deleteHabit(habit.id);
-      },
-    });
-  };
-
   // "None of these" is a real answer: hand the subject to the new-stack modal, which lands it
   // once the stack exists. `replace` (not push) so that modal's Cancel returns to Today rather
   // than back to this sheet.
@@ -118,12 +99,6 @@ export default function AddToStackScreen() {
             />
           </Fragment>
         ))}
-        {orphan ? (
-          <>
-            <RowSeparator />
-            <SheetRow icon="delete" label="Delete act" danger onPress={confirmDelete} />
-          </>
-        ) : null}
       </Surface>
     </FormSheet>
   );

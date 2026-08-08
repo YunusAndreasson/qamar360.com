@@ -4,7 +4,6 @@ import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { ActRow } from '@/components/act-row';
-import { AnchorTheseCard } from '@/components/anchor-these-card';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
@@ -12,6 +11,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
+import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
@@ -82,7 +82,7 @@ type Entry = { stack: HabitStack; members: Habit[]; sortKey: number };
 
 /** The starting fold state of every day: all shut. Hoisted so a day-step reads one stable
  *  identity rather than minting an empty Set per render. */
-const NO_STACKS_EXPANDED: ReadonlySet<string> = new Set();
+const NOTHING_EXPANDED: ReadonlySet<string> = new Set();
 
 export default function HabitsScreen() {
   const theme = useTheme();
@@ -103,7 +103,7 @@ export default function HabitsScreen() {
     setViewDate,
     sealStack,
     unsealStack,
-    toggleExchange,
+    toggleLoose,
     moveHabit,
     createStack,
     reorderHabits,
@@ -176,15 +176,20 @@ export default function HabitsScreen() {
     [habits, tomorrow, today, hijriOffset],
   );
 
-  // Habits from before every habit had to be anchored. They can't be rendered as cards — a stack
-  // is the unit — so they gather in the one-time "Anchor these" card at the top of the day until
-  // they have a home. Nothing new can join them: every creation path now goes through a stack.
+  // The day's habits that belong to no stack — their own section, ticked one at a time.
   //
-  // Exchanges are the one deliberate exception to "stackless means orphaned": they hold no
-  // `stack_id` BY DESIGN, because their anchor is an urge rather than a moment of the day. Left
-  // out of this filter they would be offered up for anchoring, and accepting would drop them into
-  // a stack whose seal would then swallow their own tick.
-  const orphans = useMemo(() => habits.filter((h) => !h.stack_id && !isExchange(h)), [habits]);
+  // Filtered by the day like every other unit. They used to be read off the FULL habits list, so an
+  // unanchored habit appeared on every date including ones it wasn't scheduled for — defensible
+  // while it was a migration prompt ("these are invisible otherwise"), wrong now that it is a
+  // section of things the day is actually asking for.
+  //
+  // Exchanges are stackless too but by a different design — their anchor is an urge rather than a
+  // moment — so they keep their own section below; folding them in here would offer them for
+  // anchoring, and accepting would drop one into a stack whose seal would swallow its own tick.
+  const looseHabits = useMemo(
+    () => visibleHabits.filter((h) => !h.stack_id && !isExchange(h)).sort((a, b) => a.position - b.position),
+    [visibleHabits],
+  );
 
   // The day's exchanges, in creation order. They sit below the stacks in their own section rather
   // than among them: a stack has a place in the day's order because its cue does, and an urge has
@@ -294,9 +299,10 @@ export default function HabitsScreen() {
     [router],
   );
 
-  // Stable across renders so the exchange rows' memo comparator holds — a fresh arrow each render
-  // would defeat it on every day-step and every drag settle.
-  const toggleHeld = useCallback((habit: Habit) => void toggleExchange(habit.id), [toggleExchange]);
+  // One tick for both stackless sections — a habit with no stack and an exchange are the same
+  // gesture over the same write. Stable across renders so their rows' memo comparators hold; a
+  // fresh arrow each render would defeat them on every day-step and every drag settle.
+  const tickLoose = useCallback((habit: Habit) => void toggleLoose(habit.id), [toggleLoose]);
 
   // The same discipline for the task rows: the composer re-renders this screen on every keystroke,
   // and an arrow minted here would rebuild every row in the card behind it.
@@ -316,8 +322,10 @@ export default function HabitsScreen() {
     [router],
   );
 
-  // Which stacks the reader has unfolded. Every stack is born folded, so the day opens as a list
-  // of names and unfolding is an act of reading, not of operating the card.
+  // Which cards the reader has unfolded — stacks by stack id, exchanges by habit id, in one set,
+  // because the day has one notion of "open" and both units wear the same chevron. Everything is
+  // born folded, so the day opens as a list of names and unfolding is an act of reading, not of
+  // operating the card.
   //
   // Owned here rather than in the card because the drag layer renders a SECOND StackCard as the
   // floating ghost, and its height must match the original's exactly (`ghostH`/`slotSize` are
@@ -328,18 +336,18 @@ export default function HabitsScreen() {
   // and an imperative reset would miss that. Deliberately not persisted: born folded is the design.
   const [expandedState, setExpandedState] = useState<{ day: string; ids: ReadonlySet<string> }>(() => ({
     day: viewDate,
-    ids: NO_STACKS_EXPANDED,
+    ids: NOTHING_EXPANDED,
   }));
-  const expandedIds = expandedState.day === viewDate ? expandedState.ids : NO_STACKS_EXPANDED;
-  const setStackExpanded = useCallback(
-    (stackId: string, next: boolean) => {
+  const expandedIds = expandedState.day === viewDate ? expandedState.ids : NOTHING_EXPANDED;
+  const setCardExpanded = useCallback(
+    (cardId: string, next: boolean) => {
       setExpandedState((prev) => {
-        const ids = prev.day === viewDate ? prev.ids : NO_STACKS_EXPANDED;
+        const ids = prev.day === viewDate ? prev.ids : NOTHING_EXPANDED;
         // Idempotent: the seal's auto-fold fires at cards that are already folded.
-        if (ids.has(stackId) === next) return prev;
+        if (ids.has(cardId) === next) return prev;
         const nextIds = new Set(ids);
-        if (next) nextIds.add(stackId);
-        else nextIds.delete(stackId);
+        if (next) nextIds.add(cardId);
+        else nextIds.delete(cardId);
         return { day: viewDate, ids: nextIds };
       });
     },
@@ -544,10 +552,6 @@ export default function HabitsScreen() {
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
-          {/* One-time, and only until they're all anchored: habits from before every habit had
-              to live in a stack. It leads the day because an unanchored habit is invisible
-              otherwise — it has no card to appear on. */}
-          {orphans.length > 0 ? <AnchorTheseCard habits={orphans} /> : null}
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
               until there is a list — the way in is the header "+". */}
@@ -567,7 +571,7 @@ export default function HabitsScreen() {
             // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
             // something: a user who tracks only those has a day, and inviting them to anchor their
             // first stack above their own list would read as if it hadn't registered.
-            orphans.length > 0 || exchanges.length > 0 || tasks.length > 0 ? null : (
+            looseHabits.length > 0 || exchanges.length > 0 || tasks.length > 0 ? null : (
               <HabitsEmptyState
                 hasHabits={habits.length > 0}
                 isToday={isToday}
@@ -631,7 +635,7 @@ export default function HabitsScreen() {
                         onMoveHabit={moveRowForA11y}
                         onAddHabits={openAddHabits}
                         expanded={expandedIds.has(entry.stack.id)}
-                        onSetExpanded={setStackExpanded}
+                        onSetExpanded={setCardExpanded}
                         isCurrentChapter={stackLit(entry.stack)}
                         currentChapterUntil={stackUntil(entry.stack)}
                       />
@@ -650,17 +654,35 @@ export default function HabitsScreen() {
               </HabitDragProvider>
             </>
           )}
+          {/* Below the stacks and outside the drag layer, like the exchanges beneath it: a habit
+              with no stack has no slot in the day's order to be dragged into. It comes first of
+              the two because it is the ordinary case — an exchange is the special one. */}
+          <HabitSection
+            habits={looseHabits}
+            topGap={entries.length > 0 || tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD}
+            completed={completed}
+            skipped={skipped}
+            settling={completionsLoading}
+            onToggle={tickLoose}
+            onOptions={openAct}
+            expandedIds={expandedIds}
+            onSetExpanded={setCardExpanded}
+          />
           {/* Below the stacks, and outside the drag layer: an exchange has no slot in the day's
               order to be dragged into, so it is not a unit the grid knows about. */}
           <ExchangeSection
             exchanges={exchanges}
             // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={entries.length > 0 || tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD}
+            topGap={
+              entries.length > 0 || tasks.length > 0 || looseHabits.length > 0 ? SECTION_BREAK : SECTION_LEAD
+            }
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
-            onToggle={toggleHeld}
+            onToggle={tickLoose}
             onOptions={openAct}
+            expandedIds={expandedIds}
+            onSetExpanded={setCardExpanded}
           />
         </Animated.ScrollView>
       )}

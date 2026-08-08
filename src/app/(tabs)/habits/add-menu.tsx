@@ -24,9 +24,11 @@ import { useTheme } from '@/hooks/use-theme';
  * Both stack doors now live behind one card, where the choice between them can be made with the
  * ready-made ones actually in view.
  *
- * REPEATING: a stack adds a deed to the day; an exchange puts one where an old routine keeps
- * taking its place. The exchange sits second because it presumes what the stack doesn't — that you
- * have already noticed a specific moment going the wrong way.
+ * REPEATING: a stack hangs a sequence off a moment the day already has; a plain habit asks for one
+ * deed and nothing else; an exchange puts one where an old routine keeps taking its place. The
+ * order is by how much each presumes — the stack offers you a moment, the habit assumes you have
+ * your own, and the exchange presumes you have already noticed a specific one going the wrong way.
+ * (A habit here lands with no stack, which was impossible until 2026-08-09 — see `HabitSection`.)
  *
  * ONE-OFF: the task, which asks nothing of the future. It is the only choice that leads back to
  * Today instead of on to a form — a task is a line you type, so the field is the row it becomes.
@@ -51,6 +53,12 @@ export default function AddMenuScreen() {
             onPress={() => router.replace('/habits/stack-library')}
           />
           <ChoiceCard
+            icon="repeat"
+            label="Habit"
+            sublabel="One act on its own, on the days you choose."
+            onPress={() => router.replace({ pathname: '/habits/editor', params: { id: 'new' } })}
+          />
+          <ChoiceCard
             icon="exchange"
             label="Exchange"
             sublabel="Put a good act where an old one keeps happening."
@@ -63,7 +71,11 @@ export default function AddMenuScreen() {
         <SectionLabel>ONE-OFF</SectionLabel>
         <ChoiceCard
           icon="task"
-          label="Task"
+          // "To-do", matching the `TO DO` the day files it under. The code still calls the record a
+          // task (the table, the hook, the `compose` param) — but the user is only ever shown one
+          // word for it, and two names for one thing on two screens is how a menu stops matching
+          // the list it writes to.
+          label="To-do"
           sublabel="Something to do once, not to keep."
           // `dismissTo`, not `replace`: this one goes *back* down the stack to the day itself
           // (carrying the param), where `replace` would stack a second Today on top of the sheet.

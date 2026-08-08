@@ -1,0 +1,95 @@
+/**
+ * What a **stackless row** says and does — resolved once, as data, so the row can render it without
+ * re-deriving a tri-state in JSX.
+ *
+ * Two of the day's units stand on their own and are ticked one at a time: an **exchange** (anchored
+ * to an urge) and a plain **habit** with no stack (anchored to nothing in particular). They wear the
+ * same bar, the same ring, the same fold and the same management door — so they share this contract
+ * type and the component that paints it ({@link import('@/components/loose-row').LooseRow}).
+ *
+ * What they do NOT share is the wording, and that is deliberate: an exchange is *held* (a claim
+ * about a routine you displaced), a habit is *done*. Each has its own contract function so the
+ * words live next to the reasoning for them, and each is testable on its own — jest here matches
+ * `src/**\/*.test.ts` only, so a row's state matrix would otherwise have no test at all.
+ */
+
+/** The resolved state of a stackless row — everything the bar needs to paint and to announce. */
+export type LooseRowContract = {
+  mode:
+    /** In play today and not yet ticked — the tap commits. */
+    | 'open'
+    /** Ticked today; the tap takes it back. */
+    | 'held'
+    /** Excused for the viewed day. Nothing to assert, so the row is inert. */
+    | 'excused';
+  /** The row responds to a tap at all. `false` ⟹ render it with no ripple and no underlay:
+   *  a press feedback the row can't honour is a promise it can't keep. */
+  enabled: boolean;
+  /** Always a checkbox — the row *is* the control, the way a stack card's header is. */
+  role: 'checkbox';
+  checked: boolean;
+  /** The visible first line — the name, exactly as stored. Kept apart from {@link label}: the
+   *  spoken form folds the meta into one sentence, and deriving one from the other would break on
+   *  the first name containing a comma. */
+  title: string;
+  /** The spoken form — the whole row as one sentence, for a screen reader. */
+  label: string;
+  hint: string;
+  /** The optional second line: what an exchange displaces, or a habit's count goal. Empty for a
+   *  plain habit, whose name is the whole of it. */
+  meta: string;
+};
+
+/**
+ * A habit that belongs to no stack — the ordinary case, and (since 2026-08-09) a first-class one.
+ *
+ * It is ticked on its own because there is no seal to carry it: a stack is one performance and its
+ * acts are read rather than ticked, but nothing groups this, so the row is the control. The words
+ * are plainer than an exchange's for the same reason the thing is — no displaced routine to name,
+ * no claim beyond the deed.
+ */
+export function habitRowContract({
+  name,
+  meta,
+  done,
+  skipped,
+}: {
+  name: string;
+  /** A count goal's trailing label ("3 pages"), or empty. */
+  meta: string;
+  done: boolean;
+  /** Excused for the viewed day. Outranks `done`: an excused row can't also be asserting. */
+  skipped: boolean;
+}): LooseRowContract {
+  // Spoken and seen must match — a screen reader hearing something that isn't on screen is being
+  // read a different row than the one under the finger.
+  const spoken = meta ? `${name}, ${meta}` : name;
+
+  if (skipped) {
+    return {
+      mode: 'excused',
+      enabled: false,
+      role: 'checkbox',
+      checked: false,
+      title: name,
+      label: `${spoken}, excused today`,
+      // A statement rather than an instruction: activating this row does nothing at all, and a
+      // hint that described an action would be describing the fold's manage row instead.
+      hint: 'Excused for today — nothing to record.',
+      meta,
+    };
+  }
+
+  return {
+    mode: done ? 'held' : 'open',
+    enabled: true,
+    role: 'checkbox',
+    checked: done,
+    title: name,
+    // No ", done" here: that state is carried by `checked` on this same element, and saying it
+    // twice is exactly what the stack header's label was cleaned up to stop doing.
+    label: spoken,
+    hint: done ? 'Clears it for today.' : 'Marks it done for today.',
+    meta,
+  };
+}

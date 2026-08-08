@@ -1,7 +1,10 @@
+import { Fragment } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
+import { RowSeparator } from '@/components/row-separator';
+import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
 import { Spacing } from '@/constants/theme';
@@ -75,6 +78,39 @@ export function SheetRow({
         ) : null}
       </View>
     </Pressable>
+  );
+}
+
+/** One row of a {@link SheetActions} card — a {@link SheetRow}'s props as data. */
+export type SheetAction = {
+  icon: IconName;
+  label: string;
+  sublabel?: string;
+  danger?: boolean;
+  onPress: () => void;
+};
+
+/**
+ * The grouped card a form sheet's rows live in: one {@link Surface}, its rows joined by
+ * {@link RowSeparator}. `null` entries are dropped, so a row that only some records have is
+ * written inline (`exchange ? null : {…}`) rather than as a JSX fragment holding its own separator.
+ *
+ * It exists because both option sheets — an act's or an exchange's (`act-actions`) and a stack's
+ * (`stack-manage`) — used to hand-interleave rows and separators, and hand-assembly is exactly how
+ * two sheets that must look like one object drift apart. Composed as data, a row added to one is
+ * spelled the same way in the other, and they can only ever share a shape.
+ */
+export function SheetActions({ actions }: { actions: (SheetAction | null)[] }) {
+  const rows = actions.filter((a) => a !== null);
+  return (
+    <Surface>
+      {rows.map((action, i) => (
+        <Fragment key={action.label}>
+          {i > 0 ? <RowSeparator /> : null}
+          <SheetRow {...action} />
+        </Fragment>
+      ))}
+    </Surface>
   );
 }
 

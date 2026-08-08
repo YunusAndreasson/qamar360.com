@@ -1,8 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { FormSheet, SheetRow } from '@/components/form-sheet';
-import { RowSeparator } from '@/components/row-separator';
-import { Surface } from '@/components/surface';
+import { FormSheet, SheetActions } from '@/components/form-sheet';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
@@ -12,17 +10,22 @@ import { haptics } from '@/lib/haptics';
 /**
  * One act's options — the sheet a tap on an act line raises.
  *
- * Acts are read, not ticked (the stack's seal is the only completion control), so a tap has to
- * mean *inspect* instead. Everything you might want from a single act lives here: excusing it on
- * a day it doesn't apply — the one escape hatch the stack-only model needs, so an unavoidable
- * miss doesn't cost the whole stack — plus its history, its settings, and where it lives.
+ * Acts inside a stack are read, not ticked (the stack's seal completes them), so a tap on one has
+ * to mean *inspect* instead. Everything you might want from a single habit lives here: excusing it
+ * on a day it doesn't apply — the escape hatch the stack-only model needs, so an unavoidable miss
+ * doesn't cost the whole stack — plus its history, its settings, and where it lives. The rows that
+ * DO tick (a stackless habit, an exchange) reach the same sheet from the fold's manage door, since
+ * their tap is spoken for.
  *
  * Presented `fitToContents` from the habits stack layout, the same compact sheet-of-rows as
  * "Manage stack".
  *
- * The same sheet serves an *exchange*, minus one row: an exchange is anchored to an urge rather
- * than to a moment, so it belongs to no stack and there is nowhere to move it to. Everything else
- * it needs is already here, so it would be a second sheet saying the same things.
+ * The same sheet serves all three of the things a habit row can be, because they want the same
+ * answers — only the noun changes (act / habit / exchange, see below). An *exchange* loses one row:
+ * it is anchored to an urge rather than to a moment, so it belongs to no stack and there is nowhere
+ * to move it to. A stackless *habit* keeps that row, phrased as moving to *a* stack rather than
+ * another one — that is the anchoring offer, now that it is a thing you do to a habit rather than
+ * the reason it is on screen.
  */
 export default function ActActionsScreen() {
   const router = useRouter();
@@ -38,7 +41,10 @@ export default function ActActionsScreen() {
 
   const isSkipped = skipped.has(habit.id);
   const exchange = isExchange(habit);
-  const noun = exchange ? 'exchange' : 'act';
+  // One word per thing, wherever the user reads it. Inside a stack it is an **act** — one deed of a
+  // sequence. Standing on its own it is a **habit**, which is what the section it sits in is called
+  // and what the row's own "Manage habit" promised. An exchange is neither.
+  const noun = exchange ? 'exchange' : habit.stack_id ? 'act' : 'habit';
 
   const toggleSkip = () => {
     void skipHabit(habit.id);
@@ -72,35 +78,34 @@ export default function ActActionsScreen() {
   };
 
   return (
-    <FormSheet title={habit.name} subtitle={exchange ? 'Exchange' : 'Act'}>
-      <Surface>
-        {/* "Today" only when it is: on a backfilled day the row has to name the day it excuses. */}
-        <SheetRow
-          icon="skip"
-          label={isSkipped ? 'Un-skip' : isToday ? 'Skip today' : `Skip ${viewDate}`}
-          sublabel={
-            isSkipped
-              ? exchange
-                ? 'Put it back in today'
-                : 'Put it back in the sequence'
-              : 'Excused — it won’t count against you'
-          }
-          onPress={toggleSkip}
-        />
-        <RowSeparator />
-        <SheetRow icon="insights" label="Insights" onPress={openInsights} />
-        <RowSeparator />
-        <SheetRow icon="edit" label={`Edit ${noun}`} onPress={edit} />
-        {/* An exchange has no stack to move between — its anchor is the urge, not a moment. */}
-        {exchange ? null : (
-          <>
-            <RowSeparator />
-            <SheetRow icon="addLink" label="Move to another stack" onPress={moveTo} />
-          </>
-        )}
-        <RowSeparator />
-        <SheetRow icon="delete" label={`Delete ${noun}`} danger onPress={confirmDelete} />
-      </Surface>
+    <FormSheet title={habit.name} subtitle={noun.charAt(0).toUpperCase() + noun.slice(1)}>
+      <SheetActions
+        actions={[
+          {
+            // "Today" only when it is: on a backfilled day the row has to name the day it excuses.
+            icon: 'skip',
+            label: isSkipped ? 'Un-skip' : isToday ? 'Skip today' : `Skip ${viewDate}`,
+            sublabel: isSkipped
+              ? habit.stack_id
+                ? 'Put it back in the sequence'
+                : 'Put it back in today'
+              : 'Excused — it won’t count against you',
+            onPress: toggleSkip,
+          },
+          { icon: 'insights', label: 'Insights', onPress: openInsights },
+          { icon: 'edit', label: `Edit ${noun}`, onPress: edit },
+          // An exchange has no stack to move between — its anchor is the urge, not a moment. A
+          // habit that has none yet is moving to *a* stack, not to another one.
+          exchange
+            ? null
+            : {
+                icon: 'addLink',
+                label: habit.stack_id ? 'Move to another stack' : 'Move to a stack',
+                onPress: moveTo,
+              },
+          { icon: 'delete', label: `Delete ${noun}`, danger: true, onPress: confirmDelete },
+        ]}
+      />
     </FormSheet>
   );
 }

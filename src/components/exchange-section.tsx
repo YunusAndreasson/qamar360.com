@@ -20,6 +20,10 @@ type Props = {
   settling: boolean;
   onToggle: (habit: Habit) => void;
   onOptions: (habit: Habit) => void;
+  /** Which rows are unfolded, and how to fold them — the screen's store, shared with the stack
+   *  cards so the day has one notion of what is open (and one that resets with the viewed day). */
+  expandedIds: ReadonlySet<string>;
+  onSetExpanded: (habitId: string, expanded: boolean) => void;
 };
 
 /**
@@ -34,8 +38,22 @@ type Props = {
  * One grouped card, not a card each: the exchanges are read together, and separate cards would
  * make three small commitments look like three more stacks. Nothing renders at all when there are
  * none — the section is not an empty state waiting to be filled, and the way in is the "+" menu.
+ *
+ * The rows fold, like the stack cards above them — so this Surface behaves as an accordion of bars
+ * rather than a fixed block, and a row's revealed body sits between its own bar and the next row's
+ * separator.
  */
-export function ExchangeSection({ exchanges, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
+export function ExchangeSection({
+  exchanges,
+  topGap,
+  completed,
+  skipped,
+  settling,
+  onToggle,
+  onOptions,
+  expandedIds,
+  onSetExpanded,
+}: Props) {
   if (exchanges.length === 0) return null;
 
   return (
@@ -57,6 +75,8 @@ export function ExchangeSection({ exchanges, topGap, completed, skipped, settlin
               settling={settling}
               onToggle={onToggle}
               onOptions={onOptions}
+              expanded={expandedIds.has(habit.id)}
+              onSetExpanded={onSetExpanded}
             />
           </View>
         ))}

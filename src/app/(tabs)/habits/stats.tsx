@@ -1,12 +1,7 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
-import { EmptyState } from '@/components/empty-state';
-import { ErrorBanner } from '@/components/error-banner';
-import { HabitStatsHero } from '@/components/habit-stats-hero';
-import { HabitStreakCard } from '@/components/habit-streak-card';
-import { HabitTrendChart } from '@/components/habit-trend-chart';
-import { HabitWeekdayBars } from '@/components/habit-weekday-bars';
+import { InsightsScreen } from '@/components/insights-screen';
 import { InsightsSkeleton } from '@/components/progress-skeleton';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabitStats } from '@/hooks/use-habit-stats';
@@ -15,10 +10,10 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { describeHijriSchedule } from '@/lib/dates';
 
 /**
- * A single habit's "Insights" — the per-habit sibling of the Progress tab, reached by swiping a
- * habit row (leading swipe → Insights). Params-driven like the editor (`habitId`); the habit
- * definition comes from the in-memory Habits list, only its history is fetched. Presented as a
- * pushed transparent screen so the fixed sky shows behind the cards, exactly like Progress.
+ * A single act's or exchange's "Insights" — the per-habit sibling of the Progress tab, reached from
+ * its options sheet (`act-actions` → Insights). Params-driven like the editor (`habitId`); the
+ * habit definition comes from the in-memory Habits list, only its history is fetched. The cards
+ * themselves live in {@link InsightsScreen}, shared with a stack's Insights.
  */
 export default function HabitStatsScreen() {
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
@@ -45,36 +40,14 @@ export default function HabitStatsScreen() {
     !stats.weekdayApplicable && habit.hijri_schedule ? describeHijriSchedule(habit.hijri_schedule) : undefined;
 
   return (
-    <>
-      {/* A compact title carrying the habit's name — the pushed-detail voice, not a tab's large title. */}
-      <Stack.Screen options={{ title: habit.name }} />
-
-      {stats.scheduledDays === 0 ? (
-        <AppScreen transparent centered refreshControl={refreshControl}>
-          <EmptyState
-            icon="insights"
-            title="No rhythm yet"
-            body="Complete this a few times and its pattern — best day, streak, and trend — will appear here."
-          />
-        </AppScreen>
-      ) : (
-        <AppScreen transparent refreshControl={refreshControl}>
-          <ErrorBanner message={error} onDismiss={dismissError} />
-
-          <HabitStatsHero consistency={stats.consistency} trend={stats.trend} scheduledDays={stats.scheduledDays} />
-
-          <HabitWeekdayBars
-            byWeekday={stats.byWeekday}
-            bestWeekday={stats.bestWeekday}
-            toughestWeekday={stats.toughestWeekday}
-            hijriNote={hijriNote}
-          />
-
-          <HabitStreakCard currentStreak={stats.currentStreak} longestStreak={stats.longestStreak} />
-
-          <HabitTrendChart trend={stats.trend} />
-        </AppScreen>
-      )}
-    </>
+    <InsightsScreen
+      title={habit.name}
+      stats={stats}
+      hijriNote={hijriNote}
+      emptyBody="Complete this a few times and its pattern — best day, streak, and trend — will appear here."
+      error={error}
+      onDismissError={dismissError}
+      refreshControl={refreshControl}
+    />
   );
 }

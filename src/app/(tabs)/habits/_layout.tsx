@@ -40,9 +40,12 @@ export default function HabitsStackLayout() {
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
-      {/* A single habit's Insights (stats + graphs) — a pushed transparent screen so the fixed
-          sky shows behind its cards, like Progress. Reached by the row's leading swipe. */}
+      {/* A single act's or exchange's Insights (stats + graphs) — a pushed transparent screen so
+          the fixed sky shows behind its cards, like Progress. Reached from its options sheet. */}
       <Stack.Screen name="stats" options={transparentScreen} />
+      {/* A whole stack's Insights — the same four cards over the stack's seal history, reached
+          from "Manage stack". Presented exactly like its per-act sibling above. */}
+      <Stack.Screen name="stack-stats" options={transparentScreen} />
       {/* Name a new (empty) stack — the one-field modal the add menu's "New stack" opens. */}
       <Stack.Screen name="stack-new" options={modalHeaderOptions(theme)} />
       {/* Rename a stack — the one-field modal the manage menu's Rename action opens. */}

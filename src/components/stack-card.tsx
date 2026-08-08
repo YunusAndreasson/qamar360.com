@@ -1,32 +1,23 @@
 import { memo, useEffect, useRef } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { ActRow } from '@/components/act-row';
 import { AppIcon } from '@/components/app-icon';
 import { CompletionRing } from '@/components/completion-ring';
+import { Fold, FoldToggle, FOLD_BOX } from '@/components/fold';
 import { DraggableMemberRow } from '@/components/habit-drag';
+import { ManageRow } from '@/components/manage-row';
 import { RowSeparator } from '@/components/row-separator';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Collapse } from '@/constants/motion';
-import { Disabled, Face, Pressed, RowLeadingSlot, Spacing } from '@/constants/theme';
+import { Disabled, Face, RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
 import { stackHeaderContract } from '@/lib/stack-card-state';
-
-// The floated fold button's footprint: its glyph plus its own padding (see `styles.fold`). The
-// header reserves exactly this much on its right so a full-width press region can sit under it.
-const FOLD_BOX = Spacing.four + 18 + Spacing.three;
 
 type Props = {
   stack: HabitStack;
@@ -45,6 +36,7 @@ type Props = {
   onUnseal: (stackId: string) => void;
   /** Open one act's sheet (skip today / insights / edit / move). */
   onAct: (habit: Habit) => void;
+  /** Open the stack's sheet (add acts / insights / edit / delete) — the sibling of {@link onAct}. */
   onEditStack: (stackId: string) => void;
   /** Screen-reader reorder for the whole stack (Move up / Move down on the header). */
   onMove?: (stackId: string, delta: -1 | 1) => void;
@@ -114,7 +106,6 @@ function StackCardBase({
   currentChapterUntil,
 }: Props) {
   const theme = useTheme();
-  const reduceMotion = useReducedMotion();
   // The acts actually in play today — the excused drop out of the sequence the seal asserts
   // (the same rule `sealableActs` applies to the write, so the card and the row can't disagree).
   const openActs = members.filter((m) => !skipped.has(m.id));
@@ -156,43 +147,6 @@ function StackCardBase({
     const timer = setTimeout(() => onSetExpanded(stack.id, false), Collapse.lead);
     return () => clearTimeout(timer);
   }, [stackComplete, settling, stack.id, onSetExpanded]);
-
-  // The body's animated clip. `progress` 1 = open, 0 = folded: height interpolates the measured
-  // content height and opacity fades the rows as it shuts. Born at rest so the first frame is
-  // already correct — which is also what keeps the drag ghost from animating open on lift.
-  const progress = useSharedValue(expanded ? 1 : 0);
-  const contentH = useSharedValue(0);
-  const firstRun = useRef(true);
-  useEffect(() => {
-    const target = expanded ? 1 : 0;
-    if (firstRun.current) {
-      firstRun.current = false;
-      progress.set(target);
-      return;
-    }
-    if (reduceMotion) {
-      progress.set(target);
-      return;
-    }
-    progress.set(withTiming(target, { duration: Collapse.duration, easing: Easing.inOut(Easing.quad) }));
-  }, [expanded, reduceMotion, progress]);
-
-  // ALWAYS a concrete height, from the very first frame — never a conditionally-applied style.
-  // Reanimated keeps the last value a style stops setting, so a height that came and went would
-  // strand the body at its folded 0. Before the first onLayout, `contentH` is 0 and the card is
-  // folded, so 0 × 0 = 0 is already the correct paint: no mount flash, and no "unclipped until
-  // measured" special case. The body stays MOUNTED while folded (see the render) precisely so
-  // onLayout can keep reporting its natural height — a child of a height-0 column parent keeps
-  // its content height (RN's default flexShrink is 0; overflow:hidden is paint, not layout) —
-  // which is what lets the very first unfold animate like every later one.
-  const bodyStyle = useAnimatedStyle(() => {
-    const p = progress.get();
-    return { height: p * contentH.get(), opacity: p };
-  });
-  const onContentLayout = (e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height;
-    if (h > 0) contentH.set(h);
-  };
 
   // The header commits the group — or, on a stack with no acts yet, leads where its body row
   // leads. No haptic here: the seal's own beat is fired from the seam in use-habits.
@@ -278,69 +232,49 @@ function StackCardBase({
             ) : null}
           </Touchable>
 
-          {/* The disclosure — the bar's only other verb — FLOATED over the header's right edge
-              rather than laid out beside it. Side-by-side, the seal's press highlight stopped short
-              of the card's right edge and the bar looked half-lit under the finger; the header is
-              now full-width (with `paddingRight` reserving this button's box, so a long name still
-              can't run under the chevron) and this sits on top of it, transparent, so the highlight
-              reads as one whole row. It keeps its own generous padding, which is what still lets an
-              ambiguous tap near the edge fold the card (free) instead of sealing it (writes a row
-              per act). No count beside it: how many lines a fold hides is bookkeeping, and a number
-              on the bar invites reading it as progress — the mental model the stacks-only rewrite
-              dropped. */}
+          {/* The disclosure — the bar's only other verb. No count beside it: how many lines a fold
+              hides is bookkeeping, and a number on the bar invites reading it as progress — the
+              mental model the stacks-only rewrite dropped. */}
           {collapsible ? (
-            <Touchable
+            <FoldToggle
+              expanded={expanded}
               onPress={() => onSetExpanded(stack.id, !expanded)}
-              androidRipple={{ color: theme.backgroundSelected, borderless: true }}
-              activeOpacity={Pressed.dim}
-              accessibilityRole="button"
-              accessibilityState={{ expanded }}
-              // A stable label — `expanded` says which way it goes, and a label that flipped too
-              // would have a screen reader announce the state twice.
-              accessibilityLabel={`${stack.name} acts`}
-              accessibilityHint={expanded ? 'Collapses the stack.' : 'Expands the stack to read its acts.'}
-              style={styles.fold}>
-              <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={18} color={theme.textDisabled} />
-            </Touchable>
+              label={`${stack.name} acts`}
+              hint={expanded ? 'Collapses the stack.' : 'Expands the stack to read its acts.'}
+            />
           ) : null}
         </View>
 
         {collapsible ? (
-          // The body folds shut: an overflow-clipped wrapper whose height + opacity ride
-          // `progress`. The header stays outside the clip so the bar is always tappable. A folded
-          // body is still MOUNTED and laid out — that is what keeps it measured — so it has to be
-          // taken out of the hit test and the a11y tree by hand, or every folded card's acts stay
-          // reachable by VoiceOver/TalkBack.
-          <Animated.View
-            style={[styles.collapseClip, bodyStyle]}
-            pointerEvents={expanded ? 'auto' : 'none'}
-            accessibilityElementsHidden={!expanded}
-            importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}>
-            <View onLayout={onContentLayout} style={styles.bodyContent}>
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              {members.map((habit, index) => (
-                <View key={habit.id}>
-                  {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
-                  {index > 0 ? <RowSeparator /> : null}
-                  {/* Hold and drag an act to move it within the sequence, or into another stack. */}
-                  <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
-                    <ActRow
-                      habit={habit}
-                      // Numbered over the acts actually in play, so an excused act doesn't
-                      // leave a hole in the sequence you're learning.
-                      ordinal={openActs.findIndex((m) => m.id === habit.id) + 1}
-                      done={completed.has(habit.id)}
-                      skipped={skipped.has(habit.id)}
-                      onPress={onAct}
-                      onMove={onMoveHabit}
-                    />
-                  </DraggableMemberRow>
-                </View>
-              ))}
-              <RowSeparator />
-              <ManageRow stackName={stack.name} onPress={() => onEditStack(stack.id)} />
-            </View>
-          </Animated.View>
+          <Fold expanded={expanded} contentStyle={styles.bodyContent}>
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            {members.map((habit, index) => (
+              <View key={habit.id}>
+                {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
+                {index > 0 ? <RowSeparator /> : null}
+                {/* Hold and drag an act to move it within the sequence, or into another stack. */}
+                <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
+                  <ActRow
+                    habit={habit}
+                    // Numbered over the acts actually in play, so an excused act doesn't
+                    // leave a hole in the sequence you're learning.
+                    ordinal={openActs.findIndex((m) => m.id === habit.id) + 1}
+                    done={completed.has(habit.id)}
+                    skipped={skipped.has(habit.id)}
+                    onPress={onAct}
+                    onMove={onMoveHabit}
+                  />
+                </DraggableMemberRow>
+              </View>
+            ))}
+            <RowSeparator />
+            <ManageRow
+              label="Manage stack"
+              accessibilityLabel={`Manage ${stack.name} stack`}
+              accessibilityHint="Add acts, see insights, edit, or delete the stack."
+              onPress={() => onEditStack(stack.id)}
+            />
+          </Fold>
         ) : (
           // A brand-new stack waiting on its first act: the next step lives inside the card
           // itself. Deliberately NOT the animated clip — nothing here folds, and an animated
@@ -367,7 +301,12 @@ function StackCardBase({
             {/* An empty card has no fold to hide it behind, and it is the one card most likely to
                 need deleting — a stack built by accident. */}
             <RowSeparator />
-            <ManageRow stackName={stack.name} onPress={() => onEditStack(stack.id)} />
+            <ManageRow
+              label="Manage stack"
+              accessibilityLabel={`Manage ${stack.name} stack`}
+              accessibilityHint="Add acts, see insights, edit, or delete the stack."
+              onPress={() => onEditStack(stack.id)}
+            />
           </View>
         )}
       </Surface>
@@ -377,43 +316,6 @@ function StackCardBase({
           it ever was around a full card. */}
       <StackCompleteFlash complete={stackComplete} settling={settling} />
     </View>
-  );
-}
-
-/**
- * The stack's management door, at the foot of the unfolded card.
- *
- * It used to sit on the bar as a third trailing glyph, where it competed with the two verbs that
- * matter — sealing the stack and unfolding it — and where a finger aimed at the chevron could
- * open a menu instead. Renaming, re-anchoring, adding acts and deleting are all things you do
- * *while looking at the sequence*, so they live where the sequence does: behind the fold, one row
- * below the last act, in the reading tone rather than the accent one. The "Add your first act" row
- * on an empty card keeps the accent — that one is the next step, not the housekeeping.
- *
- * It sits INSIDE the measured body, so it folds away with the acts and, while folded, leaves the
- * a11y tree with them (the clip's `accessibilityElementsHidden`).
- */
-function ManageRow({ stackName, onPress }: { stackName: string; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <Touchable
-      onPress={onPress}
-      androidRipple={{ color: theme.backgroundSelected }}
-      underlayColor={theme.backgroundSelected}
-      activeUnderlayOpacity={1}
-      accessibilityRole="button"
-      accessibilityLabel={`Manage ${stackName} stack`}
-      accessibilityHint="Add acts, edit, or delete the stack."
-      style={styles.manage}>
-      {/* The same 32-wide leading slot as the act numerals above it, so the glyph lands in their
-          column and the label under their names. */}
-      <View style={styles.leading}>
-        <AppIcon name="ellipsis" size={18} color={theme.textDisabled} />
-      </View>
-      <ThemedText type="small" themeColor="textSecondary">
-        Manage stack
-      </ThemedText>
-    </Touchable>
   );
 }
 
@@ -461,33 +363,6 @@ const styles = StyleSheet.create({
   // The clock reads as part of the name ("Morning, until 09:41"), so it sits one proximity step
   // closer than the fold button beyond it.
   status: { marginLeft: Spacing.two, flexShrink: 0 },
-  // Floated over the header's reserved right edge (see the render): absolute, full-height, so the
-  // seal's highlight runs the whole bar underneath it. 24 of paddingLeft is still the zone break
-  // between the bar's two verbs — a finger that lands in the ambiguous space folds the card (free)
-  // instead of sealing it (writes a row per act) — and `FOLD_BOX` keeps the header's reserved
-  // padding in step with it, so the two can't drift.
-  fold: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.three,
-  },
-  // The body's closing "Manage stack" row. Shorter than an act row (44) — it is chrome at the foot
-  // of the sequence, not part of it — but still clears the 44pt target with its padding.
-  manage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    minHeight: 44,
-    paddingLeft: Spacing.three,
-    paddingRight: Spacing.three,
-  },
-  // Clips the body as it folds shut; the measured content sits inside in normal flow.
-  collapseClip: { overflow: 'hidden' },
   // Radius.card curves through the last 14dp of the card, so a flush final row would put its
   // descenders and its trailing "· 8 cups" meta inside the corner arc, and its press highlight
   // would end on the card's own curve rather than reading as a row. Inside the measured node, so

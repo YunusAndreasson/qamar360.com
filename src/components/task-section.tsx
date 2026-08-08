@@ -70,7 +70,7 @@ export function TaskSection({
   const confirmDelete = useCallback(
     (task: Task) =>
       confirmDestructive({
-        title: 'Delete task',
+        title: 'Delete to-do',
         message: `Delete “${task.title}”?`,
         onConfirm: () => {
           onDelete(task);

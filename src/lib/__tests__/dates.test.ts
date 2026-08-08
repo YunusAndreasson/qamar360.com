@@ -4,6 +4,7 @@ import {
   addDaysISO,
   describeHijriOffset,
   describeHijriSchedule,
+  describeWeekdays,
   hijriMonthRange,
   hijriParts,
   scheduledOn,
@@ -154,5 +155,33 @@ describe('describeHijriOffset', () => {
     expect(describeHijriOffset(1)).toBe('+1 day');
     expect(describeHijriOffset(2)).toBe('+2 days');
     expect(describeHijriOffset(-1)).toBe('−1 day');
+  });
+});
+
+describe('describeWeekdays', () => {
+  it('says "Every day" rather than listing all seven', () => {
+    expect(describeWeekdays([0, 1, 2, 3, 4, 5, 6], 1)).toBe('Every day');
+    // Order of the stored array is irrelevant — it's a set of days, not a sequence.
+    expect(describeWeekdays([3, 0, 6, 1, 5, 2, 4], 0)).toBe('Every day');
+  });
+
+  it('lists a subset in the user’s own week order', () => {
+    // Mon/Wed/Fri, read from a Monday-start week…
+    expect(describeWeekdays([1, 3, 5], 1)).toBe('Mon · Wed · Fri');
+    // …and the same days from a Saturday-start week put nothing in front of them (none is Sat/Sun).
+    expect(describeWeekdays([1, 3, 5], 6)).toBe('Mon · Wed · Fri');
+  });
+
+  it('reorders around the week start rather than always leading with Sunday', () => {
+    expect(describeWeekdays([0, 1], 0)).toBe('Sun · Mon'); // Sunday first
+    expect(describeWeekdays([0, 1], 1)).toBe('Mon · Sun'); // Monday first, Sunday last
+  });
+
+  it('names a single day', () => {
+    expect(describeWeekdays([5], 1)).toBe('Fri');
+  });
+
+  it('never renders a blank, even for a schedule the editor can’t produce', () => {
+    expect(describeWeekdays([], 1)).toBe('No days');
   });
 });

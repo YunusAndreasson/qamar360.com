@@ -105,7 +105,11 @@ function Tabs() {
       <Trigger name="habits">
         {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. */}
         {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
-        <Trigger.Label>Habits</Trigger.Label>
+        {/* "Today", not "Habits": the screen holds stacks, exchanges and to-dos, and only one of
+            those is a habit in the ordinary sense. The route is still `habits` (renaming it would
+            churn every pathname for nothing) — this is the label the user reads, and it has always
+            matched that screen's own title. */}
+        <Trigger.Label>Today</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="sun.max.fill" />
         ) : (

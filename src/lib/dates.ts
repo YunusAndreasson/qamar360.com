@@ -224,6 +224,29 @@ export function weekOrder(weekStart: number): number[] {
 export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
 
 /**
+ * A human one-line summary of a weekday schedule — "Every day", or the days themselves in the
+ * user's own week order ("Mon · Wed · Fri"). The Hijri sibling of this is
+ * {@link describeHijriSchedule}.
+ *
+ * Read where a habit's schedule is stated rather than edited (a loose habit's fold), so it is
+ * short forms and a middot rather than a sentence: it sits under a title, in the same key as an
+ * exchange's cue line, and a full "Monday, Wednesday and Friday" would wrap at 360dp.
+ *
+ * Ordered by `weekStart` for the same reason the weekday bars are: a schedule should read like the
+ * user's own calendar. Stored `schedule_days` stay on the 0=Sunday index — this only reorders what
+ * is shown.
+ */
+export function describeWeekdays(scheduleDays: number[], weekStart: number): string {
+  const days = new Set(scheduleDays);
+  if (days.size === 0) return 'No days'; // not reachable from the editor, but never render a blank
+  if (days.size === 7) return 'Every day';
+  return weekOrder(weekStart)
+    .filter((d) => days.has(d))
+    .map((d) => WEEKDAY_NAMES[d]!.slice(0, 3))
+    .join(' · ');
+}
+
+/**
  * A Hijri-calendar recurrence, the alternative to `schedule_days`. A habit is
  * Hijri-scheduled iff it carries one of these (stored in `habits.hijri_schedule`);
  * otherwise it uses the weekday `schedule_days`. All keys optional — a day counts
