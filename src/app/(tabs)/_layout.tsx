@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
@@ -63,12 +63,19 @@ function Tabs() {
   // left `remaining` momentarily wrong before this session ever saw the correction, a lunar
   // update fired while backgrounded, or the launcher simply didn't apply an earlier write) — the
   // in-app tab badge always reads live, so only the icon can drift.
+  //
+  // An Effect Event, so the listener is registered ONCE. Reading `remaining` reactively meant
+  // every seal, every task tick and every day-step tore the AppState subscription down and put
+  // an identical one back — the exact churn `useEffectEvent` exists to remove.
+  const reassertBadge = useEffectEvent(() => {
+    void setAppBadgeCount(user ? remaining : 0);
+  });
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void setAppBadgeCount(user ? remaining : 0);
+      if (state === 'active') reassertBadge();
     });
     return () => sub.remove();
-  }, [user, remaining]);
+  }, []);
 
   return (
     <NativeTabs

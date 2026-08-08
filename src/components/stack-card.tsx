@@ -518,6 +518,12 @@ function stackPropsEqual(a: Props, b: Props): boolean {
     a.currentChapterUntil !== b.currentChapterUntil ||
     a.completed !== b.completed ||
     a.skipped !== b.skipped ||
+    // `settling` usually rides along with a fresh `completed` Set, but not always: a day-switch
+    // whose completions fetch FAILS turns it off while leaving the blanked sets at their existing
+    // identity. Skipping the re-render then strands this card's `wasSettling` guard (and its
+    // children's) at `true`, and the next genuine seal plays no sweep, no border flash and no
+    // auto-fold for the rest of the day.
+    a.settling !== b.settling ||
     a.onSeal !== b.onSeal ||
     a.onUnseal !== b.onUnseal ||
     a.onAct !== b.onAct ||

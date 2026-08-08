@@ -90,6 +90,12 @@ const ACCOUNT_SETUP_ERROR = 'Could not set up your account. Try again.';
 /** The habit_completions unique key an upsert conflicts on (one row per habit per day). */
 const COMPLETION_CONFLICT = 'habit_id,completed_at';
 
+/** The blank a day-switch resets the completion sets to (see `goToDay`). Shared, not minted per
+ *  switch: every update in this provider is copy-on-write, so these are never mutated — and one
+ *  stable identity means two steps in a row don't churn the memoized rows a second time. */
+const NO_IDS: Set<string> = new Set();
+const NO_COUNTS: Map<string, number> = new Map();
+
 /** Safety cap on the first load: if the network (or a stale session) hangs, we flip to a
  *  retryable error instead of spinning forever. Mirrors AuthProvider's `initialized` net. */
 const LOAD_TIMEOUT_MS = 12000;
@@ -329,6 +335,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const [counts, setCounts] = useState<Map<string, number>>(() => new Map(seed?.counts));
   const [loading, setLoading] = useState(() => !seed);
   const [completionsLoading, setCompletionsLoading] = useState(false);
+  /** What `remainingToday` keeps saying while the completion sets describe some other day — see
+   *  `badgeIsLive`. Frozen by `goToDay` on the way off today, so the hot seal path never pays for it. */
+  const [heldRemaining, setHeldRemaining] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<string>(() => todayLocalISO());
   const [viewDate, setViewDateState] = useState<string>(() => todayLocalISO());
@@ -342,6 +351,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const todayRef = useLatestRef(today);
   const viewDateRef = useLatestRef(viewDate);
   const ensuredUserRow = useRef(false);
+  /** The last open-unit count taken while the completion sets described the real today — see
+   *  `badgeIsLive`. Written from an effect below, read only by `goToDay` (an event path). */
+  const liveRemainingRef = useRef(0);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
   const completionsInFlight = useRef(0); // open fetchCompletions calls (gates the snapshot write)
   // Bumped by every habits/stacks mutation's optimistic write. fetchHabits/fetchStacks stamp this
@@ -513,18 +525,43 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [loading, userId, error, viewDate, habits, stacks, completed, skipped, counts]);
 
-  // Refetch completions when the viewed day changes (the mount load covers the first day).
+  /**
+   * Move the view to another day — the ONE way `viewDate` changes (the stepper and the midnight
+   * rollover both come through here).
+   *
+   * The day's ticks/skips/counts are blanked in this same commit, not in an effect keyed on
+   * `viewDate` afterwards, and that ordering is load-bearing rather than tidiness. The Today list
+   * remounts every `StackCard` on a day-step (`key={viewDate}`), so with the blanking one render
+   * late every card mounted for the NEW day holding the DEPARTING day's ticks: a wasted full-list
+   * render, a frame of the wrong marks, and — because a remount is where the cards' animation
+   * guards take their "at rest" reading — shared values born at the wrong day's answer.
+   *
+   * Sharing one empty Set/Map is safe: every update in this provider is copy-on-write
+   * (`new Set(prev)` / `new Map(prev)`), so these are never mutated.
+   */
+  const goToDay = useCallback(
+    (iso: string) => {
+      if (iso === viewDateRef.current) return; // already there — no blank, no refetch
+      // Leaving today: the sets are about to describe another day, so freeze what the tab badge
+      // (and the OS app icon behind it) should keep saying about this one.
+      if (viewDateRef.current === todayRef.current) setHeldRemaining(liveRemainingRef.current);
+      setViewDateState(iso);
+      setCompleted(NO_IDS);
+      setSkipped(NO_IDS);
+      setCounts(NO_COUNTS);
+      setCompletionsLoading(true);
+    },
+    [liveRemainingRef, todayRef, viewDateRef],
+  );
+
+  // Fetch the newly-viewed day's completions (the mount load covers the first day). `goToDay`
+  // has already blanked the sets and raised `completionsLoading`.
   const didMount = useRef(false);
   useEffect(() => {
     if (!didMount.current) {
       didMount.current = true;
       return;
     }
-    // don't show the previous day's ticks/skips/counts while the new day loads
-    setCompleted(new Set());
-    setSkipped(new Set());
-    setCounts(new Map());
-    setCompletionsLoading(true);
     void fetchCompletions(viewDate);
   }, [viewDate, fetchCompletions]);
 
@@ -540,13 +577,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       void fetchHabits();
       void fetchStacks();
       if (wasOnToday) {
-        setViewDateState(now); // the viewDate effect will refetch its completions
+        goToDay(now); // blanks the sets; the viewDate effect refetches them
       } else {
         void fetchCompletions(viewDateRef.current);
       }
     });
     return () => sub.remove();
-  }, [userId, fetchHabits, fetchStacks, fetchCompletions, todayRef, viewDateRef]);
+  }, [userId, fetchHabits, fetchStacks, fetchCompletions, goToDay, todayRef, viewDateRef]);
 
   const hijriOffset = usePreference('hijriOffset');
 
@@ -567,10 +604,27 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .join(',')}`,
   });
 
-  const remainingToday = useMemo(
+  const isToday = viewDate === today;
+  /**
+   * Whether `completed`/`skipped` currently describe the REAL today.
+   *
+   * They are scoped to the *viewed* day, and `remainingToday` is about today — so on a backfilled
+   * day (and in the blank window right after any day-switch) a count taken from them says
+   * something untrue about today. It isn't merely stale: yesterday's rows are the same habit ids,
+   * so browsing a day you half-kept quietly re-opens units you already sealed today — on the tab
+   * badge and, through it, on the OS app icon, which then keeps the wrong number until something
+   * else writes it. `doneToday` below already draws exactly this line for the lunar updates.
+   */
+  const badgeIsLive = isToday && !completionsLoading;
+  const liveRemaining = useMemo(
     () => openUnitsOn(habits, completed, skipped, today, hijriOffset),
     [habits, completed, skipped, today, hijriOffset],
   );
+  // Mirrored so `goToDay` can freeze it on the way out (an event path — never read in render).
+  useEffect(() => {
+    if (badgeIsLive) liveRemainingRef.current = liveRemaining;
+  }, [badgeIsLive, liveRemaining, liveRemainingRef]);
+  const remainingToday = badgeIsLive ? liveRemaining : heldRemaining;
 
   // The `users` row backing `habits.user_id` is not auto-created on signup, so
   // self-provision it (idempotently) before the first write.
@@ -586,8 +640,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const setViewDate = useCallback((iso: string) => {
     const max = todayRef.current;
     const min = addDaysISO(max, -BACKFILL_DAYS);
-    setViewDateState(iso > max ? max : iso < min ? min : iso);
-  }, [todayRef]);
+    goToDay(iso > max ? max : iso < min ? min : iso);
+  }, [goToDay, todayRef]);
 
   /**
    * Seal a stack: mark every act it has due on the viewed day done, in one write.
@@ -1565,7 +1619,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       today,
       viewDate,
       minViewDate: min,
-      isToday: viewDate === today,
+      isToday,
       remainingToday,
       dismissError,
       refresh,
@@ -1596,6 +1650,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     error,
     today,
     viewDate,
+    isToday,
     remainingToday,
     dismissError,
     refresh,

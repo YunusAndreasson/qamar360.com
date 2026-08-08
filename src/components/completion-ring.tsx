@@ -104,9 +104,18 @@ export function CompletionRing({
     wasComplete.current = complete;
     wasSettling.current = settling;
     if (was === complete) return;
-    if (settling || wasSettlingBefore) return; // the day's data catching up, not a fresh commit
-    if (reduceMotion) {
-      // Land on the resting state — the shape change alone conveys completion.
+    // Two changes that must not be *performed*, only *landed*: Reduce Motion (the shape change
+    // alone conveys completion) and a day-step's data catching up (`settling` — not a fresh
+    // commit, so it gets no ceremony).
+    //
+    // Landing is the whole point, and skipping it was a bug: a `return` here freezes the mark at
+    // whatever the shared values were BORN as. On a day-step the card remounts (`key={viewDate}`
+    // in the Today list) one render before the sets are blanked, so they are born holding the
+    // DEPARTING day's answer — and every later transition to the new day's truth is suppressed by
+    // this very guard. The mark then contradicts the row it sits in: an open stack wearing a
+    // check, or a sealed one wearing an empty ring, with the greyed title beside it telling the
+    // truth. Snap to the resting state instead, and the mark is right whichever day you land on.
+    if (reduceMotion || settling || wasSettlingBefore) {
       progress.set(complete ? 1 : 0);
       checkDraw.set(complete ? 1 : 0);
       flash.set(complete ? 0 : 1);

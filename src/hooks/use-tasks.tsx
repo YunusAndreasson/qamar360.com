@@ -81,6 +81,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const rowsRef = useLatestRef(rows);
   const viewDateRef = useLatestRef(viewDate);
   const todayRef = useLatestRef(today);
+  // The habits state the day-close rule is judged against, read at the instant of a tick and
+  // never rendered here — so it goes through refs like everything else a handler reaches for.
+  // Depending on it directly re-identified `toggleTask` on every seal, which re-identified this
+  // whole context value, which rebuilt every TaskRow (their comparator reads `onToggle`) and
+  // re-rendered the tab bar — all so that a habit tick could redraw the to-do list.
+  const habitsRef = useLatestRef(habits);
+  const completedRef = useLatestRef(completed);
+  const skippedRef = useLatestRef(skipped);
   const pending = useRef<Set<string>>(new Set()); // task ids with an in-flight write
   const cancelledTempIds = useRef<Set<string>>(new Set());
 
@@ -225,9 +233,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         // One crisp confirm — never the seal's rounder tail beat, which means "a group settled
         // together". A task is one thing, standing on its own, exactly like an exchange.
         const close = dayCloseAfter(
-          habits,
-          skipped,
-          completed,
+          habitsRef.current,
+          skippedRef.current,
+          completedRef.current,
           new Set<string>(),
           day,
           openCountOn(applied, day, todayRef.current),
@@ -254,7 +262,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         pending.current.delete(taskId);
       }
     },
-    [userId, habits, completed, skipped, showDayComplete, rowsRef, viewDateRef, todayRef],
+    [userId, showDayComplete, habitsRef, completedRef, skippedRef, rowsRef, viewDateRef, todayRef],
   );
 
   const renameTask = useCallback(async (taskId: string, title: string) => {
