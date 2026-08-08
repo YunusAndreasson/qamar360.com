@@ -23,9 +23,20 @@
  *
  * `name` is a past-tense first-person deed, like every other habit in the app, because it is read
  * at the moment of ticking — the checkmark asserts the deed is done. `insteadOf` and `cue` are
- * stored mid-sentence and lowercase, since the row renders them inside "Instead of … · …".
- * `evidence` is kept honest about strength, hadith graded and trials named, exactly as in
- * {@link SUNNAH_PRESETS}.
+ * stored mid-sentence and lowercase, because each continues a sentence the name began rather than
+ * labelling a field. `evidence` is kept honest about strength, hadith graded and trials named,
+ * exactly as in {@link SUNNAH_PRESETS}.
+ *
+ * **Everything here is written to the day's row, which is two lines and no more** — the deed, then
+ * what it stands in for:
+ *
+ *     Chose water
+ *     instead of soft drinks
+ *
+ * So a name earns its length or loses it. "Left the phone across the room" and "Gave ṣadaqah on the
+ * spot" were each doing the second line's job inside the first; with the routine named directly
+ * underneath, "Put the phone away" and "Gave ṣadaqah" say the same thing and can be read at a
+ * glance. The cue is not on that row at all (see the field's own note).
  *
  * Two invariants, both enforced by `exchanges.test.ts`: ids are unique, and no two entries share
  * a `name` — the name is the dedupe key against the habits a user already has.
@@ -39,11 +50,16 @@ export type CuratedExchange = {
   /** The displaced routine, mid-sentence and lowercase: it renders after "Instead of ". */
   insteadOf: string;
   /**
-   * The situation, specific enough that you notice it arrive. Renders after a middle dot, on a row
-   * read at the end of a long day — so it is stripped to the moment itself ("headphones on"), not
-   * a sentence about it ("when I put my headphones on"). The field is labelled WHEN in the editor
-   * and follows "instead of …" in the row, so the framing is already said; repeating "when I" in
-   * every entry spent a third of the line saying nothing. Keep new ones to about three words.
+   * The situation, specific enough that you notice it arrive.
+   *
+   * Read where the plan is *made* — this library's cards, and the editor's WHEN field — and
+   * deliberately not on the day's row, which stops at the deed and what it displaces (see
+   * {@link ExchangeRowContract}). Still the load-bearing half of the plan: an entry whose moment
+   * you couldn't picture arriving does not belong here, whether or not a row ever prints it.
+   *
+   * The moment itself ("headphones on"), never a sentence about it ("when I put my headphones
+   * on") — the field is labelled WHEN and the card has already said "instead of …", so the
+   * framing is spoken for. Keep new ones to about three words.
    */
   cue: string;
   /** What counts as held today — the unambiguous bar, in the imperative. */
@@ -70,10 +86,12 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
     exchanges: [
       {
         id: 'water-not-soft-drinks',
-        // Not the bare "Drank water": that exact name is already the `hydrate-water` preset (a
-        // count goal for the day's cups), and the name is the dedupe key — a user with both
-        // would end up with "Drank water" and "Drank water 2" and no way to tell them apart.
-        name: 'Drank a glass of water',
+        // "Chose", not "Drank": "Drank water" is already the `hydrate-water` preset (a count goal
+        // for the day's cups), and the name is the dedupe key — a user with both would end up with
+        // "Drank water" and "Drank water 2" and no way to tell them apart. The verb earns its
+        // place anyway: what an exchange records is the choosing, and "Chose water / instead of
+        // soft drinks" says the whole plan in three words.
+        name: 'Chose water',
         insteadOf: 'soft drinks',
         cue: 'sitting down to eat',
         detail: 'Pour it before the meal starts, so it’s the glass already in your hand.',
@@ -82,7 +100,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       },
       {
         id: 'dates-nuts-not-sweets',
-        name: 'Ate dates and nuts',
+        name: 'Ate dates or nuts',
         insteadOf: 'crisps and sweets',
         cue: 'reaching for a snack',
         detail: 'A small handful on a plate, not straight from the bag.',
@@ -92,7 +110,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       {
         id: 'ate-at-the-table',
         name: 'Ate at the table',
-        insteadOf: 'eating in front of a screen',
+        insteadOf: 'eating at a screen',
         cue: 'picking up my plate',
         detail: 'Plate to the table, screen left behind. Sit down to eat.',
         evidence:
@@ -110,7 +128,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         // Listening, not reading: at this cue the headphones are already on, so what is actually to
         // hand is something to play. Reading is not — you can do that with the playlist still
         // running. (Availability is the requirement, not incompatibility; see the header.)
-        name: 'Listened to Qurʾān',
+        name: 'Played Qurʾān',
         insteadOf: 'music',
         cue: 'headphones on',
         detail: 'One sūrah counts. Play it where the playlist would have gone.',
@@ -119,7 +137,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       },
       {
         id: 'dua-not-scrolling',
-        name: 'Made duʿāʾ while waiting',
+        name: 'Made duʿāʾ',
         insteadOf: 'scrolling',
         cue: 'stuck waiting',
         detail: 'One duʿāʾ in the queue or at the lights, with the phone still in your pocket.',
@@ -127,7 +145,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       },
       {
         id: 'phone-across-the-room',
-        name: 'Left the phone across the room',
+        name: 'Put the phone away',
         insteadOf: 'scrolling in bed',
         cue: 'getting into bed',
         detail: 'Put it down out of reach before you lie down, not after.',
@@ -143,10 +161,14 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
     exchanges: [
       {
         id: 'istighfar-not-backbiting',
-        // "Stopped and…" because stopping mid-sentence is the competing response; the istighfār
-        // is what fills the space it leaves. Also keeps it clear of the `istighfar-100` preset.
-        name: 'Stopped and said istighfār',
-        insteadOf: 'talking about someone',
+        // The stopping is the competing response and the istighfār fills the space it leaves — but
+        // "Stopped and said istighfār" spent half a title on something "instead of backbiting"
+        // now says outright, so the name is just the deed. `normalizeName` keeps it clear of the
+        // `istighfar-100` preset ("Said istighfār ×100"), which folds to a different string.
+        name: 'Said istighfār',
+        // The precise word, and the one the āyah below uses — worth more than the longer
+        // "talking about someone" it replaced.
+        insteadOf: 'backbiting',
         cue: 'catching myself',
         detail: 'Stop mid-sentence and say astaghfiru-Llāh. Once is enough.',
         evidence:
@@ -158,8 +180,8 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         // `dua-for-a-brother`. Saying something good also happens to be incompatible with the
         // complaint — you cannot say both in one breath — which is appealing but, per the header,
         // not the reason it is here.
-        name: 'Said something good about them',
-        insteadOf: 'complaining about someone',
+        name: 'Said something good',
+        insteadOf: 'complaining',
         cue: 'someone annoys me',
         detail: 'One true good thing, out loud, to whoever was about to hear the complaint.',
         evidence:
@@ -174,7 +196,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
     exchanges: [
       {
         id: 'sat-down-sought-refuge',
-        name: 'Sat down and sought refuge',
+        name: 'Sought refuge',
         insteadOf: 'raising my voice',
         cue: 'anger rising',
         detail: 'Sit down if you’re standing, then say aʿūdhu bi-Llāhi min al-shayṭān al-rajīm.',
@@ -183,10 +205,12 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       },
       {
         id: 'sadaqah-not-impulse-buy',
-        // "on the spot" separates it from the catalogue's daily `sadaqah` act and names the
-        // thing that makes it work: it happens in the moment the money was going to move.
-        name: 'Gave ṣadaqah on the spot',
-        insteadOf: 'an impulse purchase',
+        // "on the spot" used to hang off this name, to separate it from the catalogue's daily
+        // `sadaqah` act and to say the thing that makes it work — that it happens in the moment
+        // the money was going to move. "instead of an impulse buy", directly beneath, says both
+        // better. The two names fold differently, so the dedupe test stays satisfied.
+        name: 'Gave ṣadaqah',
+        insteadOf: 'an impulse buy',
         cue: 'about to buy',
         detail: 'Give something instead, any amount. The money moves the other way.',
         evidence: 'Ṣadaqah extinguishes sin as water extinguishes fire (Tirmidhi 2616, ḥasan ṣaḥīḥ).',

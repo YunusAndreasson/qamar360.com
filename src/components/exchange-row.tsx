@@ -53,7 +53,6 @@ function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions }
   const row = exchangeRowContract({
     name: habit.name,
     insteadOf: habit.instead_of ?? '',
-    cue: habit.cue,
     held,
     skipped,
   });
@@ -98,10 +97,11 @@ function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions }
           <ThemedText type="rowTitle" style={{ color }} numberOfLines={1}>
             {habit.name}
           </ThemedText>
-          {/* The plan, in the order it happens: the routine being turned away from, then the
-              moment it arrives. Two lines at most — past that the pairing stops being one
-              glanceable thought, which is the only thing it has to be. */}
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+          {/* What the deed stands in for, and nothing else — the cue is read where the plan is
+              made, not where it is kept (see `ExchangeRowContract`). One line: with the moment
+              gone there is nothing left that could need a second, and a clamp of 2 would only
+              ever fire on a routine named at essay length. */}
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
             {row.meta}
           </ThemedText>
         </View>
@@ -164,7 +164,6 @@ function exchangePropsEqual(a: Props, b: Props): boolean {
     a.habit.id === b.habit.id &&
     a.habit.name === b.habit.name &&
     a.habit.instead_of === b.habit.instead_of &&
-    a.habit.cue === b.habit.cue &&
     a.held === b.held &&
     a.skipped === b.skipped &&
     a.settling === b.settling &&

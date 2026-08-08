@@ -3,9 +3,8 @@ import { describe, expect, it } from '@jest/globals';
 import { exchangeRowContract, isExchange } from '@/lib/exchange';
 
 const base = {
-  name: 'Drank water',
+  name: 'Chose water',
   insteadOf: 'soft drinks',
-  cue: 'when I sit down to eat',
   held: false,
   skipped: false,
 };
@@ -55,20 +54,25 @@ describe('exchangeRowContract', () => {
   });
 
   describe('meta', () => {
-    it('names what it displaces and the moment it hits', () => {
-      expect(exchangeRowContract(base).meta).toBe('instead of soft drinks · when I sit down to eat');
+    // The row is two lines and stops. The cue belongs to deciding (the library card, the editor's
+    // WHEN field), not to ticking — by the time this row is on your day the moment is settled, and
+    // a third line restating it every evening is a rehearsal nobody asked for. The contract takes
+    // no cue at all, so this can't drift back by accident.
+    it('names what it displaces, and nothing else', () => {
+      expect(exchangeRowContract(base).meta).toBe('instead of soft drinks');
     });
 
-    it('says less rather than inventing a moment when there is no cue', () => {
-      expect(exchangeRowContract({ ...base, cue: null }).meta).toBe('instead of soft drinks');
-      expect(exchangeRowContract({ ...base, cue: '' }).meta).toBe('instead of soft drinks');
+    it('never carries a moment, whatever the habit stores', () => {
+      const meta = exchangeRowContract(base).meta;
+      expect(meta).not.toContain('·');
+      expect(meta.split(' ')).toHaveLength(4); // "instead of soft drinks" — no tail to grow
     });
 
     // The row has to say what it displaces on its own. The phrase used to be left to the section
     // caption — literally INSTEAD OF at the time — but that caption is now EXCHANGES, named for its
-    // unit like STACKS and TO DO beside it, so a bare "soft drinks · when I sit down to eat" would
-    // never say what soft drinks *is*. Lowercase: it continues the title's sentence rather than
-    // labelling a field, which is also what keeps it identical to the spoken line.
+    // unit like STACKS and TO DO beside it, so a bare "soft drinks" would never say what soft
+    // drinks *is*. Lowercase: it continues the title's sentence rather than labelling a field,
+    // which is also what keeps it identical to the spoken line.
     it('carries "instead of" itself — no caption supplies it', () => {
       const row = exchangeRowContract(base);
       expect(row.meta).toMatch(/^instead of /);
@@ -83,14 +87,10 @@ describe('exchangeRowContract', () => {
   });
 
   describe('label', () => {
-    it('reads as one sentence: the deed, what it replaces, when', () => {
-      expect(exchangeRowContract(base).label).toBe(
-        'Drank water, instead of soft drinks, when I sit down to eat',
-      );
-    });
-
-    it('drops the moment when there is no cue', () => {
-      expect(exchangeRowContract({ ...base, cue: null }).label).toBe('Drank water, instead of soft drinks');
+    // Spoken and seen say the same thing. A screen reader given a moment that isn't on screen is
+    // being read a different row than the one under the finger.
+    it('reads as one sentence: the deed, and what it replaces', () => {
+      expect(exchangeRowContract(base).label).toBe('Chose water, instead of soft drinks');
     });
 
     it('says an excused row is excused, since nothing else announces that', () => {

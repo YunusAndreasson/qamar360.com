@@ -42,11 +42,26 @@ describe('the curated exchange library', () => {
     const { label, hint, meta } = exchangeRowContract({
       name: entry.name,
       insteadOf: entry.insteadOf,
-      cue: entry.cue,
       held: false,
       skipped: false,
     });
     for (const text of [label, hint, meta]) expect(text).not.toMatch(/avoid|resist|abstain/i);
+  });
+
+  // The day's row is two lines and no more — the deed, then what it stands in for — and each is
+  // clamped to a single line. A string that outgrows its line is silently truncated with an
+  // ellipsis: invisible in review, obvious only on a phone, and worst on the entry whose whole job
+  // is to be read at a glance by someone tired. So the budget is enforced here rather than trusted.
+  // The caps are the longest current entry plus a little room, not an aspiration.
+  it.each(CURATED_EXCHANGES)('fits the row it is read on: $id', (entry) => {
+    expect(entry.name.length).toBeLessThanOrEqual(24);
+    const { meta } = exchangeRowContract({
+      name: entry.name,
+      insteadOf: entry.insteadOf,
+      held: false,
+      skipped: false,
+    });
+    expect(meta.length).toBeLessThanOrEqual(34);
   });
 
   it.each(CURATED_EXCHANGES)('says what counts and where it comes from: $id', (entry) => {

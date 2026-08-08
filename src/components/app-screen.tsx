@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   bottomInset: {
-    paddingBottom: BottomTabInset + Spacing.four,
+    paddingBottom: ScrollBottomInset + Spacing.four,
   },
   centered: {
     flexGrow: 1,

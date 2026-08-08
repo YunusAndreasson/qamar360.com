@@ -327,11 +327,35 @@ export const Pressed = { dim: 0.6 } as const;
 /** Opacity for a control disabled by dimming (rather than a colour swap, as `AppButton` does). */
 export const Disabled = 0.4;
 
+// The tab bar's own on-screen height, for anything the app places against the screen edge BY HAND
+// — today the toast that floats above the bar, and the forms that don't opt into iOS's automatic
+// content inset. Scroll content that DOES opt in wants `ScrollBottomInset` below; the two are
+// different questions, and answering the second with this figure cost the app a dead band under
+// every screen's last card.
+//
 // Android's value was tuned for a full-width Material bottom nav; the floating NativeTabs pill
 // this app actually renders has a noticeably smaller footprint, so the old figure left a large
-// dead gap after the last card on every screen (most visible below a short one, like Progress's
-// last stat card). Re-measured against the pill's actual on-screen height.
+// dead gap after the last card. Re-measured against the pill's actual on-screen height.
 export const BottomTabInset = Platform.select({ ios: 50, android: 64 }) ?? 0;
+
+/**
+ * What a scroll view must add below its last child *beyond what the platform already adds* — which
+ * on iOS is nothing at all.
+ *
+ * `AppScreen`, the day's list and Discover all set `contentInsetAdjustmentBehavior="automatic"` and
+ * are each the screen view-controller's first subview (`AppScreen`'s own doc explains why that
+ * placement is load-bearing). UIKit therefore already grows `adjustedContentInset` by the safe
+ * area — the tab bar of the enclosing `UITabBarController` that NativeTabs renders, plus the home
+ * indicator. It is the very mechanism these screens lean on at the TOP for the large title, which
+ * is why not one of them pads for the nav bar by hand either. Adding the bar's height again
+ * underneath was a straight double-count: ~83pt of system inset, then 74pt of ours, below the last
+ * card of every screen. Most glaring under Progress, whose second card simply runs out.
+ *
+ * `contentInsetAdjustmentBehavior` is iOS-only, so Android adjusts nothing and still needs the
+ * figure by hand. A scroller that does NOT opt in — `FormScreen`, whose editors push inside a tab's
+ * stack — must keep using {@link BottomTabInset} on both platforms.
+ */
+export const ScrollBottomInset = Platform.OS === 'android' ? BottomTabInset : 0;
 export const MaxContentWidth = 800;
 
 /** The leading mark slot every row/card header shares — an act's ordinal, an exchange's mark, a

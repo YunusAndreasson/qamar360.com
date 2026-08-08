@@ -36,8 +36,12 @@ export function isExchange(habit: Exchangeable): boolean {
 }
 
 /**
- * The plan under an exchange's name, wherever it is shown: what is being displaced, then the moment
- * it arrives — "instead of soft drinks · when I sit down to eat".
+ * The plan under an exchange's name: what is being displaced, and — where there is room to decide
+ * rather than merely tick — the moment it arrives: "instead of soft drinks · sitting down to eat".
+ *
+ * The cue is optional at the call site, and that is the whole point of the parameter. The library
+ * card passes it (you are choosing, so the moment matters); the day's row does not (you already
+ * chose). See {@link ExchangeRowContract} for why the row stops at two lines.
  *
  * Lowercase and unpunctuated because it is not a label but the second half of a sentence the title
  * begins: *Drank a glass of water* / *instead of soft drinks*. That makes the visible line and the
@@ -57,6 +61,22 @@ export function exchangePlanLine(insteadOf: string, cue?: string | null): string
   return `instead of ${insteadOf}${cue ? ` · ${cue}` : ''}`;
 }
 
+/**
+ * Why the day's row does NOT show the cue.
+ *
+ * The moment is what makes an exchange a plan, and it is read where the plan is *made* — the
+ * library card you choose from, and the editor's WHEN field. It is not read where the plan is
+ * *kept*. By the time a row is on your day you have already decided when this happens; a third
+ * line restating it every evening is a rehearsal nobody asked for, on the one screen that gets
+ * looked at tired. So the row is two lines and stops: the deed, and what it stands in for.
+ *
+ *     Chose water
+ *     instead of soft drinks
+ *
+ * That shape is the day's, not this feature's — it is the same two-line grammar a stack card's
+ * header uses, which is why an exchange can sit under the stacks without announcing itself as a
+ * different kind of thing.
+ */
 export type ExchangeRowContract = {
   mode:
     /** In play today and not yet held — the tap commits. */
@@ -73,14 +93,13 @@ export type ExchangeRowContract = {
   checked: boolean;
   label: string;
   hint: string;
-  /** The second line: what this displaces, and the moment it hits. */
+  /** The second line, and the last: what this displaces. */
   meta: string;
 };
 
 export function exchangeRowContract({
   name,
   insteadOf,
-  cue,
   held,
   skipped,
 }: {
@@ -88,17 +107,16 @@ export function exchangeRowContract({
   name: string;
   /** The displaced routine, stored mid-sentence ("soft drinks") so it reads after "Instead of". */
   insteadOf: string;
-  /** The situation that fires the urge ("when I sit down to eat"). Absent on older rows. */
-  cue?: string | null;
   held: boolean;
   /** Excused for the viewed day. Outranks `held`: an excused row can't also be asserting. */
   skipped: boolean;
 }): ExchangeRowContract {
-  const meta = exchangePlanLine(insteadOf, cue);
-  // The same sentence as the visible line, punctuated for the ear: the deed, then what it replaces,
-  // then when. Commas, not the middle dot — a screen reader pauses on a comma and says nothing
-  // useful for "·".
-  const spoken = `${name}, instead of ${insteadOf}${cue ? `, ${cue}` : ''}`;
+  // No cue: the row is the deed and what it displaces, nothing else (see the type's note).
+  const meta = exchangePlanLine(insteadOf);
+  // The same sentence as the visible line, punctuated for the ear: the deed, then what it replaces.
+  // Spoken and seen must match — a screen reader hearing a moment that isn't on screen is being
+  // read a different row than the one under the finger.
+  const spoken = `${name}, instead of ${insteadOf}`;
 
   if (skipped) {
     return {

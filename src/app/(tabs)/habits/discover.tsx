@@ -13,7 +13,7 @@ import { SunnahPresetRow } from '@/components/sunnah-preset-row';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   // Transparent over the fixed sky; the section cards are opaque surfaces on top of it.
   list: { flex: 1, backgroundColor: 'transparent' },
   listContent: {
-    paddingBottom: BottomTabInset + Spacing.four,
+    paddingBottom: ScrollBottomInset + Spacing.four,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',

@@ -22,7 +22,7 @@ import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -51,7 +51,7 @@ import type { Task } from '@/lib/tasks';
 // auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
 // ends on a deliberate rest where the full sky reappears, completing the step scale
 // (card gap 8 → zone break 16 → closing exhale 32).
-const LIST_BOTTOM_INSET = BottomTabInset + Spacing.five;
+const LIST_BOTTOM_INSET = ScrollBottomInset + Spacing.five;
 
 // The day's vertical rhythm, in two numbers — every section caption takes one of them, so no
 // section can drift from its neighbours.
