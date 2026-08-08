@@ -83,9 +83,11 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
             tickable, so a checkmark in the one column a finger would aim at promises a control
             that does not exist, and the stack's own ring above already says the group is sealed.
             Done is carried by the greyed name alone. Excused keeps its glyph because that IS a
-            per-act state you can set, from the act's own sheet. */}
+            per-act state you can set, from the act's own sheet. It is drawn at 20, the size the
+            same glyph takes in a stack header and a loose row — one mark rendered three sizes down
+            one column is the sort of thing you feel as untidiness without being able to name. */}
         {skipped ? (
-          <AppIcon name="skip" size={18} color={theme.textSecondary} />
+          <AppIcon name="skip" size={20} color={theme.textSecondary} />
         ) : (
           <ThemedText type="small" themeColor="textDisabled" style={styles.ordinal}>
             {ordinal}

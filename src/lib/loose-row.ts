@@ -4,14 +4,16 @@
  *
  * Two of the day's units stand on their own and are ticked one at a time: an **exchange** (anchored
  * to an urge) and a plain **habit** with no stack (anchored to nothing in particular). They wear the
- * same bar, the same ring, the same fold and the same management door — so they share this contract
- * type and the component that paints it ({@link import('@/components/loose-row').LooseRow}).
+ * same bar, the same ring and the same `⋯` management door — so they share this contract type and
+ * the component that paints it ({@link import('@/components/loose-row').LooseRow}).
  *
  * What they do NOT share is the wording, and that is deliberate: an exchange is *held* (a claim
  * about a routine you displaced), a habit is *done*. Each has its own contract function so the
  * words live next to the reasoning for them, and each is testable on its own — jest here matches
  * `src/**\/*.test.ts` only, so a row's state matrix would otherwise have no test at all.
  */
+
+import { describeHijriSchedule, describeWeekdays, type HijriSchedule } from '@/lib/dates';
 
 /** The resolved state of a stackless row — everything the bar needs to paint and to announce. */
 export type LooseRowContract = {
@@ -35,10 +37,48 @@ export type LooseRowContract = {
   /** The spoken form — the whole row as one sentence, for a screen reader. */
   label: string;
   hint: string;
-  /** The optional second line: what an exchange displaces, or a habit's count goal. Empty for a
-   *  plain habit, whose name is the whole of it. */
+  /** The optional second line: what an exchange displaces, or what a habit is asking for (see
+   *  {@link habitMetaLine}). Empty when the name is the whole of it. */
   meta: string;
 };
+
+/**
+ * A habit's second line — what the day is asking for beyond the name: its count goal, its schedule,
+ * or both, joined by the middot the rows use everywhere else ("3 pages · Mon · Wed · Fri").
+ *
+ * **"Every day" is omitted on purpose.** It is the default and the overwhelming majority, so a line
+ * carrying it says nothing while costing every row a second line — and a caption that is always
+ * there is one people stop reading, which spends the slot that the *exceptions* need. A Hijri
+ * schedule always shows: it is never the default, and it is the one thing about such a habit you
+ * cannot infer from seeing it on today's list.
+ *
+ * (`describeWeekdays` also has a `'No days'` case. It can't reach a row — `scheduledOn` keeps such
+ * a habit off every day — but it is passed through rather than special-cased, so if one ever does
+ * appear the row says so instead of looking like an ordinary daily habit.)
+ *
+ * This used to be behind the row's fold. The fold is gone: one grey line and a menu door was not
+ * worth a disclosure, and the schedule reads better where it can be scanned down the column with
+ * the names it belongs to.
+ */
+export function habitMetaLine({
+  targetCount,
+  targetUnit,
+  scheduleDays,
+  hijriSchedule,
+  weekStart,
+}: {
+  targetCount: number | null;
+  targetUnit: string | null;
+  scheduleDays: number[];
+  hijriSchedule: HijriSchedule | null;
+  /** The user's first day of the week, so the days read in their own calendar's order. */
+  weekStart: number;
+}): string {
+  const goal = targetCount ? `${targetCount}${targetUnit ? ` ${targetUnit}` : ''}` : '';
+  const schedule = hijriSchedule ? describeHijriSchedule(hijriSchedule) : describeWeekdays(scheduleDays, weekStart);
+  const when = schedule === 'Every day' ? '' : schedule;
+  return [goal, when].filter(Boolean).join(' · ');
+}
 
 /**
  * A habit that belongs to no stack — the ordinary case, and (since 2026-08-09) a first-class one.
@@ -55,7 +95,7 @@ export function habitRowContract({
   skipped,
 }: {
   name: string;
-  /** A count goal's trailing label ("3 pages"), or empty. */
+  /** The second line, from {@link habitMetaLine} — a goal, a schedule, both, or empty. */
   meta: string;
   done: boolean;
   /** Excused for the viewed day. Outranks `done`: an excused row can't also be asserting. */
@@ -74,7 +114,7 @@ export function habitRowContract({
       title: name,
       label: `${spoken}, excused today`,
       // A statement rather than an instruction: activating this row does nothing at all, and a
-      // hint that described an action would be describing the fold's manage row instead.
+      // hint that described an action would be describing the `⋯` beside it instead.
       hint: 'Excused for today — nothing to record.',
       meta,
     };

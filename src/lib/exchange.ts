@@ -79,11 +79,11 @@ export function exchangePlanLine(insteadOf: string, cue?: string | null): string
  * header uses, which is why an exchange can sit under the stacks without announcing itself as a
  * different kind of thing.
  *
- * The cue does have a home on the day, and it is the row's **fold** (`ExchangeRow`) — which is not
- * a softening of the rule above but the point of it. A fold is where you go looking; nothing in it
- * is *shown* to you nightly. A stack unfolds to read its sequence and an exchange unfolds to read
- * its plan, so the two units keep one grammar in the collapsed state, where the reading actually
- * happens, and each keeps its own detail one deliberate tap away.
+ * The cue is reachable from the day, at `⋯ → Edit exchange` — where the plan is made, which is the
+ * point of the rule rather than an exception to it. It briefly had a home behind a fold on this
+ * row. That was a mistake worth recording: a chevron promises content, and what it opened onto was
+ * one grey line — or, for the rows that predate the required cue, nothing at all but the manage
+ * door. The chevron is now the stack card's alone, and it means what it says.
  *
  * The shape itself is {@link LooseRowContract}, shared with the plain stackless habit beside it —
  * the two rows are one component. Only the *words* are this feature's: an exchange is **held**,
@@ -91,9 +91,8 @@ export function exchangePlanLine(insteadOf: string, cue?: string | null): string
  */
 export type ExchangeRowContract = LooseRowContract;
 
-/** Note the cue is absent from every field here: the collapsed row's text, and its spoken label,
- *  are the same two lines. What the fold reveals is read straight off the habit — the contract
- *  describes the bar, which is the part with a state matrix worth testing. */
+/** Note the cue is absent from every field here: the row's text, and its spoken label, are the
+ *  same two lines. */
 export function exchangeRowContract({
   name,
   insteadOf,
@@ -124,7 +123,7 @@ export function exchangeRowContract({
       title: name,
       label: `${spoken}, excused today`,
       // A statement rather than an instruction: activating this row does nothing at all, and a
-      // hint that described an action would be describing the fold's manage row instead.
+      // hint that described an action would be describing the `⋯` beside it instead.
       hint: 'Excused for today — nothing to record.',
       meta,
     };

@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
-import { AppButton } from '@/components/app-button';
 import { HabitRow } from '@/components/habit-row';
+import { ManageRow } from '@/components/manage-row';
 import { RowSeparator } from '@/components/row-separator';
 import { SectionLabel } from '@/components/section-label';
 import { Surface } from '@/components/surface';
@@ -26,8 +26,6 @@ type Props = {
   settling: boolean;
   onToggle: (habit: Habit) => void;
   onOptions: (habit: Habit) => void;
-  expandedIds: ReadonlySet<string>;
-  onSetExpanded: (habitId: string, expanded: boolean) => void;
 };
 
 /**
@@ -40,27 +38,17 @@ type Props = {
  * kept a phantom on the tab badge and sat in the Progress denominator earning nothing. The card
  * that was supposed to be a temporary migration was quietly breaking the day.
  *
- * So this is a section like any other now: its rows tick, fold and manage exactly as an exchange's
- * do, and anchoring became one of the things you can *do* to a habit rather than the reason it is
- * on screen (`⋯ Manage habit` → Move to another stack). The bulk offer survives as a footer, and
- * only while the curated library actually recognises something here.
+ * So this is a section like any other now: its rows tick and manage exactly as an exchange's do,
+ * and anchoring became one of the things you can *do* to a habit rather than the reason it is on
+ * screen (the row's `⋯` → Move to a stack). The bulk offer survives as a quiet footer row, and only
+ * while the curated library actually recognises something here.
  *
  * Placed after the stacks and before the exchanges: a stack has a place in the day's order because
  * its cue does, and these have none — but a plain habit is the ordinary case and an exchange the
  * special one, so it reads first. Outside the drag layer for the same reason the exchanges are:
  * there is no slot in the day's order to drag it into.
  */
-export function HabitSection({
-  habits: loose,
-  topGap,
-  completed,
-  skipped,
-  settling,
-  onToggle,
-  onOptions,
-  expandedIds,
-  onSetExpanded,
-}: Props) {
+export function HabitSection({ habits: loose, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
   const { show } = useToast();
   const { presets } = useCatalog();
   const { habits, stacks, createStack, updateStack, moveHabit, reorderHabits } = useHabits();
@@ -136,19 +124,34 @@ export function HabitSection({
               settling={settling}
               onToggle={onToggle}
               onOptions={onOptions}
-              expanded={expandedIds.has(habit.id)}
-              onSetExpanded={onSetExpanded}
             />
           </View>
         ))}
+        {/* The offer, not the premise: only when the library recognises something here, and phrased
+            as a shortcut past the per-habit "Move to a stack" rather than as a chore to clear.
+
+            A footer row inside the card, in the reading tone — the same `ManageRow` idiom as
+            "⋯ Manage stack" — and not the full-width accent button it used to be. That button was
+            the only primary action on the whole day, sitting under a list of things you tick, so it
+            read as what the section was *for*; accent is spent on what's live or interactive, and a
+            bulk convenience is neither of those enough to outrank the habits above it. */}
+        {suggested.length > 0 ? (
+          <>
+            <RowSeparator />
+            <ManageRow
+              icon="addLink"
+              label={
+                suggested.length === loose.length
+                  ? 'Anchor these to a moment'
+                  : `Anchor ${suggested.length} suggested`
+              }
+              accessibilityLabel={`Anchor ${suggested.length} suggested`}
+              accessibilityHint="Moves them into stacks at the moments the library suggests."
+              onPress={() => void anchorAll()}
+            />
+          </>
+        ) : null}
       </Surface>
-      {/* The offer, not the premise: only when the library recognises something here, and phrased
-          as a shortcut past the per-habit "Move to another stack" rather than as a chore to clear. */}
-      {suggested.length > 0 ? (
-        <AppButton onPress={() => void anchorAll()} accessibilityLabel={`Anchor ${suggested.length} suggested`}>
-          {suggested.length === loose.length ? 'Anchor these to a moment' : `Anchor ${suggested.length} suggested`}
-        </AppButton>
-      ) : null}
     </View>
   );
 }

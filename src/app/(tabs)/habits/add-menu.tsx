@@ -56,7 +56,11 @@ export default function AddMenuScreen() {
             icon="repeat"
             label="Habit"
             sublabel="One act on its own, on the days you choose."
-            onPress={() => router.replace({ pathname: '/habits/editor', params: { id: 'new' } })}
+            // The library, unscoped — not the blank editor this used to open. All three REPEATING
+            // doors now lead to a list you choose from, with the from-scratch form inside it: the
+            // catalog is ~60 evidence-backed acts, and asking someone to type a name from memory
+            // beside two cards that offer a menu is both harder and inconsistent with them.
+            onPress={() => router.replace('/habits/discover')}
           />
           <ChoiceCard
             icon="exchange"

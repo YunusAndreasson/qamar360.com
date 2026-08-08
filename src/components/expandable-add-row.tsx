@@ -51,6 +51,10 @@ export function ExpandableAddRow({
   // Expanding to read the detail is plain disclosure with clear visual feedback — no haptic.
   const toggleExpand = () => setExpanded((v) => !v);
 
+  // The beat fires BEFORE the handler, so a handler that declines has already been felt as a
+  // success. That is a promise the row can't take back — so a caller that may decline owes the user
+  // a reason (a toast, a message), never a silent return. Discover's unscoped `addPreset` was
+  // exactly such a return for a while, and the tap buzzed at a screen where nothing changed.
   const toggleAdd = () => {
     if (added) {
       haptics.removed();

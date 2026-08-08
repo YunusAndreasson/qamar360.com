@@ -3,7 +3,7 @@ import { Touchable } from 'react-native-gesture-handler';
 
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, Typography } from '@/constants/theme';
+import { RowLeadingSlot, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -111,7 +111,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
-  leading: { width: 32, alignItems: 'center', justifyContent: 'center' },
+  // The shared token, not a copy of its numbers: this slot has to hold the same column as every
+  // other leading mark on the day, and a literal that happens to match is one that can stop.
+  leading: RowLeadingSlot,
   text: { flex: 1, marginLeft: Spacing.three },
   // The field wears the row's type, not the form input's — this is a line in a list, and a boxed
   // 18pt input would announce itself as a form the section doesn't have.

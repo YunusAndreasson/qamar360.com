@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CompletionRing } from '@/components/completion-ring';
+import { RowOptionsButton, TRAILING_BOX } from '@/components/row-trailing-button';
 import { ThemedText } from '@/components/themed-text';
 import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -29,9 +30,11 @@ type Props = {
  * **No strikethrough** on a finished task (the app's standing rule): the muted tone and the closed
  * ring already say it, and a struck line reads as cancelled rather than done.
  *
- * A long press opens it for rewriting — and that state is where deleting lives, so a task needs no
- * trailing "⋯" of its own. Both have plain twins for a screen reader (the row's accessibility
- * actions), because nothing here may be gesture-only.
+ * A long press opens it for rewriting, and that state is where deleting lives. The same door has a
+ * visible `⋯` at the row's right edge, in the column the stack cards' chevrons and the habit rows'
+ * options buttons hold — because a capability whose only signifier is a gesture is one most people
+ * never find, however well the gesture works once you know it. (It also has a screen-reader twin in
+ * the row's accessibility actions; nothing here may be reachable only one way.)
  *
  * RN's `Pressable`, not gesture-handler's `Touchable`: the row sits inside a `Surface` in a
  * scrolling card, the same construction where `Touchable`'s press has failed to register before
@@ -43,48 +46,62 @@ function TaskRowBase({ task, today, onToggle, onEdit }: Props) {
   const row = taskRowContract({ title: task.title, dueOn: task.due_on, today, done });
 
   return (
-    <Pressable
-      onPress={() => onToggle(task)}
-      onLongPress={() => onEdit(task)}
-      android_ripple={{ color: theme.backgroundSelected }}
-      accessibilityRole={row.role}
-      accessibilityLabel={row.label}
-      accessibilityHint={row.hint}
-      accessibilityState={{ checked: row.checked }}
-      // The long press, spelled out for a screen reader — the standard activation still ticks the
-      // row, so only that one capability needs naming here.
-      accessibilityActions={[{ name: 'edit', label: 'Edit or delete' }]}
-      onAccessibilityAction={(event) => {
-        if (event.nativeEvent.actionName === 'edit') onEdit(task);
-      }}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
-      {/* The same 32-wide leading slot the acts give their ordinals and the exchanges their marks,
-          at the same 24pt — so the day's commits all sit in one column. */}
-      <View style={styles.leading}>
-        <CompletionRing complete={done} size={24} strokeWidth={2} />
-      </View>
-      <View style={styles.text}>
-        <ThemedText type="rowTitle" style={{ color: done ? theme.textDisabled : theme.text }} numberOfLines={2}>
-          {task.title}
-        </ThemedText>
-        {/* Only when it has come forward from an earlier day. A note of where it came from —
-            never "overdue", never a count of the days it has waited. */}
-        {row.meta ? (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {row.meta}
+    // The commit region runs the full width with the `⋯` floated over its reserved right edge — the
+    // construction every other row on the day uses, so the press highlight lights the whole row.
+    <View style={styles.bar}>
+      <Pressable
+        onPress={() => onToggle(task)}
+        onLongPress={() => onEdit(task)}
+        android_ripple={{ color: theme.backgroundSelected }}
+        accessibilityRole={row.role}
+        accessibilityLabel={row.label}
+        accessibilityHint={row.hint}
+        accessibilityState={{ checked: row.checked }}
+        // The long press, spelled out for a screen reader — the standard activation still ticks the
+        // row, so only that one capability needs naming here.
+        accessibilityActions={[{ name: 'edit', label: 'Edit or delete' }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'edit') onEdit(task);
+        }}
+        style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
+        {/* The same 32-wide leading slot the acts give their ordinals and the exchanges their marks,
+            at the same 24pt — so the day's commits all sit in one column. */}
+        <View style={styles.leading}>
+          <CompletionRing complete={done} size={24} strokeWidth={2} />
+        </View>
+        <View style={styles.text}>
+          <ThemedText type="rowTitle" style={{ color: done ? theme.textDisabled : theme.text }} numberOfLines={2}>
+            {task.title}
           </ThemedText>
-        ) : null}
-      </View>
-    </Pressable>
+          {/* Only when it has come forward from an earlier day. A note of where it came from —
+              never "overdue", never a count of the days it has waited. */}
+          {row.meta ? (
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+              {row.meta}
+            </ThemedText>
+          ) : null}
+        </View>
+      </Pressable>
+
+      <RowOptionsButton
+        label={`Edit ${task.title}`}
+        hint="Rewrite the to-do, or delete it."
+        onPress={() => onEdit(task)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  bar: { position: 'relative' },
   // 56 to match the stack card headers below it; a wrapped title pushes past it, hence a floor.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.three,
+    paddingLeft: Spacing.three,
+    // The floated `⋯` button's box, the same constant the stack headers and the loose rows reserve,
+    // so every trailing glyph on the day holds one vertical line.
+    paddingRight: TRAILING_BOX,
     paddingVertical: Spacing.two,
     minHeight: 56,
   },

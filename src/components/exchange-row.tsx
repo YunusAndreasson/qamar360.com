@@ -1,7 +1,6 @@
 import { memo } from 'react';
 
-import { LooseRow, LooseRowDetail } from '@/components/loose-row';
-import { RowSeparator } from '@/components/row-separator';
+import { LooseRow } from '@/components/loose-row';
 import type { Habit } from '@/hooks/use-habits';
 import { exchangeRowContract } from '@/lib/exchange';
 
@@ -17,50 +16,36 @@ type Props = {
   onToggle: (habit: Habit) => void;
   /** Open the exchange sheet — skip today, insights, edit, delete. */
   onOptions: (habit: Habit) => void;
-  expanded: boolean;
-  onSetExpanded: (habitId: string, expanded: boolean) => void;
 };
 
 /**
  * One exchange: a deed you claim in the place an old routine keeps taking.
  *
- * The row's shape — bar, ring, fold, management door — is {@link LooseRow}, shared with the plain
- * stackless habit above it in the day. What belongs to *this* feature is the wording and what the
- * fold reveals:
+ * The row's shape — bar, ring, the `⋯` door — is {@link LooseRow}, shared with the plain stackless
+ * habit above it in the day. What belongs to *this* feature is the wording:
  *
  * - What the tick asserts is the deed in the title — **never** the absence of the routine below it.
  *   That is the whole mechanism, not a wording preference: a plan phrased as "don't" keeps the old
  *   routine primed and measurably strengthens it, while one phrased as "this instead" displaces it.
- * - The fold reads the **cue**, which the collapsed row deliberately never shows (see
- *   `ExchangeRowContract`: the moment is read where the plan is made, not every evening where it is
- *   kept). A fold is precisely the place for something you go looking for rather than are shown.
+ * - The second line is what it stands in for ("instead of soft drinks"), and stops there. The
+ *   **cue** is not on the day's row at all — it is read where the plan is *made* (the library card
+ *   you choose from, the editor's WHEN field, and `⋯ → Edit exchange`), because by the time a row
+ *   is on your day the moment is settled and a third line restating it every evening is a rehearsal
+ *   nobody asked for. It briefly lived behind a fold here; a disclosure whose whole payload was one
+ *   grey line and a menu door was not worth the chevron it promised content with.
  */
-function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions, expanded, onSetExpanded }: Props) {
+function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions }: Props) {
   return (
     <LooseRow
       contract={exchangeRowContract({ name: habit.name, insteadOf: habit.instead_of ?? '', held, skipped })}
       settling={settling}
       onToggle={() => onToggle(habit)}
-      expanded={expanded}
-      onToggleFold={() => onSetExpanded(habit.id, !expanded)}
-      foldLabel={`${habit.name} plan`}
-      foldHint={expanded ? 'Collapses the exchange.' : 'Expands the exchange to read its plan.'}
-      manage={{
-        label: 'Manage exchange',
+      options={{
         accessibilityLabel: `Manage ${habit.name} exchange`,
         accessibilityHint: 'Skip today, see insights, edit, or delete the exchange.',
         onPress: () => onOptions(habit),
-      }}>
-      {/* The moment the plan names. Rows created before the form required a cue simply have no
-          second half, and the fold then holds the management door alone — which is still worth
-          opening, and is why the chevron isn't conditional on having one. */}
-      {habit.cue ? (
-        <>
-          <LooseRowDetail text={habit.cue} />
-          <RowSeparator />
-        </>
-      ) : null}
-    </LooseRow>
+      }}
+    />
   );
 }
 
@@ -73,14 +58,11 @@ function exchangePropsEqual(a: Props, b: Props): boolean {
     a.habit.id === b.habit.id &&
     a.habit.name === b.habit.name &&
     a.habit.instead_of === b.habit.instead_of &&
-    a.habit.cue === b.habit.cue &&
     a.held === b.held &&
     a.skipped === b.skipped &&
     a.settling === b.settling &&
-    a.expanded === b.expanded &&
     a.onToggle === b.onToggle &&
-    a.onOptions === b.onOptions &&
-    a.onSetExpanded === b.onSetExpanded
+    a.onOptions === b.onOptions
   );
 }
 

@@ -5,10 +5,11 @@ import { Touchable } from 'react-native-gesture-handler';
 import { ActRow } from '@/components/act-row';
 import { AppIcon } from '@/components/app-icon';
 import { CompletionRing } from '@/components/completion-ring';
-import { Fold, FoldToggle, FOLD_BOX } from '@/components/fold';
+import { Fold, FoldToggle } from '@/components/fold';
 import { DraggableMemberRow } from '@/components/habit-drag';
 import { ManageRow } from '@/components/manage-row';
 import { RowSeparator } from '@/components/row-separator';
+import { TRAILING_BOX } from '@/components/row-trailing-button';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
@@ -339,10 +340,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: Spacing.three,
-    // The floated fold button's box, reserved so the title and clock stop where it begins. Kept as
-    // one derived constant rather than a literal, so widening the button can't silently start
-    // clipping names.
-    paddingRight: FOLD_BOX,
+    // The floated trailing button's box, reserved so the title and clock stop where it begins. Kept
+    // as one derived constant rather than a literal, so widening the button can't silently start
+    // clipping names — and shared with the rows below, which reserve the same box for their `⋯`.
+    paddingRight: TRAILING_BOX,
     paddingVertical: Spacing.two,
     minHeight: 56,
   },

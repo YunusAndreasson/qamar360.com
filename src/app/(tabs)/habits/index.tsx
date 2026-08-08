@@ -206,7 +206,7 @@ export default function HabitsScreen() {
     const out: Entry[] = [];
     for (const h of visibleHabits) {
       const stack = h.stack_id ? stackById.get(h.stack_id) : undefined;
-      if (!stack) continue; // an orphan — shown by the anchoring card above, not as a card
+      if (!stack) continue; // an orphan — it has its own section below, not a card of its own
       const arr = membersByStack.get(stack.id);
       if (arr) arr.push(h);
       else membersByStack.set(stack.id, [h]);
@@ -322,9 +322,11 @@ export default function HabitsScreen() {
     [router],
   );
 
-  // Which cards the reader has unfolded — stacks by stack id, exchanges by habit id, in one set,
-  // because the day has one notion of "open" and both units wear the same chevron. Everything is
-  // born folded, so the day opens as a list of names and unfolding is an act of reading, not of
+  // Which stack cards the reader has unfolded, by stack id. The stack is the only thing on the day
+  // with hidden content — its sequence — and therefore the only thing wearing a chevron; the loose
+  // rows and the exchanges below carry a `⋯` straight to their sheet instead. (They briefly shared
+  // this set, back when they folded onto a schedule line and a manage door.) Every card is born
+  // folded, so the day opens as a list of names and unfolding is an act of reading, not of
   // operating the card.
   //
   // Owned here rather than in the card because the drag layer renders a SECOND StackCard as the
@@ -665,8 +667,6 @@ export default function HabitsScreen() {
             settling={completionsLoading}
             onToggle={tickLoose}
             onOptions={openAct}
-            expandedIds={expandedIds}
-            onSetExpanded={setCardExpanded}
           />
           {/* Below the stacks, and outside the drag layer: an exchange has no slot in the day's
               order to be dragged into, so it is not a unit the grid knows about. */}
@@ -681,8 +681,6 @@ export default function HabitsScreen() {
             settling={completionsLoading}
             onToggle={tickLoose}
             onOptions={openAct}
-            expandedIds={expandedIds}
-            onSetExpanded={setCardExpanded}
           />
         </Animated.ScrollView>
       )}
@@ -869,11 +867,17 @@ const styles = StyleSheet.create({
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
   // A read-only almanac whisper under the title — the tone and left edge the section captions
   // share, so the strip and the list read on one meridian.
+  //
+  // That meridian is 32, not 16: a caption gets 16 from its section's inset plus 16 of its own
+  // (`SectionLabel`), and this line hung at the card edge instead — one indent left of every
+  // caption below it, while its own comment claimed otherwise. `marginLeft` carries the 32 and
+  // `marginRight` stays at the card edge, since the line is free to run the full width.
   almanacLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    marginHorizontal: Spacing.three,
+    marginLeft: Spacing.five,
+    marginRight: Spacing.three,
     marginTop: Spacing.one,
     marginBottom: Spacing.one,
   },
@@ -891,9 +895,13 @@ const styles = StyleSheet.create({
   // the app keeps from the card edge.) The top space is set inline, from the day's two constants.
   stacksLabel: { paddingHorizontal: Spacing.three },
   // 8 from the caption to the first card: the same label→card beat the exchanges' section uses,
-  // so both captions sit the same distance above what they name. (The grid's own 4pt
-  // paddingVertical is what this overrides.)
-  gridBreath: { paddingTop: Spacing.two },
+  // so both captions sit the same distance above what they name.
+  //
+  // Both ends, deliberately. This overrode only `paddingTop` for a while, which left the grid's own
+  // `paddingVertical: 4` on the bottom — so the gap from the last stack card to the next caption
+  // was 36 where every other section break is 32, and the day's one visibly odd interval was the
+  // one nobody could see the source of.
+  gridBreath: { paddingTop: Spacing.two, paddingBottom: 0 },
   // Only when the list is empty: match the top offset AppScreen gives the Progress empty state
   // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
   // instead of jumping a notch when you switch between them. The populated list keeps its flush top.

@@ -228,9 +228,10 @@ export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
  * user's own week order ("Mon · Wed · Fri"). The Hijri sibling of this is
  * {@link describeHijriSchedule}.
  *
- * Read where a habit's schedule is stated rather than edited (a loose habit's fold), so it is
- * short forms and a middot rather than a sentence: it sits under a title, in the same key as an
- * exchange's cue line, and a full "Monday, Wednesday and Friday" would wrap at 360dp.
+ * Read where a habit's schedule is stated rather than edited — a loose habit's second line, via
+ * {@link import('@/lib/loose-row').habitMetaLine} — so it is short forms and a middot rather than a
+ * sentence: it sits under a title, in the same key as an exchange's "instead of" line, and a full
+ * "Monday, Wednesday and Friday" would wrap at 360dp.
  *
  * Ordered by `weekStart` for the same reason the weekday bars are: a schedule should read like the
  * user's own calendar. Stored `schedule_days` stay on the 0=Sunday index — this only reorders what

@@ -45,19 +45,34 @@ const rowKey = (row: Row) => (row.type === 'category' ? `category-${row.category
 const SectionGap = () => <View style={styles.gap} />;
 
 /**
- * Discover — a curated, evidence-backed library of SMART Sunnah habits, always reached scoped to
- * a stack (the empty card's "Add your first act" and the ⋯ menu's "Add habits" both pass
- * `stackId`; every habit lives in a stack, so there is nowhere else for an add to land). Search or
- * filter to find one fast, then add it with a single tap from the row (no need to expand first) —
- * a tap answers "in this stack?" rather than "exists?", so a loose habit you already have moves
- * in, one already in another stack is copied here as its own row (never pulled out of it), and the
- * ✓ tap un-members rather than deletes. Expand a row to read how it's tracked and its Sunnah
- * source. The library leads: the starter set for new users, then the categories, then a "Your
- * habits" section offering the lone habits you already have; "Create your own" closes the list as
- * a quiet row for the rarer from-scratch path. A native modal sheet of the Habits Stack (from the
- * bottom, like the editor), so it shares `HabitsProvider`; a left-aligned Close dismisses it (set
- * in the layout). The body is a virtualized FlatList of section cards, so only visible sections
- * mount.
+ * Discover — a curated, evidence-backed library of SMART Sunnah habits. Search or filter to find
+ * one fast, then add it with a single tap from the row (no need to expand first); expand a row to
+ * read how it's tracked and its Sunnah source. The library leads with the categories, and "Create
+ * your own" closes the list as a quiet row for the rarer from-scratch path. A native modal sheet of
+ * the Habits Stack (from the bottom, like the editor), so it shares `HabitsProvider`; a
+ * left-aligned Close dismisses it (set in the layout). The body is a virtualized FlatList of
+ * section cards, so only visible sections mount.
+ *
+ * **It works two ways, and `stackId` is what picks between them.**
+ *
+ * *Scoped* (`stackId` — the empty card's "Add your first act", `⋯ Manage stack → Add acts`): the
+ * screen composes one stack's sequence. A tap answers "in this stack?" rather than "exists?", so a
+ * loose habit you already have moves in, one already in another stack is copied here as its own row
+ * (never pulled out of it), and the ✓ tap un-members rather than deletes. A "Your acts" section
+ * offers the lone habits you already have.
+ *
+ * *Unscoped* (`+ → Habit`): the same library, landing a **stackless habit** — the unit the HABITS
+ * section on Today tracks. This is why the other two REPEATING doors in the add sheet open a
+ * library and this one no longer opens a blank form: naming a habit from memory is recall where the
+ * catalog offers recognition, and three doors in one sheet behaving two ways is the inconsistency
+ * you feel before you can point at it. Here a tap answers "exists?", and the ✓ deletes what it
+ * created — but only what it created: a preset that lives inside a stack is shown as added and says
+ * where it is, because un-adding it from a library screen would silently destroy a stacked act and
+ * the history that cascades with it.
+ *
+ * (The unscoped branch existed before it was reachable, and `addPreset` opened with `if (!stack)
+ * return` — while `ExpandableAddRow` fires its "added" haptic *before* delegating. The tap buzzed
+ * like a success and did nothing. Anything added here that can decline must say so.)
  */
 export default function DiscoverScreen() {
   const theme = useTheme();
@@ -70,6 +85,7 @@ export default function DiscoverScreen() {
     createHabits,
     createHabitInStack,
     moveHabit,
+    deleteHabit,
     error,
     dismissError,
   } = useHabits();
@@ -77,6 +93,10 @@ export default function DiscoverScreen() {
 
   const stack = stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
   const scoped = stack !== null;
+  // One word per thing, wherever it is read (the house rule): inside a stack a habit is an **act**,
+  // one deed of a sequence; standing on its own it is a **habit**, which is what the section it
+  // will land in is called and what the "+" card that opened this said.
+  const noun = scoped ? 'act' : 'habit';
 
   // Scoped to a stack that no longer exists (deleted while this modal was up): back out.
   useBackIfStale(!!stackId && !stack);
@@ -123,7 +143,12 @@ export default function DiscoverScreen() {
   };
 
   const addPreset = (preset: SunnahPreset) => {
-    if (!stack) return;
+    if (!stack) {
+      // Unscoped: land it as a stackless habit, straight into Today's HABITS section. `toCreate`
+      // names no stack at all, which is what made this the three-line change it looks like.
+      if (!habitByName.has(normalizeName(preset.name))) void createHabits([toCreate(preset)]);
+      return;
+    }
     const found = habitByName.get(normalizeName(preset.name));
     if (!found) {
       // Not a habit anywhere yet — create it straight into this stack.
@@ -143,13 +168,25 @@ export default function DiscoverScreen() {
     void addCopyIntoStack(preset, stack.id);
   };
 
-  // Un-member, never delete. This screen composes a stack's sequence; destroying an act (and the
-  // history that cascades with it) belongs to the act's own sheet, where the confirmation is.
-  // Un-anchored, the act lands in the one-time "Anchor these" card on Today rather than vanishing.
   const removePreset = (preset: SunnahPreset) => {
     const habit = habitByName.get(normalizeName(preset.name));
     if (!habit) return;
-    void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
+    if (stack) {
+      // Scoped: un-member, never delete. This screen composes a stack's sequence; destroying an act
+      // (and the history that cascades with it) belongs to the act's own sheet, where the
+      // confirmation is. Un-anchored, it lands in Today's HABITS section rather than vanishing.
+      void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
+      return;
+    }
+    // Unscoped, the ✓ undoes this screen's own add — so it may only reach a habit that stands on
+    // its own. One inside a stack was not added here and is not this screen's to destroy; say where
+    // it is instead of doing nothing, because the row already buzzed as though something happened.
+    if (habit.stack_id) {
+      const home = stacks.find((s) => s.id === habit.stack_id);
+      toast.show(home ? `Already in ${home.name}` : 'Already in a stack', 'success');
+      return;
+    }
+    void deleteHabit(habit.id);
   };
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
@@ -234,8 +271,8 @@ export default function DiscoverScreen() {
               <AppButton
                 variant="secondary"
                 onPress={goCreateHabit}
-                accessibilityLabel="Create your own act">
-                Create your own act
+                accessibilityLabel={`Create your own ${noun}`}>
+                {`Create your own ${noun}`}
               </AppButton>
             </EmptyState>
           </View>
@@ -305,15 +342,15 @@ export default function DiscoverScreen() {
         );
       case 'create':
         // The from-scratch door, deliberately last and quiet: the library above is the primary
-        // offer. In scoped mode the editor inherits the stack, so a custom habit lands inside
-        // it too. (Stacks themselves are made from the + menu, or by dropping one habit onto
-        // another on Today.)
+        // offer. In scoped mode the editor inherits the stack, so a custom habit lands inside it
+        // too; unscoped it lands stackless, the same place a preset tapped here does. (Stacks
+        // themselves are made from the + menu, or by dropping one habit onto another on Today.)
         return (
           <View style={wrap}>
             <SettingsSection>
               <SettingsRow
                 icon="add"
-                label="Create your own act"
+                label={`Create your own ${noun}`}
                 sublabel="Name, schedule and goal"
                 onPress={goCreateHabit}
                 showChevron
@@ -330,14 +367,14 @@ export default function DiscoverScreen() {
           enough. No header +: this screen IS the add screen, and a second + one tap after the
           one that opened it read as the same glyph meaning something new. The library leads the
           body; the empty-search state and the closing row both offer create-your-own. */}
-      {stack ? <Stack.Screen options={{ title: `Add to ${stack.name}` }} /> : null}
+      <Stack.Screen options={{ title: stack ? `Add to ${stack.name}` : 'Add a habit' }} />
 
       {/* The search field is the native nav-bar search (UISearchController on iOS / the
           SearchView on Android), not an in-body input — a true platform search experience.
           `hideWhenScrolling` is off so findability stays pinned for this ~60-item library;
           its own clear (✕) and Cancel replace the custom ones. */}
       <Stack.SearchBar
-        placeholder="Search Sunnah acts"
+        placeholder={`Search Sunnah ${noun}s`}
         autoCapitalize="none"
         hideWhenScrolling={false}
         onChangeText={(e) => setQuery(e.nativeEvent.text)}

@@ -1,39 +1,26 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { AppIcon } from '@/components/app-icon';
+import { RowTrailingButton } from '@/components/row-trailing-button';
 import { Collapse } from '@/constants/motion';
-import { Pressed, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
 
 /**
- * The disclosure both of the day's units wear — a stack card and an exchange row.
+ * The disclosure the stack card wears — the one thing on Today with content worth hiding.
  *
- * A stack folds to read its *sequence*; an exchange folds to read its *plan*. Different content,
- * one gesture, and — since the two sit in the same column on Today — one implementation, or the
- * chevrons would drift in target size, glyph, timing and the a11y state they publish.
+ * It dressed the exchange and habit rows too, for a while, for the symmetry. That was the wrong
+ * kind of consistency: a stack's chevron opens onto its sequence, while a loose row's opened onto a
+ * two-word schedule and a menu door — one signifier, two very different payoffs, which is how a
+ * disclosure stops being trusted. Those rows carry a `⋯` instead (`RowOptionsButton`), and the
+ * chevron now means one thing: **there is more of this to read.**
  */
 
-/** The floated fold button's footprint: its glyph plus its own padding (see {@link FoldToggle}).
- *  The bar beside it reserves exactly this much on its right, so a full-width press region can sit
- *  under the button and still not let a long title run beneath the chevron. */
-export const FOLD_BOX = Spacing.four + 18 + Spacing.three;
-
 /**
- * The disclosure chevron, FLOATED over the bar's reserved right edge rather than laid out beside
- * it. Side by side, the bar's press highlight stops short of the card's right edge and reads as
- * half-lit under the finger; floated (transparent, full height) the highlight reads as one whole
- * row while the chevron keeps its own generous target.
- *
- * That padding is also the zone break between the bar's two verbs: a finger that lands in the
- * ambiguous space folds (free) instead of committing (which writes rows). Glyph **swap**, never a
- * rotation — the house idiom, see `expandable-add-row.tsx`.
- *
- * No haptic: `haptics.ts` says never buzz for disclosure.
+ * The disclosure chevron. Geometry, target and press behaviour come from {@link RowTrailingButton},
+ * shared with the `⋯` so the two can't drift; what belongs to the fold is the glyph **swap** (never
+ * a rotation — the house idiom, see `expandable-add-row.tsx`) and the `expanded` state it publishes.
  */
 export function FoldToggle({
   expanded,
@@ -43,24 +30,19 @@ export function FoldToggle({
 }: {
   expanded: boolean;
   onPress: () => void;
-  /** A STABLE name for what the fold hides ("Fajr acts", "Chose water plan"). `expanded` already
-   *  says which way it goes; a label that flipped too would announce the state twice. */
+  /** A STABLE name for what the fold hides ("Fajr acts"). `expanded` already says which way it
+   *  goes; a label that flipped too would announce the state twice. */
   label: string;
   hint: string;
 }) {
-  const theme = useTheme();
   return (
-    <Touchable
+    <RowTrailingButton
+      icon={expanded ? 'expandLess' : 'expandMore'}
+      expanded={expanded}
+      label={label}
+      hint={hint}
       onPress={onPress}
-      androidRipple={{ color: theme.backgroundSelected, borderless: true }}
-      activeOpacity={Pressed.dim}
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      style={styles.fold}>
-      <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={18} color={theme.textDisabled} />
-    </Touchable>
+    />
   );
 }
 
@@ -150,16 +132,4 @@ const styles = StyleSheet.create({
   // Out of flow (see the doc): pinned to the clip's top and both edges, so it takes the card's
   // width but none of its height, and measures its true content height even while the clip is 0.
   content: { position: 'absolute', top: 0, left: 0, right: 0 },
-  // See FoldToggle: absolute and full-height, so the bar's highlight runs the whole width
-  // underneath it. `FOLD_BOX` keeps the bar's reserved padding in step with this box.
-  fold: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.three,
-  },
 });
