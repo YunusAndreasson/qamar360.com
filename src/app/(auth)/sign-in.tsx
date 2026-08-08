@@ -1,13 +1,12 @@
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
 import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
+import { AuthBackdrop } from '@/components/auth/auth-backdrop';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
-import { BrandHero } from '@/components/brand/brand-hero';
 import { FormField } from '@/components/form-field';
-import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { ThemedText } from '@/components/themed-text';
 import { APP_NAME } from '@/constants/app';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -18,10 +17,6 @@ import { socialAuthAvailable } from '@/lib/social-auth';
 import type { TextInput } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
-
-/** The brand hero — the geometric "Q" framing a lit moon. A refined lockup size (a 200px outline
- *  read as oversized); the crisp mark + defined moon carry the brand without dominating the form. */
-const HERO_SIZE = 132;
 
 const SUBTITLES: Record<Mode, string> = {
   'sign-in': 'Sign in to continue',
@@ -39,6 +34,7 @@ const SUBMIT_LABELS: Record<Mode, string> = {
 
 export default function SignInScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { signIn, signUp, signInWithApple, signInWithGoogle, resetPassword, verifyRecovery, updatePassword, signOut } =
     useAuth();
   const [mode, setMode] = useState<Mode>('sign-in');
@@ -146,28 +142,29 @@ export default function SignInScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Same lunar-sky backdrop every other screen carries — the auth screen is no exception. */}
-      <GeometricBackdrop variant="screen" />
+      {/* The night-street photo, dissolving into the ordinary theme.background toward the
+          bottom — the auth screen's one full-bleed hero moment. */}
+      <AuthBackdrop />
+
+      {/* Pinned to the photo's clear sky, independent of the keyboard-avoiding form below so it
+          never shifts when the keyboard opens. The real moon in the photo carries the brand's
+          moon motif here — no illustrated mark layered on top of it. */}
+      <View style={[styles.wordmark, { top: insets.top + Spacing.three }]} pointerEvents="none">
+        <ThemedText type="subtitle" style={[styles.centeredText, styles.wordmarkText]}>
+          {APP_NAME}
+        </ThemedText>
+      </View>
+
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.hero}>
-          {/* The brand moment: the app's geometric "Q" framing a soft moonlight disc — the 360°
-              circle reading as a full moon the letter encircles. */}
-          <View style={styles.heroArt}>
-            <BrandHero size={HERO_SIZE} />
-          </View>
-          <ThemedText type="subtitle" style={styles.centeredText}>
-            {APP_NAME}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
-            {SUBTITLES[mode]}
-          </ThemedText>
-        </View>
+      <View style={[styles.safeArea, { paddingBottom: insets.bottom + Spacing.four }]}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.centeredText}>
+          {SUBTITLES[mode]}
+        </ThemedText>
 
         {showSocial ? (
           <View style={styles.social}>
@@ -275,7 +272,7 @@ export default function SignInScreen() {
             {mode === 'sign-up' ? 'Have an account? Sign in' : 'Back to sign in'}
           </AppButton>
         )}
-      </SafeAreaView>
+      </View>
       </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -285,8 +282,10 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
-  // Center the form when it fits; let it scroll (keyboard-safe) when it doesn't.
-  scrollContent: { flexGrow: 1, justifyContent: 'center' },
+  // Settle the form low, against the resolved-opaque foot of the backdrop's scrim — this is what
+  // leaves the photo's middle (the walking figure, the moon) unobstructed above it. Still scrolls
+  // (keyboard-safe) once content outgrows the screen.
+  scrollContent: { flexGrow: 1, justifyContent: 'flex-end' },
   safeArea: {
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,
@@ -294,10 +293,16 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  // A touch of air under the lockup so the wordmark doesn't hug the mark and the form gets room
-  // to breathe below — the difference between "polished" and "toy" is often just the spacing.
-  hero: { alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.two },
-  heroArt: { width: HERO_SIZE, height: HERO_SIZE, alignItems: 'center', justifyContent: 'center' },
+  // Fixed to the top safe area, independent of the scrolling form — see the render-side comment.
+  wordmark: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  // Sits directly on the raw photo (nothing else in this screen does), so it carries its own
+  // fixed-white + shadow treatment rather than the themed text color.
+  wordmarkText: {
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
   centeredText: { textAlign: 'center' },
   social: { gap: Spacing.two },
   divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, marginTop: Spacing.one },
