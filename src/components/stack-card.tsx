@@ -18,7 +18,7 @@ import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Collapse } from '@/constants/motion';
-import { Face, Pressed, RowLeadingSlot, Spacing } from '@/constants/theme';
+import { Disabled, Face, Pressed, RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
@@ -243,7 +243,12 @@ function StackCardBase({
               if (event.nativeEvent.actionName === 'moveUp') onMove?.(stack.id, -1);
               if (event.nativeEvent.actionName === 'moveDown') onMove?.(stack.id, 1);
             }}
-            style={styles.header}>
+            // Settling's blanked `completed`/`skipped` render as a confident "open" mark and
+            // full-bright title — a real-looking answer that just happens to be wrong for a
+            // beat, which is what read as the mark and text "flashing white" on a day-step. Dim
+            // the whole header instead of asserting either state while the day's real truth is
+            // still in flight; the seal/title colors themselves land correctly the moment it does.
+            style={[styles.header, settling && styles.settling]}>
             {/* The commit's mark, in the same 32-wide slot the act rows give their numerals, so it
                 sits directly above them and the title lines up with the act names. An all-excused
                 stack has nothing to assert, so it shows the skip glyph in place of a ring it
@@ -439,6 +444,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     minHeight: 56,
   },
+  // See the header's `settling` comment: a plain dim, not an animation — the fetch it's waiting
+  // on is what settles, this just holds off asserting an answer meanwhile.
+  settling: { opacity: Disabled },
   // Leading mark slot — fixed width in every state: the card's height never changes with its
   // mark, so the drag grid's measured frames stay valid.
   leading: RowLeadingSlot,

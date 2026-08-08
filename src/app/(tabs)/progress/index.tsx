@@ -71,7 +71,7 @@ export default function ProgressScreen() {
   }
 
   return (
-    <AppScreen transparent refreshControl={refreshControl}>
+    <AppScreen transparent centered refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
       {/* Two instruments, one question each. The orbit answers "where am I in this month?" against
