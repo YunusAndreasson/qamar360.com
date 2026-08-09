@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
@@ -100,7 +100,7 @@ export default function HabitsScreen() {
     viewDate,
     minViewDate,
     isToday,
-    setViewDate,
+    stepViewDate: stepDay,
     sealStack,
     unsealStack,
     toggleLoose,
@@ -145,6 +145,19 @@ export default function HabitsScreen() {
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+
+  // The composer opens in the TO DO card, which sits at the very top of the list — so a reader who
+  // was scrolled down when they asked for it ("+ → To-do") got a focused field, and the keyboard,
+  // somewhere off the top of the screen: the tap read as nothing having happened, and the first
+  // thing typed landed in a row nobody could see. Carry the top back with the request.
+  //
+  // Keyed on `compose` rather than fired from the tap, because the tap happens on another screen
+  // (the Add sheet dismisses back to here). It runs once per request — `clearCompose` returns the
+  // param to undefined when the field closes, so the next one arms it again.
+  useEffect(() => {
+    if (compose !== 'task') return;
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [compose, scrollRef]);
 
   // Pull-to-refresh. Both `refresh`es are silent (no spinner); the RefreshControl owns the
   // indicator. The catalog rides along here too — it otherwise only refetches on cold app
@@ -281,15 +294,16 @@ export default function HabitsScreen() {
   const canGoBack = viewDate > minViewDate;
   const canGoForward = viewDate < today;
 
+  // A discrete step through the day series — the same `selection` semantic as tapping a day cell
+  // on Progress, so moving through time feels identical on both screens. The provider owns the
+  // arithmetic (it steps off the live day, so a burst of taps can't collapse into one) and reports
+  // whether the day actually moved, which is what the haptic answers to: at either end of the
+  // range the buzz would otherwise promise a step the clamp had already refused.
   const stepViewDate = useCallback(
     (delta: number) => {
-      if ((delta < 0 && !canGoBack) || (delta > 0 && !canGoForward)) return;
-      // A discrete step through the day series — the same `selection` semantic as tapping a
-      // day cell on Progress, so moving through time feels identical on both screens.
-      haptics.selection();
-      setViewDate(addDaysISO(viewDate, delta));
+      if (stepDay(delta)) haptics.selection();
     },
-    [canGoBack, canGoForward, setViewDate, viewDate],
+    [stepDay],
   );
 
   // Tapping an act opens its sheet: acts are read rather than ticked, so a tap means *inspect*

@@ -173,6 +173,9 @@ type HabitsContextValue = {
   reload: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
+  /** Step the viewed day by whole days from the live one (clamped). Returns whether it moved —
+   *  use this, not `setViewDate(viewDate + n)`, so a burst of stepper taps can't collapse. */
+  stepViewDate: (delta: number) => boolean;
   /** Create several habits at once (a ready-made stack's acts); returns the new rows. Callers
    *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`). */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
@@ -643,6 +646,44 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const min = addDaysISO(max, -BACKFILL_DAYS);
     goToDay(iso > max ? max : iso < min ? min : iso);
   }, [goToDay, todayRef]);
+
+  /**
+   * The day a burst of steps is walking toward, or null at rest.
+   *
+   * Advanced **synchronously inside `stepViewDate`**, which a ref written during render (like
+   * `viewDateRef`) cannot be. Switching days is heavy enough to block the JS thread for a beat —
+   * every card in the list is keyed by `viewDate`, so they all remount — and the taps that land
+   * during that beat don't queue up as separate frames: they are delivered together, in one
+   * synchronous batch, once the thread frees. Every one of them then read the same
+   * not-yet-re-rendered day and resolved to the same target, so a burst of ten taps moved the
+   * day exactly twice (once for the tap that got through, once for all the rest). Cleared when
+   * the render finally lands, so the next burst starts from the day actually on screen.
+   */
+  const steppingToRef = useRef<string | null>(null);
+  useEffect(() => {
+    steppingToRef.current = null;
+  }, [viewDate]);
+
+  /**
+   * Step the viewed day by whole days from wherever the day series has already been walked to.
+   *
+   * Returns whether the day actually moved, so the caller can keep its haptic honest at the ends
+   * of the range instead of buzzing at a wall.
+   */
+  const stepViewDate = useCallback(
+    (delta: number) => {
+      const from = steppingToRef.current ?? viewDateRef.current;
+      const max = todayRef.current;
+      const min = addDaysISO(max, -BACKFILL_DAYS);
+      const next = addDaysISO(from, delta);
+      const clamped = next > max ? max : next < min ? min : next;
+      if (clamped === from) return false;
+      steppingToRef.current = clamped;
+      goToDay(clamped);
+      return true;
+    },
+    [goToDay, todayRef, viewDateRef],
+  );
 
   /**
    * Seal a stack: mark every act it has due on the viewed day done, in one write.
@@ -1631,6 +1672,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       refresh,
       reload,
       setViewDate,
+      stepViewDate,
       createHabits,
       sealStack,
       unsealStack,
@@ -1662,6 +1704,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     refresh,
     reload,
     setViewDate,
+    stepViewDate,
     createHabits,
     sealStack,
     unsealStack,

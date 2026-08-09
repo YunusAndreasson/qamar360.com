@@ -120,12 +120,29 @@ export function TaskSection({
         {tasks.map((task, i) => (
           <View key={task.id}>
             {i > 0 ? <RowSeparator /> : null}
-            <TaskRow task={task} today={today} onToggle={onToggle} onEdit={startEditing} />
+            {/* Rewriting one happens **in its own row** — the row you tapped becomes the field,
+                which is the whole promise of the composer. It used to render only at the foot of
+                the card, so an edit put the task on screen twice: the untouched row where it has
+                always been, and a second copy of it in a field below the list. */}
+            {editing?.id === task.id ? (
+              <TaskComposer
+                open
+                value={text}
+                onChangeText={setText}
+                onOpen={() => setComposing(true)}
+                onSubmit={submit}
+                onClose={closeComposer}
+                onDelete={() => confirmDelete(task)}
+              />
+            ) : (
+              <TaskRow task={task} today={today} onToggle={onToggle} onEdit={startEditing} />
+            )}
           </View>
         ))}
         {/* The way in, once there is a list. Suppressed on a past day: writing something down
-            "for last Tuesday" is not a thing anyone means to do. */}
-        {isToday ? (
+            "for last Tuesday" is not a thing anyone means to do — and while an edit is open, since
+            the field for that is up in the list and two live fields would fight for the keyboard. */}
+        {isToday && !editing ? (
           <>
             {tasks.length > 0 ? <RowSeparator /> : null}
             <TaskComposer
@@ -135,8 +152,6 @@ export function TaskSection({
               onOpen={() => setComposing(true)}
               onSubmit={submit}
               onClose={closeComposer}
-              // Only while rewriting one: a new, unwritten task has nothing to delete.
-              onDelete={editing ? () => confirmDelete(editing) : undefined}
             />
           </>
         ) : null}
