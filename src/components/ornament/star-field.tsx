@@ -1,11 +1,9 @@
-import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Parallax, Twinkle } from '@/constants/motion';
-import { useSkyMotion } from '@/hooks/use-sky-motion';
-import type { SkyTilt } from '@/hooks/use-sky-tilt';
+import { useTwinkleBreath, type SkyTilt } from '@/hooks/use-sky';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { glintPath, STAR_FIELD, starOpacity, type Star, type StarTier } from '@/lib/starfield';
 import { starVisibility, type DaylightStarsMode } from '@/lib/sun';
@@ -23,9 +21,17 @@ import type { ReactNode } from 'react';
  *  - three breathing layers carrying the mid/faint stars, each one whole-layer opacity driven by
  *    a slow half-cycle from {@link Twinkle}. The periods are mutually incommensurate, so the
  *    combined shimmer drifts like real atmosphere and never reads as a loop. Three shared values
- *    total, all on the UI thread — no re-renders, no per-star animation.
+ *    for the whole app (they live in the sky engine, not here), all on the UI thread — no
+ *    re-renders, no per-star animation.
  *
- * Every layer also rides the {@link useSkyTilt} parallax: a whisper of drift as the phone tilts,
+ * `onStage` is whether this sky is the one being looked at. Off stage every layer swaps its
+ * animated style for a still one, which detaches it from the shared clocks: the values go on
+ * turning for whichever sky *is* on stage, but a backgrounded app and the two tabs you are not
+ * looking at stop writing view properties every frame. The frozen values are the ones the eye
+ * would not catch anyway — a centred field at the twinkle's midpoint — and the swap only ever
+ * happens off-screen.
+ *
+ * Every layer also rides the {@link SkyTilt} parallax: a whisper of drift as the phone tilts,
  * each layer at its own depth ({@link Parallax.depth}) so the field reads with dimension. Two
  * lights govern the sky, multiplying independently as in the real one: the moon (mid/faint base
  * opacities wane toward the full moon while the bright tier holds) and the sun — as the real sun
@@ -39,11 +45,13 @@ export function StarField({
   illumination,
   sunAlt,
   tilt,
+  onStage,
 }: {
   stars: Star[];
   illumination: number;
   sunAlt: number;
   tilt: SkyTilt;
+  onStage: boolean;
 }) {
   const scheme = useEffectiveScheme();
   // The sun's washout folds into the per-tier scheme dim: one multiplier record drives the
@@ -72,19 +80,20 @@ export function StarField({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <ParallaxLayer tilt={tilt} depth={Parallax.depth.bright}>
+      <ParallaxLayer tilt={tilt} depth={Parallax.depth.bright} onStage={onStage}>
         <StarsSvg stars={anchors} illumination={illumination} dim={dim} floor={floor} />
       </ParallaxLayer>
       {breathing.map((group, i) => (
         <TwinkleLayer
           key={i}
           stars={group}
-          half={Twinkle.half[i]!}
+          clock={i}
           illumination={illumination}
           dim={dim}
           floor={floor}
           tilt={tilt}
           depth={Parallax.depth.dust[i]!}
+          onStage={onStage}
         />
       ))}
     </View>
@@ -117,8 +126,20 @@ const OVERSCAN = {
 } as const;
 
 /** Wraps a sky layer in the tilt-parallax drift at its own depth (far layers move least). The
- *  transform lives entirely on the UI thread; the overscan hides the translated edge. */
-function ParallaxLayer({ tilt, depth, children }: { tilt: SkyTilt; depth: number; children: ReactNode }) {
+ *  transform lives entirely on the UI thread; the overscan hides the translated edge. Off stage
+ *  the animated style is dropped from the array entirely — not merely fed a constant — so the
+ *  layer is detached from the tilt values and stops being written to each frame. */
+function ParallaxLayer({
+  tilt,
+  depth,
+  onStage,
+  children,
+}: {
+  tilt: SkyTilt;
+  depth: number;
+  onStage: boolean;
+  children: ReactNode;
+}) {
   const drift = useAnimatedStyle(() => ({
     transform: [
       { translateX: tilt.shiftX.get() * Parallax.maxShift * depth },
@@ -126,7 +147,7 @@ function ParallaxLayer({ tilt, depth, children }: { tilt: SkyTilt; depth: number
     ],
   }));
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, OVERSCAN, drift]} pointerEvents="none">
+    <Animated.View style={[StyleSheet.absoluteFill, OVERSCAN, onStage ? drift : null]} pointerEvents="none">
       {children}
     </Animated.View>
   );
@@ -139,37 +160,36 @@ type LayerProps = {
   floor: Record<StarTier, number>;
 };
 
+/** Where a parked twinkle layer sits: the middle of its range, so the step taken on the way off
+ *  and back on stage is the smallest one available (and, on a tier whose stars are already at a
+ *  fraction of full opacity, far under what the eye resolves). */
+const TWINKLE_PARKED = { opacity: 1 - 0.5 * (1 - Twinkle.floor) };
+
 /** One breathing layer — the month-summary "breath" idiom on the layer's whole opacity, easing
  *  between full and {@link Twinkle.floor} so its stars soften but never wink out — carried inside
- *  its {@link ParallaxLayer} so it also drifts with the phone at its own depth. */
+ *  its {@link ParallaxLayer} so it also drifts with the phone at its own depth. The clock itself
+ *  is shared app-wide ({@link useTwinkleBreath}); this layer only claims it while it has stars,
+ *  so a daylight sky that has pruned every breathing tier leaves nothing running behind it. */
 function TwinkleLayer({
   stars,
-  half,
+  clock,
   illumination,
   dim,
   floor,
   tilt,
   depth,
-}: LayerProps & { half: number; tilt: SkyTilt; depth: number }) {
-  const skyMotion = useSkyMotion();
+  onStage,
+}: LayerProps & { clock: number; tilt: SkyTilt; depth: number; onStage: boolean }) {
   const empty = stars.length === 0;
-  const breath = useSharedValue(0);
-  useEffect(() => {
-    // Also parked while the layer is empty (daylight prunes whole tiers): rendering null below
-    // doesn't stop a running `withRepeat`, and an invisible layer must not keep a perpetual
-    // UI-thread animation alive.
-    breath.set(
-      !skyMotion || empty
-        ? 0
-        : withRepeat(withTiming(1, { duration: half, easing: Easing.inOut(Easing.sin) }), -1, true),
-    );
-  }, [skyMotion, empty, half, breath]);
+  const breath = useTwinkleBreath(clock, !empty);
   const twinkle = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * (1 - Twinkle.floor) }));
 
   if (empty) return null;
   return (
-    <ParallaxLayer tilt={tilt} depth={depth}>
-      <Animated.View style={[StyleSheet.absoluteFill, twinkle]} pointerEvents="none">
+    <ParallaxLayer tilt={tilt} depth={depth} onStage={onStage}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, onStage ? twinkle : TWINKLE_PARKED]}
+        pointerEvents="none">
         <StarsSvg stars={stars} illumination={illumination} dim={dim} floor={floor} />
       </Animated.View>
     </ParallaxLayer>

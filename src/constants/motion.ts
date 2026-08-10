@@ -96,16 +96,25 @@ export const Twinkle = { half: [7000, 11000, 17000], floor: 0.7 } as const;
  * - `range` is the gravity-unit tilt (‖·‖ of the normalized gravity delta) that maps to the full
  *   shift; larger = you must tilt further for the same drift.
  * - `recenter` is a slow baseline EMA: "however you're holding it now" becomes centre, so the sky
- *   settles back after a movement instead of hanging off to one side when you lie down.
+ *   settles back after a movement instead of hanging off to one side when you lie down. It is
+ *   per *sample*, so it is tuned WITH `interval` — the pair sets a ~2.5 s recentring time
+ *   constant, and changing one without the other changes how fast the sky settles.
  * - `spring` is critically damped (no overshoot, no jitter); `interval` samples the sensor at
- *   ~30 Hz (ample after smoothing, easy on battery); `overscan` is the negative-inset margin each
- *   drifting layer carries so a shift never exposes the field's clip edge.
+ *   20 Hz — `GRAVITY` is CoreMotion device-motion, i.e. the gyroscope and its fusion, one of the
+ *   hungriest things on the phone, and every sample is a main-thread callback. After a 700 ms
+ *   spring nobody can tell 20 Hz from 30. `overscan` is the negative-inset margin each drifting
+ *   layer carries so a shift never exposes the field's clip edge.
+ * - `deadzone` is how far the smoothed target must move before the spring is re-issued, in the
+ *   same normalized units as the shift (0.01 ≈ 0.2 px at `maxShift`, comfortably sub-pixel).
+ *   Without it a 700 ms spring restarted on every sample can never converge, so a phone lying
+ *   perfectly still keeps the UI thread's frame loop awake for as long as the app is open.
  */
 export const Parallax = {
   maxShift: 16,
   range: 0.35,
-  interval: 33,
-  recenter: 0.02,
+  interval: 50,
+  recenter: 0.03,
+  deadzone: 0.01,
   overscan: 28,
   spring: { duration: 700, dampingRatio: 1 },
   // Front-to-back drift factors: the far overhead glow and corner bloom barely move, the bright

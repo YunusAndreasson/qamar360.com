@@ -12,6 +12,7 @@ import { ToastProvider } from '@/components/toast';
 import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
+import { SkyProvider } from '@/hooks/use-sky';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications, subscribeToUpdateTaps } from '@/lib/notifications';
 import { initPreferences } from '@/lib/preferences';
@@ -34,8 +35,12 @@ export default function RootLayout() {
           <AuthProvider>
             <CatalogProvider>
               <DayCompleteProvider>
-                <RootNavigator />
-                <ThemedChrome />
+                {/* One gravity sensor and one set of twinkle clocks for every sky in the app —
+                    see the note in `use-sky.tsx` on what each screen owning its own used to cost. */}
+                <SkyProvider>
+                  <RootNavigator />
+                  <ThemedChrome />
+                </SkyProvider>
               </DayCompleteProvider>
             </CatalogProvider>
           </AuthProvider>

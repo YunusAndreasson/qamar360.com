@@ -19,6 +19,7 @@ import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
+import { useOnStage } from '@/hooks/use-on-stage';
 import type { MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
@@ -58,13 +59,19 @@ const SWATCH_SIZE = 14;
 export function MonthSummary({ month }: { month: MonthProgress | null }) {
   // Tonight's moon breathes — a very slow, shallow luminance dip, like the calm of dhikr, so the
   // "you are here" moon reads as alive rather than merely lit. Reduce Motion holds it at full.
+  //
+  // So does being off stage. This is one of the app's two never-ending animations, and the Progress
+  // tab is mounted from launch whether or not it has ever been opened — so without the gate the
+  // moon breathes, and holds the display link open at the device's full refresh rate, behind a tab
+  // the user may never visit. It resumes from rest on arrival, which is where the cycle starts.
   const reduceMotion = useReducedMotion();
+  const onStage = useOnStage();
   const breath = useSharedValue(0);
   useEffect(() => {
-    breath.set(reduceMotion
+    breath.set(reduceMotion || !onStage
       ? 0
       : withRepeat(withTiming(1, { duration: Duration.breath, easing: Easing.inOut(Easing.sin) }), -1, true));
-  }, [reduceMotion, breath]);
+  }, [reduceMotion, onStage, breath]);
   const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * 0.07 }));
 
   if (!month) return null;

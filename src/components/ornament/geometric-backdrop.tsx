@@ -7,7 +7,8 @@ import { Meteors } from '@/components/ornament/meteors';
 import { StarField } from '@/components/ornament/star-field';
 import { Parallax } from '@/constants/motion';
 import { useMinuteTick } from '@/hooks/use-minute-tick';
-import { useSkyTilt, type SkyTilt } from '@/hooks/use-sky-tilt';
+import { useOnStage } from '@/hooks/use-on-stage';
+import { useSkyTilt, type SkyTilt } from '@/hooks/use-sky';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { deviceLocation } from '@/lib/geo';
@@ -72,6 +73,12 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
  * ({@link sun.ts}). Neither light is ever drawn. The whole field also drifts a whisper with the
  * phone's tilt ({@link useSkyTilt}), each layer at its own depth so the sky reads dimensional,
  * not flat.
+ *
+ * Under `NativeTabs` all three tabs are mounted eagerly and never unmount, so three of these
+ * exist for the whole life of the app while at most one is ever visible. The moving parts are
+ * therefore shared (one gravity sensor, one set of twinkle clocks — see `use-sky.tsx`) and every
+ * animated layer here is gated on {@link useOnStage}: off stage, or with the app out of the
+ * foreground, this sky stops writing to its views entirely and simply hangs there, still.
  */
 function ScreenSky() {
   const scheme = useEffectiveScheme();
@@ -79,6 +86,7 @@ function ScreenSky() {
   // than pale lines on deep space) — gently; a heavy cut fades it to invisible.
   const dim = scheme === 'light' ? 0.8 : 1;
   const tilt = useSkyTilt();
+  const onStage = useOnStage();
   const now = useMinuteTick();
 
   // The phase is derived from the tick's day, NOT frozen at mount: this sky lives inside the
@@ -118,10 +126,12 @@ function ScreenSky() {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <OverheadGlow illumination={illumination} sunAlt={sun.alt} tilt={tilt} />
-      <StarField stars={stars} illumination={illumination} sunAlt={sun.alt} tilt={tilt} />
-      <CornerBloom illumination={illumination} dim={dim} tilt={tilt} />
-      <Meteors sunAlt={sun.alt} />
+      <OverheadGlow illumination={illumination} sunAlt={sun.alt} tilt={tilt} onStage={onStage} />
+      <StarField stars={stars} illumination={illumination} sunAlt={sun.alt} tilt={tilt} onStage={onStage} />
+      <CornerBloom illumination={illumination} dim={dim} tilt={tilt} onStage={onStage} />
+      {/* A meteor nobody can see is a timer and an animation for nothing — the streak only ever
+          reads on the sky you are actually looking at. */}
+      {onStage ? <Meteors sunAlt={sun.alt} /> : null}
       <HorizonTint sunAlt={sun.alt} sunAz={sun.az} />
       <ScreenVignette />
       <HorizonGlow sunAlt={sun.alt} />
@@ -150,7 +160,17 @@ const GLOW_OVERSCAN = {
   bottom: -Parallax.overscan,
 } as const;
 
-function OverheadGlow({ illumination, sunAlt, tilt }: { illumination: number; sunAlt: number; tilt: SkyTilt }) {
+function OverheadGlow({
+  illumination,
+  sunAlt,
+  tilt,
+  onStage,
+}: {
+  illumination: number;
+  sunAlt: number;
+  tilt: SkyTilt;
+  onStage: boolean;
+}) {
   const scheme = useEffectiveScheme();
   const uid = useId();
   const id = `bd-glow-${uid}`;
@@ -168,7 +188,7 @@ function OverheadGlow({ illumination, sunAlt, tilt }: { illumination: number; su
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, GLOW_OVERSCAN, drift]} pointerEvents="none">
+    <Animated.View style={[StyleSheet.absoluteFill, GLOW_OVERSCAN, onStage ? drift : null]} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
         <Defs>
           {/* Stretched by the square→screen aspect into a wide, shallow overhead ellipse. */}
@@ -234,7 +254,17 @@ const BLOOM_SIZE = 280;
 // bloom's own heart — which the corner offsets below hang just off-screen, where the moon "is".
 const BLOOM_CIRCLES = flowerOfLife(BLOOM_SIZE / 2, BLOOM_SIZE / 2, 44, 2);
 
-function CornerBloom({ illumination, dim, tilt }: { illumination: number; dim: number; tilt: SkyTilt }) {
+function CornerBloom({
+  illumination,
+  dim,
+  tilt,
+  onStage,
+}: {
+  illumination: number;
+  dim: number;
+  tilt: SkyTilt;
+  onStage: boolean;
+}) {
   const theme = useTheme();
   const uid = useId();
   const gradId = `bloom-grad-${uid}`;
@@ -257,7 +287,7 @@ function CornerBloom({ illumination, dim, tilt }: { illumination: number; dim: n
   }));
 
   return (
-    <Animated.View style={[styles.bloom, drift]} pointerEvents="none">
+    <Animated.View style={[styles.bloom, onStage ? drift : null]} pointerEvents="none">
       <Svg width={BLOOM_SIZE} height={BLOOM_SIZE} viewBox={`0 0 ${BLOOM_SIZE} ${BLOOM_SIZE}`}>
         <Defs>
           <RadialGradient id={gradId} cx="50%" cy="50%" r="48%">
