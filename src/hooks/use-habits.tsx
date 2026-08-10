@@ -289,8 +289,15 @@ function useGuardedMutation<A extends unknown[], R>(
 async function writeHabitOrder(rows: Habit[]): Promise<boolean> {
   const items = rows.map((h) => ({ id: h.id, position: h.position, stack_id: h.stack_id }));
   if (items.length === 0) return true;
-  const { error } = await supabase.rpc('apply_habit_order', { items });
-  return !error;
+  try {
+    const { error } = await supabase.rpc('apply_habit_order', { items });
+    return !error;
+  } catch {
+    // A transport failure throws rather than returning an error — without this the rejection
+    // escapes the caller entirely: no rollback, no banner, and the order silently diverges from
+    // the table while looking saved.
+    return false;
+  }
 }
 
 /**
