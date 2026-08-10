@@ -91,6 +91,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const skippedRef = useLatestRef(skipped);
   const pending = useRef<Set<string>>(new Set()); // task ids with an in-flight write
   const cancelledTempIds = useRef<Set<string>>(new Set());
+  // Rows this session has deleted. A delete removes the row optimistically, its sheet pops on that
+  // state, Today regains focus and refreshes — and that SELECT can reach the server before the
+  // DELETE does, handing the to-do straight back. Filtering the fetch is what makes the delete
+  // stick whichever round-trip wins; the id is dropped again only if the delete itself fails.
+  const deletedIds = useRef<Set<string>>(new Set());
 
   /**
    * Fetch the rows the viewed day could need: everything ticked *that* day, plus every open task
@@ -114,7 +119,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setError(LOAD_ERROR);
         return false;
       }
-      setRows(data ?? []);
+      setRows((data ?? []).filter((t) => !deletedIds.current.has(t.id)));
       return true;
     },
     [userId, viewDateRef],
@@ -286,6 +291,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback(async (taskId: string) => {
     const removed = rowsRef.current.find((t) => t.id === taskId);
     if (!removed) return;
+    deletedIds.current.add(taskId);
     setRows((prev) => prev.filter((t) => t.id !== taskId));
     rowsRef.current = rowsRef.current.filter((t) => t.id !== taskId);
     haptics.removed();
@@ -299,6 +305,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
     const { error: delError } = await supabase.from('tasks').delete().eq('id', taskId);
     if (delError) {
+      deletedIds.current.delete(taskId);
       setRows((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
       rowsRef.current = [...rowsRef.current, removed].sort((a, b) => a.position - b.position);
       setError('Could not delete that. Check your connection.');

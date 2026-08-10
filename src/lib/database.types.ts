@@ -392,6 +392,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_habit_order: { Args: { items: Json }; Returns: undefined }
       get_global_completion_percentage: {
         Args: { end_date: string; start_date: string }
         Returns: number

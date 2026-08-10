@@ -235,6 +235,65 @@ type HabitsContextValue = {
 const HabitsContext = createContext<HabitsContextValue | null>(null);
 
 /**
+ * Brackets a mutation's whole round-trip, so the fetches can tell whether one overlapped them.
+ *
+ * The optimistic-write generation alone only catches a SELECT that was ALREADY in flight when a
+ * mutation landed. The opposite order is at least as common, and was unguarded: a sheet mutates,
+ * closes on its own optimistic state, Today regains focus and fires its refresh — and only then do
+ * the mutation's writes reach the server. That SELECT stamps the already-bumped generation, sees
+ * no change, and applies rows the mutation had not been written into yet, undoing it on screen with
+ * nothing left to correct it. Moves are hit hardest: renumbering positions sends one UPDATE per
+ * displaced row against the refresh's single SELECT, so the refresh usually gets there first.
+ *
+ * So count the mutations whose writes are still open, and bump the generation again when one
+ * settles. A fetch may apply its rows only if nothing was open when it started and nothing started
+ * or settled while it ran — which together mean no mutation overlapped its SELECT at all.
+ *
+ * Nesting is fine (`createHabitInStack` is two of these in a row, `updateStack` can call
+ * `deleteStack`): it is a count, not a flag.
+ *
+ * `begin`/`end` are supplied by the provider rather than the refs themselves: the React Compiler
+ * only recognises a ref it can see come from `useRef`, and treats one passed in as a parameter as
+ * an ordinary local that a callback must not write to.
+ */
+function useGuardedMutation<A extends unknown[], R>(
+  begin: () => void,
+  end: () => void,
+  run: (...args: A) => Promise<R>,
+): (...args: A) => Promise<R> {
+  return useCallback(
+    async (...args: A) => {
+      begin();
+      try {
+        return await run(...args);
+      } finally {
+        end();
+      }
+    },
+    [begin, end, run],
+  );
+}
+
+/**
+ * Persist a batch of position/stack_id changes as ONE write.
+ *
+ * A reorder or a move renumbers `position` across everything after it, so this is routinely dozens
+ * of rows. It used to go out as one UPDATE per row through `Promise.all`, with nothing making them
+ * a unit: a partial failure left the table half-reordered while the client rolled itself back to
+ * the order the user started from, so the arrangement was quietly scrambled and the only report
+ * was "could not save the new order". `apply_habit_order` does the whole batch in one statement —
+ * all of it lands or none of it does.
+ *
+ * Returns whether the batch was persisted. An empty batch is a no-op success.
+ */
+async function writeHabitOrder(rows: Habit[]): Promise<boolean> {
+  const items = rows.map((h) => ({ id: h.id, position: h.position, stack_id: h.stack_id }));
+  if (items.length === 0) return true;
+  const { error } = await supabase.rpc('apply_habit_order', { items });
+  return !error;
+}
+
+/**
  * Delete a user's entire completion history — every check-off — for a "fresh start", while
  * leaving their habits and stacks intact. Standalone (not a hook) so the
  * Settings tab can call it directly without consuming the habits context; the Habits tab
@@ -360,12 +419,38 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const liveRemainingRef = useRef(0);
   const pending = useRef<Set<string>>(new Set()); // habit ids with an in-flight toggle
   const completionsInFlight = useRef(0); // open fetchCompletions calls (gates the snapshot write)
-  // Bumped by every habits/stacks mutation's optimistic write. fetchHabits/fetchStacks stamp this
-  // before their SELECT and discard the result if it changed — otherwise a `refresh()` in flight
-  // when a create/move/etc. lands (e.g. the focus-refresh a modal's `router.back()` triggers)
-  // can read the DB before the mutation's own insert commits and clobber the optimistic state
-  // with that stale row set, with nothing after to correct it.
+  // Bumped by every habits/stacks mutation's optimistic write, and again by {@link
+  // useGuardedMutation} when that mutation's server writes settle. fetchHabits/fetchStacks stamp
+  // this before their SELECT and discard the result if it changed — otherwise a `refresh()` that
+  // overlaps a create/move/etc. can read the DB before the mutation's own writes commit and
+  // clobber the optimistic state with that stale row set, with nothing after to correct it.
   const mutationGen = useRef(0);
+  // Mutations whose server writes are still open. Stamped by the fetches for the one case the
+  // generation cannot see on its own: a mutation that was already running when the SELECT began
+  // and is still running when it ends, so the generation never moves while the fetch is in flight.
+  const mutationsOpen = useRef(0);
+  // The two halves {@link useGuardedMutation} brackets a mutation with. They live here, not in the
+  // hook, so the refs they move are ones the React Compiler can see come from `useRef`.
+  const beginMutation = useCallback(() => {
+    mutationsOpen.current += 1;
+  }, []);
+  const endMutation = useCallback(() => {
+    mutationsOpen.current -= 1;
+    mutationGen.current += 1;
+  }, []);
+  // Rows this session has deleted, kept until the provider goes away.
+  //
+  // `mutationGen` only catches a SELECT that was ALREADY in flight when the optimistic write
+  // landed. A delete's own sequence produces the other order: the row is removed optimistically,
+  // the sheet sees it gone and pops itself, Today regains focus and starts a refresh — and only
+  // then does the DELETE reach the server. That SELECT stamps the already-bumped generation, sees
+  // no change, and applies a row set the delete had not yet been written out of, so the habit
+  // reappears and stays. (The same shape as {@link cancelledTempIds}, which fixes the mirror-image
+  // race for rows deleted before their INSERT lands — this is that idea for rows the server does
+  // already know about.) Filtering the fetch is what makes the delete stick no matter which of the
+  // two round-trips wins; the id is dropped again only if the delete itself fails and we restore.
+  const deletedHabitIds = useRef<Set<string>>(new Set());
+  const deletedStackIds = useRef<Set<string>>(new Set());
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
@@ -373,6 +458,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const fetchHabits = useCallback(async () => {
     if (!userId) return true;
     const gen = mutationGen.current;
+    const openAtStart = mutationsOpen.current;
     const { data, error: habitsError } = await supabase
       .from('habits')
       .select('*')
@@ -382,17 +468,20 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setError(LOAD_ERROR);
       return false;
     }
-    // A mutation's optimistic write landed while this SELECT was in flight — it may have read
-    // the table before that mutation's own insert/update committed. Applying it now would wipe
-    // the optimistic change back out with nothing to correct it; let a later refresh reconcile.
-    if (mutationGen.current !== gen) return true;
-    setHabits((data ?? []) as Habit[]);
+    // A mutation overlapped this SELECT — one started or settled while it ran (the generation
+    // moved), or one was already running when it began (`openAtStart`). Either way it may have
+    // read the table before that mutation's writes committed, and applying it now would wipe the
+    // optimistic change back out with nothing to correct it. The client is already showing what
+    // the mutation wrote, so dropping this result is the safe answer; a later refresh reconciles.
+    if (mutationGen.current !== gen || openAtStart > 0) return true;
+    setHabits(((data ?? []) as Habit[]).filter((h) => !deletedHabitIds.current.has(h.id)));
     return true;
   }, [userId]);
 
   const fetchStacks = useCallback(async () => {
     if (!userId) return true;
     const gen = mutationGen.current;
+    const openAtStart = mutationsOpen.current;
     const { data, error: stacksError } = await supabase
       .from('habit_stacks')
       .select('*')
@@ -401,8 +490,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       setError(LOAD_ERROR);
       return false;
     }
-    if (mutationGen.current !== gen) return true;
-    setStacks(data ?? []);
+    if (mutationGen.current !== gen || openAtStart > 0) return true;
+    setStacks((data ?? []).filter((s) => !deletedStackIds.current.has(s.id)));
     return true;
   }, [userId]);
 
@@ -982,7 +1071,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // resurrect the habit — tap-add then tap-remove would quietly re-add it.
   const cancelledTempIds = useRef<Set<string>>(new Set());
 
-  const createHabits = useCallback(
+  // Each mutation below is written as `run<Name>` and exported through {@link useGuardedMutation},
+  // which brackets its server writes so an overlapping refresh can't apply rows from before them.
+  const runCreateHabits = useCallback(
     async (inputs: HabitCreate[]): Promise<Habit[]> => {
       if (!userId) return [];
       const clean = inputs
@@ -1069,8 +1160,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, ensureUserRow, habitsRef],
   );
+  const createHabits = useGuardedMutation(beginMutation, endMutation, runCreateHabits);
 
-  const updateHabit = useCallback(
+  const runUpdateHabit = useCallback(
     async (habitId: string, patch: HabitPatch) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
@@ -1174,8 +1266,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
   );
+  const updateHabit = useGuardedMutation(beginMutation, endMutation, runUpdateHabit);
 
-  const deleteHabit = useCallback(
+  const runDeleteHabit = useCallback(
     async (habitId: string) => {
       if (!userId) return;
       const removed = habitsRef.current.find((h) => h.id === habitId);
@@ -1189,8 +1282,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           ? removed.stack_id
           : null;
 
-      // Optimistic removal.
+      // Optimistic removal. The tombstones keep a refresh that overlaps the DELETE from handing
+      // the row back (see `deletedHabitIds`) — the sheet pops the moment this state lands, and the
+      // focus-refresh that follows routinely beats the round-trip below.
       mutationGen.current += 1;
+      deletedHabitIds.current.add(habitId);
+      if (emptyStackId) deletedStackIds.current.add(emptyStackId);
       setHabits((prev) => prev.filter((h) => h.id !== habitId));
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
       setCompleted((prev) => {
@@ -1221,12 +1318,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         if (emptyStackId) {
           const { error: stackError } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
           if (stackError) {
+            deletedStackIds.current.delete(emptyStackId); // it survived — let a refresh show it again
             setStacks(prevStacks);
             setError('Deleted the habit, but could not remove its empty stack. Pull down to refresh.');
           }
         }
       } catch {
         // Restore on failure, keeping position order.
+        deletedHabitIds.current.delete(habitId);
+        if (emptyStackId) deletedStackIds.current.delete(emptyStackId);
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
         setStacks(prevStacks);
         if (wasDone) {
@@ -1248,8 +1348,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, completedRef, habitsRef, skippedRef, stacksRef],
   );
+  const deleteHabit = useGuardedMutation(beginMutation, endMutation, runDeleteHabit);
 
-  const reorderHabits = useCallback(
+  const runReorderHabits = useCallback(
     async (orderedIds: string[]) => {
       if (!userId) return;
       const prev = habitsRef.current;
@@ -1262,53 +1363,70 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         .filter((h): h is Habit => h !== null);
       if (reordered.length !== prev.length) return; // unknown id — bail rather than corrupt order
 
-      // Optimistic reorder.
+      // Optimistic reorder. The ref is synced immediately (mirrors `createStack`/`deleteStack`):
+      // `useLatestRef` only mirrors in an effect, so anything chained in the SAME tick — the
+      // "Anchored N habits" Undo runs a moveHabit per habit and then lands here — would otherwise
+      // recompute from the state as it was before any of them, and quietly drop all but the last.
       mutationGen.current += 1;
       setHabits(reordered);
+      habitsRef.current = reordered;
 
       const persistable = reordered.filter((h) => {
         if (h.id.startsWith('temp-')) return false;
         return byId.get(h.id)?.position !== h.position;
       });
-      try {
-        const results = await Promise.all(
-          persistable.map((h) => supabase.from('habits').update({ position: h.position }).eq('id', h.id)),
-        );
-        const failed = results.find((r) => r.error);
-        if (failed?.error) throw failed.error;
-      } catch {
+      // One atomic write (see `writeHabitOrder`). A reorder only ever changes positions, but the
+      // batch carries each row's unchanged `stack_id` too — the statement sets both columns, so
+      // omitting it would blank every membership the reorder touched.
+      if (!(await writeHabitOrder(persistable))) {
         setHabits(prev);
+        habitsRef.current = prev;
         setError('Could not save the new order. Check your connection.');
       }
     },
     [userId, habitsRef],
   );
+  const reorderHabits = useGuardedMutation(beginMutation, endMutation, runReorderHabits);
 
   // Persist new positions + stack_id for the given habits (optimistic state already set).
-  // Mirrors `reorderHabits`' per-row update; also carries the membership change.
-  const persistGrouping = useCallback(async (rows: Habit[], prevHabits: Habit[]): Promise<boolean> => {
-    const prevById = new Map(prevHabits.map((h) => [h.id, h]));
-    const persistable = rows.filter((h) => {
-      if (h.id.startsWith('temp-')) return false;
-      const prev = prevById.get(h.id);
-      return prev?.position !== h.position || (prev?.stack_id ?? null) !== (h.stack_id ?? null);
-    });
-    try {
-      const results = await Promise.all(
-        persistable.map((h) =>
-          supabase.from('habits').update({ position: h.position, stack_id: h.stack_id }).eq('id', h.id),
-        ),
-      );
-      const failed = results.find((r) => r.error);
-      if (failed?.error) throw failed.error;
-      return true;
-    } catch {
-      setHabits(prevHabits);
-      return false;
-    }
-  }, []);
+  // Mirrors `reorderHabits`' atomic write; also carries the membership change.
+  const persistGrouping = useCallback(
+    async (rows: Habit[], prevHabits: Habit[]): Promise<boolean> => {
+      const prevById = new Map(prevHabits.map((h) => [h.id, h]));
+      const persistable = rows.filter((h) => {
+        if (h.id.startsWith('temp-')) return false;
+        const prev = prevById.get(h.id);
+        return prev?.position !== h.position || (prev?.stack_id ?? null) !== (h.stack_id ?? null);
+      });
+      try {
+        if (!(await writeHabitOrder(persistable))) throw new Error('apply_habit_order failed');
+        return true;
+      } catch {
+        // Put back only the rows this grouping actually touched, over whatever state is current —
+        // NOT a wholesale `prevHabits` restore, which would also wipe out anything unrelated that
+        // landed while these updates were in flight (a tick, a rename, the second half of an Undo
+        // that moves a habit straight back). This is the same reasoning `moveHabit`'s
+        // `restoreShell` already applies on the stacks side; the habits side was still restoring
+        // a whole-list snapshot taken before the move began.
+        const before = new Map(persistable.map((h) => [h.id, prevById.get(h.id)]));
+        const restored = habitsRef.current
+          .map((h) => {
+            const was = before.get(h.id);
+            return was ? { ...h, position: was.position, stack_id: was.stack_id } : h;
+          })
+          // Array order and `position` are the same order everywhere else (the fetch sorts by it,
+          // every optimistic write renumbers by index), so the restore has to re-sort to keep them
+          // from disagreeing.
+          .sort((a, b) => a.position - b.position);
+        setHabits(restored);
+        habitsRef.current = restored;
+        return false;
+      }
+    },
+    [habitsRef],
+  );
 
-  const createStack = useCallback(
+  const runCreateStack = useCallback(
     async (
       name: string,
       orderedMemberIds: string[],
@@ -1395,8 +1513,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, ensureUserRow, persistGrouping, habitsRef],
   );
+  const createStack = useGuardedMutation(beginMutation, endMutation, runCreateStack);
 
-  const deleteStack = useCallback(
+  const runDeleteStack = useCallback(
     async (stackId: string, opts?: { withActs?: boolean }) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
@@ -1437,7 +1556,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         else realIds.push(h.id);
       }
 
+      // Tombstoned for the same reason as a habit delete: the sheet pops on the optimistic write,
+      // and the refresh that follows can read the table before these rows are out of it.
+      deletedStackIds.current.add(stackId);
+      for (const id of realIds) deletedHabitIds.current.add(id);
+
       const restore = () => {
+        deletedStackIds.current.delete(stackId);
+        for (const id of realIds) deletedHabitIds.current.delete(id);
         setHabits(prevHabits);
         habitsRef.current = prevHabits;
         setStacks(prevStacks);
@@ -1457,8 +1583,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         if (delErr) {
           // The acts are already gone; putting them back on screen would be a lie. Keep the
           // optimistic state and name what actually survived — an empty shell, which a refresh
-          // will show again as a card that can be deleted on its own.
+          // will show again as a card that can be deleted on its own. Lifting its tombstone is
+          // what lets that refresh show it: the stack row is still in the table.
           if (realIds.length > 0) {
+            deletedStackIds.current.delete(stackId);
             setError('Deleted the acts, but could not remove the stack. Pull down to refresh.');
             return;
           }
@@ -1472,8 +1600,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, completedRef, habitsRef, skippedRef, stacksRef],
   );
+  const deleteStack = useGuardedMutation(beginMutation, endMutation, runDeleteStack);
 
-  const updateStack = useCallback(
+  const runUpdateStack = useCallback(
     async (stackId: string, patch: { name?: string; orderedMemberIds?: string[]; moment?: MomentKey | null }) => {
       if (!userId) return;
       const prevHabits = habitsRef.current;
@@ -1550,13 +1679,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, deleteStack, persistGrouping, habitsRef, stacksRef],
   );
+  const updateStack = useGuardedMutation(beginMutation, endMutation, runUpdateStack);
 
   // Move a single habit into a stack, out to the top level, or to a new slot within its
   // stack — membership + full re-position in ONE optimistic update and one persisted batch
   // (`orderAfterHabitMove` rebuilds the whole order with stack members kept contiguous). If the
   // move empties the habit's former stack, that now-memberless shell is deleted (unless the
   // caller asks to keep it — see `keepEmptyShell` on the context type).
-  const moveHabit = useCallback(
+  const runMoveHabit = useCallback(
     async (
       habitId: string,
       target: { toStackId: string | null; placement?: MovePlacement; keepEmptyShell?: boolean },
@@ -1612,12 +1742,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           : null;
 
       mutationGen.current += 1;
+      if (emptyStackId) deletedStackIds.current.add(emptyStackId);
       setHabits(next);
+      // Synced immediately, for the reason spelled out in `reorderHabits`: a second move issued in
+      // the same tick (the "Anchored N habits" Undo un-anchors each habit in a loop) must see this
+      // one's positions, not the state from before the loop began.
+      habitsRef.current = next;
       if (emptyStackId) setStacks((prev) => prev.filter((s) => s.id !== emptyStackId));
 
       // On failure, restore only the shell this move removed — a wholesale prevStacks
-      // restore would clobber unrelated concurrent stack ops.
+      // restore would clobber unrelated concurrent stack ops. The shell is still in the table in
+      // both failure paths below, so its tombstone lifts with it.
       const restoreShell = () => {
+        if (emptyStackId) deletedStackIds.current.delete(emptyStackId);
         const shell = prevStacks.find((s) => s.id === emptyStackId);
         if (shell) setStacks((cur) => (cur.some((s) => s.id === shell.id) ? cur : [...cur, shell]));
       };
@@ -1635,6 +1772,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, persistGrouping, habitsRef, stacksRef],
   );
+  const moveHabit = useGuardedMutation(beginMutation, endMutation, runMoveHabit);
 
   // Create-into-a-stack is the two proven mutations chained (not a stack_id on the insert):
   // `createHabits` syncs `habitsRef` on resolve, so the follow-up move sees the fresh row, and
