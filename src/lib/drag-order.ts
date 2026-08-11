@@ -55,48 +55,53 @@ function intoInset(height: number): number {
 }
 
 /**
- * Midpoints of the entries (by `key`) that remain once `draggedKey` is lifted out, in compact
- * space — the static thresholds for {@link insertionIndexFor}. Entries after the dragged one sit
- * one `slotSize` higher (its slot has closed). When `draggedKey` isn't in `keys` (a member drag
- * over the top-level list, or null), nothing is removed and the midpoints are the measured ones.
- * Keyed rather than `OrderMeta`-based so the same math serves both the top-level entry list and a
- * stack card's inner member list (a member reordering within its own card).
+ * Midpoints of the entries (by `key`) that remain once `draggedKey` is lifted out, at their
+ * RESTING positions — the static thresholds for {@link insertionIndexFor}.
+ *
+ * These deliberately do NOT compact (they used to shift every entry below the dragged one up by a
+ * slot, to where it sits while the gap is open). Compacting made the resting state ask the wrong
+ * question: "is the lifted entry's centre below its neighbour's centre, once that neighbour has
+ * slid up into the vacated slot?" With entries of unequal height — a tall stack card above a short
+ * one — that is already true at zero travel, so the row below jumped up behind the card the instant
+ * it was picked up, before any movement. Not a threshold flicker: a systematic bias, one whole slot
+ * wide, that grew with the height difference.
+ *
+ * Resting midpoints have no such tie: a lifted entry's own centre always lies strictly between its
+ * neighbours' resting centres (the one above ends before it starts, the one below starts after it
+ * ends), whatever the heights. So zero travel always resolves to the entry's own index, and the gap
+ * moves only when the ghost genuinely crosses a neighbour's middle.
+ *
+ * When `draggedKey` isn't in `keys` (a member drag over the top-level list, or null), nothing is
+ * removed. Keyed rather than `OrderMeta`-based so the same math serves both the top-level entry
+ * list and a stack card's inner member list (a member reordering within its own card).
  */
-export function compactMidpointsForKeys(
+export function restMidpointsForKeys(
   keys: string[],
   frames: Record<string, Frame>,
   draggedKey: string | null,
-  slotSize: number,
 ): number[] {
   'worklet';
   const midpoints: number[] = [];
-  let passedDragged = false;
   for (const key of keys) {
-    if (key === draggedKey) {
-      passedDragged = true;
-      continue;
-    }
+    if (key === draggedKey) continue;
     const f = frames[key];
     if (!f) continue; // not yet measured — skip rather than mis-place
-    const top = passedDragged ? f.y - slotSize : f.y;
-    midpoints.push(top + f.h / 2);
+    midpoints.push(f.y + f.h / 2);
   }
   return midpoints;
 }
 
-/** {@link compactMidpointsForKeys} over the top-level entry order. */
-export function compactMidpoints(
+/** {@link restMidpointsForKeys} over the top-level entry order. */
+export function restMidpoints(
   order: OrderMeta[],
   frames: Record<string, Frame>,
   draggedKey: string | null,
-  slotSize: number,
 ): number[] {
   'worklet';
-  return compactMidpointsForKeys(
+  return restMidpointsForKeys(
     order.map((e) => e.key),
     frames,
     draggedKey,
-    slotSize,
   );
 }
 
@@ -110,6 +115,40 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
   return midpoints.length;
 }
 
+/** How far past a boundary the ghost's centre must travel before the open gap moves. Small
+ *  enough to stay responsive, wide enough to swallow a fingertip's tremor. */
+export const SLOT_HYSTERESIS = 14;
+
+/**
+ * {@link insertionIndexFor} with a dead band, so the gap can't chatter.
+ *
+ * A drag BEGINS balanced exactly on a boundary: the ghost's centre is the dragged entry's own
+ * centre, and the entry directly below — compacted up by one slot — has its midpoint at that very
+ * point. A bare `<` is a coin flip there, which is why the row below jumped up behind the lifted
+ * one the instant it was picked up, with nothing moved yet. The same knife-edge sits under every
+ * boundary mid-drag: a pixel of tremor flips the index, and each flip retargets a 280ms spring and
+ * fires a hover haptic — the visible jerk, and the stutter of taps under it.
+ *
+ * `current` therefore holds until the centre clears a boundary by `deadband`. Probing with the band
+ * applied to each side — rather than testing only the boundary just crossed — keeps a fast flick
+ * honest: it lands on the furthest index genuinely cleared instead of snapping back to `current`.
+ * `current < 0` (nothing chosen yet) or a non-positive band falls through to the bare comparison.
+ */
+export function insertionIndexWithHysteresis(
+  centerY: number,
+  midpoints: number[],
+  current: number,
+  deadband: number,
+): number {
+  'worklet';
+  if (current < 0 || deadband <= 0) return insertionIndexFor(centerY, midpoints);
+  const down = insertionIndexFor(centerY - deadband, midpoints);
+  if (down > current) return down;
+  const up = insertionIndexFor(centerY + deadband, midpoints);
+  if (up < current) return up;
+  return current;
+}
+
 /**
  * Resolve where the ghost (centred at `centerY`, original/grid coordinates) would drop.
  * "Into" zones are checked first, against original frames: while a card is hovered the gaps
@@ -117,8 +156,7 @@ export function insertionIndexFor(centerY: number, midpoints: number[]): number 
  * card agree exactly in the state where the ring shows. A stack card itself can only be
  * reordered (never nested). A member over its OWN card's body reorders *within* that card:
  * `memberOrder[ownStackId]` (its members' keys in sequence) + `memberFrames` (their grid frames)
- * resolve a compact insertion index among the siblings, compacted by `memberSlot` (the dragged
- * member's own height).
+ * resolve an insertion index among the siblings.
  *
  * An act over ANOTHER card's body joins that stack. Its top/bottom bands fall through to
  * "between", which for an act means nothing to commit — an act has nowhere to go outside a stack,
@@ -131,13 +169,16 @@ export function resolveDropSlot(
   draggedKey: string,
   draggedKind: DragKind,
   ownStackId: string | null,
-  slotSize: number,
   memberOrder: Record<string, string[]>,
   memberFrames: Record<string, Frame>,
-  memberSlot: number,
+  /** The gap's current position, held unless the ghost clears a boundary by `deadband` — see
+   *  {@link insertionIndexWithHysteresis}. `-1` means "nothing chosen yet, resolve bare". */
+  currentBetween = -1,
+  currentReorder = -1,
+  deadband = 0,
 ): DropSlot {
   'worklet';
-  const midpoints = compactMidpoints(order, frames, draggedKey, slotSize);
+  const midpoints = restMidpoints(order, frames, draggedKey);
   if (draggedKind !== 'stack') {
     for (const entry of order) {
       if (entry.key === draggedKey) continue;
@@ -149,13 +190,17 @@ export function resolveDropSlot(
       if (top >= bottom || centerY < top || centerY > bottom) continue;
       if (!entry.stackId) continue;
       if (entry.stackId === ownStackId) {
-        const mids = compactMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey, memberSlot);
-        return { kind: 'reorder', stackId: ownStackId, index: insertionIndexFor(centerY, mids) };
+        const mids = restMidpointsForKeys(memberOrder[ownStackId] ?? [], memberFrames, draggedKey);
+        return {
+          kind: 'reorder',
+          stackId: ownStackId,
+          index: insertionIndexWithHysteresis(centerY, mids, currentReorder, deadband),
+        };
       }
       return { kind: 'into', stackId: entry.stackId };
     }
   }
-  return { kind: 'between', index: insertionIndexFor(centerY, midpoints) };
+  return { kind: 'between', index: insertionIndexWithHysteresis(centerY, midpoints, currentBetween, deadband) };
 }
 
 /**

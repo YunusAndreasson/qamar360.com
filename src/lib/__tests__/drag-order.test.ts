@@ -2,14 +2,15 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   buildUnits,
-  compactMidpoints,
-  compactMidpointsForKeys,
   displacementFor,
   edgeScrollVelocity,
   flattenUnits,
   fullMemberIndexForVisibleDrop,
   insertionIndexFor,
+  insertionIndexWithHysteresis,
   keyAtCompactIndex,
+  restMidpoints,
+  restMidpointsForKeys,
   moveUnit,
   orderAfterHabitMove,
   placementToRestore,
@@ -17,6 +18,7 @@ import {
   resolveDropSlot,
   slotTopForIndex,
   slotTopForKeys,
+  SLOT_HYSTERESIS,
   type Frame,
   type HabitLite,
   type OrderMeta,
@@ -70,33 +72,86 @@ describe('insertionIndexFor', () => {
   });
 });
 
-describe('compactMidpoints', () => {
+describe('restMidpoints', () => {
   const { order, frames } = fixture();
 
   // Fixture tops: a=0, S=64, b=252, T=316, c=504 (each previous top + height + gap).
   it('with no dragged entry (member drag) midpoints are the measured ones', () => {
-    const mids = compactMidpoints(order, frames, 'member:x', ROW + GAP);
-    expect(mids).toEqual([28, 64 + 90, 252 + 28, 316 + 90, 504 + 28]);
+    expect(restMidpoints(order, frames, 'member:x')).toEqual([28, 64 + 90, 252 + 28, 316 + 90, 504 + 28]);
   });
 
-  it('lifts the dragged entry out and shifts later entries up one slot', () => {
-    const slot = ROW + GAP;
-    const mids = compactMidpoints(order, frames, 'stack:A', slot);
-    // stack:S moves from y=64 to y=0, and so on down the list.
-    expect(mids).toEqual([64 - slot + 90, 252 - slot + 28, 316 - slot + 90, 504 - slot + 28]);
-    expect(mids).toHaveLength(order.length - 1);
+  it('lifts the dragged entry out and leaves the rest at their resting centres', () => {
+    // Deliberately NOT compacted up a slot — see restMidpointsForKeys' note. Compacting is what
+    // made a pickup resolve against the neighbour's half-height instead of the dragged entry's own.
+    expect(restMidpoints(order, frames, 'stack:A')).toEqual([64 + 90, 252 + 28, 316 + 90, 504 + 28]);
+    expect(restMidpoints(order, frames, 'stack:A')).toHaveLength(order.length - 1);
   });
 
   it('skips entries without a measured frame', () => {
     const partial = { ...frames };
     delete partial['stack:B'];
-    expect(compactMidpoints(order, partial, null, 0)).toHaveLength(order.length - 1);
+    expect(restMidpoints(order, partial, null)).toHaveLength(order.length - 1);
+  });
+});
+
+describe('the gap at pickup', () => {
+  // The regression that made a drag look broken before it began: lift a card and the one below it
+  // slid up a full slot, behind it, with nothing moved. Resting midpoints make zero travel resolve
+  // to the entry's own index for EVERY entry, whatever the heights — the lifted entry's centre
+  // always lies strictly between its neighbours' resting centres.
+  const { order, frames } = fixture();
+
+  it.each(order.map((entry, index) => [entry.key, index] as const))(
+    'lifting %s (index %i) opens no gap until the finger moves',
+    (key, index) => {
+      const own = frames[key]!;
+      const centerY = own.y + own.h / 2; // zero travel
+      const slot = resolveDropSlot(centerY, order, frames, key, 'stack', null, {}, {}, index, -1, SLOT_HYSTERESIS);
+      expect(slot).toEqual({ kind: 'between', index });
+      // ...and therefore every other entry sits still.
+      for (let i = 0; i < order.length; i++) {
+        expect(displacementFor(i, index, index, own.h + GAP)).toBe(0);
+      }
+    },
+  );
+
+  it('the tall-above-short case that was reported: index 1, not 2', () => {
+    // stack:S (h=180) sits above stack:B (h=56). Compacted, B's midpoint rose to 92 — above S's own
+    // centre at 154 — so the bare comparison said "already past it" and B jumped up behind S.
+    const centerY = frames['stack:S']!.y + frames['stack:S']!.h / 2;
+    expect(centerY).toBe(154);
+    expect(insertionIndexFor(centerY, restMidpoints(order, frames, 'stack:S'))).toBe(1);
+  });
+});
+
+describe('insertionIndexWithHysteresis', () => {
+  const midpoints = [100, 200, 300];
+  const BAND = 10;
+
+  it('holds the current index while inside the dead band', () => {
+    // Just past the 200 boundary either way — not enough to move the gap.
+    expect(insertionIndexWithHysteresis(205, midpoints, 1, BAND)).toBe(1);
+    expect(insertionIndexWithHysteresis(195, midpoints, 2, BAND)).toBe(2);
+  });
+
+  it('moves once the boundary is cleared by the band', () => {
+    expect(insertionIndexWithHysteresis(211, midpoints, 1, BAND)).toBe(2);
+    expect(insertionIndexWithHysteresis(189, midpoints, 2, BAND)).toBe(1);
+  });
+
+  it('a fast flick lands on the furthest index cleared, never snapping back', () => {
+    expect(insertionIndexWithHysteresis(350, midpoints, 0, BAND)).toBe(3);
+    expect(insertionIndexWithHysteresis(50, midpoints, 3, BAND)).toBe(0);
+  });
+
+  it('falls through to the bare comparison with no current index or no band', () => {
+    expect(insertionIndexWithHysteresis(205, midpoints, -1, BAND)).toBe(insertionIndexFor(205, midpoints));
+    expect(insertionIndexWithHysteresis(205, midpoints, 1, 0)).toBe(insertionIndexFor(205, midpoints));
   });
 });
 
 describe('resolveDropSlot', () => {
   const { order, frames } = fixture();
-  const slot = ROW + GAP;
   // stack:S spans y=64..244; its into-inset is clamp(0.2*180)=32 → body 96..212.
   const cardBodyY = 150;
   const cardTopBandY = 70;
@@ -106,22 +161,29 @@ describe('resolveDropSlot', () => {
   const NO_MEMBERS: Record<string, string[]> = {};
 
   it('a stack card never drops into another stack', () => {
-    const result = resolveDropSlot(cardBodyY, order, frames, 'stack:T', 'stack', 'T', CARD + GAP, NO_MEMBERS, {}, 0);
+    const result = resolveDropSlot(cardBodyY, order, frames, 'stack:T', 'stack', 'T', NO_MEMBERS, {});
     expect(result.kind).toBe('between');
   });
 
-  it("a member over its own card's body reorders within it (compact member index)", () => {
-    // Drag m1 to y=150 (m2's row). Compact midpoints of {m2} = [150 - 56 + 25] = [119]; 150 ≥ 119 → 1.
-    expect(resolveDropSlot(cardBodyY, order, frames, 'member:m1', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW)).toEqual({
+  it("a member over its own card's body reorders within it", () => {
+    // Drag m1 past m2's resting centre (150 + 25 = 175) — the finger must clear the middle of the
+    // row it is passing, not merely reach its top edge.
+    expect(resolveDropSlot(180, order, frames, 'member:m1', 'member', 'S', sMemberOrder, sMemberFrames)).toEqual({
       kind: 'reorder',
       stackId: 'S',
       index: 1,
+    });
+    // Short of that centre it stays put.
+    expect(resolveDropSlot(cardBodyY, order, frames, 'member:m1', 'member', 'S', sMemberOrder, sMemberFrames)).toEqual({
+      kind: 'reorder',
+      stackId: 'S',
+      index: 0,
     });
   });
 
   it("a member over another card's body joins that stack", () => {
     // stack:T spans y=316..496; body 348..464.
-    expect(resolveDropSlot(400, order, frames, 'member:m', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW)).toEqual({
+    expect(resolveDropSlot(400, order, frames, 'member:m', 'member', 'S', sMemberOrder, sMemberFrames)).toEqual({
       kind: 'into',
       stackId: 'T',
     });
@@ -130,22 +192,21 @@ describe('resolveDropSlot', () => {
   it("an act over its own card's top band resolves to between — which commits nothing", () => {
     // An act has nowhere to go outside a stack, so the gesture layer floats it home rather than
     // detaching. resolveDropSlot still reports the geometry; the meaning is applied above it.
-    const result = resolveDropSlot(cardTopBandY, order, frames, 'member:m1', 'member', 'S', slot, sMemberOrder, sMemberFrames, ROW);
+    const result = resolveDropSlot(cardTopBandY, order, frames, 'member:m1', 'member', 'S', sMemberOrder, sMemberFrames);
     expect(result.kind).toBe('between');
   });
 
   it('a very short card has no into zone (inset floor leaves no body)', () => {
     const tinyOrder: OrderMeta[] = [{ key: 'stack:S', kind: 'stack', stackId: 'S' }];
     const tinyFrames = { 'stack:S': { y: 0, h: 20 } }; // inset 12 each side → body empty
-    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'member:m1', 'member', 'X', slot, NO_MEMBERS, {}, 0);
+    const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'member:m1', 'member', 'X', NO_MEMBERS, {});
     expect(result.kind).toBe('between');
   });
 
-  it("a between index matches the plain compact insertion index", () => {
+  it('a between index matches the plain resting insertion index', () => {
     const bandY = 258; // stack:B's top band
-    const result = resolveDropSlot(bandY, order, frames, 'stack:A', 'stack', 'A', SHORT_CARD + GAP, NO_MEMBERS, {}, 0);
-    const mids = compactMidpoints(order, frames, 'stack:A', SHORT_CARD + GAP);
-    expect(result).toEqual({ kind: 'between', index: insertionIndexFor(bandY, mids) });
+    const result = resolveDropSlot(bandY, order, frames, 'stack:A', 'stack', 'A', NO_MEMBERS, {});
+    expect(result).toEqual({ kind: 'between', index: insertionIndexFor(bandY, restMidpoints(order, frames, 'stack:A')) });
   });
 });
 
@@ -161,28 +222,31 @@ describe('in-card member reorder', () => {
   };
   const SLOT = 50;
   const at = (centerY: number, dragged: string) =>
-    resolveDropSlot(centerY, order, frames, dragged, 'member', 'S', 0, memberOrder, memberFrames, SLOT);
+    resolveDropSlot(centerY, order, frames, dragged, 'member', 'S', memberOrder, memberFrames);
 
-  it('resolves a compact member index from the finger position', () => {
-    // Drag m2 (middle). Compact midpoints of {m1, m3} = [65, 115].
+  it('resolves a member index from the finger position', () => {
+    // Drag m2 (middle). Resting midpoints of {m1, m3} = [65, 165].
     expect(at(50, 'member:m2')).toEqual({ kind: 'reorder', stackId: 'S', index: 0 }); // to the top
     expect(at(100, 'member:m2')).toEqual({ kind: 'reorder', stackId: 'S', index: 1 }); // stays put
-    expect(at(160, 'member:m2')).toEqual({ kind: 'reorder', stackId: 'S', index: 2 }); // to the end
+    // Reaching the END means clearing the last row's resting centre (165) — and the card's into-body
+    // stops at 168, so only 3px of travel express "after m3". Reachable, but barely: worth widening
+    // the own-card zone to the full frame (there is no "join your own stack" meaning to protect).
+    expect(at(166, 'member:m2')).toEqual({ kind: 'reorder', stackId: 'S', index: 2 });
   });
 
   it('reads real member heights (a tall 2-line member shifts the thresholds)', () => {
-    // m1 is a tall 2-line row (h=90) → its midpoint sits lower. Dragging m3, compact {m1, m2}:
+    // m1 is a tall 2-line row (h=90) → its midpoint sits lower. Dragging m3, resting {m1, m2}:
     // m1 mid = 20 + 45 = 65; m2 mid = 90 + 25 = 115.
     const tall = { ...memberFrames, 'member:m1': { y: 20, h: 90 } };
     const atTall = (cy: number) =>
-      resolveDropSlot(cy, order, frames, 'member:m3', 'member', 'S', 0, memberOrder, tall, SLOT);
+      resolveDropSlot(cy, order, frames, 'member:m3', 'member', 'S', memberOrder, tall);
     expect(atTall(60)).toEqual({ kind: 'reorder', stackId: 'S', index: 0 });
     expect(atTall(100)).toEqual({ kind: 'reorder', stackId: 'S', index: 1 });
   });
 
-  it('compactMidpointsForKeys lifts the dragged member out and compacts the rest', () => {
-    // Drag m1 out: m2, m3 shift up one SLOT. Tops 90→40, 140→90; mids 65, 115.
-    expect(compactMidpointsForKeys(memberOrder.S, memberFrames, 'member:m1', SLOT)).toEqual([65, 115]);
+  it('restMidpointsForKeys lifts the dragged member out and leaves the rest resting', () => {
+    // Drag m1 out: m2 and m3 keep their measured centres, 115 and 165.
+    expect(restMidpointsForKeys(memberOrder.S, memberFrames, 'member:m1')).toEqual([115, 165]);
   });
 
   it('slotTopForKeys gives the ghost settle target for a member gap', () => {

@@ -28,6 +28,7 @@ import {
   resolveDropSlot,
   slotTopForIndex,
   slotTopForKeys,
+  SLOT_HYSTERESIS,
   type DragKind,
   type DropSlot,
   type EntryKind,
@@ -308,6 +309,12 @@ export function HabitDragProvider({
     }
     const top = grabY.get() + lastTranslationY.get() + (scrollOffset.get() - scrollAtGrab.get());
     ghostY.set(top);
+    // The gap holds where it is unless the ghost's centre clears a boundary by SLOT_HYSTERESIS.
+    // Both "current" readings fall back to the slot the drag STARTED in rather than -1, because the
+    // opening frame sits exactly on a boundary (the lifted entry's centre is the compacted midpoint
+    // of the one below it) — with no bias to hold, that first coin flip is what shoved the row below
+    // up behind the card the moment it was picked up.
+    const curReorder = memberInsertIndex.get() >= 0 ? memberInsertIndex.get() : memberDragIndex.get();
     const slot = resolveDropSlot(
       top + ghostH.get() / 2,
       order.get(),
@@ -315,10 +322,11 @@ export function HabitDragProvider({
       draggingKey.get()!,
       dragKind.get(),
       ownStackId.get(),
-      slotSize.get(),
       memberOrder.get(),
       memberFrames.get(),
-      ghostH.get(), // the dragged member's own height — the slot the siblings compact by
+      insertIndex.get(),
+      curReorder,
+      SLOT_HYSTERESIS,
     );
     applySlot(slot);
   }, false);
@@ -621,11 +629,19 @@ export function DraggableEntry({
 
   return (
     <GestureDetector gesture={pan}>
-      {/* `styles.liftShadow` sets a static shadow colour; the animated style above blooms its
-          opacity/radius on the pre-lift hold (zero at rest, so no shadow shows until then). */}
-      <Animated.View ref={ref} onLayout={onLayout} style={[styles.liftShadow, style]}>
-        {children}
-        {stackId !== null ? <DropRing stackId={stackId} /> : null}
+      {/* Split for the same reason the member row is (see its note): the MEASURED node carries no
+          transform, so `measure(ref)` reads this entry's RESTING grid position. The displacement
+          rides the inner view. When both lived on one node, a commit landing mid-drag — and one
+          always does, since announcing the drag sets React state — re-fired `onLayout` while the
+          entry sat displaced, and `measure()` wrote that shifted position into `frames`. The
+          midpoints drifted by a slot under the finger, so `insertIndex` flipped back and forth and
+          the neighbours jerked. `styles.liftShadow` sets a static shadow colour; the animated style
+          blooms its opacity/radius on the pre-lift hold (zero at rest, so nothing shows until). */}
+      <Animated.View ref={ref} onLayout={onLayout}>
+        <Animated.View style={[styles.liftShadow, style]}>
+          {children}
+          {stackId !== null ? <DropRing stackId={stackId} /> : null}
+        </Animated.View>
       </Animated.View>
     </GestureDetector>
   );
