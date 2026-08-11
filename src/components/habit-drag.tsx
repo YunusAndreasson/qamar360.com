@@ -351,27 +351,41 @@ export function HabitDragProvider({
   // settle spring's (or the melt's) completion, so the touch-down is felt on the very frame
   // the ghost visually lands. The pickup buzzed the lift; this answers it. A cancelled drag
   // never reaches these handlers, so "never mind" stays silent.
+  // Tear the drag down ONE FRAME after the mutation, never in the same breath as it.
+  //
+  // The claim above — that the mutation and the reset "land in the same React batch" — was only
+  // half true: `onDrop*` sets React state, but a shared-value write is not part of any React batch.
+  // It reaches the UI thread on the very next frame, while the new order has to travel a render and
+  // a Fabric mount to get there. Clearing `draggingKey` inline therefore zeroed the displaced rows'
+  // translateY while they were still laid out in the OLD order: each one dropped a full slot for a
+  // frame or two and sprang back as the new layout arrived. That round trip is the flick seen on
+  // the row a card was dropped past — the position is right at both ends, so it reads as the text
+  // stuttering rather than the row moving.
+  //
+  // A frame's delay lets the commit land first, so every frame shows a self-consistent pair (old
+  // layout + displacement, then new layout + none). rAF always fires, so a drop that changes no
+  // order at all — a stale anchor `onDropBetween` declines to act on — still ends its drag.
+  const clearAfterCommit = () => {
+    requestAnimationFrame(() => {
+      draggingKey.set(null);
+      hoveredStackId.set(null);
+      reorderStackId.set(null);
+      memberInsertIndex.set(-1);
+      frame.setActive(false);
+      onDragActive(null);
+    });
+  };
   const finishBetween = (draggedKey: string, beforeKey: string) => {
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropBetween(draggedKey, beforeKey);
-    draggingKey.set(null);
-    hoveredStackId.set(null);
-    reorderStackId.set(null);
-    memberInsertIndex.set(-1);
-    frame.setActive(false);
-    onDragActive(null);
+    clearAfterCommit();
   };
   const finishInto = (draggedKey: string, stackId: string) => {
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropInto(draggedKey, stackId);
-    draggingKey.set(null);
-    hoveredStackId.set(null);
-    reorderStackId.set(null);
-    memberInsertIndex.set(-1);
-    frame.setActive(false);
-    onDragActive(null);
+    clearAfterCommit();
   };
   // A member reorder settled inside its own card: commit the new member index (same protocol as
   // finishInto — this runs from the settle spring's finished=true completion, so the drop is felt
@@ -380,12 +394,7 @@ export function HabitDragProvider({
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropReorder(draggedKey, stackId, index);
-    draggingKey.set(null);
-    hoveredStackId.set(null);
-    reorderStackId.set(null);
-    memberInsertIndex.set(-1);
-    frame.setActive(false);
-    onDragActive(null);
+    clearAfterCommit();
   };
   // Mirror the rendered entry order (top-level and per-card members) into the worklet-readable
   // registries; if either changes while a drag is live, the ground truth moved under the finger —
