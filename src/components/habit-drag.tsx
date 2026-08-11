@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useState, type ReactNode } from 'react';
+import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -342,6 +342,10 @@ export function HabitDragProvider({
     onDragActive(key);
   };
 
+  /** True between asking for a drop's mutation and seeing the order change it produces — the one
+   *  order change this provider must NOT read as "the ground moved under a live drag". */
+  const awaitingCommit = useRef(false);
+
   // Commit handlers run the whole protocol in ONE JS task: the data mutation (optimistic
   // setState) and the shared-value reset land in the same React batch, so the re-rendered
   // order and the cleared translateY/opacity hit the screen on the same frame — no flash.
@@ -366,7 +370,14 @@ export function HabitDragProvider({
   // layout + displacement, then new layout + none). rAF always fires, so a drop that changes no
   // order at all — a stale anchor `onDropBetween` declines to act on — still ends its drag.
   const clearAfterCommit = () => {
+    // Claim the order change this mutation is about to produce, so the signature effect below can
+    // tell "the order moved because I just committed" from "the ground moved under a live drag".
+    // Without it that effect tears the drag down as a passive effect — same tick as the render, and
+    // so still ahead of the mount reaching the UI thread. That was the sliver of flicker left after
+    // deferring this teardown: two resets, and the earlier one still won.
+    awaitingCommit.current = true;
     requestAnimationFrame(() => {
+      awaitingCommit.current = false; // a drop that changed no order must not swallow the next one
       draggingKey.set(null);
       hoveredStackId.set(null);
       reorderStackId.set(null);
@@ -407,7 +418,12 @@ export function HabitDragProvider({
   useEffect(() => {
     order.set(orderProp);
     memberOrder.set(memberOrderProp);
-    if (draggingKey.get() !== null) {
+    if (awaitingCommit.current) {
+      // Our own drop landing. `clearAfterCommit`'s frame owns the reset — it is timed to follow the
+      // mount, where this effect would precede it and snap the displaced rows back against a layout
+      // that has not changed yet.
+      awaitingCommit.current = false;
+    } else if (draggingKey.get() !== null) {
       committed.set(true); // a trailing onFinalize must not run its cancel spring
       draggingKey.set(null);
       hoveredStackId.set(null);
