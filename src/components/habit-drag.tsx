@@ -463,6 +463,23 @@ export function DragGrid({ style, children }: { style?: StyleProp<ViewStyle>; ch
 }
 
 /**
+ * The parting transform, shared by both lists: entries spring aside to open the gap while a drag
+ * is live, and snap back the instant it ends.
+ *
+ * That reset must be INSTANT. A spring back to 0 animates a stale offset across a layout the commit
+ * has already corrected — the row below a dropped item slides a full slot and settles back, with
+ * the overshoot on top. The top-level entry always had this guard and the member row didn't, which
+ * is precisely why landing glitched inside a stack and never between cards.
+ *
+ * `active` is what "a drag is live for this list" means: any live drag at top level, this card
+ * being the one under reorder for a member row.
+ */
+function partingTransform(active: boolean, shift: number, reduceMotion: boolean) {
+  'worklet';
+  return [{ translateY: active ? (reduceMotion ? shift : withSpring(shift, Spring.settle)) : 0 }];
+}
+
+/**
  * Wraps a top-level entry (a standalone habit row or a whole stack card): a deliberate hold
  * lifts it, entries around it spring aside to show where it would land, and a stack card
  * glows when a habit would join it. Also draws that glow (the accent ring) on stack entries.
@@ -639,10 +656,7 @@ export function DraggableEntry({
     return {
       // The original hides only once the ghost is actually on screen — no handoff flicker.
       opacity: dk === entryKey && ghostMounted.get() ? 0 : 1,
-      transform: [
-        // At rest the reset is instant, so a commit's re-render lands with no stale offset.
-        { translateY: dk === null ? 0 : reduceMotion ? shift : withSpring(shift, Spring.settle) },
-      ],
+      transform: partingTransform(dk !== null, shift, reduceMotion),
       // The pre-lift cue: a soft shadow blooms so the card floats a touch — grain-free (a shadow is
       // drawn apart from the card's crisp text/edges) and a preview of the ghost's lift shadow.
       shadowOpacity: lift * PRE_LIFT_SHADOW_OPACITY,
@@ -880,7 +894,7 @@ function MemberRowDrag({
       // feedback about where the member returns if the drag cancels. The pre-lift cue is a faint
       // dim (not a scale): a bare row has no card to float, and scaling its text only grained it.
       opacity: (draggingKey.get() === entryKey && ghostMounted.get() ? 0 : 1) * (1 - preLift.get() * PRE_LIFT_DIM),
-      transform: [{ translateY: reduceMotion ? shift : withSpring(shift, Spring.settle) }],
+      transform: partingTransform(reordering, shift, reduceMotion),
     };
   });
 
