@@ -463,16 +463,26 @@ export function DraggableEntry({
   const preLift = useSharedValue(0);
   const holdMs = kind === 'stack' ? CARD_LIFT_HOLD_MS : LIFT_HOLD_MS;
 
-  // Register this entry's frame (grid coordinates — entries are direct grid children).
-  // onLayout ignores transforms, so mid-drag displacement never pollutes the registry.
+  // Register this entry's frame (grid coordinates). `e.nativeEvent.layout` is parent-relative in
+  // principle, but on this RN/Fabric build a view tracked by `useAnimatedRef` reports layout.x/y
+  // as a flat 0 regardless of its real position — every card measured `y: 0`, which silently broke
+  // reordering and cross-card drops alike. `onLayout` still fires at the right times, so it's kept
+  // as the trigger; the real position comes from `measure()` instead, the same way the member
+  // row's `registerFrame` already derives its own grid-relative Y.
   // `.modify` (not read-spread-set): every entry lays out in the same JS tick, and a
   // read-modify-write against the async JS-side copy would drop all but the last entry.
-  const onLayout = (e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    frames.modify((f) => {
+  const onLayout = () => {
+    scheduleOnUI(() => {
       'worklet';
-      f[entryKey] = { y, h: height };
-      return f;
+      const m = measure(ref);
+      const sv = measure(scrollRef);
+      if (!m || !sv) return;
+      const y = m.pageY - sv.pageY + scrollOffset.get() - gridTop.get();
+      frames.modify((f) => {
+        'worklet';
+        f[entryKey] = { y, h: m.height };
+        return f;
+      });
     });
   };
 

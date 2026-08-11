@@ -13,6 +13,7 @@ import {
   moveUnit,
   orderAfterHabitMove,
   placementToRestore,
+  resolvableAnchor,
   resolveDropSlot,
   slotTopForIndex,
   slotTopForKeys,
@@ -379,6 +380,37 @@ describe('moveUnit', () => {
     expect(moveUnit(units, 'habit:zz', 'habit:a')).toBe(units);
     expect(moveUnit(units, 'habit:a', 'habit:zz')).toBe(units);
     expect(moveUnit(units, 'habit:a', 'habit:a')).toBe(units);
+  });
+});
+
+describe('resolvableAnchor', () => {
+  // The rendered order carries a memberless stack ("Add your first act") that buildUnits never
+  // sees — it has no habit rows, so no unit of its own.
+  const order: OrderMeta[] = [
+    { key: 'habit:a', kind: 'stack', stackId: null },
+    { key: 'stack:S', kind: 'stack', stackId: 'S' },
+    { key: 'stack:EMPTY', kind: 'stack', stackId: 'EMPTY' },
+    { key: 'habit:c', kind: 'stack', stackId: null },
+  ];
+  const units = buildUnits(habitsFixture());
+
+  it('passes through a null anchor (end of list) and a real anchor unchanged', () => {
+    expect(resolvableAnchor(order, units, null)).toBeNull();
+    expect(resolvableAnchor(order, units, 'stack:S')).toBe('stack:S');
+  });
+
+  it('walks forward past a memberless stack to the next real unit', () => {
+    // Dropping "before" the empty stack means before whatever real unit follows it.
+    expect(resolvableAnchor(order, units, 'stack:EMPTY')).toBe('habit:c');
+  });
+
+  it('resolves to the end when nothing with a unit follows the empty stack', () => {
+    const trailing: OrderMeta[] = [...order.slice(0, 3)]; // ends right after stack:EMPTY
+    expect(resolvableAnchor(trailing, units, 'stack:EMPTY')).toBeNull();
+  });
+
+  it('leaves a truly unknown anchor for moveUnit to reject', () => {
+    expect(resolvableAnchor(order, units, 'stack:ghost')).toBe('stack:ghost');
   });
 });
 

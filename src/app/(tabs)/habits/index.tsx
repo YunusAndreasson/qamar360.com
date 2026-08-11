@@ -37,6 +37,7 @@ import {
   fullMemberIndexForVisibleDrop,
   moveUnit,
   placementToRestore,
+  resolvableAnchor,
   type OrderMeta,
 } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
@@ -427,12 +428,15 @@ export default function HabitsScreen() {
     (draggedKey: string, beforeKey: string) => {
       const anchor = beforeKey === '' ? null : beforeKey;
       const units = buildUnits(habits);
-      const next = moveUnit(units, draggedKey, anchor);
+      // The geometry's anchor can name a memberless stack (no unit of its own) — that's not a
+      // stale drop, it's the ordinary tail-of-the-day case (an unstarted stack sits at the end of
+      // the list). Resolve to the next entry that does have a unit before asking moveUnit.
+      const next = moveUnit(units, draggedKey, resolvableAnchor(orderMeta, units, anchor));
       if (next === units) return; // stale anchor — leave the order alone
       haptics.selection();
       void reorderHabits(flattenUnits(next));
     },
-    [habits, reorderHabits],
+    [habits, reorderHabits, orderMeta],
   );
 
   // A drop onto a glowing stack card: an act from another card joins it.
@@ -463,17 +467,15 @@ export default function HabitsScreen() {
   );
 
   // Screen-reader reorder (the Move up / Move down accessibility actions — everything the drag
-  // can do without the gesture). Top-level entries step over their visible neighbour; a member
-  // steps within its stack's sequence.
+  // can do without the gesture). Steps within the real unit sequence directly — a memberless
+  // stack (an "Add your first act" card) has no unit at all, so it's not a stop along the way,
+  // the same reason the drag's own between-drop resolves through it via `resolvableAnchor`.
   const moveEntryForA11y = useCallback(
     (entryKey: string, delta: -1 | 1) => {
-      const visible = entries.map((e) => `stack:${e.stack.id}`);
-      const at = visible.indexOf(entryKey);
-      const targetKey = at === -1 ? undefined : visible[at + delta];
-      if (!targetKey) return; // already at the edge
       const units = buildUnits(habits);
-      const targetAt = units.findIndex((u) => u.key === targetKey);
-      if (targetAt === -1) return;
+      const at = units.findIndex((u) => u.key === entryKey);
+      const targetAt = at === -1 ? -1 : at + delta;
+      if (at === -1 || targetAt < 0 || targetAt >= units.length) return; // already at the edge
       // Up: land just before the neighbour. Down: land just after it (before its follower).
       const anchor = delta === -1 ? units[targetAt]!.key : (units[targetAt + 1]?.key ?? null);
       const next = moveUnit(units, entryKey, anchor);
@@ -482,7 +484,7 @@ export default function HabitsScreen() {
       void reorderHabits(flattenUnits(next));
       AccessibilityInfo.announceForAccessibility(delta === -1 ? 'Moved up' : 'Moved down');
     },
-    [entries, habits, reorderHabits],
+    [habits, reorderHabits],
   );
 
   const moveRowForA11y = useCallback(

@@ -352,6 +352,27 @@ export function moveUnit(units: Unit[], unitKey: string, beforeKey: string | nul
   return next;
 }
 
+/**
+ * `moveUnit`'s anchor must name a real unit, but the rendered top-level `order` also carries
+ * memberless stacks (an "Add your first act" card, `draggable={false}`) — they have no unit at
+ * all, since {@link buildUnits} only ever sees habits. A drop that lands right before one of
+ * those isn't stale data, it's the ordinary case of dropping at the tail of the day (an unstarted
+ * stack sits at the end of the list by design — see `entries`' `sortKey` in the Today screen), so
+ * treating it as an unknown anchor silently swallowed the whole move. Walk forward through `order`
+ * from the chosen anchor to the next entry that *does* have a unit; past the last one (or nothing
+ * follows), null — the same "end of list" the anchor already uses when there's nothing to name.
+ */
+export function resolvableAnchor(order: OrderMeta[], units: Unit[], anchorKey: string | null): string | null {
+  if (anchorKey === null || units.some((u) => u.key === anchorKey)) return anchorKey;
+  const at = order.findIndex((e) => e.key === anchorKey);
+  if (at === -1) return anchorKey; // truly unknown — let moveUnit's own guard reject it
+  for (let i = at + 1; i < order.length; i++) {
+    const key = order[i]!.key;
+    if (units.some((u) => u.key === key)) return key;
+  }
+  return null;
+}
+
 /** Flatten units back into the full ordered habit-id list (`reorderHabits` input). */
 export function flattenUnits(units: Unit[]): string[] {
   return units.flatMap((u) => u.habitIds);
