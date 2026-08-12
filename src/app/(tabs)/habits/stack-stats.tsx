@@ -51,7 +51,7 @@ export default function StackStatsScreen() {
       title={stack.name}
       stats={stats}
       hijriNote={hijriNote}
-      emptyBody="Seal this stack a few times and its pattern — best day, streak, and trend — will appear here."
+      emptyBody="Seal it a few times to see its pattern — best day, streak, trend."
       error={error}
       onDismissError={dismissError}
       refreshControl={refreshControl}

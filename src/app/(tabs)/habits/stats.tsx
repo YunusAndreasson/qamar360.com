@@ -44,7 +44,7 @@ export default function HabitStatsScreen() {
       title={habit.name}
       stats={stats}
       hijriNote={hijriNote}
-      emptyBody="Complete this a few times and its pattern — best day, streak, and trend — will appear here."
+      emptyBody="Complete it a few times to see its pattern — best day, streak, trend."
       error={error}
       onDismissError={dismissError}
       refreshControl={refreshControl}

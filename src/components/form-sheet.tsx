@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
@@ -19,11 +19,18 @@ import type { ReactNode } from 'react';
  * indicator identically. The grabber sits above the top padding; the safe-area bottom inset
  * (+ a small gap) is added inline so the last row clears the indicator without a slab of
  * dead space beneath it.
+ *
+ * iOS only: `fitToContents` there sizes the sheet against the JS content alone, so the inset
+ * has to be added by hand or the last row sits under the home indicator. Android's own
+ * `BottomSheetDialog` already avoids the bottom inset itself (see react-native-screens'
+ * `BottomSheetWindowInsetListenerChain`) — adding it again here double-counted it, leaving a
+ * dead gap between the sheet and the tab bar below it.
  */
 export function FormSheet({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  const paddingBottom = Platform.OS === 'android' ? Spacing.two : insets.bottom + Spacing.two;
   return (
-    <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.two }]}>
+    <View style={[styles.sheet, { paddingBottom }]}>
       <View style={styles.header}>
         <ThemedText type="heading" numberOfLines={1}>
           {title}
@@ -128,8 +135,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    minHeight: 44, // the iOS-standard row height + minimum tap target
-    paddingVertical: Spacing.one,
+    minHeight: 48, // Android's Material minimum tap target (also clears iOS's 44pt)
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
   },
   rowText: { flex: 1, gap: Spacing.half },
