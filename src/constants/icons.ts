@@ -85,6 +85,9 @@ export const Icons = {
   bedtime: { sf: 'moon.zzz.fill', material: 'bedtime' },
   // ── States / settings ──────────────────────────────────────────────────
   searchOff: { sf: 'magnifyingglass', material: 'search-off' },
+  /** Searching by meaning rather than by the letters typed — the Journal's on-device embedding
+   *  search. Distinct from {@link searchOff}, which is a "nothing found" state, not a feature. */
+  searchMeaning: { sf: 'sparkle.magnifyingglass', material: 'manage-search' },
   cloudOff: { sf: 'icloud.slash', material: 'cloud-off' },
   notifications: { sf: 'bell', material: 'notifications' },
   notificationsOff: { sf: 'bell.slash', material: 'notifications-off' },

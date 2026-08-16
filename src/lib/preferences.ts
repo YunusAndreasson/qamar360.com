@@ -120,6 +120,15 @@ const SPEC = {
    */
   lunarUpdates: flag('prefs.lunarUpdates', true),
   /**
+   * Search the Journal by what a note means, not only by the words in it.
+   *
+   * Off, and off is the app exactly as it shipped: the folded-substring search is untouched, and
+   * nothing is downloaded, loaded, or even read from storage until this is on. Turning it on
+   * downloads a 91 MB model onto the phone; turning it off deletes it again, so the preference and
+   * the files on disk are one fact rather than two that can disagree.
+   */
+  searchByMeaning: flag('prefs.searchByMeaning', false),
+  /**
    * The period the Progress chart was last read over. Not a Settings row — it is the chart's own
    * control, remembered so that returning to the tab shows the view you left rather than resetting
    * to the default under you.

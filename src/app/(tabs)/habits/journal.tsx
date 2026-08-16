@@ -16,8 +16,10 @@ import { Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
 import { useNotes } from '@/hooks/use-notes';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useSemanticSearch } from '@/hooks/use-semantic-search';
 import { useTheme } from '@/hooks/use-theme';
-import { groupByMonth, matchesQuery, noteDateTitle, notePreview, spokenLabel, type DailyNote } from '@/lib/notes';
+import { archiveRowTrailing, journalEmptyCopy, mergeSearchResults } from '@/lib/note-search';
+import { groupByMonth, noteDateTitle, notePreview, spokenLabel, type DailyNote } from '@/lib/notes';
 
 /** How much of an entry an archive row shows. Longer than a one-line preview because two lines is
  *  what tells two quiet evenings apart when you are scanning for one of them. */
@@ -57,10 +59,16 @@ export default function JournalScreen() {
 
   const { refreshControl } = usePullToRefresh(loadArchive);
 
-  const months = useMemo(
-    () => groupByMonth(archive.filter((n) => matchesQuery(n, query, today)), today),
-    [archive, query, today],
+  // Two searches, and the order of these three lines is the whole promise. `mergeSearchResults` runs
+  // the folded-substring match synchronously — the same `matchesQuery` this screen always used, on
+  // the same frame as the keystroke — and unions in whatever the model has had time to say. The
+  // list never gets slower; semantic hits only ever arrive late and make it longer.
+  const semantic = useSemanticSearch(query, archive, !archiveLoading && !error);
+  const { notes, related } = useMemo(
+    () => mergeSearchResults({ archive, query, today, semantic: semantic.hits }),
+    [archive, query, today, semantic.hits],
   );
+  const months = useMemo(() => groupByMonth(notes, today), [notes, today]);
 
   // The entry opens in the same editor the foot of the day opens, carrying its own date. Not by
   // moving Today behind it: the stepper only reaches thirty days back (it is bounded by how far a
@@ -111,17 +119,7 @@ export default function JournalScreen() {
         // and a later failure — a refresh, a delete — is visible over a list that is still good.
         <AppScreen transparent centered={months.length === 0} refreshControl={refreshControl}>
           <ErrorBanner message={error} onDismiss={dismissError} />
-          {months.length === 0 ? (
-            <EmptyState
-              icon={query ? 'searchOff' : 'journal'}
-              title={query ? 'Nothing found' : 'Nothing written yet'}
-              body={
-                query
-                  ? 'No note has those words in it.'
-                  : 'Notes you write at the foot of the day collect here, oldest kept as long as you keep them.'
-              }
-            />
-          ) : null}
+          {months.length === 0 ? <EmptyState {...journalEmptyCopy({ query, semanticOn: semantic.ready })} /> : null}
           {months.map((month) => (
             <View key={month.key} style={styles.month}>
               <SectionLabel>{month.label.toUpperCase()}</SectionLabel>
@@ -129,12 +127,26 @@ export default function JournalScreen() {
                 {month.notes.map((note, i) => (
                   <Fragment key={note.id}>
                     {i > 0 ? <RowSeparator /> : null}
-                    <ArchiveRow note={note} today={today} onPress={open} />
+                    <ArchiveRow
+                      note={note}
+                      today={today}
+                      query={query}
+                      isRelated={related.has(note.note_date)}
+                      onPress={open}
+                    />
                   </Fragment>
                 ))}
               </Surface>
             </View>
           ))}
+          {/* Only while it could change the answer: a search that is still reading has found less
+              than it will, and saying so is the difference between "nothing matched" and "not yet".
+              Silent otherwise, because a background task is not news on the app's plainest screen. */}
+          {semantic.progress && query.trim() ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.footnote}>
+              Still reading your journal — {semantic.progress.done} of {semantic.progress.total}.
+            </ThemedText>
+          ) : null}
         </AppScreen>
       )}
     </>
@@ -147,16 +159,23 @@ export default function JournalScreen() {
 function ArchiveRow({
   note,
   today,
+  query,
+  isRelated,
   onPress,
 }: {
   note: DailyNote;
   today: string;
+  query: string;
+  /** Matched by meaning alone — none of the typed words are in it. */
+  isRelated: boolean;
   onPress: (note: DailyNote) => void;
 }) {
   const theme = useTheme();
   const title = noteDateTitle(note.note_date, today);
   const preview = notePreview(note.body, PREVIEW_CHARS);
-  const spoken = spokenLabel(note.spoken_seconds);
+  // The same slot the spoken duration lives in. During a search it is worth more as an explanation:
+  // a row holding none of the words you typed, offered with no reason, reads as a broken search.
+  const spoken = archiveRowTrailing({ query, isRelated, spokenLabel: spokenLabel(note.spoken_seconds) });
 
   return (
     <Touchable
@@ -185,6 +204,9 @@ function ArchiveRow({
 
 const styles = StyleSheet.create({
   month: { gap: Spacing.two, marginBottom: Spacing.four },
+  // Hung at the same gutter as a section label, so it reads as a note about the list rather than
+  // another row in it.
+  footnote: { paddingHorizontal: Spacing.two, paddingBottom: Spacing.two },
   // 56 is the row family's floor (`loose-row`, `task-row`, `note-section`), and it is only ever a
   // floor here: a heading over two lines of preview stands taller than that on its own, and a
   // one-line entry is the only thing the minimum ever has to catch.
