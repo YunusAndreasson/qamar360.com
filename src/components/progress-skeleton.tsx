@@ -10,12 +10,17 @@ import { Radius, Spacing } from '@/constants/theme';
  * and the shared block went on describing a card layout that had been replaced.
  */
 
-/** Progress: the lunar-orbit hero, then the Over-time chart (header + control + readout + plot). */
+/**
+ * Progress: the lunar-orbit hero, then the Over-time chart (header + readout + period control +
+ * plot). Sized for the settled state, where the record is long enough to offer a choice of period —
+ * a first-week account has no control yet and its chart lands ~64pt shorter, which is a jump nobody
+ * sees twice.
+ */
 export function ProgressSkeleton() {
   return (
     <View style={styles.root}>
-      <Skeleton height={410} radius={Radius.card} />
-      <Skeleton height={304} radius={Radius.card} />
+      <Skeleton height={392} radius={Radius.card} />
+      <Skeleton height={368} radius={Radius.card} />
     </View>
   );
 }

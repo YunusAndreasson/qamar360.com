@@ -11,7 +11,7 @@ import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, trend, series } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, trend, seriesByPeriod, seriesPeriods } = useProgress();
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -76,13 +76,14 @@ export default function ProgressScreen() {
 
       {/* Two instruments, one question each. The orbit answers "where am I in this month?" against
           a mark that always exists — how far the month itself has got. The line answers "which way
-          am I going?", at whichever scale the record can fill: days from the second day, months and
-          years as they arrive. (Days, months and years were three separate cards; stacked line
-          charts invited comparisons between scales that aren't comparable, and two of the three
-          were empty for anyone new.) */}
+          am I going?", over whichever period you ask for.
+          Days, months and years were once three separate cards, and showing them at once invited
+          comparisons between scales that aren't comparable. They are one card now, and only one
+          scale is ever on screen — so the reading is a choice rather than a juxtaposition, and the
+          choice only appears once the record can fill more than one setting. */}
       <MonthSummary month={month} />
 
-      <OverTime series={series} trend={trend} />
+      <OverTime seriesByPeriod={seriesByPeriod} periods={seriesPeriods} trend={trend} />
     </AppScreen>
   );
 }

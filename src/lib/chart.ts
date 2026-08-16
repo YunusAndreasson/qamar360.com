@@ -195,6 +195,19 @@ export function columnBounds(
 
 
 /**
+ * The plain average of `values` — the chart's one horizontal reference.
+ *
+ * `null` below two points, for the same reason {@link linearFit} is: the average of a single
+ * reading is that reading, and a rule drawn through the only point you have says nothing about it.
+ */
+export function mean(values: readonly number[]): number | null {
+  if (values.length < 2) return null;
+  let total = 0;
+  for (const v of values) total += v;
+  return total / values.length;
+}
+
+/**
  * Least-squares fit of `values` against their indices — `slope` per step, `intercept` at index 0.
  * `null` below two points: one point has no direction, and pretending otherwise is the whole
  * failure mode a projection has to avoid.

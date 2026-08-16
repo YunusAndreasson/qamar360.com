@@ -12,16 +12,18 @@ import Animated, {
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { Segmented } from '@/components/segmented';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, PageEnter } from '@/constants/motion';
-import { Spacing } from '@/constants/theme';
-import type { RecordSeries, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
+import { Radius, Spacing } from '@/constants/theme';
+import type { RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
-import { buildSmoothPaths, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
+import { buildSmoothPaths, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
+import { setPreference, usePreference } from '@/lib/preferences';
 import { toDegrees } from '@/lib/progress';
 
 // Taller than the 120 the small Insights charts use, and with real headroom at the top: this is the
@@ -39,6 +41,12 @@ const BASELINE_Y = BOX.height - PAD_BOTTOM;
 
 const CURRENT_R = 4.5;
 
+/** Clearance between the average rule and its label — enough to read as attached, not sitting on it. */
+const AVERAGE_LABEL_GAP = 3;
+/** The label's own height (`smallCompact` is 14/16, plus a hair for the plate's padding), needed to
+ *  hang it *above* the rule: an absolutely-positioned `top` places its edge, not its baseline. */
+const AVERAGE_LABEL_HEIGHT = 15;
+
 /** How far back the projection is fitted — recent shape only, so an old rhythm can't anchor it. */
 const FIT_WINDOW = 14;
 /** The furthest ahead the line ever looks, in buckets. */
@@ -46,43 +54,92 @@ const MAX_HORIZON = 6;
 
 /** A bucket as a reading. One day says its date; a wider span says the day it ends on, which is the
  *  most recent thing in it and so the one you were looking for. */
-function bucketLabel({ iso, endISO, pending }: SeriesPoint): string {
-  if (pending) return 'Today';
+function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod): string {
+  if (pending) return period === 'year' ? 'This month' : 'Today';
   const parts = hijriParts(endISO);
   if (!parts) return endISO;
+  // A whole Hijri month has a name, and "1–30 Ṣafar" is a worse way to say it. Only the year view
+  // draws month buckets, and only its unclipped ones run the calendar month end to end.
+  const from = hijriParts(iso);
+  if (period === 'year' && from?.day === 1 && from.month === parts.month) return `${parts.monthName} ${parts.year}`;
   const end = `${parts.day} ${parts.monthName}`;
   if (iso === endISO) return end;
-  const from = hijriParts(iso);
   // Within one Hijri month say "8–14 Ṣafar"; across a boundary name both, or the pair reads as one.
   if (from && from.month === parts.month) return `${from.day}–${end}`;
   return from ? `${from.day} ${from.monthName} – ${end}` : end;
 }
 
+/** What the card's trailing caption says the line covers — the span, named the way the period is. */
+function spanCaption(series: RecordSeries): string | undefined {
+  const from = series.sinceISO ? hijriParts(series.sinceISO) : null;
+  if (!from) return undefined;
+  switch (series.period) {
+    case 'month':
+      return `${from.monthName} ${from.year}`;
+    case 'year':
+      return `${from.year} H`;
+    case 'week':
+      return `from ${from.day} ${from.monthName}`;
+    case 'life':
+      return `since ${from.monthName} ${from.year}`;
+  }
+}
+
+/** How each period names itself on the selector. Narrowest first — the order they are offered in. */
+const PERIOD_LABEL: Record<SeriesPeriod, string> = {
+  week: 'Week',
+  month: 'Month',
+  year: 'Year',
+  life: 'Lifetime',
+};
+
 /**
- * "Life time" — the whole record as one line.
+ * "Over time" — the record as one line, read over the period you choose.
  *
  * The screen's second instrument, and the only one that moves on a second day of use: the hero
  * measures the month you are in, this measures whether you are becoming someone who keeps it.
  *
- * **There is no scale to choose.** The line always spans the entire record, and the width of a
- * point grows with its length — a day each at first, a fortnight each after a couple of years — so
- * the resolution follows the history rather than a control. A Days / Months / Years switch made you
- * do that by hand, made you notice you were doing it, and left two of its three settings empty for
- * anyone new. What replaced it is not a hidden mode: it is the absence of modes.
+ * **A period names a span, and its resolution follows from it** — a week is seven days, a month is
+ * its own days, a year is its twelve months, a lifetime is bucketed only as far as it must be to
+ * fit. So there is one control, it says what you get, and no setting can land on a line too dense
+ * to read. This is what the old Days / Months / Years switch got backwards: it set the *grain*
+ * while the span stayed fixed, which is why two of its three settings were empty for anyone new.
+ * And it is why the three stacked cards before that were wrong in the other direction — showing
+ * days, months and years at once invited comparisons between scales that aren't comparable. One
+ * graph showing one scale at a time invites nothing of the kind. A period appears only once the
+ * record can fill it with something a wider one doesn't already say, so the control is absent
+ * until there is genuinely a choice.
  *
  * The line's grammar is one rule: **solid is settled, dashed is not.** A solid curve runs through
  * what is closed; a dashed one carries on through the span still being lived and out to where the
  * fitted slope is heading, ending in a caret. The future is drawn in the same ink as the present
- * and marked as provisional — direction without a promise.
+ * and marked as provisional — direction without a promise. The average is the one exception drawn
+ * flat and solid in a track tone: it is not a reading, it is the floor the readings are measured
+ * against, and it is the only absolute reference the plot has.
  *
  * Nothing names a date until you ask. At rest the card says which way you are going and where you
  * are; the calendar appears under your finger and leaves with it, because a date printed on the
  * axis is a label you read once and then have to keep ignoring.
  */
-export function OverTime({ series, trend }: { series: RecordSeries; trend: TrendSummary | null }) {
+export function OverTime({
+  seriesByPeriod,
+  periods,
+  trend,
+}: {
+  seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
+  periods: SeriesPeriod[];
+  trend: TrendSummary | null;
+}) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const areaFillId = `overTimeArea-${useId()}`;
+
+  // The remembered choice, but only where the record can still honour it — a person who last read
+  // the Year view on another device, or before a reset, must not land on a period this record has
+  // nothing to draw for. Falling back to the widest offered is always safe: `life` is always there.
+  const saved = usePreference('progressPeriod');
+  const period = periods.includes(saved) ? saved : periods[periods.length - 1]!;
+  const series = seriesByPeriod[period];
 
   const points = series.points;
   const count = points.length;
@@ -134,6 +191,15 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
           ...(projection?.values ?? []).map((v, k) => at(count + k, v)),
         ]
       : [];
+
+  // The plot's one absolute reference. Without it a curve sitting at mid-height says only "some
+  // middling amount" — the line has no axis, no gridline and no ceiling, so height alone means
+  // nothing you can name. Averaged over the buckets ON SCREEN, not the whole record, because the
+  // question it answers is "is this period above or below my usual", and the period is the choice
+  // the reader just made.
+  const average = useMemo(() => mean(closed.map((x) => x.p.rate)), [closed]);
+  const averageY = width > 0 && average !== null ? pointAt(0, average, width, BOX).y : null;
+  const averageEndX = settled.length > 0 ? settled[settled.length - 1]!.x : 0;
 
   const settledPaths = buildSmoothPaths(settled, BASELINE_Y);
   const unsettledPath = buildSmoothPaths(unsettled, BASELINE_Y).line;
@@ -226,12 +292,13 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
       // yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
       // floor, said in words.
       focusedPoint.possible === 0
-      ? `${bucketLabel(focusedPoint)} · nothing due`
-      : `${bucketLabel(focusedPoint)} · ${toDegrees(focusedPoint.rate)}°${focusedPoint.pending ? ' so far' : ''}`
+      ? `${bucketLabel(focusedPoint, period)} · nothing due`
+      : `${bucketLabel(focusedPoint, period)} · ${toDegrees(focusedPoint.rate)}°${focusedPoint.pending ? ' so far' : ''}`
     : restingText;
 
-  const since = series.sinceISO ? hijriParts(series.sinceISO) : null;
-  const a11y = `Your whole record as one line, ${count} points${series.bucketDays > 1 ? ` of ${series.bucketDays} days each` : ''}. ${restingText ?? ''}`;
+  // "of N days each" only where the buckets have a width to name — a year's are calendar months.
+  const grain = period === 'year' ? ' of one Hijri month each' : series.bucketDays > 1 ? ` of ${series.bucketDays} days each` : '';
+  const a11y = `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.${average !== null ? ` Averaging ${toDegrees(average)} degrees.` : ''} ${restingText ?? ''}`;
   const step = (by: number) => {
     const next = (focused ?? count - 1) + by;
     if (next < 0 || next > count - 1) return;
@@ -244,12 +311,22 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
   return (
     <StatCard>
       <View style={styles.head}>
-        {/* The record's opening, said once, so the span has an anchor without a ruler under it. */}
-        <StatCardHeader title="Life time" trailing={since ? `since ${since.monthName} ${since.year}` : undefined} />
+        {/* What the line covers, said once, so the span has an anchor without a ruler under it. */}
+        <StatCardHeader title="Over time" trailing={spanCaption(series)} />
         {readoutText ? (
-          <StatReadout text={readoutText} refreshKey={focused ?? 'resting'} />
+          <StatReadout text={readoutText} refreshKey={`${period}:${focused ?? 'resting'}`} />
         ) : null}
       </View>
+
+      {/* Absent until the record can fill more than one period — a control with a single setting
+          is a label pretending to be a choice. */}
+      {periods.length > 1 ? (
+        <Segmented
+          options={periods.map((p) => ({ value: p, label: PERIOD_LABEL[p], accessibilityLabel: `Read the ${PERIOD_LABEL[p].toLowerCase()}` }))}
+          value={period}
+          onChange={(next) => setPreference('progressPeriod', next)}
+        />
+      ) : null}
 
       <GestureDetector gesture={gesture}>
         <View style={styles.chart} onLayout={onLayout} accessible accessibilityRole="adjustable"
@@ -293,6 +370,22 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
               ) : null}
 
               {settledPaths.area ? <Path d={settledPaths.area} fill={`url(#${areaFillId})`} /> : null}
+
+              {/* The average of what is drawn — solid, and in a track tone, because it is furniture
+                  rather than a reading. A DASHED rule would be read as a projection: this chart
+                  spends its dashes on "not settled yet" and can't spend them twice. It stops at the
+                  last settled point for the same reason — it describes closed buckets, so running
+                  it out under the forecast would claim it covers that too. */}
+              {averageY !== null ? (
+                <Line
+                  x1={BOX.padX}
+                  y1={averageY}
+                  x2={averageEndX}
+                  y2={averageY}
+                  stroke={theme.accentTrackStrong}
+                  strokeWidth={1}
+                />
+              ) : null}
 
               {settledPaths.line ? (
                 <AnimatedPath
@@ -359,6 +452,36 @@ export function OverTime({ series, trend }: { series: RecordSeries; trend: Trend
             </Svg>
           ) : null}
 
+          {/* The rule's direct label. Drawn in RN text rather than SVG so it wears the app's own
+              type and colour roles. It sits at the left edge, clear of the forecast, and flips to
+              whichever side of the rule the curve is NOT on where it opens.
+              It also carries the card's own background as a plate. The flip only knows where the
+              curve STARTS — a lifetime line that climbs steeply a few points in walks straight
+              through the text either way, and on this record it did. A label you have to read
+              through a stroke is not a label; the plate costs a few pixels of the area fill and
+              makes the reference legible whatever shape the curve turns out to be. */}
+          {averageY !== null ? (
+            <ThemedText
+              type="smallCompact"
+              themeColor="textSecondary"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={[
+                styles.averageLabel,
+                { backgroundColor: theme.backgroundElement },
+                {
+                  top:
+                    averageY +
+                    (settled[0] && settled[0].y < averageY
+                      ? AVERAGE_LABEL_GAP
+                      : -AVERAGE_LABEL_GAP - AVERAGE_LABEL_HEIGHT),
+                },
+              ]}
+              pointerEvents="none">
+              avg {toDegrees(average!)}°
+            </ThemedText>
+          ) : null}
+
           {/* Nothing to draw yet — name the empty space rather than present a bare floor, which
               reads as a chart that failed. */}
           {closed.length === 0 ? (
@@ -408,5 +531,12 @@ const AnimatedG = Animated.createAnimatedComponent(G);
 const styles = StyleSheet.create({
   head: { gap: Spacing.two },
   chart: { width: '100%', height: BOX.height },
+  averageLabel: {
+    position: 'absolute',
+    left: BOX.padX + 2,
+    paddingHorizontal: Spacing.one,
+    borderRadius: Radius.control,
+    overflow: 'hidden', // Android clips a Text's background to its radius only when told to
+  },
   empty: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
 });

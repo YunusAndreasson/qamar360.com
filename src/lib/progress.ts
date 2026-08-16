@@ -14,6 +14,7 @@ import {
   daysBetweenISO,
   hijriMonthRange,
   hijriParts,
+  hijriYearRange,
   scheduledOn,
   type HijriSchedule,
 } from '@/lib/dates';
@@ -213,22 +214,40 @@ export type SeriesPoint = {
 };
 
 /**
- * The whole record as one line — every day of it, bucketed only as far as it must be to stay
- * legible.
+ * A period the record can be read over. Narrowest first — the order the selector offers them in.
  *
- * There is deliberately **no scale to choose**. `bucketDays` grows continuously with the length of
- * the record (1 while it is short, 2 at five months, 10 after two years), so the line thins out by
- * degrees instead of jumping the moment some threshold is crossed — which is what a Days / Months /
- * Years control makes you do by hand, and what it makes you notice. The reading is always the whole
- * story at the finest grain that fits.
+ * **A period names a span, and its resolution follows from it.** Choosing "Year" and choosing
+ * "one point per month" are the same choice, so there is only ever one control and no way to
+ * land on a combination that cannot be drawn: a week is seven days, a month is its own days, a
+ * year is its twelve months, and a lifetime is bucketed only as far as it must be to fit.
+ *
+ * This is the arrangement a Days / Months / Years switch got wrong. That control set the *grain*
+ * while the span stayed fixed, which is why two of its three settings were empty for anyone new
+ * and why it made you do by hand what the record can say for itself.
+ */
+export type SeriesPeriod = 'week' | 'month' | 'year' | 'life';
+
+/**
+ * The record read over one period — the line the Progress chart draws.
+ *
+ * A bucket is measured against its own schedule, exactly like every other figure on the screen,
+ * so a point can never disagree with the month that contains it.
  */
 export type RecordSeries = {
   /** Oldest first, ending with the bucket that contains today. Empty before anything was scheduled. */
   points: SeriesPoint[];
-  /** Days per bucket. 1 means the line is drawn day by day. */
+  /**
+   * Days per bucket, where the buckets have a fixed width: 1 when the line is drawn day by day,
+   * and for `life` a width that grows continuously with the length of the record (2 at five
+   * months, 10 after two years) so it thins by degrees rather than lurching at a threshold.
+   * **`0` means the buckets are calendar months** and have no single width — read {@link period}.
+   */
   bucketDays: number;
-  /** The first day the record asked anything of you, or `null` when nothing ever has. */
+  /** The first day this line is drawn from. For `life` that is also where the record opens,
+   *  because there the window IS the record. `null` when nothing was ever scheduled. */
   sinceISO: string | null;
+  /** The period this line was read over, so a card can name itself from the series alone. */
+  period: SeriesPeriod;
 };
 
 
@@ -256,10 +275,22 @@ export type ProgressDerived = {
   /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
   /**
-   * The whole record as one line. Moves on a user's second day, and still reads after five years.
-   * Needs no calendar, so it is present even where `Intl` lacks Umm al-Qura.
+   * The record read over each period. `life` is the whole of it — it moves on a user's second day,
+   * still reads after five years, and needs no calendar, so it is drawable even where `Intl` lacks
+   * Umm al-Qura (the others quietly collapse onto it there).
+   *
+   * Every key is always present: where the calendar is
+   * unavailable, or the record is younger than a window, the narrower periods collapse onto the
+   * lifetime one and carry the identical line — which costs nothing, since identical windows hit
+   * the same tally memo.
    */
-  series: RecordSeries;
+  seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
+  /**
+   * The periods worth offering, narrowest first — those with two settled points to draw a line
+   * between, and a shape no wider period already draws. Never empty (`life` always survives), so
+   * `length === 1` is the signal that there is nothing to choose and no selector to show.
+   */
+  seriesPeriods: SeriesPeriod[];
 };
 
 /**
@@ -296,6 +327,89 @@ export function creditFor(habit: { target_count?: number | null }, row: Completi
   }
   return row?.status === 'done' ? 1 : 0; // binary
 }
+
+/** One bucket's span, before it has been tallied. */
+type Span = { start: string; end: string };
+
+/**
+ * Buckets of a fixed width, laid BACKWARDS from `end` — so the newest is the one being lived and
+ * any short bucket falls at the far end, where it is oldest and least read.
+ */
+function uniformSpans(start: string, end: string, bucketDays: number): Span[] {
+  const spans: Span[] = [];
+  for (let cursor = end; cursor >= start; ) {
+    const reach = addDaysISO(cursor, -(bucketDays - 1));
+    const from = reach < start ? start : reach;
+    spans.push({ start: from, end: cursor });
+    cursor = addDaysISO(from, -1);
+  }
+  return spans.reverse(); // built newest-first; a record reads forward
+}
+
+/**
+ * One bucket per Hijri month across `start`…`end`, clipped to that window at both ends — so the
+ * first month shows only the part of it on record and the last ends on today rather than running
+ * out into days not yet lived.
+ */
+function monthlySpans(start: string, end: string): Span[] {
+  const spans: Span[] = [];
+  for (let cursor = start; cursor <= end; ) {
+    const range = hijriMonthRange(cursor);
+    if (!range) break; // no Islamic calendar — the caller falls back to a uniform shape
+    const to = range.end < end ? range.end : end;
+    spans.push({ start: cursor, end: to });
+    cursor = addDaysISO(to, 1);
+  }
+  return spans;
+}
+
+/**
+ * Turn bucket spans into the drawn line.
+ *
+ * `trimLeadingEmpty` drops opening buckets that asked nothing, and is TRUE only where the window's
+ * start is the record's own opening. The record begins where it first ASKED something, not where a
+ * habit was created — a habit made on a Tuesday and scheduled for Fridays leaves days that were
+ * never anyone's to keep. But a *calendar* window is a different claim: a month that has started
+ * while nothing is due yet has real empty days at its head, and erasing them would report the month
+ * as not begun.
+ */
+function buildSeries(
+  spans: Span[],
+  period: SeriesPeriod,
+  bucketDays: number,
+  today: string,
+  tally: (startISO: string, endISO: string) => { done: number; possible: number },
+  trimLeadingEmpty: boolean,
+): RecordSeries {
+  let points: SeriesPoint[] = spans.map(({ start, end }) => {
+    const { done, possible } = tally(start, end);
+    return { iso: start, endISO: end, rate: possible > 0 ? done / possible : 0, possible, pending: end === today };
+  });
+  if (trimLeadingEmpty) {
+    const first = points.findIndex((p) => p.possible > 0);
+    points = first < 0 ? [] : points.slice(first);
+  }
+  return { points, bucketDays, sinceISO: points[0]?.iso ?? null, period };
+}
+
+/** Buckets settled enough to draw a line between — a pending bucket is still being lived, and one
+ *  that asked nothing carries no reading. */
+function closedCount(series: RecordSeries): number {
+  return series.points.reduce((n, p) => (p.possible > 0 && !p.pending ? n + 1 : n), 0);
+}
+
+/** A line's bucket boundaries as one comparable string — two periods with the same shape draw the
+ *  same picture, whatever they are called. */
+function shapeOf(series: RecordSeries): string {
+  return series.points.map((p) => `${p.iso}/${p.endISO}`).join(' ');
+}
+
+/** Narrowest first — the order the selector offers periods in, and the order ties resolve against
+ *  (a wider name wins, because it is the truer description of the same line). */
+const PERIOD_ORDER: readonly SeriesPeriod[] = ['week', 'month', 'year', 'life'];
+
+/** The last seven days — the app's own rhythm, since habits are scheduled by weekday. */
+const WEEK_DAYS = 7;
 
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
 export function computeProgress(
@@ -423,37 +537,51 @@ export function computeProgress(
         : { risingMonths: 0, sinceMonthName: null };
   }
 
-  // The whole record as one line. Every other figure on the screen is a whole-PERIOD rate, so a
-  // bucket is measured the same way against its own schedule — a full orbit is a span fully kept.
+  // The record as a line, over each period it can be read at. Every other figure on the screen is
+  // a whole-PERIOD rate, so a bucket is measured the same way against its own schedule — a full
+  // orbit is a span fully kept. Each bucket is a `tallyRange`, riding the same memo and the same
+  // excusal/count-goal rules as every other figure.
   //
-  // Buckets are laid backwards from today, so the newest is the one being lived and any short
-  // bucket falls at the far end where it is oldest and least read. Each is a `tallyRange`, riding
-  // the same memo and the same excusal/count-goal rules as every other figure — a point can never
-  // disagree with the month that contains it.
-  let points: SeriesPoint[] = [];
-  let bucketDays = 1;
-  if (opened && opened <= today) {
-    const span = daysBetweenISO(opened, today) + 1;
-    // Continuous, not stepped: the line thins by degrees as the record lengthens instead of
-    // lurching to a coarser grain the day some threshold is passed.
-    bucketDays = Math.max(1, Math.ceil(span / SERIES_MAX_POINTS));
-    for (let end = today; end >= opened; ) {
-      const reach = addDaysISO(end, -(bucketDays - 1));
-      const start = reach < opened ? opened : reach;
-      const { done, possible } = tallyRange(start, end);
-      points.push({ iso: start, endISO: end, rate: possible > 0 ? done / possible : 0, possible, pending: end === today });
-      end = addDaysISO(start, -1);
-    }
-    points.reverse(); // built newest-first; a record reads forward
-    // The record begins where it first ASKED something, not where a habit was created. A habit made
-    // on a Tuesday and scheduled for Fridays leaves days that were never anyone's to keep, and
-    // carrying them would open the line with a stretch it cannot draw — leaving the curve hanging
-    // short of the left edge with no way to tell that the emptiness was the point.
-    const first = points.findIndex((p) => p.possible > 0);
-    points = first <= 0 ? points : points.slice(first);
-    if (first < 0) points = [];
-  }
-  const series: RecordSeries = { points, bucketDays, sinceISO: points[0]?.iso ?? null };
+  // All four are computed here, eagerly, rather than handed out as a builder: every window ends on
+  // today, so windows that clamp to the same start have identical bucket boundaries and cost
+  // nothing beyond the first (which is the common young-record case). Paying once, inside the
+  // hook's existing memo, is what makes tapping the selector free.
+  const live = opened !== null && opened <= today;
+  // Each window opens at its own boundary or at the record's, whichever is later. Clamping is what
+  // makes a young record's periods collapse onto one another — and so what makes `seriesPeriods`
+  // shrink on its own, with no threshold rule anywhere.
+  const from = (boundary: string | null | undefined): string =>
+    boundary == null || opened === null || boundary < opened ? opened! : boundary;
+  const lifeBucketDays = live ? Math.max(1, Math.ceil((daysBetweenISO(opened, today) + 1) / SERIES_MAX_POINTS)) : 1;
 
-  return { habitsCount: habits.length, month, trend, series };
+  const empty = (period: SeriesPeriod): RecordSeries => ({ points: [], bucketDays: 1, sinceISO: null, period });
+  const build = (period: SeriesPeriod, start: string, spans: Span[], bucketDays: number): RecordSeries =>
+    buildSeries(spans, period, bucketDays, today, tallyRange, start === opened);
+
+  const weekStart = live ? from(addDaysISO(today, -(WEEK_DAYS - 1))) : today;
+  const monthStart = live ? from(thisRange?.start) : today;
+  const yearStart = live ? from(hijriYearRange(today)?.start) : today;
+  // A year is read one Hijri month at a time. Where the calendar is missing there are no months to
+  // walk, so `monthlySpans` comes back empty and the period simply never gets offered.
+  const yearSpans = live ? monthlySpans(yearStart, today) : [];
+  const seriesByPeriod: Record<SeriesPeriod, RecordSeries> = live
+    ? {
+        week: build('week', weekStart, uniformSpans(weekStart, today, 1), 1),
+        month: build('month', monthStart, uniformSpans(monthStart, today, 1), 1),
+        // 0 bucketDays: a Hijri month is 29 or 30 days, so these have no single width.
+        year: build('year', yearStart, yearSpans, 0),
+        life: build('life', opened, uniformSpans(opened, today, lifeBucketDays), lifeBucketDays),
+      }
+    : { week: empty('week'), month: empty('month'), year: empty('year'), life: empty('life') };
+
+  // Offer a period only where it draws something a wider one doesn't already say. Two settled
+  // points is the floor — one point is a dot, and a line between a dot and a day still being lived
+  // is a slope invented from nothing.
+  const seriesPeriods = PERIOD_ORDER.filter((period, i) => {
+    if (period === 'life') return true; // the record itself is always readable
+    if (closedCount(seriesByPeriod[period]) < 2) return false;
+    return PERIOD_ORDER.slice(i + 1).every((wider) => shapeOf(seriesByPeriod[wider]) !== shapeOf(seriesByPeriod[period]));
+  });
+
+  return { habitsCount: habits.length, month, trend, seriesByPeriod, seriesPeriods };
 }

@@ -5,12 +5,12 @@ import type { Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type TrendSummary } from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { MonthProgress, RecordSeries, SeriesPoint, TrendSummary } from '@/lib/progress';
+export type { MonthProgress, RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/lib/progress';
 
 /**
  * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
@@ -69,9 +69,11 @@ type ProgressData = {
   month: MonthProgress | null;
   /** The rising-months statement for the Over-time card, or `null` if the calendar is unavailable. */
   trend: TrendSummary | null;
-  /** The whole record as one line — the Over-time chart, and the only reading that moves on a
-   *  second day of use. */
-  series: RecordSeries;
+  /** The record read over each period — what the chart's selector switches between. `life` is the
+   *  whole of it, and the only reading that moves on a second day of use. */
+  seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
+  /** The periods worth offering, narrowest first. `length === 1` means no selector. */
+  seriesPeriods: SeriesPeriod[];
 };
 
 /**
@@ -115,7 +117,7 @@ export function useProgress(): ProgressData {
         setError(null);
       } catch {
         if (userRef.current !== userId) return;
-        setError("Couldn't load your progress. Pull down to try again.");
+        setError('Couldn’t load your progress. Pull down to try again.');
       } finally {
         if (inFlight.current?.key === userId) inFlight.current = null;
       }

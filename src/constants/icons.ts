@@ -93,6 +93,9 @@ export const Icons = {
   privacy: { sf: 'hand.raised.fill', material: 'privacy-tip' },
   document: { sf: 'doc.text', material: 'description' },
   help: { sf: 'questionmark.circle', material: 'help-outline' },
+  // "More about what you're looking at" — distinct from `help`, which offers assistance. The
+  // Progress hero wears this to say the orbit can be read, and that a reading is available.
+  info: { sf: 'info.circle', material: 'info-outline' },
   reset: { sf: 'arrow.counterclockwise', material: 'restart-alt' },
   calendar: { sf: 'calendar', material: 'calendar-today' },
   // The device itself buzzing — the only mechanical glyph in the set, and rightly so: haptics

@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it } from '@jest/globals';
 
 import {
   addDaysISO,
+  dayTitle,
   describeHijriOffset,
   describeHijriSchedule,
   describeWeekdays,
   hijriMonthRange,
   hijriParts,
+  hijriYearRange,
   scheduledOn,
   setHijriOffset,
   todayLocalISO,
@@ -38,6 +40,49 @@ describe('addDaysISO', () => {
     expect(addDaysISO('2026-06-30', 1)).toBe('2026-07-01');
     expect(addDaysISO('2026-12-31', 1)).toBe('2027-01-01');
     expect(addDaysISO('2026-03-01', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('dayTitle', () => {
+  // A Saturday, so a week back lands on the preceding Sunday and the boundary is easy to read.
+  const TODAY = '2026-08-15';
+
+  it('names the two near days rather than dating them', () => {
+    expect(dayTitle(TODAY, TODAY)).toBe('Today');
+    expect(dayTitle('2026-08-14', TODAY)).toBe('Yesterday');
+  });
+
+  it('defaults to the list form — a short weekday and a date, never a bare weekday', () => {
+    // Two days back: near enough that a header would say "Thursday", and a list still may not.
+    expect(dayTitle('2026-08-13', TODAY)).toBe('Thu, Aug 13');
+  });
+
+  it('takes a bare weekday for the last week only when asked', () => {
+    expect(dayTitle('2026-08-13', TODAY, { weekday: 'long' })).toBe('Thursday');
+    expect(dayTitle('2026-08-09', TODAY, { weekday: 'long' })).toBe('Sunday');
+  });
+
+  it('drops the bare weekday once the weekdays repeat', () => {
+    // Exactly seven days back is the first day a bare "Saturday" could mean either one.
+    expect(dayTitle('2026-08-08', TODAY, { weekday: 'long' })).toBe('Sat, Aug 8');
+  });
+
+  it('carries the year only when asked, and only once the day leaves this one', () => {
+    expect(dayTitle('2025-08-13', TODAY, { year: true })).toBe('Wed, Aug 13, 2025');
+    expect(dayTitle('2026-08-13', TODAY, { year: true })).toBe('Thu, Aug 13');
+    // The archive asks for the year; the header, which cannot reach one, does not.
+    expect(dayTitle('2025-08-13', TODAY)).toBe('Wed, Aug 13');
+  });
+
+  it('prefers the near-day names over both options', () => {
+    expect(dayTitle('2026-08-14', TODAY, { weekday: 'long', year: true })).toBe('Yesterday');
+  });
+
+  it('names a day the same way whichever surface asks — the whole point of one ladder', () => {
+    // The Journal row and the editor it opens: one call, so they cannot disagree.
+    const listForm = { year: true } as const;
+    expect(dayTitle('2025-03-04', TODAY, listForm)).toBe(dayTitle('2025-03-04', TODAY, listForm));
+    expect(dayTitle('2025-03-04', TODAY, listForm)).toBe('Tue, Mar 4, 2025');
   });
 });
 
@@ -143,6 +188,61 @@ describe('setHijriOffset', () => {
     setHijriOffset(1);
     const shifted = hijriMonthRange(ISO);
     expect(shifted?.start).toBe(addDaysISO(base.start, -1));
+  });
+});
+
+describe('hijriYearRange', () => {
+  const ISO = '2026-07-19';
+
+  it('opens on 1 Muḥarram of the year that contains the day', () => {
+    const parts = hijriParts(ISO);
+    const range = hijriYearRange(ISO);
+    if (!parts || !range) return; // runtime without islamic-umalqura
+    const start = hijriParts(range.start);
+    expect(start).toMatchObject({ day: 1, month: 1, year: parts.year });
+    expect(range.year).toBe(parts.year);
+  });
+
+  it('runs 354 or 355 days and ends the day before the next year opens', () => {
+    const range = hijriYearRange(ISO);
+    if (!range) return;
+    expect([354, 355]).toContain(range.length);
+    expect(hijriParts(range.end)?.month).toBe(12);
+    expect(hijriParts(addDaysISO(range.end, 1))?.year).toBe(range.year + 1);
+  });
+
+  it('is tiled exactly by its twelve months', () => {
+    const range = hijriYearRange(ISO);
+    if (!range) return;
+    // Walking month by month from the year's start must consume every day and land on its end —
+    // the structural check that catches an off-by-one in the walk back to Muḥarram.
+    let cursor = range.start;
+    let days = 0;
+    for (let m = 1; m <= 12; m++) {
+      const month = hijriMonthRange(cursor);
+      if (!month) return;
+      expect(month.start).toBe(cursor);
+      expect(hijriParts(cursor)?.month).toBe(m);
+      days += month.length;
+      cursor = addDaysISO(month.end, 1);
+    }
+    expect(days).toBe(range.length);
+    expect(addDaysISO(cursor, -1)).toBe(range.end);
+  });
+
+  it('is the same year whichever of its days you ask from', () => {
+    const range = hijriYearRange(ISO);
+    if (!range) return;
+    for (const day of [range.start, addDaysISO(range.start, 200), range.end]) {
+      expect(hijriYearRange(day)).toEqual(range);
+    }
+  });
+
+  it('honours the Hijri adjustment, like the month range built beside it', () => {
+    const base = hijriYearRange(ISO);
+    if (!base) return;
+    setHijriOffset(1);
+    expect(hijriYearRange(ISO)?.start).toBe(addDaysISO(base.start, -1));
   });
 });
 

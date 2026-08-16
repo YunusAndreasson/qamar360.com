@@ -3,6 +3,7 @@ import 'expo-sqlite/localStorage/install';
 import { useSyncExternalStore } from 'react';
 
 import { setHijriOffset } from '@/lib/dates';
+import type { SeriesPeriod } from '@/lib/progress';
 import type { DayBands } from '@/lib/sun';
 import { getWebStorage } from '@/lib/web-storage';
 
@@ -118,6 +119,22 @@ const SPEC = {
    * feature, and inheriting someone's opt-out of per-habit reminders would silence it wrongly.
    */
   lunarUpdates: flag('prefs.lunarUpdates', true),
+  /**
+   * The period the Progress chart was last read over. Not a Settings row — it is the chart's own
+   * control, remembered so that returning to the tab shows the view you left rather than resetting
+   * to the default under you.
+   *
+   * The default is the month, which is the period the moon ring above the chart already measures:
+   * arriving on the tab, the two instruments say the same thing at two scales. A stored period the
+   * record can no longer offer is ignored at the call site, not here — what is legal to choose
+   * depends on how much history exists, which this table cannot know.
+   */
+  progressPeriod: {
+    key: 'prefs.progressPeriod',
+    fallback: 'month',
+    parse: oneOf(['week', 'month', 'year', 'life'] as const),
+    serialize: (v) => v,
+  } satisfies Spec<SeriesPeriod>,
   /** Custom day-part boundaries, or `null` to follow the real sun (the default). */
   dayBands: {
     key: 'prefs.dayBands',

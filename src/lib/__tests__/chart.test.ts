@@ -5,6 +5,7 @@ import {
   columnBounds,
   DIRECTION_THRESHOLD,
   linearFit,
+  mean,
   pointAt,
   polylineLength,
   project,
@@ -197,6 +198,29 @@ describe('columnBounds', () => {
   });
 });
 
+
+describe('mean', () => {
+  it('says nothing below two points — a rule through your only reading describes nothing', () => {
+    expect(mean([])).toBeNull();
+    expect(mean([0.5])).toBeNull();
+  });
+
+  it('averages what it is given', () => {
+    expect(mean([0.2, 0.4])).toBeCloseTo(0.3, 10);
+    expect(mean([0, 0.5, 1])).toBeCloseTo(0.5, 10);
+  });
+
+  it('is the plain average, not a trailing or weighted one — the reference is the whole period', () => {
+    // A run that ends high: a recency-weighted average would sit above 0.5, and the rule would
+    // then be measuring the readings against themselves rather than against the period.
+    expect(mean([0, 0, 1, 1])).toBeCloseTo(0.5, 10);
+  });
+
+  it('holds at the ends of the scale, where a full period and an empty one both live', () => {
+    expect(mean([1, 1, 1])).toBeCloseTo(1, 10);
+    expect(mean([0, 0, 0])).toBeCloseTo(0, 10);
+  });
+});
 
 describe('linearFit', () => {
   it('has no direction below two points — the whole failure mode a projection must avoid', () => {
