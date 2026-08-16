@@ -2,10 +2,13 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View, type TextInput } from 'react-native';
 
+import { ErrorBanner } from '@/components/error-banner';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
+import { HeaderIconButton } from '@/components/header-icon-button';
 import { NoteRecorder } from '@/components/note-recorder';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
+import { Icons } from '@/constants/icons';
 import { BottomTabInset, Face, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useDictation } from '@/hooks/use-dictation';
@@ -14,10 +17,9 @@ import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useNotes } from '@/hooks/use-notes';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
-import { addDaysISO } from '@/lib/dates';
 import { stitchSpoken, tidyDictation } from '@/lib/note-tidy';
 import { applyVocabulary } from '@/lib/note-vocabulary';
-import { appendToBody } from '@/lib/notes';
+import { appendToBody, noteDateTitle } from '@/lib/notes';
 import { clearNoteDraft, readNoteDraft, writeNoteDraft } from '@/lib/notes-cache';
 
 /**
@@ -42,7 +44,7 @@ export default function NoteScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { viewDate, today } = useHabits();
-  const { noteFor, saveNote, vocabulary } = useNotes();
+  const { noteFor, saveNote, vocabulary, error, dismissError } = useNotes();
 
   // The day being written about. Today's foot opens this with no parameter and means the viewed
   // day; the Journal opens it with one, and that day may be years old — far outside the stepper's
@@ -106,13 +108,6 @@ export default function NoteScreen() {
    */
   const onSentence = useCallback(
     (text: string) => {
-      // TEMPORARY, and it has a job to finish: nobody has yet compared a real transcript against
-      // what was actually said, so the rules above are tuned against synthetic fixtures and a
-      // prediction about how Moonshine punctuates an isolated segment. Speak a few notes with this
-      // in, read them back out of logcat, and freeze them as fixtures — then delete these two lines.
-      // `warn` rather than `log` because it is the level this project permits, and because a
-      // diagnostic that is meant to be removed should be loud enough to find.
-      if (__DEV__) console.warn('[note] raw segment:', JSON.stringify(text));
       const spoken = applyVocabulary(tidyDictation(text), vocabulary);
       // A segment that was nothing but "um" is nothing said. Returning here rather than appending an
       // empty string also keeps `freshSitting` true, so the first real sentence still opens its own
@@ -201,8 +196,11 @@ export default function NoteScreen() {
     // holds its final value until the next `start()`, so this is right whether the sitting ended
     // on Stop, on the ten-minute ceiling, or on this Save.
     const seconds = spokenSeconds + elapsed;
-    await saveNote(text, seconds > 0 ? seconds : null, day);
-    router.back();
+    // Only on the way out. A modal that dismisses on a failed write takes with it both the one
+    // surface the error could appear on and — as far as anyone watching can tell — the words: the
+    // optimistic row is rolled back, so the day goes quietly blank. Staying is also what makes the
+    // conflict message true, since it talks about text "still in the editor".
+    if (await saveNote(text, seconds > 0 ? seconds : null, day)) router.back();
   }, [recording, elapsed, spokenSeconds, body, bodyRef, stop, saveNote, day, router]);
 
   const cancel = useCallback(() => {
@@ -234,7 +232,10 @@ export default function NoteScreen() {
       <GeometricBackdrop variant="screen" />
       <Stack.Screen
         options={{
-          title: noteTitle(day, today),
+          // The same name the row that opened this gives the day — `noteDateTitle`, not a title of
+          // its own. A note started by stepping back to Tuesday can never be mistaken for tonight's,
+          // and one opened from a five-year-old Journal row keeps the year that found it.
+          title: noteDateTitle(day, today),
           headerTitleAlign: 'center',
           // `save` reads `bodyRef` only after awaiting the decode queue — inside an event handler,
           // never during render. The rule can't see past the await, so it treats any function that
@@ -246,6 +247,18 @@ export default function NoteScreen() {
             // Saving an unchanged note is a no-op, and saving an empty one deletes the row — which
             // is a real action worth allowing, so "emptied" counts as a change.
             canSave: body.trim() !== saved.trim(),
+            // Only for a day that has something saved to throw away: on a blank one Cancel already
+            // does everything this could. `⋯` rather than a trash glyph, per the app's own rule —
+            // it says "things you can do to this", which is a safer thing to put beside Save than
+            // a destructive verb one slip away from it.
+            extra: saved ? (
+              <HeaderIconButton
+                icon={Icons.ellipsis}
+                color={theme.textSecondary}
+                accessibilityLabel="Note options"
+                onPress={() => router.push({ pathname: '/habits/note-actions', params: { day } })}
+              />
+            ) : null,
           }),
         }}
       />
@@ -258,6 +271,13 @@ export default function NoteScreen() {
             own `paddingBottom` over whatever style it is given — zero while the keyboard is down —
             so a bottom inset written there is silently thrown away. */}
         <View style={styles.column}>
+          {/* Above the page, because a save that failed is the one thing here more urgent than the
+              writing — and because until now there was nowhere at all to read a note error. No
+              style of its own: the column already carries the gutter, and the banner brings its own
+              bottom margin. The page below is `flex: 1`, so it lends the banner its height and
+              takes it back on dismiss. */}
+          <ErrorBanner message={error} onDismiss={dismissError} />
+
           {/* The margin rule — the one piece of structure on the page, and the only thing on this
               screen that changes appearance when a sitting opens.
 
@@ -307,6 +327,7 @@ export default function NoteScreen() {
             elapsed={dictation.elapsed}
             level={dictation.level}
             onDownload={() => void dictation.download()}
+            onRetry={() => void dictation.retry()}
             onStart={beginRecording}
             onStop={() => void stop()}
           />
@@ -314,18 +335,6 @@ export default function NoteScreen() {
       </KeyboardAvoidingView>
     </View>
   );
-}
-
-/** The modal's title names the day it is writing about — so a note started from a step back to
- *  Tuesday can never be mistaken for tonight's. */
-function noteTitle(day: string, today: string): string {
-  if (day === today) return 'Today';
-  if (day === addDaysISO(today, -1)) return 'Yesterday';
-  return new Date(day + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-  });
 }
 
 const styles = StyleSheet.create({

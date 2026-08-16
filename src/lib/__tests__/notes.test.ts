@@ -4,7 +4,6 @@ import {
   appendSpoken,
   appendToBody,
   groupByMonth,
-  hasBody,
   matchesQuery,
   noteDateTitle,
   notePreview,
@@ -63,14 +62,6 @@ describe('appendSpoken', () => {
     expect(appendSpoken('I was thinking about', 'how the week went')).toBe(
       'I was thinking about how the week went',
     );
-  });
-});
-
-describe('hasBody', () => {
-  it('treats whitespace as nothing', () => {
-    expect(hasBody(note({ body: '  \n ' }))).toBe(false);
-    expect(hasBody(note({ body: 'x' }))).toBe(true);
-    expect(hasBody(null)).toBe(false);
   });
 });
 

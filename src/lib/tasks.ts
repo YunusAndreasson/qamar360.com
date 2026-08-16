@@ -19,7 +19,7 @@
  */
 
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, localDate } from '@/lib/dates';
+import { dayTitle } from '@/lib/dates';
 
 /** One task row. `done_on` null = still open; non-null is the local day it was ticked. */
 export type Task = Tables<'tasks'>;
@@ -76,13 +76,13 @@ export function openCountOn(tasks: readonly Task[], day: string, today: string):
  * the app keeps around a miss. It is a note of where the thing came from, not a reproach.
  */
 export function carriedLabel(dueOn: string, today: string): string | null {
+  // The `null` is the whole point of the branch: `dayTitle` would answer "Today" here, and a task
+  // on its own day has nothing to say about where it came from.
   if (dueOn >= today) return null;
-  if (dueOn === addDaysISO(today, -1)) return 'Yesterday';
-  const date = localDate(dueOn);
-  // Inside a week a bare weekday is unambiguous; older than that it repeats, so carry the date.
-  return dueOn > addDaysISO(today, -7)
-    ? date.toLocaleDateString('en-US', { weekday: 'long' })
-    : date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  // The header's settings — a bare weekday while that still picks a day out. A carried task sits
+  // among today's, one line under its title, so a long name is the wrong shape for it; and nothing
+  // carries forward across a year.
+  return dayTitle(dueOn, today, { weekday: 'long' });
 }
 
 export type TaskRowContract = {

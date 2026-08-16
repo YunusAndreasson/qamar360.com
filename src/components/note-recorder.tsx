@@ -5,15 +5,33 @@ import { AppIcon } from '@/components/app-icon';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { VoiceMeter } from '@/components/voice-meter';
-import { Radius, Spacing } from '@/constants/theme';
+import { Disabled, Radius, Spacing } from '@/constants/theme';
 import { VOICE_MODEL_MB, type DictationState } from '@/hooks/use-dictation';
 import { useTheme } from '@/hooks/use-theme';
+
+import type { ReactNode } from 'react';
 
 type Props = Pick<DictationState, 'status' | 'progress' | 'error' | 'pending' | 'elapsed' | 'level'> & {
   onDownload: () => void;
   onStart: () => void;
   onStop: () => void;
+  /** Ask the recogniser to load itself again, from the one state it cannot leave on its own. */
+  onRetry: () => void;
 };
+
+/**
+ * The bordered card the three not-yet-listening states sit in — the download ask, its progress, and
+ * a failure. Written once, because it was written out three times.
+ *
+ * Deliberately not a `Surface`, close as the two are (`Radius.card`, a hairline border, a
+ * `Spacing.three` inset). `Surface` also carries `Elevation.card` and the lit top edge, which say
+ * "this is a card resting on the page" — and this is a panel *inside* the page's own column, on the
+ * same plane as the writing above it. A shadow here would lift the instrument off the note.
+ */
+function Gate({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  return <View style={[styles.gate, { borderColor: theme.border }]}>{children}</View>;
+}
 
 /** mm:ss, because this one *is* a clock: it is counting up beside a live meter, which is the one
  *  place a duration reads as elapsed time rather than as a length. */
@@ -36,14 +54,28 @@ function clock(seconds: number): string {
  * and say exactly the same things: the button is still the one round live verb, the meter still
  * moves beside it, and the status still speaks under the meter rather than under the whole panel.
  */
-export function NoteRecorder({ status, progress, error, pending, elapsed, level, onDownload, onStart, onStop }: Props) {
+export function NoteRecorder({
+  status,
+  progress,
+  error,
+  pending,
+  elapsed,
+  level,
+  onDownload,
+  onStart,
+  onStop,
+  onRetry,
+}: Props) {
   const theme = useTheme();
 
   if (status === 'needsDownload') {
     return (
-      <View style={[styles.gate, { borderColor: theme.border }]}>
+      <Gate>
         {/* The plainest true sentence about this feature, first — because the ask that follows is
-            106 MB of somebody's data, and the only thing that justifies it is what it buys. */}
+            106 MB of somebody's data, and the only thing that justifies it is what it buys.
+            "Qamar" and not `APP_NAME`: the product is Qamar360, the thing you talk to is Qamar, and
+            the microphone error in `use-dictation` already uses the same short form. A version
+            number in the middle of a sentence about trust reads like a legal notice. */}
         <ThemedText type="default">Qamar writes your notes down on this phone. Nothing is sent anywhere.</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           That needs a one-time {VOICE_MODEL_MB} MB download.
@@ -56,14 +88,14 @@ export function NoteRecorder({ status, progress, error, pending, elapsed, level,
         <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
           or just type — the field above is yours either way
         </ThemedText>
-      </View>
+      </Gate>
     );
   }
 
   if (status === 'downloading') {
     const percent = Math.round(progress?.percent ?? 0);
     return (
-      <View style={[styles.gate, { borderColor: theme.border }]}>
+      <Gate>
         <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
           {/* Naming the extract phase matters more than it looks: it runs at 100% of the download,
               so without it the bar sits full and still for several seconds and reads as a hang. */}
@@ -77,17 +109,32 @@ export function NoteRecorder({ status, progress, error, pending, elapsed, level,
             ]}
           />
         </View>
-      </View>
+      </Gate>
     );
   }
 
   if (status === 'error') {
     return (
-      <View style={[styles.gate, { borderColor: theme.border }]}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
+      <Gate>
+        {/* Deliberately NOT `ErrorBanner`, which is the app's surface for a *transient* failure —
+            it auto-clears after four seconds, and this one is a state the recogniser is sitting in
+            until something changes it. A message that faded out would leave a card holding a retry
+            for a problem it no longer names. So it stays put, and takes the danger tone rather than
+            the muted one it used to wear, because a failure that reads like chrome reads as normal.
+            The retry is the real repair: without it this state was terminal — `prepare()` ran once,
+            in a mount effect, so the only way back to a microphone was to leave and come back. */}
+        <ThemedText type="small" themeColor="danger" style={styles.centered}>
           {error}
         </ThemedText>
-      </View>
+        <AppButton variant="secondary" onPress={onRetry} accessibilityLabel="Try the microphone again">
+          Try again
+        </AppButton>
+        {/* The same escape hatch the download gate offers, for the same reason: nothing here has
+            ever been allowed to stand between somebody and writing the day down. */}
+        <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
+          or just type — the field above is yours either way
+        </ThemedText>
+      </Gate>
     );
   }
 
@@ -111,7 +158,7 @@ export function NoteRecorder({ status, progress, error, pending, elapsed, level,
         style={[
           styles.button,
           { backgroundColor: recording ? theme.dangerSubtle : theme.accentSubtle },
-          (busy || finishing) && { opacity: 0.5 },
+          (busy || finishing) && { opacity: Disabled },
         ]}>
         <AppIcon name={recording ? 'stop' : 'mic'} size={24} color={recording ? theme.danger : theme.accent} />
       </PressableScale>

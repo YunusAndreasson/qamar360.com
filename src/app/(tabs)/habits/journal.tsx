@@ -1,21 +1,28 @@
-import { Stack, useRouter } from 'expo-router';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
+import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
+import { JournalSkeleton } from '@/components/journal-skeleton';
 import { RowSeparator } from '@/components/row-separator';
 import { SectionLabel } from '@/components/section-label';
-import { Skeleton } from '@/components/skeleton';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
 import { useNotes } from '@/hooks/use-notes';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { groupByMonth, matchesQuery, noteDateTitle, notePreview, spokenLabel, type DailyNote } from '@/lib/notes';
+
+/** How much of an entry an archive row shows. Longer than a one-line preview because two lines is
+ *  what tells two quiet evenings apart when you are scanning for one of them. */
+const PREVIEW_CHARS = 140;
+const PREVIEW_LINES = 2;
 
 /**
  * The Journal — everything written, newest first.
@@ -39,9 +46,16 @@ export default function JournalScreen() {
   const { archive, archiveLoading, loadArchive, error, dismissError } = useNotes();
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    void loadArchive();
-  }, [loadArchive]);
+  // On focus rather than on mount, so a note written on Today while this screen sits underneath in
+  // the stack is on the list when you come back to it. The provider's `archiveInFlight` guard is
+  // what keeps this and the pull below from firing two identical SELECTs at each other.
+  useFocusEffect(
+    useCallback(() => {
+      void loadArchive();
+    }, [loadArchive]),
+  );
+
+  const { refreshControl } = usePullToRefresh(loadArchive);
 
   const months = useMemo(
     () => groupByMonth(archive.filter((n) => matchesQuery(n, query, today)), today),
@@ -74,25 +88,40 @@ export default function JournalScreen() {
 
       {archiveLoading ? (
         <AppScreen transparent>
-          <Skeleton height={72} />
-          <Skeleton height={72} />
-          <Skeleton height={72} />
+          <JournalSkeleton />
         </AppScreen>
-      ) : months.length === 0 ? (
+      ) : error && archive.length === 0 ? (
+        // A failed first load arrives here looking exactly like a diary nobody has started — and
+        // "Nothing written yet" is a terrible thing to tell someone whose entries are all still
+        // there and merely out of reach. So the failure gets its own state, the same one Today and
+        // Progress raise, with the retry this screen would otherwise have no way to offer.
+        // The message is not the hook's: it names the recovery that is actually on screen.
         <AppScreen transparent centered>
           <EmptyState
-            icon={query ? 'searchOff' : 'journal'}
-            title={query ? 'Nothing found' : 'Nothing written yet'}
-            body={
-              query
-                ? 'No note has those words in it.'
-                : 'Notes you write at the foot of the day collect here, oldest kept as long as you keep them.'
-            }
-          />
+            icon="cloudOff"
+            title="Couldn’t load your journal"
+            body="Check your connection, then try again.">
+            <AppButton onPress={() => void loadArchive()} accessibilityLabel="Try loading again">
+              Try again
+            </AppButton>
+          </EmptyState>
         </AppScreen>
       ) : (
-        <AppScreen transparent>
+        // One screen for "nothing here" and "here it is", so the banner and the pull are wired once
+        // and a later failure — a refresh, a delete — is visible over a list that is still good.
+        <AppScreen transparent centered={months.length === 0} refreshControl={refreshControl}>
           <ErrorBanner message={error} onDismiss={dismissError} />
+          {months.length === 0 ? (
+            <EmptyState
+              icon={query ? 'searchOff' : 'journal'}
+              title={query ? 'Nothing found' : 'Nothing written yet'}
+              body={
+                query
+                  ? 'No note has those words in it.'
+                  : 'Notes you write at the foot of the day collect here, oldest kept as long as you keep them.'
+              }
+            />
+          ) : null}
           {months.map((month) => (
             <View key={month.key} style={styles.month}>
               <SectionLabel>{month.label.toUpperCase()}</SectionLabel>
@@ -100,27 +129,7 @@ export default function JournalScreen() {
                 {month.notes.map((note, i) => (
                   <Fragment key={note.id}>
                     {i > 0 ? <RowSeparator /> : null}
-                    <Touchable
-                      onPress={() => open(note)}
-                      androidRipple={{ color: theme.backgroundSelected }}
-                      underlayColor={theme.backgroundSelected}
-                      activeUnderlayOpacity={1}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${noteDateTitle(note.note_date, today)}. ${notePreview(note.body, 140)}`}
-                      accessibilityHint="Opens that day."
-                      style={styles.row}>
-                      <View style={styles.heading}>
-                        <ThemedText type="smallBold">{noteDateTitle(note.note_date, today)}</ThemedText>
-                        {spokenLabel(note.spoken_seconds) ? (
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {spokenLabel(note.spoken_seconds)}
-                          </ThemedText>
-                        ) : null}
-                      </View>
-                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
-                        {notePreview(note.body, 140)}
-                      </ThemedText>
-                    </Touchable>
+                    <ArchiveRow note={note} today={today} onPress={open} />
                   </Fragment>
                 ))}
               </Surface>
@@ -132,9 +141,54 @@ export default function JournalScreen() {
   );
 }
 
+/** One day in the archive: its date, how long was spoken into it, and the opening of what it says.
+ *  The date and the preview are each resolved once and used twice — the row shows them and the
+ *  screen reader is handed the same two strings, rather than each caller recomputing them. */
+function ArchiveRow({
+  note,
+  today,
+  onPress,
+}: {
+  note: DailyNote;
+  today: string;
+  onPress: (note: DailyNote) => void;
+}) {
+  const theme = useTheme();
+  const title = noteDateTitle(note.note_date, today);
+  const preview = notePreview(note.body, PREVIEW_CHARS);
+  const spoken = spokenLabel(note.spoken_seconds);
+
+  return (
+    <Touchable
+      onPress={() => onPress(note)}
+      androidRipple={{ color: theme.backgroundSelected }}
+      underlayColor={theme.backgroundSelected}
+      activeUnderlayOpacity={1}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${preview}`}
+      accessibilityHint="Opens that day."
+      style={styles.row}>
+      <View style={styles.heading}>
+        <ThemedText type="smallBold">{title}</ThemedText>
+        {spoken ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {spoken}
+          </ThemedText>
+        ) : null}
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={PREVIEW_LINES}>
+        {preview}
+      </ThemedText>
+    </Touchable>
+  );
+}
+
 const styles = StyleSheet.create({
   month: { gap: Spacing.two, marginBottom: Spacing.four },
-  row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.half, minHeight: 64 },
+  // 56 is the row family's floor (`loose-row`, `task-row`, `note-section`), and it is only ever a
+  // floor here: a heading over two lines of preview stands taller than that on its own, and a
+  // one-line entry is the only thing the minimum ever has to catch.
+  row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.half, minHeight: 56 },
   // The date and the duration on one line, pushed apart — so a column of rows reads as a column of
   // dates first, which is how anyone looks for a day they half-remember.
   heading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },

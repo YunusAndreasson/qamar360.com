@@ -19,7 +19,7 @@
  */
 
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, localDate } from '@/lib/dates';
+import { dayTitle, localDate } from '@/lib/dates';
 import { foldText } from '@/lib/note-vocabulary';
 
 /** One note row. There is at most one per `(user_id, note_date)` — the table enforces it. */
@@ -61,12 +61,6 @@ export function appendSpoken(existing: string, sentence: string): string {
   return appendToBody(existing, sentence, ' ');
 }
 
-/** Is there anything here? Whitespace-only counts as nothing — an empty field must not save a row
- *  that then shows as a note on the day. */
-export function hasBody(note: Pick<DailyNote, 'body'> | null): boolean {
-  return !!note && note.body.trim().length > 0;
-}
-
 /**
  * The one line the archive row shows. The note's own opening, cut at a word — never mid-word, and
  * never with the body's paragraph breaks left in, which would make a two-line row out of a
@@ -97,19 +91,15 @@ export function spokenLabel(seconds: number | null): string | null {
 }
 
 /**
- * How a note's day is titled in the archive — "Today", "Yesterday", then the date.
+ * How a note's day is titled — in the archive, and on the editor that a row opens.
  *
- * Same ladder as the Today header (`viewDateTitle`) for the two near days, and then it diverges:
- * the header can say a bare "Thursday" because it also carries a stepper you just moved, so the
- * week is obvious. A list of thirty rows cannot — three bare "Thursday"s in a column name nothing.
- * So everything older than yesterday carries its date, and the year too once it isn't this one.
+ * The list settings of {@link dayTitle}: never a bare weekday (three of them in a column name
+ * nothing), and the year once the day leaves this one, because this is the one surface in the app
+ * that can reach back years. Named here rather than inlined at the two call sites so a row and the
+ * screen it opens cannot drift — which is exactly what they had done.
  */
 export function noteDateTitle(noteDate: string, today: string): string {
-  if (noteDate === today) return 'Today';
-  if (noteDate === addDaysISO(today, -1)) return 'Yesterday';
-  const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
-  if (noteDate.slice(0, 4) !== today.slice(0, 4)) options.year = 'numeric';
-  return localDate(noteDate).toLocaleDateString('en-US', options);
+  return dayTitle(noteDate, today, { year: true });
 }
 
 /** One month's worth of the archive: the heading, and the notes under it (newest first). */

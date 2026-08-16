@@ -32,7 +32,7 @@ import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
-import { addDaysISO, localDate, scheduledOn } from '@/lib/dates';
+import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -68,15 +68,11 @@ const LIST_BOTTOM_INSET = ScrollBottomInset + Spacing.five;
 const SECTION_LEAD = Spacing.three;
 const SECTION_BREAK = Spacing.five;
 
+/** The header names one day at a time, with a stepper under it — so it takes the bare weekday for
+ *  the last week (the week is obvious from the move you just made) and no year (the stepper only
+ *  reaches thirty days back, so there is never another year to tell this one from). */
 function viewDateTitle(viewDate: string, today: string): string {
-  if (viewDate === today) return 'Today';
-  if (viewDate === addDaysISO(today, -1)) return 'Yesterday';
-  const date = new Date(viewDate + 'T12:00:00');
-  // Within the last week a bare weekday is unambiguous; older than that it repeats
-  // (the stepper reaches 30 days back), so carry the date to keep the title exact.
-  return viewDate > addDaysISO(today, -7)
-    ? date.toLocaleDateString('en-US', { weekday: 'long' })
-    : date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  return dayTitle(viewDate, today, { weekday: 'long' });
 }
 
 /** A top-level card of the day: a stack and the acts it has due. Every habit lives in one, so
@@ -126,8 +122,15 @@ export default function HabitsScreen() {
     dismissError: dismissTaskError,
     refresh: refreshTasks,
   } = useTasks();
-  // The day's note. Read here only to paint the foot of the day — writing it happens in the modal.
-  const { note, noteLoading, refresh: refreshNote } = useNotes();
+  // The day's note. Read here to paint the foot of the day — writing it happens in the modal, but
+  // the load and delete failures happen out here, where the modal isn't, so the error comes too.
+  const {
+    note,
+    noteLoading,
+    refresh: refreshNote,
+    error: noteError,
+    dismissError: dismissNoteError,
+  } = useNotes();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -577,6 +580,7 @@ export default function HabitsScreen() {
           {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
+          <ErrorBanner message={noteError} onDismiss={dismissNoteError} style={styles.banner} />
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
               until there is a list — the way in is the header "+". */}

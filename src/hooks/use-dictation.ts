@@ -221,6 +221,8 @@ export function useDictation(onSentence: (text: string) => void): DictationState
   prepare: () => Promise<void>;
   /** Spend the 106 MB, then prepare. */
   download: () => Promise<void>;
+  /** Leave the `error` state: reload the model, or simply stand down if only the microphone failed. */
+  retry: () => Promise<void>;
   start: () => Promise<void>;
   /** Stops capture and resolves once every queued segment has been decoded. */
   stop: () => Promise<void>;
@@ -401,6 +403,31 @@ export function useDictation(onSentence: (text: string) => void): DictationState
   const prepare = useCallback(() => prepareWith(false), [prepareWith]);
   const download = useCallback(() => prepareWith(true), [prepareWith]);
 
+  /**
+   * Leave the `error` state — the one thing it could not do for itself.
+   *
+   * `prepare()` runs once, from a mount effect, so a failure here used to be terminal for as long
+   * as the screen stayed open: the only way back to a working microphone was to close the note and
+   * open it again. Two different failures land in the same state and want opposite repairs.
+   *
+   * A **microphone** failure leaves the recogniser loaded and perfectly well, so there is nothing
+   * to prepare — dropping back to `ready` is the whole fix, and whether the permission has since
+   * been granted is not knowable from here anyway. The next tap finds out, which is what the tap
+   * did the first time.
+   *
+   * A **model** failure has no engine, so it goes back through `prepareWith(false)`. Deliberately
+   * without the download: if the model isn't on disk this lands on `needsDownload` and asks again,
+   * rather than quietly re-spending 106 MB of somebody's data on their behalf.
+   */
+  const retry = useCallback(async () => {
+    if (engine.current) {
+      setError(null);
+      setStatus('ready');
+      return;
+    }
+    await prepareWith(false);
+  }, [prepareWith]);
+
   const start = useCallback(async () => {
     if (!engine.current || capturing.current) return;
     if (!(await ensureMicPermission())) {
@@ -479,7 +506,7 @@ export function useDictation(onSentence: (text: string) => void): DictationState
     return () => clearInterval(timer);
   }, [status, stop]);
 
-  // Free the recogniser with the sheet. It is the largest allocation this app ever makes, and a
+  // Free the recogniser with the editor. It is the largest allocation this app ever makes, and a
   // habit tracker has no business holding a few hundred megabytes of ONNX graph between notes.
   useEffect(
     () => () => {
@@ -493,5 +520,5 @@ export function useDictation(onSentence: (text: string) => void): DictationState
     [],
   );
 
-  return { status, progress, error, pending, elapsed, level, prepare, download, start, stop };
+  return { status, progress, error, pending, elapsed, level, prepare, download, retry, start, stop };
 }

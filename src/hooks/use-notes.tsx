@@ -27,8 +27,10 @@ import { supabase } from '@/lib/supabase';
 const LOAD_ERROR = 'Could not load your notes. Check your connection and try again.';
 const SAVE_ERROR = 'Could not save your note. Check your connection.';
 /** The day already had a note — written on another device, or in another session. Nothing was
- *  overwritten, and the text is still in the editor; reopening the day shows what is there. */
-const CONFLICT_ERROR = 'That day already has a note. Open it again to see it — nothing was overwritten.';
+ *  overwritten; the editor stays open with the words still in it, and closing it shows what is
+ *  actually on the server. */
+const CONFLICT_ERROR = 'That day already has a note. Close this to see it — nothing was overwritten.';
+const DELETE_ERROR = 'Could not delete that note. Check your connection.';
 
 /** Trailing delay before persisting the cold-start snapshot — the habits provider's rationale. */
 const SNAPSHOT_DEBOUNCE_MS = 400;
@@ -62,9 +64,23 @@ type NotesContextValue = {
    * stepper's thirty-day reach). One lookup for both, so neither has to special-case the other.
    */
   noteFor: (day: string) => DailyNote | null;
-  /** Write a day's note, defaulting to the viewed one. An empty body deletes the row rather than
-   *  storing a blank one. */
-  saveNote: (body: string, spokenSeconds: number | null, day?: string) => Promise<void>;
+  /**
+   * Write a day's note, defaulting to the viewed one. An empty body deletes the row rather than
+   * storing a blank one.
+   *
+   * Returns whether it landed, because the editor has to know: it is a modal, and a modal that
+   * dismisses on a failed write takes the only surface the error could have appeared on with it —
+   * and takes the words with it too, as far as the user can see.
+   */
+  saveNote: (body: string, spokenSeconds: number | null, day?: string) => Promise<boolean>;
+  /**
+   * Throw a day's note away. Returns whether the row is actually gone — the editor closes on that,
+   * and stays open with its banner otherwise.
+   *
+   * Emptying the field and saving does the same thing, and did so from the first day; what it never
+   * did was tell anybody, so this is the same act with a name on it.
+   */
+  deleteNote: (day: string) => Promise<boolean>;
   /** Pull the whole archive. Called by the Journal screen when it opens. */
   loadArchive: () => Promise<void>;
   refresh: () => Promise<boolean>;
@@ -108,8 +124,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const viewDateRef = useLatestRef(viewDate);
-  // Days this session has deleted a note on. A delete removes the row optimistically, the sheet
-  // pops on that state, Today regains focus and refreshes — and that SELECT can reach the server
+  // The user this provider currently serves. A fetch that lands after a sign-in as somebody else
+  // must not write its rows onto the new one's screen — `use-progress` guards the same way.
+  const userRef = useLatestRef(userId);
+  // Days this session has deleted a note on. A delete removes the row optimistically, the editor
+  // closes on that state, Today regains focus and refreshes — and that SELECT can reach the server
   // before the DELETE does, handing the note straight back. Filtering the fetch is what makes the
   // delete stick whichever round-trip wins; the day is dropped again only if the delete fails.
   const deletedDays = useRef<Set<string>>(new Set());
@@ -124,17 +143,21 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .eq('note_date', day)
         .maybeSingle();
-      // The view may have stepped to another day while this was in flight; the later fetch owns
-      // the screen now (the same guard every day-scoped path in `use-habits` uses).
-      if (viewDateRef.current !== day) return true;
+      // Superseded mid-flight, two ways: the view stepped to another day (the guard every
+      // day-scoped path in `use-habits` uses), or the session became somebody else's.
+      if (userRef.current !== userId || viewDateRef.current !== day) return true;
       if (fetchError) {
         setError(LOAD_ERROR);
         return false;
       }
       setLoaded({ day, note: deletedDays.current.has(day) ? null : data });
+      // Cleared on the way through rather than only by the banner's own dismiss: a load that
+      // succeeded has answered whatever the last one failed at. It is also what releases the
+      // snapshot effect below, which refuses to write for as long as an error stands.
+      setError(null);
       return true;
     },
-    [userId, viewDateRef],
+    [userId, userRef, viewDateRef],
   );
 
   const refresh = useCallback(() => fetchNote(viewDateRef.current), [fetchNote, viewDateRef]);
@@ -161,11 +184,17 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   }, [loading, userId, error, viewDate, note]);
 
   /**
-   * The whole archive, deduped against itself: the Journal's mount preload and its focus refetch
-   * both land at once on a cold open, and two identical SELECTs is one too many.
+   * The whole archive, deduped against itself. The Journal has two callers — a focus refetch and
+   * pull-to-refresh — and a pull begun while the focus fetch is still out would otherwise issue a
+   * second identical SELECT that can only return the same rows.
    */
   const loadArchive = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      // Nothing to fetch and nothing to wait for. Returning with `archiveLoading` still true would
+      // sit the Journal on its skeletons for as long as the app is open.
+      setArchiveLoading(false);
+      return;
+    }
     if (archiveInFlight.current) return archiveInFlight.current;
     const run = (async () => {
       const { data, error: fetchError } = await supabase
@@ -174,7 +203,10 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .order('note_date', { ascending: false });
       if (fetchError) setError(LOAD_ERROR);
-      else setArchive((data ?? []).filter((n) => !deletedDays.current.has(n.note_date)));
+      else {
+        setArchive((data ?? []).filter((n) => !deletedDays.current.has(n.note_date)));
+        setError(null); // as in `fetchNote` — a good read retracts the last bad one
+      }
       setArchiveLoading(false);
     })();
     archiveInFlight.current = run;
@@ -194,7 +226,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       setLoaded({ day, note: null });
       setArchive((prev) => prev.filter((n) => n.id !== noteId));
 
-      if (noteId.startsWith('temp-')) return; // never persisted
+      if (noteId.startsWith('temp-')) return true; // never persisted
       const { error: delError } = await supabase.from('daily_notes').delete().eq('id', noteId);
       if (delError) {
         deletedDays.current.delete(day);
@@ -202,8 +234,11 @@ export function NotesProvider({ children }: { children: ReactNode }) {
           setLoaded({ day, note: removed });
           setArchive((prev) => [removed, ...prev].sort((a, b) => b.note_date.localeCompare(a.note_date)));
         }
-        setError('Could not delete that note. Check your connection.');
+        setError(DELETE_ERROR);
+        return false;
       }
+      setError(null);
+      return true;
     },
     [archive, note],
   );
@@ -221,18 +256,23 @@ export function NotesProvider({ children }: { children: ReactNode }) {
    * somebody's diary with a blank slate they never saw. An insert instead comes back as a unique
    * violation on `(user_id, note_date)`, and the recovery is to write nothing, say so, and leave the
    * text sitting in the editor where it still is.
+   *
+   * Every exit returns whether the words reached the server, because the editor closes on `true`
+   * and stays open on `false`. Nothing here dismisses anything itself.
    */
   const saveNote = useCallback(
-    async (body: string, spokenSeconds: number | null, forDay?: string) => {
-      if (!userId) return;
+    async (body: string, spokenSeconds: number | null, forDay?: string): Promise<boolean> => {
+      // Unreachable behind the auth gate, and returning `false` is the safe reading anyway: no
+      // session, no write, so nothing should behave as though there had been one.
+      if (!userId) return false;
       const day = forDay ?? viewDateRef.current;
       const clean = body.trim();
       const existing = day === viewDateRef.current ? note : (archive.find((n) => n.note_date === day) ?? null);
 
       if (!clean) {
-        if (existing) await deleteNoteRow(existing.id, day);
+        if (existing && !(await deleteNoteRow(existing.id, day))) return false;
         clearNoteDraft();
-        return;
+        return true;
       }
 
       // Optimistic, against a temp row when there was nothing here — so the foot of the day shows
@@ -276,22 +316,26 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         // whatever is actually on the server rather than to our own stale idea of it, and say what
         // happened. The user's words are untouched, still in the editor they were typed into.
         if (saveError?.code === '23505') {
-          setError(CONFLICT_ERROR);
           // Re-read whichever surface is showing this day. `fetchNote` is day-scoped and returns
           // early for anything but the viewed day, so a note saved from the Journal has to refresh
-          // the archive instead — otherwise the recovery would silently refresh nothing.
+          // the archive instead — otherwise the recovery would silently refresh nothing. Both of
+          // them clear the error on success, so the conflict is set *after* the re-read rather
+          // than before it, or the message would be wiped by its own recovery.
           await (day === viewDateRef.current ? fetchNote(day) : loadArchive());
-          return;
+          setError(CONFLICT_ERROR);
+          return false;
         }
         setLoaded({ day, note: existing });
         setError(SAVE_ERROR);
-        return;
+        return false;
       }
       // Kept until the server has it, and not a moment before: the draft is the only copy of a
       // sentence between the recogniser returning it and this row existing.
       clearNoteDraft();
       setLoaded({ day, note: data });
       setArchive((prev) => prev.map((n) => (n.note_date === day ? data : n)));
+      setError(null);
+      return true;
     },
     [userId, note, archive, deleteNoteRow, fetchNote, loadArchive, viewDateRef],
   );
@@ -299,6 +343,21 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const noteFor = useCallback(
     (day: string) => (day === viewDate ? note : (archive.find((n) => n.note_date === day) ?? null)),
     [viewDate, note, archive],
+  );
+
+  const deleteNote = useCallback(
+    async (day: string) => {
+      const existing = noteFor(day);
+      // Already nothing there — a day with no note and a day whose note was just deleted are the
+      // same day, so this is done rather than failed.
+      if (!existing) return true;
+      const gone = await deleteNoteRow(existing.id, day);
+      // The interrupted sitting went with the entry it belonged to; leaving it would offer to
+      // restore the very words that were just thrown away.
+      if (gone) clearNoteDraft();
+      return gone;
+    },
+    [noteFor, deleteNoteRow],
   );
 
   // The user's own words, harvested once per change of their habits and stacks rather than per
@@ -320,6 +379,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       vocabulary,
       noteFor,
       saveNote,
+      deleteNote,
       loadArchive,
       refresh,
     }),
@@ -333,6 +393,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       vocabulary,
       noteFor,
       saveNote,
+      deleteNote,
       loadArchive,
       refresh,
     ],

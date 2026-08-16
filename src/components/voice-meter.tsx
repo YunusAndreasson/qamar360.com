@@ -13,7 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * The bars that move while you speak.
  *
- * This is the single most important thing on the recording sheet, and not because it is pretty.
+ * This is the single most important thing on the recording footer, and not because it is pretty.
  * A microphone gives no evidence of itself: the app can be perfectly, silently broken — a denied
  * permission, a session another app is holding, a stream that opened onto nothing — and look
  * exactly like an app that is listening. A meter that answers *your own voice* is the only
@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
  *
  * **Zero React renders.** The level is a shared value written straight from the audio callback ten
  * times a second (see `hooks/use-dictation.ts`) and read here on the UI thread. Routing that
- * through state would re-render the sheet — the whole sheet, holding a focused text field — ten
+ * through state would re-render the editor — the whole screen, holding a focused text field — ten
  * times a second, which is exactly the shape of jank that would make dictation feel cheap.
  */
 
@@ -81,7 +81,7 @@ export function VoiceMeter({ level, live }: { level: SharedValue<number>; live: 
     <View
       style={styles.row}
       // One element, described once. Nine animated bars each announcing themselves would make the
-      // sheet unusable with a screen reader, and the state they show is spoken by the status line
+      // screen unusable with a screen reader, and the state they show is spoken by the status line
       // beside them anyway.
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">

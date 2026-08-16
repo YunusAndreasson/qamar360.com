@@ -79,6 +79,9 @@ export default function HabitsStackLayout() {
           a keyboard, which a `fitToContents` sheet can carry neither of comfortably. Opened from
           the foot of the day, or from a Journal row with the day it belongs to as a param. */}
       <Stack.Screen name="note" options={modalHeaderOptions(theme)} />
+      {/* What you can do to a note — one destructive row, raised by the editor's ⋯. Deleting is
+          the only thing a diary entry needs that writing in it can't say. */}
+      <Stack.Screen name="note-actions" options={formSheetOptions(theme)} />
       {/* Every note ever written — a pushed transparent screen so the fixed sky shows behind the
           months, like Insights and Progress. Its search bar is native (see the screen itself). */}
       <Stack.Screen name="journal" options={transparentScreen} />
