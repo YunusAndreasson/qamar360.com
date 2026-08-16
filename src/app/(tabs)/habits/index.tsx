@@ -14,6 +14,7 @@ import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/compon
 import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
+import { NoteSection } from '@/components/note-section';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
@@ -25,6 +26,7 @@ import { Icons } from '@/constants/icons';
 import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
+import { useNotes } from '@/hooks/use-notes';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
@@ -124,6 +126,8 @@ export default function HabitsScreen() {
     dismissError: dismissTaskError,
     refresh: refreshTasks,
   } = useTasks();
+  // The day's note. Read here only to paint the foot of the day — writing it happens in the modal.
+  const { note, noteLoading, refresh: refreshNote } = useNotes();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -141,7 +145,8 @@ export default function HabitsScreen() {
       }
       void refresh();
       void refreshTasks();
-    }, [refresh, refreshTasks]),
+      void refreshNote();
+    }, [refresh, refreshTasks, refreshNote]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -165,7 +170,9 @@ export default function HabitsScreen() {
   // launch, so a pull on Today is the one in-session way to retry it (e.g. after a network
   // blip at launch silently left Discover on a stale snapshot).
   const { refresh: refreshCatalog } = useCatalog();
-  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshTasks(), refreshCatalog()]));
+  const { refreshControl } = usePullToRefresh(() =>
+    Promise.all([refresh(), refreshTasks(), refreshNote(), refreshCatalog()]),
+  );
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
@@ -697,6 +704,20 @@ export default function HabitsScreen() {
             settling={completionsLoading}
             onToggle={tickLoose}
             onOptions={openAct}
+          />
+          {/* The day in the user's own words — last, because a reflection comes after the day
+              rather than before it, and because the practice above is what it is reflecting on.
+              The only section here that is permanent chrome: an invitation that appears only once
+              you have already accepted it is not an invitation. Always takes the break — there is
+              always something above it, since it is the one section that never renders nothing. */}
+          <NoteSection
+            note={note}
+            loading={noteLoading}
+            topGap={SECTION_BREAK}
+            isToday={isToday}
+            dayTitle={viewDateTitle(viewDate, today)}
+            onOpen={() => router.push('/habits/note')}
+            onOpenJournal={() => router.push('/habits/journal')}
           />
         </Animated.ScrollView>
       )}

@@ -6,6 +6,7 @@ import { AppState, Platform } from 'react-native';
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { HabitsProvider, useHabits } from '@/hooks/use-habits';
+import { NotesProvider } from '@/hooks/use-notes';
 import { TasksProvider, useTasks } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { setAppBadgeCount } from '@/lib/notifications';
@@ -24,10 +25,15 @@ export default function TabsLayout() {
   // `TasksProvider` nests inside it: the day itself (viewDate, today, the midnight rollover) and
   // the habits state a closing day is judged against both live in the habits provider, so tasks
   // has to sit underneath to read them.
+  //
+  // `NotesProvider` nests for the same reason, plus one of its own: it compiles the dictation
+  // vocabulary from the user's habit and stack names, which only the habits provider has.
   return (
     <HabitsProvider>
       <TasksProvider>
-        <Tabs />
+        <NotesProvider>
+          <Tabs />
+        </NotesProvider>
       </TasksProvider>
     </HabitsProvider>
   );

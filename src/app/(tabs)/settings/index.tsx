@@ -13,6 +13,7 @@ import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { VoiceModelRow } from '@/components/voice-model-row';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
@@ -312,6 +313,9 @@ export default function SettingsScreen() {
           switchValue={skyMotion}
           onSwitchChange={(value) => setPreference('skyMotion', value)}
         />
+        {/* Only once there is one to account for. It renders nothing until the model has actually
+            been downloaded — a row offering to delete something you never had is noise. */}
+        <VoiceModelRow />
       </SettingsSection>
 
       {/* Account */}

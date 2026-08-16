@@ -75,6 +75,13 @@ export default function HabitsStackLayout() {
       />
       {/* New / edit exchange — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
+      {/* The day's note. A full-screen modal, like the editors — it holds a focused text field and
+          a keyboard, which a `fitToContents` sheet can carry neither of comfortably. Opened from
+          the foot of the day, or from a Journal row with the day it belongs to as a param. */}
+      <Stack.Screen name="note" options={modalHeaderOptions(theme)} />
+      {/* Every note ever written — a pushed transparent screen so the fixed sky shows behind the
+          months, like Insights and Progress. Its search bar is native (see the screen itself). */}
+      <Stack.Screen name="journal" options={transparentScreen} />
       {/* The exchange guide — the sibling of `stacking-info`, opened from the "New exchange" form. */}
       <Stack.Screen name="exchange-info" />
     </TabStack>
