@@ -44,15 +44,6 @@ export const Icons = {
   // A habit that belongs to no stack: the thing that recurs, with nothing it hangs off. A cycle is
   // right here where it would be wrong for an exchange — this one genuinely comes round again.
   repeat: { sf: 'repeat', material: 'repeat' },
-  // ── The day's note ─────────────────────────────────────────────────────
-  // Speaking, and stopping. The mic is the invitation *and* the control, because the note is a
-  // thing you say before it is a thing you have — filled rather than outlined, so it reads as the
-  // one live verb on a sheet where everything else is text.
-  mic: { sf: 'mic.fill', material: 'mic' },
-  stop: { sf: 'stop.fill', material: 'stop' },
-  // The archive of past notes. A closed book, not a list or a clock: what is behind this door is
-  // something to read, which is the same thing the chevron rule says about a fold.
-  journal: { sf: 'book.closed', material: 'menu-book' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────
@@ -85,9 +76,6 @@ export const Icons = {
   bedtime: { sf: 'moon.zzz.fill', material: 'bedtime' },
   // ── States / settings ──────────────────────────────────────────────────
   searchOff: { sf: 'magnifyingglass', material: 'search-off' },
-  /** Searching by meaning rather than by the letters typed — the Journal's on-device embedding
-   *  search. Distinct from {@link searchOff}, which is a "nothing found" state, not a feature. */
-  searchMeaning: { sf: 'sparkle.magnifyingglass', material: 'manage-search' },
   cloudOff: { sf: 'icloud.slash', material: 'cloud-off' },
   notifications: { sf: 'bell', material: 'notifications' },
   notificationsOff: { sf: 'bell.slash', material: 'notifications-off' },

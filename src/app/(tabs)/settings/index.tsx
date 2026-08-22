@@ -5,7 +5,6 @@ import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-nat
 
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
-import { MeaningSearchRow } from '@/components/meaning-search-row';
 import { SectionLabel } from '@/components/section-label';
 import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
@@ -14,7 +13,6 @@ import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
-import { VoiceModelRow } from '@/components/voice-model-row';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
@@ -314,19 +312,6 @@ export default function SettingsScreen() {
           switchValue={skyMotion}
           onSwitchChange={(value) => setPreference('skyMotion', value)}
         />
-      </SettingsSection>
-
-      {/* Notes — everything the daily note can put on this phone, in one place somebody can account
-          for and reclaim. The models arrive from inside features rather than at install, which is
-          exactly the kind of disk use that otherwise becomes invisible. Keeping them together is
-          also what makes the footer true of all of them at once. */}
-      <SettingsSection
-        title="Notes"
-        footer="Everything here runs on this phone. Nothing you write or say is sent anywhere.">
-        <MeaningSearchRow />
-        {/* Only once there is one to account for. It renders nothing until the model has actually
-            been downloaded — a row offering to delete something you never had is noise. */}
-        <VoiceModelRow />
       </SettingsSection>
 
       {/* Account */}

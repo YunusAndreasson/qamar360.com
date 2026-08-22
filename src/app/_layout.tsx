@@ -4,8 +4,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { initExecutorch } from 'react-native-executorch';
-import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -24,13 +22,6 @@ void SplashScreen.preventAutoHideAsync();
 // Push the preferences that plain modules hold as their own state (the Hijri adjustment) before
 // anything renders — the very first date the app formats must already carry the user's choice.
 initPreferences();
-
-// Tell ExecuTorch how to fetch a model before anything asks it to. This is registration only: it
-// opens no file, spends no bandwidth and loads no model, so it costs an install that never turns
-// any of these features on precisely nothing. The Expo adapter is the one to use here because
-// `expo-file-system` and `expo-asset` are already dependencies — the bare adapter would pull in
-// two more native packages to do the same job.
-initExecutorch({ resourceFetcher: ExpoResourceFetcher });
 
 export default function RootLayout() {
   useEffect(() => {

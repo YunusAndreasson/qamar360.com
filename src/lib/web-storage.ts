@@ -1,9 +1,6 @@
 export type WebStorageLike = {
   getItem: (key: string) => string | null;
   setItem: (key: string, value: string) => void;
-  /** Web Storage's own removal. Needed by the note draft, which must be *gone* once its note is
-   *  saved — an empty string left in its slot would read at launch as an interrupted sitting. */
-  removeItem: (key: string) => void;
 };
 
 /**

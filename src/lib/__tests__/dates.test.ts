@@ -67,22 +67,14 @@ describe('dayTitle', () => {
     expect(dayTitle('2026-08-08', TODAY, { weekday: 'long' })).toBe('Sat, Aug 8');
   });
 
-  it('carries the year only when asked, and only once the day leaves this one', () => {
-    expect(dayTitle('2025-08-13', TODAY, { year: true })).toBe('Wed, Aug 13, 2025');
-    expect(dayTitle('2026-08-13', TODAY, { year: true })).toBe('Thu, Aug 13');
-    // The archive asks for the year; the header, which cannot reach one, does not.
-    expect(dayTitle('2025-08-13', TODAY)).toBe('Wed, Aug 13');
-  });
-
-  it('prefers the near-day names over both options', () => {
-    expect(dayTitle('2026-08-14', TODAY, { weekday: 'long', year: true })).toBe('Yesterday');
+  it('prefers the near-day names over the option', () => {
+    expect(dayTitle('2026-08-14', TODAY, { weekday: 'long' })).toBe('Yesterday');
   });
 
   it('names a day the same way whichever surface asks — the whole point of one ladder', () => {
-    // The Journal row and the editor it opens: one call, so they cannot disagree.
-    const listForm = { year: true } as const;
-    expect(dayTitle('2025-03-04', TODAY, listForm)).toBe(dayTitle('2025-03-04', TODAY, listForm));
-    expect(dayTitle('2025-03-04', TODAY, listForm)).toBe('Tue, Mar 4, 2025');
+    // Today's header and a to-do carried forward from that same day: one call, so they cannot
+    // disagree about what to call it.
+    expect(dayTitle('2026-08-08', TODAY, { weekday: 'long' })).toBe(dayTitle('2026-08-08', TODAY));
   });
 });
 

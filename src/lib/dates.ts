@@ -57,32 +57,26 @@ const BARE_WEEKDAY_DAYS = 7;
  * Name a day the way the app says it out loud: `Today`, `Yesterday`, then a weekday while that is
  * still unambiguous, then the date.
  *
- * **One ladder, because a day has one name.** This grew independently in four places — Today's
- * header, the note editor's title, a Journal row and a carried-forward to-do — and drifted into
- * three different answers for the same date, so that tapping a row labelled `Thu, Aug 7, 2025`
- * opened a screen headed `Thursday, Aug 7`, dropping the year that made it findable. The two
- * variations that are *real* are the options below; everything else was an accident.
+ * **One ladder, because a day has one name.** This grew independently in Today's header and in a
+ * carried-forward to-do, and drifted into two different answers for the same date. One function,
+ * with the single variation that is *real* as an option; everything else was an accident.
  *
  * @param weekday `'long'` gives a bare `Thursday` for the last week, falling back to the dated form
  * beyond it. Today's header can afford the bare one because a day-stepper sits beside it, so the
- * week is obvious from the move you just made. A list of thirty rows cannot — three bare Thursdays
+ * week is obvious from the move you just made. A list of many rows cannot — three bare Thursdays
  * in a column name nothing — so lists keep the default `'short'` and always carry the date.
- * @param year Carry the year once the day leaves this one. A header showing one day at a time has
- * no use for it; anything that can reach back years does.
  */
 export function dayTitle(
   iso: string,
   today: string,
-  { weekday = 'short', year = false }: { weekday?: 'long' | 'short'; year?: boolean } = {},
+  { weekday = 'short' }: { weekday?: 'long' | 'short' } = {},
 ): string {
   if (iso === today) return 'Today';
   if (iso === addDaysISO(today, -1)) return 'Yesterday';
   if (weekday === 'long' && iso > addDaysISO(today, -BARE_WEEKDAY_DAYS)) {
     return localDate(iso).toLocaleDateString('en-US', { weekday: 'long' });
   }
-  const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
-  if (year && iso.slice(0, 4) !== today.slice(0, 4)) options.year = 'numeric';
-  return localDate(iso).toLocaleDateString('en-US', options);
+  return localDate(iso).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */

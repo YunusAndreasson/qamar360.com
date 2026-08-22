@@ -1,25 +1,14 @@
 import { Pressable, StyleSheet } from 'react-native';
 
-import { HeaderActions } from '@/components/header-icon-button';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-
-import type { ReactNode } from 'react';
 
 type Props = {
   onCancel?: () => void;
   onSave: () => void;
   canSave: boolean;
   saveLabel?: string;
-  /**
-   * A glyph to sit before Save — the note editor's `⋯`, and whatever wants one next.
-   *
-   * Passed in rather than composed at the call site so that a form with an extra action still gets
-   * its Save from here: two modals building the same button two ways is how the one word every
-   * form ends on starts rendering differently in each of them.
-   */
-  extra?: ReactNode;
 };
 
 function headerCancelAction(onCancel?: () => void) {
@@ -46,22 +35,10 @@ export function headerCloseAction(onClose: () => void) {
   };
 }
 
-export function formHeaderActions({ onCancel, onSave, canSave, saveLabel, extra }: Props) {
-  const Save = headerSaveAction(onSave, canSave, saveLabel);
+export function formHeaderActions({ onCancel, onSave, canSave, saveLabel }: Props) {
   return {
     headerLeft: headerCancelAction(onCancel),
-    // Without an extra glyph the output is exactly what it always was — a bare Save, no wrapper —
-    // so every form that doesn't ask for one is untouched.
-    headerRight: extra
-      ? function HeaderRight() {
-          return (
-            <HeaderActions>
-              {extra}
-              <Save />
-            </HeaderActions>
-          );
-        }
-      : Save,
+    headerRight: headerSaveAction(onSave, canSave, saveLabel),
   };
 }
 
