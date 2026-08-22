@@ -75,6 +75,13 @@ const MOMENT_DEFS = {
   // The strongest cues in the app: a prayer has a definite end, happens daily, and is already
   // automatic. The anchor is *having prayed it*, never the hour it falls in.
   fajr: { label: 'Prayed Fajr', stackName: 'Fajr', icon: 'fajr', band: 'morning' },
+  // The one prayer moment that is itself voluntary, and the exception worth stating: every other
+  // cue in this file is a deed you already do, and Ḍuḥā is one you are taking up. That makes it a
+  // weaker anchor on the day it is chosen and a perfectly ordinary one a month later — which is
+  // the whole bet the app makes. It earns its place because the forenoon has no hinge otherwise:
+  // between standing up from Fajr and sitting down to Dhuhr there is no deed with a finish for
+  // anything to hang on, and that is the longest such stretch in the waking day.
+  duha: { label: 'Prayed Ḍuḥā', stackName: 'Ḍuḥā', icon: 'duha', band: 'morning' },
   dhuhr: { label: 'Prayed Dhuhr', stackName: 'Dhuhr', icon: 'dhuhr', band: 'midday' },
   asr: { label: 'Prayed ʿAṣr', stackName: 'ʿAṣr', icon: 'asr', band: 'midday' },
   maghrib: { label: 'Prayed Maghrib', stackName: 'Maghrib', icon: 'maghrib', band: 'evening' },
@@ -102,7 +109,7 @@ export const MOMENTS: Record<MomentKey, MomentDef> = MOMENT_DEFS;
  * word at the head of the screen three times over — the same reason the stack names dropped it.
  */
 export const MOMENT_GROUPS: { key: string; title: string; moments: MomentKey[] }[] = [
-  { key: 'prayers', title: 'PRAYERS', moments: ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
+  { key: 'prayers', title: 'PRAYERS', moments: ['fajr', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
   { key: 'life', title: 'SOMETHING YOU DO', moments: ['waking-up', 'before-dawn', 'bedtime'] },
   { key: 'sky', title: 'JUST A TIME — WEAKEST CUE', moments: ['morning', 'midday', 'evening', 'night'] },
 ];

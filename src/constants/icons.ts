@@ -67,6 +67,11 @@ export const Icons = {
   wake: { sf: 'sun.haze.fill', materialCommunity: 'weather-hazy' },
   preDawn: { sf: 'moon.haze.fill', material: 'nights-stay' },
   fajr: { sf: 'sun.horizon.fill', materialCommunity: 'weather-sunset-up' },
+  // Ḍuḥā is the sun *clear of* the horizon and still climbing — so it takes the horizon glyph
+  // Fajr wears and lifts the sun off it, and the arrowless Android sunrise/sunset (Fajr and
+  // Maghrib take the up- and down-arrow variants). Read down the column the three make the
+  // morning's actual arc: at the horizon, above it, overhead.
+  duha: { sf: 'sun.and.horizon.fill', materialCommunity: 'weather-sunset' },
   dhuhr: { sf: 'sun.max.fill', materialCommunity: 'white-balance-sunny' },
   asr: { sf: 'sun.min.fill', materialCommunity: 'sun-angle' },
   maghrib: { sf: 'sunset.fill', materialCommunity: 'weather-sunset-down' },

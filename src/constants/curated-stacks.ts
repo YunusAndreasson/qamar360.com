@@ -11,8 +11,13 @@ import type { MomentKey } from '@/lib/moments';
  *
  * Muslims carry an unusually reliable set of real cues — five prayers at fixed points of the
  * sun, the Friday prayer, plus waking, rising in the night, and lying down — so the library
- * below is simply those deeds with a short sequence hung on each. Every name here is therefore
- * an *after*, matching the past-tense voice the acts themselves are named in.
+ * below is mostly just those deeds with a short sequence hung on each. Every name here is
+ * therefore an *after*, matching the past-tense voice the acts themselves are named in.
+ *
+ * Ḍuḥā is the one exception, and it is filed under its own heading for exactly that reason: it
+ * is a cue the user has to establish rather than one they already have. It is here because the
+ * forenoon is the longest stretch of the waking day with no deed in it to hang anything on, so
+ * the alternative was not a weaker anchor — it was no stack at all.
  *
  * Every act is a preset that already exists in {@link SUNNAH_PRESETS}; this file only names ids
  * and their order. A curated stack is a *starting point* — once added it is an ordinary stack the
@@ -149,6 +154,38 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
           { presetId: 'sunnah-after-isha' },
           { presetId: 'witr' },
           { presetId: 'sleep-early' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'forenoon',
+    // Its own heading rather than a sixth card under "THE FIVE PRAYERS", which is a count and
+    // would stop being true. The title says the difference outright: every other stack in this
+    // file hangs off something you already do, and this one hangs off something you are taking up.
+    title: 'THE PRAYER YOU CHOOSE',
+    stacks: [
+      {
+        id: 'after-duha',
+        name: 'Ḍuḥā',
+        moment: 'duha',
+        // The only stack here whose anchor is not already automatic — see the note on the `duha`
+        // moment. It is also the only one whose first act *is* the anchor rather than a refinement
+        // of it: the five carry "prayed it on time", because praying at all was never in question,
+        // and here it is. Which makes this the one stack that has to earn its own cue before it
+        // can carry anything — so it is deliberately short, and the forenoon it opens is the
+        // emptiest stretch of the day to grow into.
+        blurb: 'The forenoon has no hinge of its own — so Ḍuḥā becomes one, and the morning hangs on it.',
+        acts: [
+          { presetId: 'duha' },
+          // The rest of the ḥadīth the prayer comes from: a charity owed by every joint each
+          // morning, of which ṣadaqah and a good word are named outright, and two rakʿahs of Ḍuḥā
+          // suffice for all of it (Muslim 720). The stack is that ḥadīth in its own order.
+          { presetId: 'sadaqah-daily' },
+          { presetId: 'good-word' },
+          // And the forenoon's own work: the hours students have always kept for new ḥifẓ, in the
+          // one stretch of the day nothing else has claimed yet.
+          { presetId: 'quran-sabaq' },
         ],
       },
     ],

@@ -20,7 +20,7 @@ describe('the moment set', () => {
   });
 
   it('prayer moments never carry the clock caption (the no-prayer-times rule)', () => {
-    for (const key of ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] as MomentKey[]) {
+    for (const key of ['fajr', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] as MomentKey[]) {
       expect(MOMENTS[key].until).toBeUndefined();
     }
   });
