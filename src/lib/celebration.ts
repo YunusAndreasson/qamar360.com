@@ -5,7 +5,7 @@
  * whole-month scale as the Progress orbit, so "ahead of last month" is a like-for-like comparison.
  */
 import { hijriParts } from '@/lib/dates';
-import { toDegrees, type MonthProgress } from '@/lib/progress';
+import { daysLeftLabel, toDegrees, type MonthProgress } from '@/lib/progress';
 
 export type CelebrationCopy = {
   /** e.g. "15 Muḥarram 1448", or null on a runtime whose Intl lacks the Islamic calendar. */
@@ -30,8 +30,6 @@ export function celebrationCopy(month: MonthProgress | null, day: string, hijriD
 
   if (!month) return { hijriLabel, degrees: null, daysLeftLabel: null, paceLabel: null };
 
-  const left = month.monthLength - month.dayOfMonth;
-  const daysLeftLabel = left <= 0 ? 'Last day of the month' : `${left} ${left === 1 ? 'day' : 'days'} left`;
 
   let paceLabel: string | null = null;
   if (month.hasPrevious) {
@@ -41,5 +39,5 @@ export function celebrationCopy(month: MonthProgress | null, day: string, hijriD
         : `last month you were at ${toDegrees(month.previousRate)}°`;
   }
 
-  return { hijriLabel, degrees: toDegrees(month.thisRate), daysLeftLabel, paceLabel };
+  return { hijriLabel, degrees: toDegrees(month.thisRate), daysLeftLabel: daysLeftLabel(month), paceLabel };
 }

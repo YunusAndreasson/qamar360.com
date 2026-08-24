@@ -136,6 +136,13 @@ export type ProgressHabit = {
   hijri_schedule?: HijriSchedule | null;
   /** A count-goal target (e.g. 5 pages); a scheduled day earns `count ÷ target` credit. Null = binary. */
   target_count?: number | null;
+  /**
+   * Optional, because none of the arithmetic here needs one — a rate is a rate whatever the act
+   * is called. The quarterly readings do ({@link import('./insights').computeReadings} names the
+   * act that gained ground), and they run off this same sweep, so it rides along rather than
+   * forcing a second habit shape.
+   */
+  name?: string | null;
 };
 
 /** The completion-row fields the progress math reads. */
@@ -172,18 +179,32 @@ export type MonthProgress = {
    * uniformly scheduled — White Days, Mondays/Thursdays — so a day count would misstate how much
    * of the month has actually been asked of you.
    *
-   * Unlike {@link previousRate} this exists from the first day of the first month: it is the
+   * Unlike {@link averageRate} this exists from the first day of the first month: it is the
    * calendar, not a past self, so a new user always has a mark to catch.
    */
   paceRate: number;
-  /** Previous Hijri month name, for the pace comparison ("vs last month"). */
-  previousMonthName: string;
   /**
-   * Last month by this same Hijri day, on the same whole-month scale (0–1): acts done through
-   * the matching day ÷ last month's full possible — directly comparable to {@link thisRate}.
+   * Your usual by this same Hijri day, on the same whole-month scale (0–1): for each prior Hijri
+   * month on record, the acts done through the matching day ÷ that month's full possible,
+   * averaged over them. Directly comparable to {@link thisRate}, so the caret outside the rim
+   * marks a position the bright arc can be read against.
+   *
+   * This is what the ring's caret shows. It used to show {@link previousRate} — one sample, so a
+   * single bad month or lucky one moved the benchmark by its whole width. The average is the same
+   * reading with the noise out of it, and it costs no new mark and no new tone on a ring that
+   * cannot afford either.
+   */
+  averageRate: number;
+  /** How many prior months went into {@link averageRate}. 0 → the first month; hide the caret. */
+  monthsAveraged: number;
+  /**
+   * Last month alone by this same Hijri day, same scale (0–1). Kept separate from
+   * {@link averageRate} because the two are read by different consumers and mean different
+   * things: the ring wants your usual, while the day-complete celebration and the lunar update
+   * both say "last month" in so many words, and an average would make that copy a lie.
    */
   previousRate: number;
-  /** Whether last month was tracked at all (false → the user's first month; hide the pace tick). */
+  /** Whether last month was tracked at all (false → the user's first month). */
   hasPrevious: boolean;
 };
 
@@ -194,6 +215,13 @@ export type MonthProgress = {
  * being a texture, and a phone has nowhere to put them.
  */
 export const SERIES_MAX_POINTS = 80;
+
+/**
+ * How far back the two month-by-month walks look — the ring's average-by-this-day and the
+ * rising-months trend. A Hijri year is the app's natural window, and both walks stop early at the
+ * first month that was never tracked, so this is a ceiling rather than a cost.
+ */
+const MONTHS_BACK = 12;
 
 /** One bucket of the record — a day while the record is short, a wider span once it isn't. */
 export type SeriesPoint = {
@@ -411,16 +439,36 @@ const PERIOD_ORDER: readonly SeriesPeriod[] = ['week', 'month', 'year', 'life'];
 /** The last seven days — the app's own rhythm, since habits are scheduled by weekday. */
 const WEEK_DAYS = 7;
 
-/** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
-export function computeProgress(
-  habits: ProgressHabit[],
+/**
+ * How much of the month is still ahead of you, as a phrase. The last day says so by name rather
+ * than counting down to a zero, which reads as an error.
+ *
+ * Shared, because two places say it and they must say it identically: the hero's reading line and
+ * the day-complete celebration.
+ */
+export function daysLeftLabel({ dayOfMonth, monthLength }: Pick<MonthProgress, 'dayOfMonth' | 'monthLength'>): string {
+  const left = monthLength - dayOfMonth;
+  return left <= 0 ? 'Last day of the month' : `${left} ${left === 1 ? 'day' : 'days'} left`;
+}
+
+/**
+ * The app's completion rule over a set of rows, as one callable: `undefined` where the act was
+ * not due that day, `null` where it was excused, otherwise its credit (0–1).
+ *
+ * Three-valued on purpose, and the same shape
+ * {@link import('./habit-stats').statsFromDailyCredit} takes — "not due" and "excused" have to be
+ * told apart (an excused day leaves the rate entirely; a day the act never ran on was never in
+ * it), and collapsing them is the classic way a habit's rate quietly starts counting Fridays it
+ * was never scheduled for.
+ *
+ * Exported so the quarterly readings ({@link import('./insights').computeReadings}) can run off
+ * the identical rule rather than a second copy of it — a reading that disagreed with the orbit
+ * above it would be worse than no reading.
+ */
+export function creditOnDay(
   completions: CompletionRow[],
-  today: string,
-): ProgressDerived {
-  // date → (habit id → its completion row) for that day. A skipped act is excluded from the
-  // rate entirely (numerator AND denominator), so it never counts as a miss — travel/period
-  // days can still read 100%. A count goal earns partial credit (count ÷ target); a 'partial'
-  // row is an in-progress count goal.
+): (habit: ProgressHabit, iso: string) => number | null | undefined {
+  // date → (habit id → its completion row) for that day.
   const rowByDate = new Map<string, Map<string, CompletionRow>>();
   for (const row of completions) {
     let m = rowByDate.get(row.completed_at);
@@ -430,10 +478,19 @@ export function computeProgress(
     }
     m.set(row.habit_id, row);
   }
+  return (habit, iso) => (scheduledOn(habit, iso) ? creditFor(habit, rowByDate.get(iso)?.get(habit.id)) : undefined);
+}
 
-  // One scheduled habit's credit toward a day's rate — the shared completion rule (see
-  // {@link creditFor}): `null` = excused (drop from numerator AND denominator); otherwise 0–1.
-  const habitCredit = (h: ProgressHabit, iso: string): number | null => creditFor(h, rowByDate.get(iso)?.get(h.id));
+/** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
+export function computeProgress(
+  habits: ProgressHabit[],
+  completions: CompletionRow[],
+  today: string,
+): ProgressDerived {
+  // The shared completion rule (see {@link creditOnDay}): `undefined` = not due, `null` = excused
+  // (dropped from numerator AND denominator, so it never counts as a miss — travel/period days
+  // can still read a full orbit); otherwise 0–1, a count goal earning `count ÷ target`.
+  const credit = creditOnDay(completions);
 
   // This Hijri month vs last, as a completion *rate* (done / scheduled). A rate
   // normalises across changing habit counts and month lengths, so 100% always
@@ -451,11 +508,10 @@ export function computeProgress(
     let possible = 0;
     for (let day = startISO; day <= endISO; day = addDaysISO(day, 1)) {
       for (const h of habits) {
-        if (!scheduledOn(h, day)) continue;
-        const credit = habitCredit(h, day);
-        if (credit === null) continue; // excused — excluded from done and possible
+        const earned = credit(h, day);
+        if (earned === undefined || earned === null) continue; // not due, or excused
         possible += 1;
-        done += credit; // count goals add a fraction; binary habits add 1 or 0
+        done += earned; // count goals add a fraction; binary habits add 1 or 0
       }
     }
     const tally = { done, possible };
@@ -472,15 +528,27 @@ export function computeProgress(
     // of what was possible so far" (which made one perfect day fill the orbit).
     const here = tallyRange(thisRange.start, today); // month-to-date → the done count
     const whole = tallyRange(thisRange.start, thisRange.end); // whole month → the denominator
-    const previousRange = hijriMonthRange(addDaysISO(thisRange.start, -1));
-    // Last month on the same whole-month scale: completed through the matching Hijri day, over
-    // last month's full possible — so the orbit's "vs last month" tick reads as a comparable
-    // position to the headline (both are "fraction of that whole month done by this point").
-    const previousLimit = previousRange
-      ? addDaysISO(previousRange.start, Math.min(dayOfMonth, previousRange.length) - 1)
-      : null;
-    const previousThrough = previousRange && previousLimit ? tallyRange(previousRange.start, previousLimit) : { done: 0, possible: 0 };
-    const previousWhole = previousRange ? tallyRange(previousRange.start, previousRange.end) : { done: 0, possible: 0 };
+    // Every prior month on record, each on the same whole-month scale as the headline: completed
+    // through the matching Hijri day, over that month's full possible. So each entry answers "what
+    // fraction of that whole month had I done by this point in it" — directly comparable to
+    // `thisRate`, which is what lets the caret and the bright arc share one ring.
+    //
+    // Walked newest-first and bounded at a Hijri year, the same window (and the same
+    // stop-at-the-first-untracked-month rule) as the rising-months walk further down. The walk is
+    // cheap: `tallyRange` is memoised, and the whole-month tallies it needs are the very ones that
+    // walk asks for.
+    const priorRates: number[] = [];
+    let priorCursor = addDaysISO(thisRange.start, -1); // the last day of the previous month
+    for (let back = 0; back < MONTHS_BACK; back += 1) {
+      const range = hijriMonthRange(priorCursor);
+      if (!range) break;
+      const priorWhole = tallyRange(range.start, range.end);
+      if (priorWhole.possible === 0) break; // nothing was ever scheduled — before tracking began
+      // Clamped: a 29-day month has no day 30, and on such a day the whole month is what counts.
+      const limit = addDaysISO(range.start, Math.min(dayOfMonth, range.length) - 1);
+      priorRates.push(tallyRange(range.start, limit).done / priorWhole.possible);
+      priorCursor = addDaysISO(range.start, -1);
+    }
     month = {
       monthName: thisRange.monthName,
       year: thisRange.year,
@@ -491,9 +559,12 @@ export function computeProgress(
       // The month's own position on that same orbit: what it has ASKED so far over what it asks in
       // full. `here.possible` was already swept for the numerator's sake — the benchmark is free.
       paceRate: whole.possible > 0 ? here.possible / whole.possible : 0,
-      previousMonthName: previousRange?.monthName ?? '',
-      previousRate: previousWhole.possible > 0 ? previousThrough.done / previousWhole.possible : 0,
-      hasPrevious: previousWhole.possible > 0,
+      averageRate: priorRates.length > 0 ? priorRates.reduce((sum, r) => sum + r, 0) / priorRates.length : 0,
+      monthsAveraged: priorRates.length,
+      // The newest entry of the same walk — one source of truth for "by this same day", so the
+      // caret's average and the celebration's "last month" can never be measured differently.
+      previousRate: priorRates[0] ?? 0,
+      hasPrevious: priorRates.length > 0,
     };
   }
 
@@ -520,7 +591,7 @@ export function computeProgress(
   if (thisRange) {
     const rates: { rate: number; monthName: string }[] = []; // newest complete month first
     let cursor = addDaysISO(thisRange.start, -1); // the last day of the previous month
-    for (let back = 0; back < 12; back += 1) {
+    for (let back = 0; back < MONTHS_BACK; back += 1) {
       const range = hijriMonthRange(cursor);
       if (!range) break;
       const tally = tallyRange(range.start, range.end);

@@ -62,7 +62,7 @@ export function useConfirmDeleteStack() {
  * and an exchange raise the *same* sheet on both platforms (`act-actions`), and a stack is the
  * other thing this app tracks — the same gesture on the two units has to produce the same object,
  * or one of them looks like the afterthought. The sheet is also the only one of the two that can
- * carry Insights, which an action sheet's short list of verbs has no room to mean.
+ * carry Stats, which an action sheet's short list of verbs has no room to mean.
  */
 export function useStackActions() {
   const router = useRouter();

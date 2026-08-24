@@ -1,5 +1,5 @@
 /**
- * Per-habit stats math, powering the "Insights" screen — the single-habit sibling of
+ * Per-habit stats math, powering the "Stats" screen — the single-habit sibling of
  * {@link import('./progress').computeProgress} (which aggregates across all habits for the
  * Progress tab). Like it, this is a pure function with no React or Supabase imports, so it stays
  * directly unit-testable.
@@ -10,7 +10,7 @@
  * presentation edge (the charts call `toDegrees`).
  *
  * This module also owns the {@link HabitStats} shape and the sweep that derives it
- * ({@link statsFromDailyCredit}), which `stack-stats.ts` reuses for the *stack* Insights screen.
+ * ({@link statsFromDailyCredit}), which `stack-stats.ts` reuses for the *stack* Stats screen.
  * The two units differ only in what one day is worth; every rule after that — what "pending" means,
  * what an excused day does to a streak, how a best day is chosen — is decided once, here, so the
  * two screens can't quietly grow different arithmetic behind the same four cards.
@@ -52,7 +52,7 @@ export type TrendPoint = {
   scheduledCount: number;
 };
 
-/** Everything the Insights screen derives from one habit's raw completion rows. */
+/** Everything the Stats screen derives from one habit's raw completion rows. */
 export type HabitStats = {
   /** Closed days this habit was scheduled (and not excused) across the window — the consistency
    *  sample size. A still-open today is pending (see the sweep) and not yet part of the sample. */
@@ -91,7 +91,7 @@ export type HabitStats = {
 export type DailyCredit = number | null | undefined;
 
 /**
- * The sweep every Insights screen is built from: consistency, weekday buckets, both streaks and
+ * The sweep every Stats screen is built from: consistency, weekday buckets, both streaks and
  * the over-time trend, derived from nothing but "what was each day worth" ({@link DailyCredit}).
  *
  * Shared by {@link computeHabitStats} and `computeStackStats` so the two units can't disagree about

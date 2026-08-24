@@ -1,10 +1,10 @@
 /**
- * Per-stack stats math, powering the stack's "Insights" screen — the sibling of
+ * Per-stack stats math, powering the stack's "Stats" screen — the sibling of
  * {@link computeHabitStats}, and deliberately the same {@link HabitStats} shape, so the four cards
  * built for one habit render a whole stack without knowing the difference.
  *
  * A stack has no completion row of its own: sealing writes one ordinary `done` row per act (see
- * `sealStack`), which is why Progress, streaks and per-habit Insights need to know nothing about
+ * `sealStack`), which is why Progress, streaks and per-habit Stats need to know nothing about
  * stacks. The price is that a stack's history has to be *replayed* out of its acts' rows, and this
  * module is where that replay lives.
  *

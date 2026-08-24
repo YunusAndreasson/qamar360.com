@@ -65,7 +65,8 @@ export default function LunarUpdatesScreen() {
       </View>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        Each one carries how far through the month you are. No daily reminders.
+        Each one carries the reading for the quarter just gone, and opens it in full. No daily
+        reminders.
       </ThemedText>
 
       <AppButton onPress={() => void allow()} busy={asking}>

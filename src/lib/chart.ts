@@ -1,6 +1,6 @@
 /**
  * Plot geometry and series math, shared by every line chart in the app — the Progress screen's
- * "Over time" card and the per-habit Insights trend. Both drew the same line the same way from two
+ * "Over time" card and the per-habit Stats trend. Both drew the same line the same way from two
  * copies of these functions; they live here once so the two charts can never disagree about where
  * a point sits or how long a path is.
  *

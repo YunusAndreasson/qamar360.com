@@ -52,7 +52,7 @@ export default function ActActionsScreen() {
   };
 
   // `replace` (not push) so the next modal's Save/Close returns to Today, not back to this sheet.
-  const openInsights = () => {
+  const openStats = () => {
     router.replace({ pathname: '/habits/stats', params: { habitId: habit.id } });
   };
 
@@ -92,7 +92,7 @@ export default function ActActionsScreen() {
               : 'Excused — it won’t count against you',
             onPress: toggleSkip,
           },
-          { icon: 'insights', label: 'Insights', onPress: openInsights },
+          { icon: 'stats', label: 'Stats', onPress: openStats },
           { icon: 'edit', label: `Edit ${noun}`, onPress: edit },
           // An exchange has no stack to move between — its anchor is the urge, not a moment. A
           // habit that has none yet is moving to *a* stack, not to another one.

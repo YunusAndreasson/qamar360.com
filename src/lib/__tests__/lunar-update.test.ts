@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { addDaysISO } from '@/lib/dates';
+import type { Noticing, Reading } from '@/lib/insights';
 import { MILESTONE_DAYS, type MilestoneDay } from '@/lib/lunar-phase';
 import type { LunarFire } from '@/lib/lunar-schedule';
 import { VISIBLE_ALT } from '@/lib/lunar-schedule';
@@ -9,6 +11,9 @@ import type { MonthProgress } from '@/lib/progress';
 function fire(hijriDay: MilestoneDay, over: Partial<LunarFire> = {}): LunarFire {
   return {
     hijriDay,
+    // Derived, not fixed: the four milestones fall a week apart, and a fixture that dated them
+    // all to one day would let a reading published on one of them answer for all four.
+    dayISO: addDaysISO('2026-07-19', hijriDay - 1),
     monthName: 'Muḥarram',
     hijriYear: 1448,
     monthLength: 30,
@@ -27,7 +32,8 @@ function month(over: Partial<MonthProgress> = {}): MonthProgress {
     monthLength: 30,
     thisRate: 0.475, // 171°
     paceRate: 0.5, // half the month has come due on day 15 of 30
-    previousMonthName: 'Dhū al-Ḥijjah',
+    averageRate: 0.3,
+    monthsAveraged: 1,
     previousRate: 0.3,
     hasPrevious: true,
     ...over,
@@ -141,5 +147,118 @@ describe('lunarUpdateCopy', () => {
   it('points at a moon image that exists for this milestone and month length', () => {
     expect(lunarUpdateCopy(fire(15, { monthLength: 29 }), month()).assetKey).toBe('d15-l29');
     expect(lunarUpdateCopy(fire(1, { monthLength: 30 }), month()).assetKey).toBe('d01-l30');
+  });
+});
+
+// ── The reading an update carries ───────────────────────────────────────────
+// A milestone is also the moment a quarterly reading is published, and the two must be one text.
+// These pin the seam: which reading is picked, when it is allowed to speak, and what happens in
+// each of the ways it can be absent.
+
+const QUARTER_SPAN = {
+  startISO: '2026-07-19',
+  endISO: '2026-07-25',
+  milestone: 1 as const,
+  monthName: 'Muḥarram',
+  monthNumber: 1,
+  year: 1448,
+  days: 7,
+};
+
+function reading(over: Partial<Reading> = {}, lead: Partial<Noticing> = {}): Reading {
+  const tally = {
+    span: QUARTER_SPAN,
+    rate: 0.6,
+    earned: 4.2,
+    possible: 7,
+    sealedDays: 4,
+    longestRun: { days: 3, startISO: '2026-07-19', endISO: '2026-07-21' },
+    byHabit: new Map<string, { possible: number; earned: number }>(),
+    byWeekday: Array.from({ length: 7 }, () => ({ possible: 1, earned: 0.6 })),
+  };
+  return {
+    id: '1448-1-1',
+    span: QUARTER_SPAN,
+    phase: 'first-quarter',
+    phaseLabel: 'First quarter',
+    illumination: 0.5,
+    waxing: true,
+    publishedISO: '2026-07-26', // the day-8 fire's own day — 1 Muḥarram + 7
+    quarter: tally,
+    previous: null,
+    lead: {
+      kind: 'pace',
+      headline: 'Ahead of last quarter — 216° against 171°.',
+      body: 'A gain of 45° — about 1 day more of the quarter kept.',
+      salience: 0.5,
+      notifiable: true,
+      ...lead,
+    },
+    also: [],
+    closed: true,
+    ...over,
+  };
+}
+
+describe('the reading an update carries', () => {
+  it("speaks the reading's headline instead of the landmark and the bare figure", () => {
+    const copy = lunarUpdateCopy(fire(8), month(), [reading()]);
+    expect(copy.body).toBe('Ahead of last quarter — 216° against 171°.');
+    // Both of the things it replaced are gone — a lock screen gets one claim, not three.
+    expect(copy.body).not.toMatch(/A quarter of Muḥarram is behind you/);
+    expect(copy.body).not.toMatch(/You're at/);
+  });
+
+  it('still names the phase and the date in the title, so nothing downstream shifts', () => {
+    // `settings/index.tsx` renders the next update's title as its footer, off this same generator.
+    expect(lunarUpdateCopy(fire(8), month(), [reading()]).title).toBe('First quarter · 8 Muḥarram');
+    expect(lunarUpdateCopy(fire(8), null).title).toBe('First quarter · 8 Muḥarram');
+  });
+
+  it('carries the reading id, so the tap opens that reading rather than the feed', () => {
+    expect(lunarUpdateCopy(fire(8), month(), [reading()]).readingId).toBe('1448-1-1');
+  });
+
+  it('keeps the sky clause, which is about tonight and not about the record', () => {
+    const copy = lunarUpdateCopy(fire(8, { moonAlt: VISIBLE_ALT + 1 }), month(), [reading()]);
+    expect(copy.body).toBe('Ahead of last quarter — 216° against 171°. The moon is up now.');
+  });
+
+  it('picks the reading published on ITS day, never merely the newest', () => {
+    const elsewhere = reading({ id: '1448-1-22', publishedISO: '2026-08-16' });
+    const copy = lunarUpdateCopy(fire(8), month(), [elsewhere]);
+    expect(copy.readingId).toBeUndefined();
+    expect(copy.body).toMatch(/A quarter of Muḥarram is behind you/);
+  });
+
+  describe('falls back to the landmark, and says nothing it should not', () => {
+    it('when the reading names a slip', () => {
+      const held = reading({}, { kind: 'slipper', headline: 'Witr is the one asking for you.', notifiable: false });
+      const copy = lunarUpdateCopy(fire(8), month(), [held]);
+      expect(copy.body).not.toMatch(/asking for you/);
+      expect(copy.readingId).toBeUndefined();
+      expect(copy.body).toMatch(/A quarter of Muḥarram is behind you/);
+    });
+
+    it('when the quarter has not begun, so no reading exists for that day', () => {
+      const copy = lunarUpdateCopy(fire(15), month(), [reading()]);
+      expect(copy.body).toMatch(/The White Days/);
+      expect(copy.readingId).toBeUndefined();
+    });
+
+    it('when the record could not be read at all', () => {
+      const copy = lunarUpdateCopy(fire(8), null, []);
+      expect(copy.body).toBe('A quarter of Muḥarram is behind you.');
+      expect(copy.body).not.toMatch(/undefined|NaN|null/);
+    });
+  });
+
+  it('never lets a reading put a second moon in the body', () => {
+    for (const day of MILESTONE_DAYS) {
+      const copy = lunarUpdateCopy(fire(day, { moonAlt: VISIBLE_ALT + 1 }), month(), [
+        reading({ publishedISO: '2026-07-26' }),
+      ]);
+      expect(copy.body.match(/moon/gi)?.length ?? 0).toBeLessThanOrEqual(1);
+    }
   });
 });

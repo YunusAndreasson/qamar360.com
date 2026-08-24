@@ -42,7 +42,7 @@ export default function ExchangeFormScreen() {
 
   const trimmedName = name.trim();
   // Same duplicate guard the act editor runs, folded through the same normalizer: nothing in the
-  // DB enforces name uniqueness, so two identical rows would be indistinguishable in Insights.
+  // DB enforces name uniqueness, so two identical rows would be indistinguishable in Stats.
   const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
   const isDuplicate = isDuplicateName(trimmedName, existingNames);
   const canSave =

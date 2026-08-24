@@ -12,7 +12,7 @@ import { useConfirmDeleteStack } from '@/hooks/use-stack-actions';
  * the card). Presented `fitToContents` from the habits stack layout.
  *
  * It is deliberately the *same object* as an act's or an exchange's sheet (`act-actions`): the
- * same `FormSheet` heading, the same {@link SheetActions} card, and Insights in the same slot —
+ * same `FormSheet` heading, the same {@link SheetActions} card, and Stats in the same slot —
  * second, under whatever the sheet's stateful first row happens to be. A stack and an exchange are
  * the two things this app tracks, and the same gesture on them has to answer in the same voice.
  *
@@ -38,7 +38,7 @@ export default function StackManageScreen() {
     router.replace({ pathname: '/habits/discover', params: { stackId: stack.id } });
   };
 
-  const openInsights = () => {
+  const openStats = () => {
     router.replace({ pathname: '/habits/stack-stats', params: { id: stack.id } });
   };
 
@@ -56,7 +56,7 @@ export default function StackManageScreen() {
       <SheetActions
         actions={[
           { icon: 'add', label: 'Add acts', onPress: addActs },
-          { icon: 'insights', label: 'Insights', onPress: openInsights },
+          { icon: 'stats', label: 'Stats', onPress: openStats },
           { icon: 'edit', label: 'Edit stack', onPress: rename },
           { icon: 'delete', label: 'Delete stack', danger: true, onPress: confirmDelete },
         ]}

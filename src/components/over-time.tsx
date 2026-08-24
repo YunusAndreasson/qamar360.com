@@ -12,7 +12,6 @@ import Animated, {
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { Segmented } from '@/components/segmented';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
@@ -24,23 +23,36 @@ import { useTheme } from '@/hooks/use-theme';
 import { buildSmoothPaths, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { setPreference, usePreference } from '@/lib/preferences';
 import { toDegrees } from '@/lib/progress';
 
-// Taller than the 120 the small Insights charts use, and with real headroom at the top: this is the
-// screen's second instrument, and a run of full orbits was jamming flat against the ceiling where a
-// curve needs somewhere to sit.
-//
-// Asymmetric on purpose. Nothing in this chart is ever drawn below the baseline — no axis labels,
-// no ticks; every mark terminates on it — so a bottom inset matching the top's 18 reserved a strip
-// for no one, and as the last card on Progress that empty band read as slack under the whole
-// screen. The plot area is unchanged (112pt, exactly as it was at height 148): the 14 comes off the
-// dead space alone, so the curve keeps its full vertical range and its headroom.
-const PAD_BOTTOM = 4;
-const BOX: PlotBox = { height: 134, padY: 18, padBottom: PAD_BOTTOM, padX: 14 };
-const BASELINE_Y = BOX.height - PAD_BOTTOM;
-
+/** The dot on a point: the hollow one on the span still running, and the solid one under a finger.
+ *  The hollow one is stroked, so half that stroke hangs outside the radius — which is what makes
+ *  {@link PAD_BOTTOM} the size it is. */
 const CURRENT_R = 4.5;
+const CURRENT_STROKE = 2;
+
+/** The curve's own vertical range, held fixed so clearance can never be taken out of it. */
+const PLOT_HEIGHT = 112;
+/** Headroom above a full orbit: this is the screen's second instrument, and a run of full months
+ *  was jamming flat against the ceiling where a curve needs somewhere to sit. */
+const PAD_TOP = 18;
+/**
+ * Clearance below the baseline — the deepest any mark reaches past its own point.
+ *
+ * Asymmetric on purpose, and it does NOT mirror the top. No axis labels and no ticks hang below the
+ * baseline, and the curve cannot dip under its own lowest point (the tangents are monotone), so the
+ * bottom needs nothing like 18; a strip that wide reserved space for no one, and as the last card
+ * on Progress it read as slack under the whole screen.
+ *
+ * But it is not zero either, and a flat 4 was too small. Both dots are centred ON their point, and
+ * a span with nothing done in it yet puts that point exactly on the baseline — so half a dot hangs
+ * below, 5.5pt for the stroked one. It was rendering with its bottom sliced off against the edge of
+ * the SVG every morning, before the day's first tick. So the inset is derived from the mark rather
+ * than guessed, and the height carries it: the plot keeps all 112pt of its range.
+ */
+const PAD_BOTTOM = Math.ceil(CURRENT_R + CURRENT_STROKE / 2);
+const BOX: PlotBox = { height: PLOT_HEIGHT + PAD_TOP + PAD_BOTTOM, padY: PAD_TOP, padBottom: PAD_BOTTOM, padX: 14 };
+const BASELINE_Y = BOX.height - PAD_BOTTOM;
 
 /** Clearance between the average rule and its label — enough to read as attached, not sitting on it. */
 const AVERAGE_LABEL_GAP = 3;
@@ -71,23 +83,30 @@ function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod
   return from ? `${from.day} ${from.monthName} – ${end}` : end;
 }
 
-/** What the card's trailing caption says the line covers — the span, named the way the period is. */
+/**
+ * What the card's trailing caption says the line covers — but only where nothing else on screen
+ * already says it.
+ *
+ * `month` and `year` open at the current Hijri month's and year's boundary, which is precisely what
+ * the hero card at the top of the screen is CAPTIONED with ("Ṣafar 1448 H"). Printing "Ṣafar 1448"
+ * or "1448 H" again on a card already titled "Month" is the same fact three times over. `week` and
+ * `lifetime` name no date at all, so for them the caption is the record's only anchor and it stays.
+ */
 function spanCaption(series: RecordSeries): string | undefined {
   const from = series.sinceISO ? hijriParts(series.sinceISO) : null;
   if (!from) return undefined;
   switch (series.period) {
-    case 'month':
-      return `${from.monthName} ${from.year}`;
-    case 'year':
-      return `${from.year} H`;
     case 'week':
       return `from ${from.day} ${from.monthName}`;
     case 'life':
       return `since ${from.monthName} ${from.year}`;
+    case 'month':
+    case 'year':
+      return undefined;
   }
 }
 
-/** How each period names itself on the selector. Narrowest first — the order they are offered in. */
+/** How each period names its card. Narrowest first — the order they are shown in. */
 const PERIOD_LABEL: Record<SeriesPeriod, string> = {
   week: 'Week',
   month: 'Month',
@@ -96,21 +115,22 @@ const PERIOD_LABEL: Record<SeriesPeriod, string> = {
 };
 
 /**
- * "Over time" — the record as one line, read over the period you choose.
+ * The record over time — one card per period, narrowest first.
  *
  * The screen's second instrument, and the only one that moves on a second day of use: the hero
- * measures the month you are in, this measures whether you are becoming someone who keeps it.
+ * measures the month you are in, these measure whether you are becoming someone who keeps it.
  *
  * **A period names a span, and its resolution follows from it** — a week is seven days, a month is
  * its own days, a year is its twelve months, a lifetime is bucketed only as far as it must be to
- * fit. So there is one control, it says what you get, and no setting can land on a line too dense
- * to read. This is what the old Days / Months / Years switch got backwards: it set the *grain*
- * while the span stayed fixed, which is why two of its three settings were empty for anyone new.
- * And it is why the three stacked cards before that were wrong in the other direction — showing
- * days, months and years at once invited comparisons between scales that aren't comparable. One
- * graph showing one scale at a time invites nothing of the kind. A period appears only once the
- * record can fill it with something a wider one doesn't already say, so the control is absent
- * until there is genuinely a choice.
+ * fit. So a card says what it covers and no card can land on a line too dense to read. A period
+ * gets a card only once the record can fill it with something a wider one doesn't already say, so
+ * a new account sees one card and gains the others as its history earns them. (That rule was
+ * written for a selector, and it carries over unchanged: what was "don't offer a setting that
+ * draws the same line" is now "don't stack a card that draws the same line".)
+ *
+ * Every card is the same component. Nothing about a week's line differs from a lifetime's except
+ * the buckets underneath it, so the chart is written once and given a series — which is also what
+ * keeps four scrubbers, four projections and four averages honest with one another.
  *
  * The line's grammar is one rule: **solid is settled, dashed is not.** A solid curve runs through
  * what is closed; a dashed one carries on through the span still being lived and out to where the
@@ -119,9 +139,12 @@ const PERIOD_LABEL: Record<SeriesPeriod, string> = {
  * flat and solid in a track tone: it is not a reading, it is the floor the readings are measured
  * against, and it is the only absolute reference the plot has.
  *
- * Nothing names a date until you ask. At rest the card says which way you are going and where you
- * are; the calendar appears under your finger and leaves with it, because a date printed on the
- * axis is a label you read once and then have to keep ignoring.
+ * Nothing names a date until you ask — except the one you are standing on. At rest the line reads
+ * the newest bucket; the rest of the calendar appears under your finger and leaves with it, because
+ * a date printed on the axis is a label you read once and then have to keep ignoring.
+ *
+ * Which WAY you are going is the plot's job, not the line's: the dashed run ends in an arrowhead,
+ * and a word repeating it is a caption on a picture that was already clear.
  */
 export function OverTime({
   seriesByPeriod,
@@ -132,17 +155,30 @@ export function OverTime({
   periods: SeriesPeriod[];
   trend: TrendSummary | null;
 }) {
+  return (
+    <>
+      {periods.map((period, i) => (
+        <PeriodCard
+          key={period}
+          series={seriesByPeriod[period]}
+          // The rising-months sentence is a claim about the whole record, so it belongs to the
+          // widest card on screen and to no other. Handed to every card it would print four times
+          // down the page, which turns the screen's one multi-month statement into wallpaper.
+          trend={i === periods.length - 1 ? trend : null}
+        />
+      ))}
+    </>
+  );
+}
+
+/** One period's card: its span, its reading, and its line. */
+function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSummary | null }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
+  // Per instance, so four stacked charts cannot share one gradient id and paint each other's fill.
   const areaFillId = `overTimeArea-${useId()}`;
 
-  // The remembered choice, but only where the record can still honour it — a person who last read
-  // the Year view on another device, or before a reset, must not land on a period this record has
-  // nothing to draw for. Falling back to the widest offered is always safe: `life` is always there.
-  const saved = usePreference('progressPeriod');
-  const period = periods.includes(saved) ? saved : periods[periods.length - 1]!;
-  const series = seriesByPeriod[period];
-
+  const period = series.period;
   const points = series.points;
   const count = points.length;
 
@@ -255,14 +291,14 @@ export function OverTime({
   // ── Scrub ────────────────────────────────────────────────────────────────────────────────────
   //
   // A parked reading belongs to the span it was taken on, so it is stored WITH that span and
-  // *derived* rather than reset. `focused` survives a period switch — the selector writes a
-  // preference and re-renders this same instance, it does not remount — so a reading stepped to on
-  // Week would otherwise stay put when the reader tapped Lifetime: the index now names a different
-  // bucket, or none at all past the new end. A refetch that changes the bucket count, and a
-  // rotation that changes `width`, invalidate it the same way, and all three are exactly the
-  // inputs `slotX` places the mark from. (Derived, not reset, for the reason the day's fold state
-  // is: an effect chasing the change would be a cascading render, and would miss any path that
-  // changes the span without going through the control.)
+  // *derived* rather than reset. A card's period no longer changes under it — each period has its
+  // own instance now — but the other two inputs still shift beneath a parked index: a refetch that
+  // changes the bucket count, and a rotation that changes `width`. Both are exactly the inputs
+  // `slotX` places the mark from, so a reading taken before either would point at a different
+  // bucket, or none at all past the new end. `period` stays in the key because it costs nothing
+  // and it is what makes the key describe the whole coordinate system rather than most of it.
+  // (Derived, not reset, for the reason the day's fold state is: an effect chasing the change
+  // would be a cascading render, and would miss any path that changes the span silently.)
   const span = `${period}|${total}|${width}`;
   const spanRef = useLatestRef(span);
   const [focus, setFocus] = useState<{ span: string; index: number } | null>(null);
@@ -338,33 +374,55 @@ export function OverTime({
   const focusProps = useAnimatedProps(() => ({ opacity: cursorOn.get() }));
 
   // ── The reading ──────────────────────────────────────────────────────────────────────────────
-  const latest = closed[closed.length - 1]?.p.rate;
   const focusedPoint = focused != null ? (points[focused] ?? null) : null;
+  /**
+   * One bucket, read aloud — the card's ONE grammar for a reading, at rest and under a finger
+   * alike, so scrubbing is visibly the same line moving back in time rather than a different kind
+   * of sentence appearing.
+   *
+   * A span that asked nothing has no reading. "0°" would be a score for something that was never
+   * yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
+   * floor, said in words.
+   *
+   * The span is always NAMED beside the figure, and that is load-bearing: a degree here is not the
+   * degree on the hero. The hero's is a position on the month's orbit, where 360° is the month
+   * kept. A bucket's is that bucket's own rate — and the bucket rescales with the selector, so a
+   * full orbit is one perfect day on Week and Month, one perfect Hijri month on Year, one perfect
+   * span-of-N-days on Lifetime. Nothing else on screen says which. The label does.
+   */
+  const readingFor = (p: SeriesPoint) =>
+    p.possible === 0
+      ? `${bucketLabel(p, period)} · nothing due`
+      : `${bucketLabel(p, period)} · ${toDegrees(p.rate)}°${p.pending ? ' so far' : ''}`;
+
+  // At rest the line reads the newest bucket — where you are now, which is what you came for.
+  //
+  // It used to read the fitted slope's one-word direction ("Steady", "Easing"). That word was a
+  // caption for something the plot already draws: the dashed run continues the curve and ends in an
+  // ARROWHEAD, which is the direction, stated in the medium that can state it. And a lone adjective
+  // with no subject is a poor caption anyway — "Steady" says nothing about what is steady, or since
+  // when, or at what level. The one direction that survives is the multi-month sentence below,
+  // which no arrowhead can draw: it names the month the run began in. (The word is not lost for
+  // everyone — see the accessibility label, where an arrowhead is no use.)
   const restingText =
-    // The screen's one multi-month sentence, when the run is real — a direction, with the curve
-    // below as its evidence.
     trend && trend.risingMonths >= 3 && trend.sinceMonthName
       ? `Rising since ${trend.sinceMonthName}`
-      : projection && latest !== undefined
-        ? `${projection.direction} · ${toDegrees(latest)}°`
-        : count > 0
-          ? `Today · ${toDegrees(points[count - 1]!.rate)}° so far`
-          : null;
-  const readoutText = focusedPoint
-    ? // A span that asked nothing has no reading. "0°" would be a score for something that was never
-      // yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
-      // floor, said in words.
-      focusedPoint.possible === 0
-      ? `${bucketLabel(focusedPoint, period)} · nothing due`
-      : `${bucketLabel(focusedPoint, period)} · ${toDegrees(focusedPoint.rate)}°${focusedPoint.pending ? ' so far' : ''}`
-    : restingText;
+      : readingFor(points[count - 1]!); // `count === 0` returned null long before here
+  const readoutText = focusedPoint ? readingFor(focusedPoint) : restingText;
 
   // "of N days each" only where the buckets have a width to name — a year's are calendar months.
   const grain = period === 'year' ? ' of one Hijri month each' : series.bucketDays > 1 ? ` of ${series.bucketDays} days each` : '';
+  // What the plot IS — never what it currently reads. An `adjustable` announces its NAME and then
+  // its VALUE, and the value is `readoutText`, which at rest is `restingText`: naming the reading
+  // here too made every announcement say it twice in a row ("Easing · 26°, Easing · 26°"). The
+  // same rule the card follows on screen — one fact, said once, in the one place that owns it.
   const a11y = [
     `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.`,
     average !== null ? `Averaging ${toDegrees(average)} degrees.` : null,
-    restingText,
+    // The shape of the thing, for whoever cannot see its shape. This is where the direction word
+    // went when it came off the card: sighted readers get it from the arrowhead on the dashed run,
+    // and an arrowhead is no use here. It belongs to the plot's DESCRIPTION, never to its value.
+    projection ? `Trending ${projection.direction.toLowerCase()}.` : null,
   ]
     .filter(Boolean)
     .join(' ');
@@ -403,183 +461,180 @@ export function OverTime({
 
   return (
     <StatCard>
-      <View style={styles.head}>
-        {/* What the line covers, said once, so the span has an anchor without a ruler under it. */}
-        <StatCardHeader title="Over time" trailing={spanCaption(series)} />
+      {/* The period names the card — the same four words the selector used to carry, now sitting
+          where a card says what it is. What the line covers rides the caption, where the span still
+          needs saying (see {@link spanCaption}). */}
+      <StatCardHeader title={PERIOD_LABEL[period]} trailing={spanCaption(series)} />
+
+      {/* The reading and the plot are ONE unit, and the layout now says so: the readout is the
+          chart's caption, it changes with the finger scrubbing the chart, and nothing may come
+          between them. Grouped, so they carry the tight inner gap while the card's own rhythm
+          spaces the group from the control above. */}
+      <View style={styles.reading}>
         {readoutText ? (
           <StatReadout text={readoutText} refreshKey={`${period}:${focused ?? 'resting'}`} />
         ) : null}
-      </View>
 
-      {/* Absent until the record can fill more than one period — a control with a single setting
-          is a label pretending to be a choice. */}
-      {periods.length > 1 ? (
-        <Segmented
-          options={periods.map((p) => ({ value: p, label: PERIOD_LABEL[p], accessibilityLabel: `Read the ${PERIOD_LABEL[p].toLowerCase()}` }))}
-          value={period}
-          onChange={(next) => setPreference('progressPeriod', next)}
-        />
-      ) : null}
+        <GestureDetector gesture={gesture}>
+          <View style={styles.chart} onLayout={onLayout} accessible accessibilityRole="adjustable"
+            accessibilityLabel={a11y}
+            accessibilityValue={{ text: readoutText ?? '' }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}>
+            {width > 0 ? (
+              <Svg width={width} height={BOX.height} viewBox={`0 0 ${width} ${BOX.height}`}>
+                <Defs>
+                  <LinearGradient id={areaFillId} x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor={theme.accent} stopOpacity={0.20} />
+                    <Stop offset="0.6" stopColor={theme.accent} stopOpacity={0.05} />
+                    <Stop offset="1" stopColor={theme.accent} stopOpacity={0} />
+                  </LinearGradient>
+                </Defs>
 
-      <GestureDetector gesture={gesture}>
-        <View style={styles.chart} onLayout={onLayout} accessible accessibilityRole="adjustable"
-          accessibilityLabel={a11y}
-          accessibilityValue={{ text: readoutText ?? '' }}
-          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-          onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}>
-          {width > 0 ? (
-            <Svg width={width} height={BOX.height} viewBox={`0 0 ${width} ${BOX.height}`}>
-              <Defs>
-                <LinearGradient id={areaFillId} x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={theme.accent} stopOpacity={0.20} />
-                  <Stop offset="0.6" stopColor={theme.accent} stopOpacity={0.05} />
-                  <Stop offset="1" stopColor={theme.accent} stopOpacity={0} />
-                </LinearGradient>
-              </Defs>
-
-              {/* The floor the curve rests on. */}
-              <Line
-                x1={BOX.padX}
-                y1={BASELINE_Y}
-                x2={width - BOX.padX}
-                y2={BASELINE_Y}
-                stroke={theme.accentTrack}
-                strokeWidth={1}
-              />
-
-              {/* Now — the divide between what is settled and what is not. Dashed, so it reads apart
-                  from the solid baseline by pattern rather than by a third grey. Unlabelled: it is
-                  a structural mark, and the date belongs to the scrubber. */}
-              {nowIndex >= 0 && projection ? (
-                <Line
-                  x1={at(nowIndex, 0).x}
-                  y1={BOX.padY * 0.5}
-                  x2={at(nowIndex, 0).x}
-                  y2={BASELINE_Y}
-                  stroke={theme.accentTrackMuted}
-                  strokeWidth={1}
-                  strokeDasharray="2 5"
-                />
-              ) : null}
-
-              {settledPaths.area ? <Path d={settledPaths.area} fill={`url(#${areaFillId})`} /> : null}
-
-              {/* The average of what is drawn — solid, and in a track tone, because it is furniture
-                  rather than a reading. A DASHED rule would be read as a projection: this chart
-                  spends its dashes on "not settled yet" and can't spend them twice. It stops at the
-                  last settled point for the same reason — it describes closed buckets, so running
-                  it out under the forecast would claim it covers that too. */}
-              {averageY !== null ? (
+                {/* The floor the curve rests on. */}
                 <Line
                   x1={BOX.padX}
-                  y1={averageY}
-                  x2={averageEndX}
-                  y2={averageY}
-                  stroke={theme.accentTrackStrong}
+                  y1={BASELINE_Y}
+                  x2={width - BOX.padX}
+                  y2={BASELINE_Y}
+                  stroke={theme.accentTrack}
                   strokeWidth={1}
                 />
-              ) : null}
 
-              {settledPaths.line ? (
-                <AnimatedPath
-                  d={settledPaths.line}
-                  stroke={theme.accent}
-                  strokeWidth={2.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                  strokeDasharray={settledLength}
-                  animatedProps={settledProps}
-                />
-              ) : null}
+                {/* Now — the divide between what is settled and what is not. Dashed, so it reads apart
+                    from the solid baseline by pattern rather than by a third grey. Unlabelled: it is
+                    a structural mark, and the date belongs to the scrubber. */}
+                {nowIndex >= 0 && projection ? (
+                  <Line
+                    x1={at(nowIndex, 0).x}
+                    y1={BOX.padY * 0.5}
+                    x2={at(nowIndex, 0).x}
+                    y2={BASELINE_Y}
+                    stroke={theme.accentTrackMuted}
+                    strokeWidth={1}
+                    strokeDasharray="2 5"
+                  />
+                ) : null}
 
-              {unsettledPath ? (
-                <AnimatedG animatedProps={unsettledProps}>
-                  <Path
-                    d={unsettledPath}
+                {settledPaths.area ? <Path d={settledPaths.area} fill={`url(#${areaFillId})`} /> : null}
+
+                {/* The average of what is drawn — solid, and in a track tone, because it is furniture
+                    rather than a reading. A DASHED rule would be read as a projection: this chart
+                    spends its dashes on "not settled yet" and can't spend them twice. It stops at the
+                    last settled point for the same reason — it describes closed buckets, so running
+                    it out under the forecast would claim it covers that too. */}
+                {averageY !== null ? (
+                  <Line
+                    x1={BOX.padX}
+                    y1={averageY}
+                    x2={averageEndX}
+                    y2={averageY}
+                    stroke={theme.accentTrackStrong}
+                    strokeWidth={1}
+                  />
+                ) : null}
+
+                {settledPaths.line ? (
+                  <AnimatedPath
+                    d={settledPaths.line}
                     stroke={theme.accent}
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeDasharray="2 5"
                     fill="none"
+                    strokeDasharray={settledLength}
+                    animatedProps={settledProps}
                   />
-                  {/* The caret claims a heading, which only a fitted slope has earned — without
-                      one (too little closed history to fit) the dashed run still bridges to
-                      today's live reading, but ends plainly rather than pointing anywhere. */}
-                  {projection ? <Caret points={unsettled} color={theme.accent} /> : null}
-                </AnimatedG>
-              ) : null}
+                ) : null}
 
-              {/* The span still running: hollow, because it is not finished being true. The only
-                  mark on the curve at rest — the readings themselves are what the scrubber is for,
-                  and a dot per bucket across a record is texture, not information. */}
-              {nowPoint ? (
-                <Circle
-                  cx={nowPoint.x}
-                  cy={nowPoint.y}
-                  r={CURRENT_R}
-                  fill={theme.backgroundElement}
-                  stroke={points[nowIndex]!.rate >= 1 ? theme.complete : theme.accent}
-                  strokeWidth={2}
+                {unsettledPath ? (
+                  <AnimatedG animatedProps={unsettledProps}>
+                    <Path
+                      d={unsettledPath}
+                      stroke={theme.accent}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="2 5"
+                      fill="none"
+                    />
+                    {/* The caret claims a heading, which only a fitted slope has earned — without
+                        one (too little closed history to fit) the dashed run still bridges to
+                        today's live reading, but ends plainly rather than pointing anywhere. */}
+                    {projection ? <Caret points={unsettled} color={theme.accent} /> : null}
+                  </AnimatedG>
+                ) : null}
+
+                {/* The span still running: hollow, because it is not finished being true. The only
+                    mark on the curve at rest — the readings themselves are what the scrubber is for,
+                    and a dot per bucket across a record is texture, not information. */}
+                {nowPoint ? (
+                  <Circle
+                    cx={nowPoint.x}
+                    cy={nowPoint.y}
+                    r={CURRENT_R}
+                    fill={theme.backgroundElement}
+                    stroke={points[nowIndex]!.rate >= 1 ? theme.complete : theme.accent}
+                    strokeWidth={CURRENT_STROKE}
+                  />
+                ) : null}
+
+                {/* The scrub cursor — present only while a finger is. */}
+                <AnimatedLine
+                  y1={BOX.padY * 0.5}
+                  y2={BASELINE_Y}
+                  stroke={theme.accent}
+                  strokeWidth={1}
+                  animatedProps={cursorProps}
                 />
-              ) : null}
+                {focusedPoint && focusedPoint.possible > 0 ? (
+                  <AnimatedCircle
+                    cx={at(focused!, focusedPoint.rate).x}
+                    cy={at(focused!, focusedPoint.rate).y}
+                    r={CURRENT_R}
+                    fill={focusedPoint.rate >= 1 ? theme.complete : theme.accent}
+                    animatedProps={focusProps}
+                  />
+                ) : null}
+              </Svg>
+            ) : null}
 
-              {/* The scrub cursor — present only while a finger is. */}
-              <AnimatedLine
-                y1={BOX.padY * 0.5}
-                y2={BASELINE_Y}
-                stroke={theme.accent}
-                strokeWidth={1}
-                animatedProps={cursorProps}
-              />
-              {focusedPoint && focusedPoint.possible > 0 ? (
-                <AnimatedCircle
-                  cx={at(focused!, focusedPoint.rate).x}
-                  cy={at(focused!, focusedPoint.rate).y}
-                  r={CURRENT_R}
-                  fill={focusedPoint.rate >= 1 ? theme.complete : theme.accent}
-                  animatedProps={focusProps}
-                />
-              ) : null}
-            </Svg>
-          ) : null}
-
-          {/* The rule's direct label. Drawn in RN text rather than SVG so it wears the app's own
-              type and colour roles. It sits at the left edge, clear of the forecast, and flips to
-              whichever side of the rule the curve is NOT on where it opens.
-              It also carries the card's own background as a plate. The flip only knows where the
-              curve STARTS — a lifetime line that climbs steeply a few points in walks straight
-              through the text either way, and on this record it did. A label you have to read
-              through a stroke is not a label; the plate costs a few pixels of the area fill and
-              makes the reference legible whatever shape the curve turns out to be. */}
-          {averageLabelTop !== null ? (
-            <ThemedText
-              type="smallCompact"
-              themeColor="textSecondary"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={[
-                styles.averageLabel,
-                { backgroundColor: theme.backgroundElement },
-                { top: averageLabelTop },
-              ]}
-              pointerEvents="none">
-              avg {toDegrees(average!)}°
-            </ThemedText>
-          ) : null}
-
-          {/* Nothing to draw yet — name the empty space rather than present a bare floor, which
-              reads as a chart that failed. */}
-          {closed.length === 0 ? (
-            <View style={styles.empty} pointerEvents="none">
-              <ThemedText type="small" themeColor="textSecondary">
-                Your line begins tomorrow.
+            {/* The rule's direct label. Drawn in RN text rather than SVG so it wears the app's own
+                type and colour roles. It sits at the left edge, clear of the forecast, and flips to
+                whichever side of the rule the curve is NOT on where it opens.
+                It also carries the card's own background as a plate. The flip only knows where the
+                curve STARTS — a lifetime line that climbs steeply a few points in walks straight
+                through the text either way, and on this record it did. A label you have to read
+                through a stroke is not a label; the plate costs a few pixels of the area fill and
+                makes the reference legible whatever shape the curve turns out to be. */}
+            {averageLabelTop !== null ? (
+              <ThemedText
+                type="smallCompact"
+                themeColor="textSecondary"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                style={[
+                  styles.averageLabel,
+                  { backgroundColor: theme.backgroundElement },
+                  { top: averageLabelTop },
+                ]}
+                pointerEvents="none">
+                avg {toDegrees(average!)}°
               </ThemedText>
-            </View>
-          ) : null}
-        </View>
-      </GestureDetector>
+            ) : null}
+
+            {/* Nothing to draw yet — name the empty space rather than present a bare floor, which
+                reads as a chart that failed. */}
+            {closed.length === 0 ? (
+              <View style={styles.empty} pointerEvents="none">
+                <ThemedText type="small" themeColor="textSecondary">
+                  Your line begins tomorrow.
+                </ThemedText>
+              </View>
+            ) : null}
+          </View>
+        </GestureDetector>
+      </View>
     </StatCard>
   );
 }
@@ -616,7 +671,9 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 const styles = StyleSheet.create({
-  head: { gap: Spacing.two },
+  // The readout is the chart's caption, so it rides a tighter gap than the card's own rhythm —
+  // near enough to belong to the plot beneath it, not to the control above.
+  reading: { gap: Spacing.two },
   chart: { width: '100%', height: BOX.height },
   averageLabel: {
     position: 'absolute',

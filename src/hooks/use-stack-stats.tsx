@@ -41,7 +41,7 @@ type StackStatsData = {
 };
 
 /**
- * Read-only per-stack stats for the stack's Insights screen — the sibling of {@link useHabitStats},
+ * Read-only per-stack stats for the stack's Stats screen — the sibling of {@link useHabitStats},
  * and the same shape, because the screen behind both is the same four cards.
  *
  * The stack and its acts come from `useHabits()` (already in memory — the screen is a descendant of

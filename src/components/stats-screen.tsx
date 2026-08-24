@@ -12,7 +12,7 @@ import type { HabitStats } from '@/lib/habit-stats';
 import type { ScrollViewProps } from 'react-native';
 
 /**
- * "Insights" — the four cards, for whichever unit is being read: one act or exchange
+ * "Stats" — the four cards, for whichever unit is being read: one act or exchange
  * (`habits/stats`) or a whole stack (`habits/stack-stats`).
  *
  * The two screens differ only in where their numbers come from, so the screen itself is written
@@ -23,7 +23,7 @@ import type { ScrollViewProps } from 'react-native';
  *
  * A pushed transparent screen, so the fixed sky shows behind the cards, exactly like Progress.
  */
-export function InsightsScreen({
+export function StatsScreen({
   title,
   stats,
   hijriNote,
@@ -49,7 +49,7 @@ export function InsightsScreen({
 
       {stats.scheduledDays === 0 ? (
         <AppScreen transparent centered refreshControl={refreshControl}>
-          <EmptyState icon="insights" title="No rhythm yet" body={emptyBody} />
+          <EmptyState icon="stats" title="No rhythm yet" body={emptyBody} />
         </AppScreen>
       ) : (
         <AppScreen transparent refreshControl={refreshControl}>

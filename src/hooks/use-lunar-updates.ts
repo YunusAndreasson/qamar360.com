@@ -7,6 +7,12 @@
  * are still exactly right when the notification fires days later. What that does demand is a
  * re-arm whenever the figure has moved, which is what this hook is.
  *
+ * The quarterly reading each update carries rests on the same argument, and needs it in one more
+ * place: a quarter is measured against everything the WHOLE quarter asks, days not yet lived
+ * included. So a reading baked mid-quarter is still exactly right on the night it fires unless
+ * something was completed in between — and completing re-arms. A milestone armed before its
+ * quarter has even begun simply has no reading to carry, and falls back to the landmark.
+ *
  * Lives beside {@link useHabits} rather than inside it: that provider is long enough already,
  * and the only thing this needs from it is a user, a day, and a hint that something was ticked.
  */
@@ -15,6 +21,7 @@ import { AppState } from 'react-native';
 
 import { loadProgress } from '@/hooks/use-progress';
 import { deviceLocation } from '@/lib/geo';
+import type { Reading } from '@/lib/insights';
 import { planLunarFires } from '@/lib/lunar-schedule';
 import { lunarUpdateCopy } from '@/lib/lunar-update';
 import { notificationsAvailable, scheduleLunarUpdates } from '@/lib/notifications';
@@ -45,15 +52,16 @@ async function arm(userId: string, today: string, doneToday: string[]): Promise<
     return;
   }
   let month: MonthProgress | null = null;
+  let readings: Reading[] = [];
   try {
-    ({ month } = await loadProgress(userId, today, doneToday));
+    ({ month, readings } = await loadProgress(userId, today, doneToday));
   } catch {
     // The landmark is still true without a figure, and the copy knows how to drop it.
   }
   await scheduleLunarUpdates(
     fires.map((fire) => {
-      const { title, body, assetKey } = lunarUpdateCopy(fire, month);
-      return { at: fire.at, title, body, assetKey };
+      const { title, body, assetKey, readingId } = lunarUpdateCopy(fire, month, readings);
+      return { at: fire.at, title, body, assetKey, readingId };
     }),
   );
 }

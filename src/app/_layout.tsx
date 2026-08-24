@@ -77,12 +77,17 @@ function RootNavigator() {
     if (ready) SplashScreen.hide();
   }, [ready]);
 
-  // Tapping a lunar update opens the tab it was describing — the moon and the orbit the
-  // notification just quoted. Gated on a mounted navigator and a session, so a cold-start tap
-  // can't navigate before the tabs exist or land a signed-out user on a protected route.
+  // Tapping a lunar update opens the reading it carried, in full — the banner is that reading's
+  // first line, so the tap lands on the rest of it rather than somewhere it has to be looked up.
+  // An update that carried only the landmark has no id, and opens the feed instead. Gated on a
+  // mounted navigator and a session, so a cold-start tap can't navigate before the tabs exist or
+  // land a signed-out user on a protected route.
   useEffect(() => {
     if (!ready || !session) return;
-    return subscribeToUpdateTaps(() => router.navigate('/progress'));
+    return subscribeToUpdateTaps((readingId) => {
+      if (readingId) router.navigate({ pathname: '/(tabs)/insights/[id]', params: { id: readingId } });
+      else router.navigate('/insights');
+    });
   }, [ready, session, router]);
 
   if (!ready) return null;

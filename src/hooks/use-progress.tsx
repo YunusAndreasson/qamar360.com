@@ -5,12 +5,38 @@ import type { Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
-import { computeProgress, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
+import { computeReadings, type Reading } from '@/lib/insights';
+import { computeProgress, creditOnDay, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
 export type { MonthProgress, RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/lib/progress';
+
+/**
+ * The two pure sweeps, run over one fetch: the instruments and the quarterly readings.
+ *
+ * They are composed here rather than inside `computeProgress` so `lib/insights` can depend on
+ * `lib/progress` (for the app's degrees unit and its habit shape) without the two importing each
+ * other. Both read the SAME completion rule — {@link creditOnDay} — so a reading can never quote
+ * a figure the orbit above it disagrees with.
+ */
+function derive(habits: Habit[], completions: CompletionRow[], today: string): Derived {
+  return {
+    ...computeProgress(habits, completions, today),
+    readings: computeReadings(habits, creditOnDay(completions), today),
+  };
+}
+
+/** Everything one progress fetch yields. */
+export type Derived = ProgressDerived & {
+  /**
+   * One written reading per moon quarter, newest first — the Insights feed, and the text the
+   * lunar updates carry. Includes the quarter still being lived (`closed: false`), which only
+   * the notification arming reads.
+   */
+  readings: Reading[];
+};
 
 /**
  * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
@@ -52,9 +78,9 @@ async function fetchProgressWindow(
  *  ids the overlay already knows are done for `today` (it only fires once the day is complete) —
  *  overlaid via {@link withDoneToday} so the overlay's degrees don't undercount ticks that haven't
  *  yet reached the server, and so match the Progress tab. */
-export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<ProgressDerived> {
+export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<Derived> {
   const { habits, completions } = await fetchProgressWindow(userId, today, OVERLAY_WINDOW_DAYS);
-  return computeProgress(habits, withDoneToday(completions, doneToday, today), today);
+  return derive(habits, withDoneToday(completions, doneToday, today), today);
 }
 
 type ProgressData = {
@@ -74,6 +100,11 @@ type ProgressData = {
   seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
   /** The periods worth offering, narrowest first. `length === 1` means no selector. */
   seriesPeriods: SeriesPeriod[];
+  /** The moon-quarter readings, newest first — see {@link Derived.readings}. */
+  readings: Reading[];
+  /** The local day these figures describe. Owned here because it survives a midnight rollover,
+   *  which a `todayLocalISO()` call in a screen's render would not. */
+  today: string;
 };
 
 /**
@@ -130,7 +161,7 @@ export function useProgress(): ProgressData {
 
   const dismissError = useCallback(() => setError(null), []);
 
-  const derived = useMemo(() => computeProgress(habits, completions, today), [habits, completions, today]);
+  const derived = useMemo(() => derive(habits, completions, today), [habits, completions, today]);
 
-  return { loading, error, dismissError, refresh: fetchData, ...derived };
+  return { loading, error, dismissError, refresh: fetchData, today, ...derived };
 }

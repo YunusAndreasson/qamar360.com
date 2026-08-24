@@ -3,7 +3,7 @@
  *
  * A stack is a sequence you keep; an exchange is a deed put where an old routine keeps happening.
  * Both repeat, and both are recorded as `habit_completions` rows, which is why degrees, the month
- * ring, the year trend, streaks and Insights read them without knowing they exist. A task is
+ * ring, the year trend, streaks and Stats read them without knowing they exist. A task is
  * neither: call the landlord, pick up the prescription — it happens once and is finished.
  *
  * So a task is deliberately **outside the lunar currency**. `computeProgress` derives a month's

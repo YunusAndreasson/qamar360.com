@@ -56,7 +56,7 @@ export const Tick = {
  * A stats page's entrance clock — start OFFSETS (ms from screen appear), not durations. One cascade
  * so a screen's cards read in order instead of all firing at once: Progress runs `first` (the month
  * orbit sweeps) then `second` (the Over-time line draws on, into a page that has already
- * established); Habits → Insights runs all three (ring, weekday bars, trend line).
+ * established); Habits → Stats runs all three (ring, weekday bars, trend line).
  *
  * `first` is 0 and deliberately unwrapped at its site: a hero re-animates on live rate changes
  * (refetch), and a delay must never contaminate those. Total lead stays ≤ 320ms — a reading order,

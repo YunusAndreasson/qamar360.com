@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
-import { InsightsScreen } from '@/components/insights-screen';
-import { InsightsSkeleton } from '@/components/progress-skeleton';
+import { StatsSkeleton } from '@/components/progress-skeleton';
+import { StatsScreen } from '@/components/stats-screen';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -10,13 +10,13 @@ import { useStackStats } from '@/hooks/use-stack-stats';
 import { describeHijriSchedule } from '@/lib/dates';
 
 /**
- * A stack's "Insights" — the sibling of `stats.tsx`, reached from the stack's options sheet
- * (`stack-manage` → Insights) and rendered by the same {@link InsightsScreen}.
+ * A stack's "Stats" — the sibling of `stats.tsx`, reached from the stack's options sheet
+ * (`stack-manage` → Stats) and rendered by the same {@link StatsScreen}.
  *
  * What it measures is the *seal*: a day counts when the whole sequence held, which is the only
  * reading consistent with a stack being one performance (see `computeStackStats`). So the ring, the
  * streak and the trend here answer "how often does this routine actually happen", not "how many of
- * its acts do I get through" — a question the per-act Insights already answers, one act at a time.
+ * its acts do I get through" — a question the per-act Stats already answers, one act at a time.
  */
 export default function StackStatsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -32,7 +32,7 @@ export default function StackStatsScreen() {
   if (loading || (habitsLoading && !stack)) {
     return (
       <AppScreen transparent>
-        <InsightsSkeleton />
+        <StatsSkeleton />
       </AppScreen>
     );
   }
@@ -47,7 +47,7 @@ export default function StackStatsScreen() {
         .join(' · ') || undefined;
 
   return (
-    <InsightsScreen
+    <StatsScreen
       title={stack.name}
       stats={stats}
       hijriNote={hijriNote}

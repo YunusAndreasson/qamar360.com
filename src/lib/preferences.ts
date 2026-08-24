@@ -3,7 +3,6 @@ import 'expo-sqlite/localStorage/install';
 import { useSyncExternalStore } from 'react';
 
 import { setHijriOffset } from '@/lib/dates';
-import type { SeriesPeriod } from '@/lib/progress';
 import type { DayBands } from '@/lib/sun';
 import { getWebStorage } from '@/lib/web-storage';
 
@@ -120,21 +119,20 @@ const SPEC = {
    */
   lunarUpdates: flag('prefs.lunarUpdates', true),
   /**
-   * The period the Progress chart was last read over. Not a Settings row — it is the chart's own
-   * control, remembered so that returning to the tab shows the view you left rather than resetting
-   * to the default under you.
+   * The id of the newest quarterly reading the user has actually looked at — what the Insights
+   * tab's unread dot is measured against. Not a "seen" flag but the id itself, so the dot returns
+   * on its own at the next moon quarter with nothing to reset it.
    *
-   * The default is the month, which is the period the moon ring above the chart already measures:
-   * arriving on the tab, the two instruments say the same thing at two scales. A stored period the
-   * record can no longer offer is ignored at the call site, not here — what is legal to choose
-   * depends on how much history exists, which this table cannot know.
+   * Any string parses: a reading id is derived from the Hijri calendar, so an unknown one simply
+   * never matches and the dot shows — the safe direction to fail. The empty fallback is the
+   * behaviour before it existed: nothing has been read, so the first reading is new.
    */
-  progressPeriod: {
-    key: 'prefs.progressPeriod',
-    fallback: 'month',
-    parse: oneOf(['week', 'month', 'year', 'life'] as const),
+  insightsSeen: {
+    key: 'prefs.insightsSeen',
+    fallback: '',
+    parse: (raw) => raw,
     serialize: (v) => v,
-  } satisfies Spec<SeriesPeriod>,
+  } satisfies Spec<string>,
   /** Custom day-part boundaries, or `null` to follow the real sun (the default). */
   dayBands: {
     key: 'prefs.dayBands',

@@ -64,6 +64,9 @@ export type PlannedUpdate = {
   body: string;
   /** Which bundled moon to attach — a key of {@link MOON_ASSETS}. iOS only. */
   assetKey: string;
+  /** The quarterly reading this update announces, when it carries one. Rides in the payload so
+   *  the tap can open that reading rather than the feed it sits at the top of. */
+  readingId?: string;
 };
 
 let configured = false;
@@ -174,40 +177,42 @@ async function stageMoon(assetKey: string): Promise<string | null> {
  *  the same response, and two navigations would stack the same screen twice. */
 let handledTapId: string | null = null;
 
-function lunarTapId(response: { notification: { request: { identifier: string; content: { data?: unknown } } } } | null) {
-  const data = response?.notification.request.content.data as { kind?: string } | undefined;
-  return data?.kind === LUNAR_KIND ? response!.notification.request.identifier : null;
+function lunarTap(response: { notification: { request: { identifier: string; content: { data?: unknown } } } } | null) {
+  const data = response?.notification.request.content.data as { kind?: string; readingId?: string } | undefined;
+  if (data?.kind !== LUNAR_KIND) return null;
+  return { id: response!.notification.request.identifier, readingId: data.readingId ?? null };
 }
 
 /**
  * Run `open` when the user taps a lunar update — including the tap that cold-started the app,
  * which arrives through a different API than a tap while it is running. Returns an unsubscribe.
  *
- * This is the other half of the feature: the tray carries the phase and the figure, and the tap
- * lands on the moon and orbit those were describing.
+ * This is the other half of the feature: the tray carries a quarter's reading, and the tap lands
+ * on that reading in full. `readingId` is null on an update that carried only the landmark (no
+ * reading was published, or it was held back) — the caller then opens the feed.
  */
-export function subscribeToUpdateTaps(open: () => void): () => void {
+export function subscribeToUpdateTaps(open: (readingId: string | null) => void): () => void {
   if (!N) return () => {};
   let active = true;
 
-  const handle = (id: string | null) => {
-    if (!active || !id || id === handledTapId) return;
-    handledTapId = id;
-    open();
+  const handle = (tap: { id: string; readingId: string | null } | null) => {
+    if (!active || !tap || tap.id === handledTapId) return;
+    handledTapId = tap.id;
+    open(tap.readingId);
   };
 
   // The tap that launched the app. Cleared so a later relaunch doesn't replay it.
   void N.getLastNotificationResponseAsync()
     .then((response) => {
-      const id = lunarTapId(response);
-      if (id) void N.clearLastNotificationResponseAsync().catch(() => {});
-      handle(id);
+      const tap = lunarTap(response);
+      if (tap) void N.clearLastNotificationResponseAsync().catch(() => {});
+      handle(tap);
     })
     .catch(() => {
       // No launch response to read — nothing to open.
     });
 
-  const sub = N.addNotificationResponseReceivedListener((response) => handle(lunarTapId(response)));
+  const sub = N.addNotificationResponseReceivedListener((response) => handle(lunarTap(response)));
   return () => {
     active = false;
     sub.remove();
@@ -264,7 +269,7 @@ async function rebuild(updates: PlannedUpdate[], epoch: number): Promise<void> {
           // Audible on the lock screen — four a month that nobody hears is four wasted. The
           // *foreground* handler is the one that stays silent.
           color: Colors.dark.accent,
-          data: { kind: LUNAR_KIND },
+          data: { kind: LUNAR_KIND, ...(update.readingId ? { readingId: update.readingId } : null) },
           ...(moonUri ? { attachments: [{ identifier: update.assetKey, url: moonUri, type: 'public.png' }] } : null),
         },
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: update.at, channelId: CHANNEL_ID },

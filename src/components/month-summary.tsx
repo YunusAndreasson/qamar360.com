@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Polygon } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
 import { AppIcon } from '@/components/app-icon';
 import { MoonPhase } from '@/components/moon-phase';
@@ -20,13 +20,13 @@ import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
-import { Duration } from '@/constants/motion';
+import { Duration, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import { useOnStage } from '@/hooks/use-on-stage';
 import type { MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
-import { clamp01, toDegrees } from '@/lib/progress';
+import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
 
 // Exported for the reading sheet's legend, which redraws these marks at glyph scale. The legend
 // quotes the instrument rather than approximating it — the last time a legend carried its own
@@ -44,19 +44,41 @@ const HALO_SIZE = 330;
 // whole month is done. Smaller than the halo so it stays an aura, not a wash.
 const GLOW_SIZE = 300;
 const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
-// The Q's tail — last month's pace marker — sits just outside the rim (like the tail on
-// the app's "Q"), so the canvas is a touch larger than the ring footprint to give that
-// protrusion room. The ring stays centred over the moon (its footprint is unchanged);
-// only the drawing surface grows.
-const TAIL_OUT = 16;
-const SVG_SIZE = ORBIT_SIZE + TAIL_OUT * 2;
+// The canvas used to run 16pt wider on every side to make room for a tick that protruded past the
+// rim. Nothing is drawn outside the ring any more, so the drawing surface is the ring's own
+// footprint — plus a hair, because the stroke's outer edge lands exactly on it and an SVG clips to
+// its bounds, which would shave the antialiasing off the rim.
+const RIM_BLEED = 2;
+const SVG_SIZE = ORBIT_SIZE + RIM_BLEED * 2;
 const RING_CENTER = SVG_SIZE / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-// The tail tick's shared geometry — the ring marker and the metrics-row legend glyph both draw
-// from these numbers, so the two renderings of "last month reached here" can never drift apart
-// (they had: the old CSS-triangle legend was 8×7 against the ring's 10×10).
-export const TICK_LENGTH = 10;
-export const TICK_HALF_BASE = 5;
+
+/**
+ * How this month is going against your usual — said in words, under the datum.
+ *
+ * This replaced a caret outside the ring's rim. A mark at your average position made the reader do
+ * the work: find the tick, find the arc head, judge which is further round a circle, and remember
+ * which of three unlabelled things the tick was. It also cost a legend row in the sheet, because an
+ * abstract mark needs a key. A sentence needs none — that is the whole trade — so the ring is down
+ * to a progress bar and its target, and the sheet to the two things actually drawn on it.
+ *
+ * `null` in a first month: there is no usual yet, and inventing one from nothing is the failure
+ * mode this benchmark exists to avoid.
+ *
+ * Three-valued, with a dead band, because two positions closer than half a day of the month are
+ * the same position — and calling one of them "behind" would be a scold invented by rounding. (It
+ * would fire constantly: on any morning before the day's first tick, this month and your usual are
+ * both near zero.) The band is half a day rather than a fixed figure so it means the same thing in
+ * a 29-day month as in a 30-day one.
+ */
+function usualLabel(month: MonthProgress): string | null {
+  if (month.monthsAveraged === 0) return null;
+  // Compared in DEGREES, the unit the card shows, so the sentence can never disagree with the
+  // number above it about which side of your usual you are on.
+  const gap = toDegrees(month.thisRate) - toDegrees(month.averageRate);
+  if (Math.abs(gap) <= 180 / month.monthLength) return 'About your usual';
+  return gap > 0 ? 'Ahead of your usual' : 'Behind your usual';
+}
 
 /** Month-to-date progress wrapped around the real moon for today's Hijri date. */
 export function MonthSummary({ month }: { month: MonthProgress | null }) {
@@ -81,20 +103,30 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
   if (!month) return null;
 
-  const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, previousRate, hasPrevious } = month;
+  const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, averageRate, monthsAveraged } = month;
   const thisDegrees = toDegrees(thisRate);
   // Where the month itself stands — what it has asked of you so far, on the same orbit scale. The
   // one benchmark that exists on a first day, so the ring always has a mark to catch.
   const paceDegrees = toDegrees(paceRate);
-  // Last month's pace by this same day, on the *same* absolute orbit scale as the headline —
-  // so the two read as comparable positions (188° vs 360°), and last month's number is exactly
-  // where its marker sits. No signed delta to be misread as a position.
-  const previousDegrees = toDegrees(previousRate);
+  // Your usual by this same day, on the *same* absolute orbit scale as the headline — so the two
+  // read as comparable positions (188° vs 360°), and the number is exactly where the caret sits.
+  // No signed delta to be misread as a position.
+  // What "Day 11 of 29" was really for, said as the answer rather than the inputs: nobody wants the
+  // ordinal, they want to know how much month is left to fix it in. It moved off the header when
+  // the month's name took the caption slot, and it lands here because it belongs beside the
+  // verdict — where you stand, and how long you have.
+  const reading = [usualLabel(month), daysLeftLabel(month)].filter(Boolean).join(' · ');
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = [
     `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
     `This month is at ${thisDegrees} degrees of the orbit; the month itself has reached ${paceDegrees} degrees.`,
-    hasPrevious ? `${month.previousMonthName} had reached ${previousDegrees} degrees by the same day.` : '',
+    // The figure and the count are said here and nowhere on screen. The card gives the verdict,
+    // which is what was asked for; this gives the measurement behind it, for anyone who wants to
+    // know what "usual" was counted from.
+    monthsAveraged > 0
+      ? `Usually ${toDegrees(averageRate)} degrees by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
+      : '',
+    reading,
   ]
     .filter(Boolean)
     .join(' ');
@@ -104,24 +136,51 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   // and a detail view that disagrees with the card it opened from is worse than a stale one.
   const openReading = () =>
     router.push({
-      pathname: '/(tabs)/progress/orbit',
+      pathname: '/(tabs)/insights/orbit',
       params: {
         monthName,
         year: String(year),
         current: String(thisDegrees),
         pace: String(paceDegrees),
-        previous: hasPrevious ? String(previousDegrees) : '',
-        previousMonthName: month.previousMonthName,
       },
     });
 
   return (
     <StatCard pattern>
-      <StatCardHeader title={`${monthName} ${year} H`} trailing={`Day ${dayOfMonth} of ${monthLength}`} />
+      {/* "This month" — a title, the way the card below is titled "Over time". The two are the
+          screen's two scopes and now say so in the same voice; the hero used to lead with the date
+          instead, so one card was headed by a category and the other by a datum, and only one of
+          them told you what it was for. The month's NAME is the caption, which is where the app
+          says which Hijri month you are in — this header is the only place at rest that does.
 
-      {/* The whole emblem is the target, not the ⓘ alone: a 232pt instrument with a 15pt hit area
-          is a puzzle. The card itself is deliberately NOT `accessible` — flattening it would
-          swallow this button and leave the reading unreachable. */}
+          The ⓘ sits in the card's own top-right corner, which is where a card keeps a button about
+          itself in every app anyone already uses. It replaces a line of prose — "What am I looking
+          at?" — that sat under the datum and said, in twenty-one characters, exactly what this one
+          glyph says. The sentence is not lost: it is the button's accessible NAME, so the words
+          still reach a screen reader and only leave the screen. */}
+      <StatCardHeader
+        title="This month"
+        trailing={`${monthName} ${year} H`}
+        accessory={
+          <PressableScale
+            onPress={openReading}
+            scaleTo={Scale.glyph}
+            // 18pt of glyph + 16 each side clears Android's 48dp minimum without the button
+            // taking any more of the header row than the ⓘ itself occupies.
+            hitSlop={16}
+            accessibilityRole="button"
+            accessibilityLabel="What am I looking at?"
+            accessibilityHint="Opens what each part of the orbit means">
+            <AppIcon name="info" size={18} color={theme.textSecondary} />
+          </PressableScale>
+        }
+      />
+
+      {/* The whole emblem stays the target, not the ⓘ alone: a 232pt instrument with an 18pt hit
+          area is a puzzle. The glyph is the *signifier* — it says a reading exists; the emblem is
+          the affordance, and it is the size of the thing it explains. The card itself is
+          deliberately NOT `accessible` — flattening it would swallow both and leave the reading
+          unreachable. */}
       <PressableScale
         style={styles.hero}
         onPress={openReading}
@@ -138,7 +197,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
               an emblem that already had three. Completion is carried by the arc, by the moon's
               brightness, and by the bloom; the geometry just sits behind them. */}
           <MoonHalo size={HALO_SIZE} />
-          <ProgressOrbit current={thisRate} pace={paceRate} previous={hasPrevious ? previousRate : 0} />
+          <ProgressOrbit current={thisRate} pace={paceRate} />
           {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
               moonlight, still opaque) and lets the bright ring + the degrees readout lead,
               brightening to full only when the month is done (where the glow also lights). It
@@ -148,20 +207,17 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           </Animated.View>
         </View>
 
-        {/* One bold datum, and a way in to the rest. The two benchmark readings that used to sit
-            here as glyph-and-number legends now live in the sheet this opens: they were the ring's
-            only legend, and three quiet lines under a 232pt orbit read as a footnote to it rather
-            than as the instrument's key. Demoting them to a detail view is only safe because the
-            ring was simplified to match (see {@link ProgressOrbit}) — a legend is not optional for
-            a diagram that needs one. */}
-        <View style={styles.metrics}>
+        {/* The datum, and the one thing the ring cannot say. The benchmark readings that used to
+            sit here as glyph-and-number legends live in the sheet the ⓘ opens: three quiet lines
+            under a 232pt orbit read as a footnote to it rather than as the instrument's key.
+            What comes back is not a legend and not an affordance — it is a reading, the answer to
+            the question a benchmark is FOR ("am I doing better than I usually do?"), which the
+            ring used to pose as a triangle and leave you to work out. */}
+        <View style={styles.reading}>
           <TallyDegrees degrees={thisDegrees} />
-          <View style={styles.affordance}>
-            <AppIcon name="info" size={15} color={theme.textSecondary} />
-            <ThemedText type="smallCompact" themeColor="textSecondary">
-              What am I looking at?
-            </ThemedText>
-          </View>
+          <ThemedText type="smallCompact" themeColor="textSecondary">
+            {reading}
+          </ThemedText>
         </View>
       </PressableScale>
     </StatCard>
@@ -177,9 +233,11 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  *   accentTrack        the month elapsed — what it has asked of you (always present)
  *   accent / complete  you
  *
- * plus a caret outside the rim at last month's position by this same day.
+ * and nothing else. There is no fourth mark: what you are doing against your usual is said in
+ * words under the ring (see {@link usualLabel}), because it is a comparison, and a comparison read
+ * off two positions on a circle is arithmetic where a sentence is an answer.
  *
- * **There were four bands, and the fourth had to go.** Last month used to be a third tonal step
+ * **There were four bands, then three marks, and now two.** Last month used to be a third tonal step
  * (`accentTrackStrong`) between the other two, which made the ring three shades of one hue with
  * only their lightness to tell them apart — and those track tones are deliberately sub-3:1, being
  * informational rather than text. It worked while two legend rows sat under the orbit naming them.
@@ -188,17 +246,21 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  * cannot, because it is distinguished by SHAPE: you can see it is a different kind of mark without
  * being told what it means, and then be told once.
  *
+ * The caret that survived that cut is gone too, for a related reason: it was distinguishable, but
+ * only ever as "some benchmark" until you had been told which. A mark earns its place on this ring
+ * by being something you can SEE about the month — where you are, and how much has been asked. Your
+ * usual is neither; it is a judgement about the two, and judgements read better as words.
+ *
  * What remains is a progress bar with a target mark, which is a thing people already know how to
  * read. The elapsed stretch is still an ARC rather than a point, because a point on a ring is
  * ambiguous where 0° and 360° meet at the top; an arc *length* is not, and the stretch where the
  * dimmer band shows past the bright one IS the gap — read directly, with no arithmetic.
  */
-function ProgressOrbit({ current, pace, previous }: { current: number; pace: number; previous: number }) {
+function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const currentRate = clamp01(current);
   const paceRate = clamp01(pace);
-  const previousRate = clamp01(previous);
   // The orbit carries the two-temperature signal: cool steel while the month is in progress, warm
   // `complete` moonlight the instant it's done — so a finished orbit reads warm, matching the moon.
   const currentColor = currentRate >= 1 ? theme.complete : theme.accent;
@@ -221,23 +283,6 @@ function ProgressOrbit({ current, pace, previous }: { current: number; pace: num
   // stretch that has already come due. It costs no extra ink — the ring was always a full circle —
   // and it means the very first day has an arc to close on rather than a bare loop.
   const paceArc = RING_CIRCUMFERENCE * paceRate;
-  // A small caret marks last month's position — it sits just outside the rim and points
-  // inward at last month's exact spot (clockwise from 12 o'clock), reading unmistakably as
-  // "last month reached here" rather than as an ambiguous tick.
-  const markerAngle = previousRate * 2 * Math.PI;
-  const markerX = Math.sin(markerAngle);
-  const markerY = -Math.cos(markerAngle);
-  const tanX = -markerY; // unit tangent, perpendicular to the radius
-  const tanY = markerX;
-  const rimR = RING_RADIUS + RING_STROKE / 2;
-  const tipR = rimR + 1; // tip kisses the outer rim, pointing in at the spot
-  const baseR = tipR + TICK_LENGTH; // body sits just outside the rim
-  const markerTip = `${RING_CENTER + tipR * markerX},${RING_CENTER + tipR * markerY}`;
-  const baseCx = RING_CENTER + baseR * markerX;
-  const baseCy = RING_CENTER + baseR * markerY;
-  const markerBaseA = `${baseCx + TICK_HALF_BASE * tanX},${baseCy + TICK_HALF_BASE * tanY}`;
-  const markerBaseB = `${baseCx - TICK_HALF_BASE * tanX},${baseCy - TICK_HALF_BASE * tanY}`;
-
   return (
     <Svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={styles.ring}>
       {/* The month still to come — the dimmest step, so the elapsed stretch above it reads as a
@@ -277,9 +322,6 @@ function ProgressOrbit({ current, pace, previous }: { current: number; pace: num
         fill="none"
         transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
       />
-      {previousRate > 0 ? (
-        <Polygon points={`${markerTip} ${markerBaseA} ${markerBaseB}`} fill={theme.textSecondary} />
-      ) : null}
     </Svg>
   );
 }
@@ -294,8 +336,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ring: { position: 'absolute', top: -TAIL_OUT, left: -TAIL_OUT },
+  ring: { position: 'absolute', top: -RIM_BLEED, left: -RIM_BLEED },
   moon: { alignItems: 'center', justifyContent: 'center' },
-  metrics: { alignItems: 'center', gap: Spacing.one },
-  affordance: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  // The verdict belongs to the number, not to the card's rhythm — a tighter gap than the
+  // orbit→datum one above it, so the two read as one block.
+  reading: { alignItems: 'center', gap: Spacing.one },
 });

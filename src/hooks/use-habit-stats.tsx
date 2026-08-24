@@ -41,8 +41,8 @@ type HabitStatsData = {
 };
 
 /**
- * Read-only per-habit stats for the Insights screen. The habit *definition* comes from
- * `useHabits()` (already in memory — the Insights screen is a descendant of `HabitsProvider`), so
+ * Read-only per-habit stats for the Stats screen. The habit *definition* comes from
+ * `useHabits()` (already in memory — the Stats screen is a descendant of `HabitsProvider`), so
  * only this habit's completion history is fetched here. Refetches whenever the screen regains
  * focus, so ticks made on Today show up on return. The single-habit sibling of {@link useProgress}.
  */

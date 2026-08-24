@@ -6,16 +6,25 @@
  * here. Nothing in this copy says the moon changes anybody's energy; it says where the month is
  * and where the user is in it, and lets the two sit beside each other.
  *
- * Three rules, each with a test:
+ * **The update is the reading's first line.** Every milestone is also the moment a quarterly
+ * reading is published ({@link import('./insights').computeReadings}), and where one exists the
+ * update carries its headline and deep-links to it. One text, two surfaces — rather than a
+ * notification and a screen saying two different things about the same night.
+ *
+ * Four rules, each with a test:
  *
  * - **Degrees, never percent** ({@link toDegrees}) — the app's unit everywhere else.
- * - **Silence, not shame.** The pace clause appears only when the user is *ahead*, and a 0°
- *   reading drops the figure entirely rather than print it on a lock screen. This is stricter
- *   than {@link celebrationCopy}, which does name a lower previous month — that copy appears
- *   inside a celebration the user has just earned; this one arrives unbidden.
+ * - **Silence, not shame.** The pace clause appears only when the user is *ahead*, a 0° reading
+ *   drops the figure entirely rather than print it on a lock screen, and a reading whose headline
+ *   names a slip is `notifiable: false` and never reaches here. This is stricter than
+ *   {@link celebrationCopy}, which does name a lower previous month — that copy appears inside a
+ *   celebration the user has just earned; this one arrives unbidden.
+ * - **One moon per body.** The title already names the phase, so nothing in the body describes
+ *   the same moon a second time — which is also why a reading's copy never says "moon".
  * - **Never claim a sky we didn't check.** The "up now" clause needs a verified altitude
  *   ({@link VISIBLE_ALT}), which is why the schedule bothers to compute one.
  */
+import type { Reading } from '@/lib/insights';
 import { milestoneAssetKey } from '@/lib/lunar-phase';
 import { type LunarFire, VISIBLE_ALT } from '@/lib/lunar-schedule';
 import { type MonthProgress, toDegrees } from '@/lib/progress';
@@ -25,6 +34,8 @@ export type LunarUpdateCopy = {
   body: string;
   /** Which bundled moon image to attach (iOS). See `scripts/gen-moons.mjs`. */
   assetKey: string;
+  /** The reading this update announces, when it carries one — the tap opens it directly. */
+  readingId?: string;
 };
 
 /**
@@ -47,12 +58,27 @@ function skySentence(fire: LunarFire): string | null {
 }
 
 /**
- * Title and body for one planned update. `month` is this Hijri month's progress, or `null`
- * when it can't be known — always the case for {@link LunarFire.future}, and also whenever the
- * progress fetch failed, in which case the update still goes out without a figure.
+ * Title and body for one planned update.
+ *
+ * `month` is this Hijri month's progress, or `null` when it can't be known — always the case for
+ * {@link LunarFire.future}, and also whenever the progress fetch failed, in which case the update
+ * still goes out without a figure.
+ *
+ * `readings` are the quarterly readings, newest first. The one published on this fire's day (if
+ * any) supplies the body; otherwise the calendrical lead and the month's degrees do, exactly as
+ * before. A reading is *absent* rather than empty in three real cases — the quarter hasn't begun
+ * (a milestone armed weeks ahead), the record hasn't opened yet, or the fetch failed — and one is
+ * *held back* when it earned nothing or its headline names a slip. All four fall through to the
+ * same landmark sentence, which is true whatever happened.
  */
-export function lunarUpdateCopy(fire: LunarFire, month: MonthProgress | null): LunarUpdateCopy {
+export function lunarUpdateCopy(
+  fire: LunarFire,
+  month: MonthProgress | null,
+  readings: readonly Reading[] = [],
+): LunarUpdateCopy {
   const { hijriDay, monthName, monthLength } = fire;
+  const reading = readings.find((r) => r.publishedISO === fire.dayISO);
+  const notice = reading && reading.lead.notifiable ? reading : null;
   const degrees = fire.future ? null : degreesSentence(month);
   const sky = skySentence(fire);
 
@@ -89,7 +115,11 @@ export function lunarUpdateCopy(fire: LunarFire, month: MonthProgress | null): L
 
   return {
     title,
-    body: [lead, degrees, sky].filter(Boolean).join(' '),
+    // The reading REPLACES the landmark and the bare figure rather than joining them: its
+    // headline already says where the quarter went, and three sentences on a lock screen is one
+    // too many. The sky clause survives either way — it is about tonight, not about the record.
+    body: (notice ? [notice.lead.headline, sky] : [lead, degrees, sky]).filter(Boolean).join(' '),
     assetKey: milestoneAssetKey(hijriDay, monthLength),
+    ...(notice ? { readingId: notice.id } : null),
   };
 }

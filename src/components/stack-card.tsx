@@ -74,7 +74,7 @@ type Props = {
  * at the foot: the stack is the only unit the app tracks, so the card *is* the checkbox — and the
  * leading {@link CompletionRing} is where that reads, the ring sweeping shut around a check on the
  * seal. Underneath, sealing writes an ordinary done row per act (which is why Progress and
- * Insights need to know nothing about any of this).
+ * Stats need to know nothing about any of this).
  *
  * **Every stack is born folded**, and the trailing chevron unfolds it. Folded, the card is a
  * single bar carrying its mark, its name and — while its moment is the current one — the clock

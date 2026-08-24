@@ -14,7 +14,7 @@
  *
  * Storage follows from that. An exchange is an ordinary `habits` row with two extra columns, so a
  * tick is an ordinary `habit_completions` row and degrees, the month ring, the year trend, streaks
- * and per-habit Insights all keep working untouched. `instead_of` being non-null *is* what makes a
+ * and per-habit Stats all keep working untouched. `instead_of` being non-null *is* what makes a
  * habit an exchange; `stack_id` stays null, because an exchange is anchored to an urge rather than
  * to a moment of the day.
  *

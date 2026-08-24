@@ -786,7 +786,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    *
    * This is the app's only completion gesture. Acts are read, not ticked — so what the user
    * asserts is that the *group* happened, and the per-act rows underneath are simply how it's
-   * recorded (which is why Progress, streaks and Insights need to know nothing about stacks).
+   * recorded (which is why Progress, streaks and Stats need to know nothing about stacks).
    *
    * Excused acts are left out entirely; acts already done are left untouched, so an unseal
    * restores precisely what this seal wrote. A count goal has no partial state to reach any
@@ -927,7 +927,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    * a numerator that could never be anything but zero. This seam is the fix.
    *
    * What is recorded is the *deed*: an ordinary `done` row, exactly like a sealed act's, so
-   * degrees, streaks and Insights need to know nothing about any of this. Nothing anywhere records
+   * degrees, streaks and Stats need to know nothing about any of this. Nothing anywhere records
    * a day that didn't happen — a miss is simply the absence of a row.
    */
   const toggleLoose = useCallback(

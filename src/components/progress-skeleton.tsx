@@ -6,7 +6,7 @@ import { Spacing } from '@/constants/theme';
 /**
  * A loading screen's job is to hold the shape that is about to arrive, so the page doesn't jump
  * when it does. That makes these two shapes different objects, not one shared block: Progress is a
- * tall orbit over a chart, Insights is a ring over three smaller cards. They were one component,
+ * tall orbit over a chart, Stats is a ring over three smaller cards. They were one component,
  * and the shared block went on describing a card layout that had been replaced.
  */
 
@@ -25,8 +25,8 @@ export function ProgressSkeleton() {
   );
 }
 
-/** Habits → Insights: the consistency ring, the streak pair, the weekday bars, the trend line. */
-export function InsightsSkeleton() {
+/** Habits → Stats: the consistency ring, the streak pair, the weekday bars, the trend line. */
+export function StatsSkeleton() {
   return (
     <View style={styles.root}>
       <Skeleton height={300} />

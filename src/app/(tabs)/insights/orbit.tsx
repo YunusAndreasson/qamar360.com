@@ -1,9 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Path, Polygon } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { FormSheet } from '@/components/form-sheet';
-import { ORBIT_SIZE, RING_STROKE, TICK_HALF_BASE, TICK_LENGTH } from '@/components/month-summary';
+import { ORBIT_SIZE, RING_STROKE } from '@/components/month-summary';
 import { RowSeparator } from '@/components/row-separator';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
@@ -15,8 +15,8 @@ import type { ReactNode } from 'react';
 /**
  * The legend glyph box — square, and big enough to hold the caret at its full `TICK_LENGTH`.
  *
- * Each mark is centred in it *by its own drawn extent*, not by the box's midpoint, because the
- * three have very different shapes: a bow's ink all sits above its circle's centre, so centring the
+ * Each mark is centred in it *by its own drawn extent*, not by the box's midpoint, because the two
+ * have very different shapes: a bow's ink all sits above its circle's centre, so centring the
  * circle would hang the bow off the top edge (it did — the arc clipped to two dashes).
  */
 const GLYPH = 16;
@@ -33,10 +33,14 @@ const BOW_CY = CENTER + BOW_R * 0.82;
 /**
  * What the orbit means — the hero's own key, on the sheet it opens.
  *
- * The ring above is a progress bar bent into a circle with a target mark on it, and the three
- * figures here are the three things on it, named once. They used to sit under the orbit as two
- * quiet legend rows; they read as a footnote to a 232pt instrument rather than as its key, and
- * they crowded the one datum the hero is supposed to hold.
+ * The ring above is a progress bar bent into a circle with a target mark on it, and the two figures
+ * here are the two things drawn on it, named once. They used to sit under the orbit as quiet legend
+ * rows; they read as a footnote to a 232pt instrument rather than as its key, and they crowded the
+ * one datum the hero is supposed to hold.
+ *
+ * There were three rows. The third named a caret at your average position, and it went when the
+ * caret did: how you are doing against your usual is now a sentence on the card itself, and a
+ * sentence is its own legend. This sheet explains marks — nothing more belongs in it.
  *
  * The closing line is the reason this sheet exists at all. The moon is the largest, brightest
  * thing on the screen and its SHAPE is the calendar — tonight's real phase for today's Hijri date,
@@ -45,46 +49,31 @@ const BOW_CY = CENTER + BOW_R * 0.82;
  * corrects a misreading of the object in the middle of it. So it is said, plainly, in words.
  *
  * A `fitToContents` sheet cannot scroll, so this must stay short enough to never need to. Three
- * rows and a sentence is the budget; if it ever grows past that it becomes a pushed screen like
+ * rows and a sentence is the ceiling; if it ever grows past that it becomes a pushed screen like
  * the stacking and exchange guides.
  */
 export default function OrbitReadingSheet() {
   const theme = useTheme();
   // A snapshot of the card that opened this, passed as params rather than re-derived — mounting
   // the progress hook here would fire a fetch to re-answer a question already on screen.
-  const { monthName, year, current, pace, previous, previousMonthName } = useLocalSearchParams<{
+  const { monthName, year, current, pace } = useLocalSearchParams<{
     monthName: string;
     year: string;
     current: string;
     pace: string;
-    previous: string;
-    previousMonthName: string;
   }>();
 
   return (
     <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H`}>
       <Surface>
         {/* Ordered as the ring is read: you first, because that is the bright arc and the number
-            above it; then the mark you are chasing; then last month, which only exists from the
-            second month on. */}
+            above it; then the mark you are chasing. */}
         <LegendRow glyph={<Dot color={theme.accent} />} label="You, this month" value={`${current}°`} />
         <RowSeparator />
         {/* "The month so far", not "on pace": the number is where the month itself has got to, and
             catching it means the two arc heads meet. True on a first day, when there is no past
             self to race. */}
         <LegendRow glyph={<ArcSwatch color={theme.accentTrack} />} label="The month so far" value={`${pace}°`} />
-        {previous ? (
-          <>
-            <RowSeparator />
-            {/* "This day last month", not "last month" — the number is last month's pace by this
-                same day, and the shorter label read as last month's final total. */}
-            <LegendRow
-              glyph={<Caret color={theme.textSecondary} />}
-              label={`${previousMonthName}, by this day`}
-              value={`${previous}°`}
-            />
-          </>
-        ) : null}
       </Surface>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
@@ -140,20 +129,6 @@ function ArcSwatch({ color }: { color: string }) {
         strokeWidth={ringStroke()}
         strokeLinecap="round"
         fill="none"
-      />
-    </Svg>
-  );
-}
-
-/** The tick that sits outside the rim, drawn from the ring's own `TICK_*` geometry so the two
- *  renderings of "last month reached here" can never drift apart. */
-function Caret({ color }: { color: string }) {
-  const top = CENTER - TICK_LENGTH / 2;
-  return (
-    <Svg width={GLYPH} height={GLYPH} viewBox={`0 0 ${GLYPH} ${GLYPH}`}>
-      <Polygon
-        points={`${CENTER},${top + TICK_LENGTH} ${CENTER - TICK_HALF_BASE},${top} ${CENTER + TICK_HALF_BASE},${top}`}
-        fill={color}
       />
     </Svg>
   );

@@ -266,7 +266,7 @@ export default function SettingsScreen() {
           notificationsAvailable
             ? nextUpdate
               ? `Next · ${nextUpdate}`
-              : 'New moon, first quarter, full moon, last quarter — each with how far through the month you are.'
+              : 'New moon, first quarter, full moon, last quarter — each with a reading of the quarter just gone.'
             : undefined
         }>
         {notificationsAvailable ? (

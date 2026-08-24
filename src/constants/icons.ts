@@ -48,8 +48,9 @@ export const Icons = {
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },
   undo: { sf: 'arrow.uturn.backward', material: 'undo' },
   edit: { sf: 'pencil', material: 'edit' },
-  // Per-habit stats — the leading swipe's "Insights" action and its empty state.
-  insights: { sf: 'chart.bar.xaxis', material: 'insights' },
+  // Per-habit and per-stack stats — the ⋯ sheet's "Stats" action and its empty state. NOT the
+  // Insights tab, which is the moon's own; that one is a tab-bar glyph, written inline there.
+  stats: { sf: 'chart.bar.xaxis', material: 'insights' },
   delete: { sf: 'trash', material: 'delete' },
   deleteOutline: { sf: 'trash', material: 'delete-outline' },
   // ── Appearance / brand / moment emblems ────────────────────────────────

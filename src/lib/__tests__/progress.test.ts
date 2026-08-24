@@ -417,6 +417,83 @@ describe('computeProgress — paceRate', () => {
   });
 });
 
+// ── Your usual: where you normally are by this point in a month ───────────────────────────────
+// The caret outside the ring's rim. Same scale as `thisRate` (both are fractions of a whole
+// month's possible), because the two are read against each other on one ring. It replaced a
+// single sample — last month alone — which `previousRate` still carries for the copy that says
+// "last month" in words; the two are cut from the same walk so they can never be measured
+// differently.
+describe('computeProgress — averageRate', () => {
+  it('has nothing to average in a first month, and hides the caret', () => {
+    const { start } = monthShape('2026-06-15');
+    const born = { ...dailyHabit('daily'), created_at: start }; // nothing exists before this month
+    const m = computeProgress([born], [], addDaysISO(start, 5)).month!;
+    expect(m.monthsAveraged).toBe(0);
+    expect(m.averageRate).toBe(0);
+    expect(m.hasPrevious).toBe(false);
+  });
+
+  it('with one month behind you, the average IS that month', () => {
+    const { start } = monthShape('2026-06-15');
+    const prev = hijriMonthRange(addDaysISO(start, -1))!;
+    const born = { ...dailyHabit('daily'), created_at: prev.start };
+    const completions = [done('daily', prev.start), done('daily', addDaysISO(prev.start, 1))];
+    const m = computeProgress([born], completions, addDaysISO(start, 4)).month!;
+    expect(m.monthsAveraged).toBe(1);
+    expect(m.averageRate).toBeCloseTo(2 / prev.length, 10);
+    expect(m.averageRate).toBeCloseTo(m.previousRate, 10); // degenerate, and deliberately so
+  });
+
+  it('is the plain mean of the months on record — one strong month does not become the benchmark', () => {
+    const { start } = monthShape('2026-06-15');
+    const prev = hijriMonthRange(addDaysISO(start, -1))!;
+    const older = hijriMonthRange(addDaysISO(prev.start, -1))!;
+    const born = { ...dailyHabit('daily'), created_at: older.start };
+    // The older month kept in full, last month not at all.
+    const completions: CompletionRow[] = [];
+    for (let d = older.start; d <= older.end; d = addDaysISO(d, 1)) completions.push(done('daily', d));
+
+    const today = addDaysISO(start, 4); // day 5
+    const m = computeProgress([born], completions, today).month!;
+    expect(m.monthsAveraged).toBe(2);
+    // Each month measured through the matching day over ITS own whole possible, then averaged.
+    expect(m.averageRate).toBeCloseTo((0 + 5 / older.length) / 2, 10);
+    // …and the newest of the same walk is still last month alone, which read 0.
+    expect(m.previousRate).toBe(0);
+  });
+
+  it('measures a prior month through the MATCHING day, clamped to that month’s length', () => {
+    // A 30th does not exist in a 29-day month; on such a day the whole prior month is what counts.
+    for (const today of SWEEP) {
+      const { start, dayOfMonth } = monthShape(today);
+      const prev = hijriMonthRange(addDaysISO(start, -1))!;
+      const completions: CompletionRow[] = [];
+      for (let d = prev.start; d <= prev.end; d = addDaysISO(d, 1)) completions.push(done('daily', d));
+      const m = computeProgress([dailyHabit('daily')], completions, today).month!;
+      expect(m.previousRate).toBeCloseTo(Math.min(dayOfMonth, prev.length) / prev.length, 10);
+    }
+  });
+
+  it('stops at the first month that was never tracked, rather than averaging in zeroes', () => {
+    const { start } = monthShape('2026-06-15');
+    const prev = hijriMonthRange(addDaysISO(start, -1))!;
+    const born = { ...dailyHabit('daily'), created_at: prev.start };
+    expect(computeProgress([born], [], addDaysISO(start, 4)).month!.monthsAveraged).toBe(1);
+  });
+
+  it('looks back at most a Hijri year, however long the record is', () => {
+    // `created_at: null` means the habit was always scheduled, so only the bound stops the walk.
+    const m = computeProgress([dailyHabit('daily')], [], '2026-06-15').month!;
+    expect(m.monthsAveraged).toBe(12);
+  });
+
+  it.each(SWEEP)('%s: sits on the same 0–1 orbit scale as the headline', (today) => {
+    const m = computeProgress([dailyHabit('daily'), whiteDaysHabit('white')], [], today).month!;
+    expect(m.averageRate).toBeGreaterThanOrEqual(0);
+    expect(m.averageRate).toBeLessThanOrEqual(1);
+  });
+});
+
 
 // ── The record as one line ─────────────────────────────────────────────────────────────────────
 // The chart has no scale to choose: the bucket width follows the length of the record, so the

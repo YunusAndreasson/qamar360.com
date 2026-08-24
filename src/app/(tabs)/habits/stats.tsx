@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
-import { InsightsScreen } from '@/components/insights-screen';
-import { InsightsSkeleton } from '@/components/progress-skeleton';
+import { StatsSkeleton } from '@/components/progress-skeleton';
+import { StatsScreen } from '@/components/stats-screen';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabitStats } from '@/hooks/use-habit-stats';
 import { useHabits } from '@/hooks/use-habits';
@@ -10,10 +10,10 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { describeHijriSchedule } from '@/lib/dates';
 
 /**
- * A single act's or exchange's "Insights" — the per-habit sibling of the Progress tab, reached from
- * its options sheet (`act-actions` → Insights). Params-driven like the editor (`habitId`); the
+ * A single act's or exchange's "Stats" — the per-habit sibling of the Progress tab, reached from
+ * its options sheet (`act-actions` → Stats). Params-driven like the editor (`habitId`); the
  * habit definition comes from the in-memory Habits list, only its history is fetched. The cards
- * themselves live in {@link InsightsScreen}, shared with a stack's Insights.
+ * themselves live in {@link StatsScreen}, shared with a stack's Stats.
  */
 export default function HabitStatsScreen() {
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
@@ -30,7 +30,7 @@ export default function HabitStatsScreen() {
   if (loading || (habitsLoading && !habit)) {
     return (
       <AppScreen transparent>
-        <InsightsSkeleton />
+        <StatsSkeleton />
       </AppScreen>
     );
   }
@@ -40,7 +40,7 @@ export default function HabitStatsScreen() {
     !stats.weekdayApplicable && habit.hijri_schedule ? describeHijriSchedule(habit.hijri_schedule) : undefined;
 
   return (
-    <InsightsScreen
+    <StatsScreen
       title={habit.name}
       stats={stats}
       hijriNote={hijriNote}

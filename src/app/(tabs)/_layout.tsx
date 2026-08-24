@@ -8,7 +8,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { HabitsProvider, useHabits } from '@/hooks/use-habits';
 import { TasksProvider, useTasks } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
+import { latestReadingId } from '@/lib/insights';
 import { setAppBadgeCount } from '@/lib/notifications';
+import { usePreference } from '@/lib/preferences';
 
 const { Trigger } = NativeTabs;
 
@@ -41,10 +43,18 @@ function Tabs() {
   // What the day still asks of you, counted in **units**: one per unsealed stack (never one per
   // act inside it — the stack is what you do and seal), one per open exchange, one per task still
   // on the list. Summed here because it is the one place both providers are in view.
-  const { remainingToday } = useHabits();
+  const { remainingToday, today, habits } = useHabits();
   const { openToday } = useTasks();
   const { user } = useAuth();
   const remaining = remainingToday + openToday;
+
+  // Whether a moon quarter has closed since the user last opened Insights. Which quarter that is
+  // comes from the calendar alone ({@link latestReadingId}) — no fetch, so the tab bar costs
+  // nothing — and the screen stamps the preference when it is looked at. Held back until there
+  // is at least one habit: a dot promising a reading of a record that doesn't exist is a lie.
+  const seenReading = usePreference('insightsSeen');
+  const latestReading = latestReadingId(today);
+  const unread = habits.length > 0 && latestReading !== null && latestReading !== seenReading;
 
   // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
   // it — a firing lunar update carries no `badge`. Zeroed on unmount too: leaving the authed tree
@@ -116,12 +126,26 @@ function Tabs() {
           <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="wb-sunny" />} />
         )}
       </Trigger>
-      <Trigger name="progress">
-        <Trigger.Label>Progress</Trigger.Label>
+      {/* Second, and carrying the moon — because the moon came with it. Progress held this slot
+          and this glyph while the orbit lived there; the orbit is now the head of Insights, so a
+          finger aimed at the moon still lands on the moon. */}
+      <Trigger name="insights">
+        {/* A dot, never a count. There is only ever one thing to say — a new quarter has closed —
+            and a number here would read as a backlog to clear. */}
+        {unread ? <Trigger.Badge>{' '}</Trigger.Badge> : null}
+        <Trigger.Label>Insights</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="moon.fill" />
         ) : (
           <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="dark-mode" />} />
+        )}
+      </Trigger>
+      <Trigger name="progress">
+        <Trigger.Label>Progress</Trigger.Label>
+        {Platform.OS === 'ios' ? (
+          <Trigger.Icon sf="chart.xyaxis.line" />
+        ) : (
+          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="show-chart" />} />
         )}
       </Trigger>
       <Trigger name="settings">
