@@ -1,9 +1,8 @@
-import { Fragment } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
-import { RowSeparator } from '@/components/row-separator';
+import { SeparatedRows } from '@/components/separated-rows';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
@@ -108,15 +107,11 @@ export type SheetAction = {
  * spelled the same way in the other, and they can only ever share a shape.
  */
 export function SheetActions({ actions }: { actions: (SheetAction | null)[] }) {
-  const rows = actions.filter((a) => a !== null);
   return (
     <Surface>
-      {rows.map((action, i) => (
-        <Fragment key={action.label}>
-          {i > 0 ? <RowSeparator /> : null}
-          <SheetRow {...action} />
-        </Fragment>
-      ))}
+      <SeparatedRows>
+        {actions.map((action) => (action ? <SheetRow key={action.label} {...action} /> : null))}
+      </SeparatedRows>
     </Surface>
   );
 }

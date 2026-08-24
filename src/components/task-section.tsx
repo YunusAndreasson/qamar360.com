@@ -1,12 +1,8 @@
 import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
-import { RowSeparator } from '@/components/row-separator';
-import { SectionLabel } from '@/components/section-label';
-import { Surface } from '@/components/surface';
+import { CardSection } from '@/components/card-section';
 import { TaskComposer } from '@/components/task-composer';
 import { TaskRow } from '@/components/task-row';
-import { Spacing } from '@/constants/theme';
 import { confirmDestructive } from '@/lib/alerts';
 import type { Task } from '@/lib/tasks';
 
@@ -114,58 +110,44 @@ export function TaskSection({
   }
 
   return (
-    <View style={[styles.section, { paddingTop: topGap }]}>
-      <SectionLabel>TO DO</SectionLabel>
-      <Surface>
-        {tasks.map((task, i) => (
-          <View key={task.id}>
-            {i > 0 ? <RowSeparator /> : null}
-            {/* Rewriting one happens **in its own row** — the row you tapped becomes the field,
-                which is the whole promise of the composer. It used to render only at the foot of
-                the card, so an edit put the task on screen twice: the untouched row where it has
-                always been, and a second copy of it in a field below the list. */}
-            {editing?.id === task.id ? (
-              <TaskComposer
-                open
-                value={text}
-                onChangeText={setText}
-                onOpen={() => setComposing(true)}
-                onSubmit={submit}
-                onClose={closeComposer}
-                onDelete={() => confirmDelete(task)}
-              />
-            ) : (
-              <TaskRow task={task} today={today} onToggle={onToggle} onEdit={startEditing} />
-            )}
-          </View>
-        ))}
-        {/* The way in, once there is a list. Suppressed on a past day: writing something down
-            "for last Tuesday" is not a thing anyone means to do — and while an edit is open, since
-            the field for that is up in the list and two live fields would fight for the keyboard. */}
-        {isToday && !editing ? (
-          <>
-            {tasks.length > 0 ? <RowSeparator /> : null}
-            <TaskComposer
-              open={composerOpen}
-              value={text}
-              onChangeText={setText}
-              onOpen={() => setComposing(true)}
-              onSubmit={submit}
-              onClose={closeComposer}
-            />
-          </>
-        ) : null}
-      </Surface>
-    </View>
+    <CardSection
+      label="TO DO"
+      topGap={topGap}
+      // The way in, once there is a list. Suppressed on a past day: writing something down "for
+      // last Tuesday" is not a thing anyone means to do — and while an edit is open, since the
+      // field for that is up in the list and two live fields would fight for the keyboard.
+      trailing={
+        isToday && !editing ? (
+          <TaskComposer
+            open={composerOpen}
+            value={text}
+            onChangeText={setText}
+            onOpen={() => setComposing(true)}
+            onSubmit={submit}
+            onClose={closeComposer}
+          />
+        ) : null
+      }>
+      {tasks.map((task) =>
+        // Rewriting one happens **in its own row** — the row you tapped becomes the field, which is
+        // the whole promise of the composer. It used to render only at the foot of the card, so an
+        // edit put the task on screen twice: the untouched row where it has always been, and a
+        // second copy of it in a field below the list.
+        editing?.id === task.id ? (
+          <TaskComposer
+            key={task.id}
+            open
+            value={text}
+            onChangeText={setText}
+            onOpen={() => setComposing(true)}
+            onSubmit={submit}
+            onClose={closeComposer}
+            onDelete={() => confirmDelete(task)}
+          />
+        ) : (
+          <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onEdit={startEditing} />
+        ),
+      )}
+    </CardSection>
   );
 }
-
-const styles = StyleSheet.create({
-  // The same 16pt horizontal inset `DragGrid` gives the stack cards — this section sits outside
-  // the drag layer (a task has no slot in the day's order to be dragged into), so it reproduces
-  // the alignment rather than inheriting it, exactly as the exchanges' section does. The caption's
-  // own 16 then lands it 32 in from the screen edge, the indent every section caption in the app
-  // keeps. Top space comes from the screen (`topGap`), which is the only place that knows what
-  // this section follows.
-  section: { gap: Spacing.two, paddingHorizontal: Spacing.three },
-});

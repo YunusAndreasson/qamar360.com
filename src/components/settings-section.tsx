@@ -1,11 +1,12 @@
-import { Children, isValidElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { RowSeparator } from '@/components/row-separator';
 import { SectionLabel } from '@/components/section-label';
+import { SeparatedRows } from '@/components/separated-rows';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+
+import type { ReactNode } from 'react';
 
 type Props = {
   /** Uppercase group label shown above the card. */
@@ -18,24 +19,19 @@ type Props = {
 /**
  * A labelled, rounded group of {@link SettingsRow}s — the inset-grouped-list idiom used by
  * Notion/Linear/iOS Settings. Falsy children are dropped so conditional rows don't leave
- * stray dividers. Shares the card surface with {@link StatCard}.
+ * stray dividers. Shares the card surface with {@link StatCard}, and the row/rule rule with every
+ * other grouped card in the app ({@link SeparatedRows}).
+ *
+ * Unlike {@link CardSection} — the day's version of the same idea — this one has no horizontal
+ * inset of its own: it lives inside `AppScreen`'s padded content, which has already supplied one.
+ * Its `footer` is a caption BELOW the card, not a row inside it.
  */
 export function SettingsSection({ title, footer, children }: Props) {
-  const rows = Children.toArray(children).filter(Boolean);
-
   return (
     <View style={styles.wrap}>
       {title ? <SectionLabel>{title.toUpperCase()}</SectionLabel> : null}
       <Surface>
-        {rows.map((row, i) => (
-          // Key by the child's own identity, not the array index, so a row keeps its React
-          // instance — and any internal state, e.g. a Discover row's expanded detail — when the
-          // list is filtered or reordered around it, instead of being recycled into a sibling.
-          <View key={(isValidElement(row) && row.key) || i}>
-            {i > 0 ? <RowSeparator /> : null}
-            {row}
-          </View>
-        ))}
+        <SeparatedRows>{children}</SeparatedRows>
       </Surface>
       {footer ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>

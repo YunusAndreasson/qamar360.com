@@ -8,8 +8,8 @@ import { CompletionRing } from '@/components/completion-ring';
 import { Fold, FoldToggle } from '@/components/fold';
 import { DraggableMemberRow } from '@/components/habit-drag';
 import { ManageRow } from '@/components/manage-row';
-import { RowSeparator } from '@/components/row-separator';
 import { TRAILING_BOX } from '@/components/row-trailing-button';
+import { SeparatedRows } from '@/components/separated-rows';
 import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
@@ -160,6 +160,18 @@ function StackCardBase({
 
   const clock = momentNow ? currentChapterUntil : undefined;
 
+  // The stack's own door, written once. Both branches below close on it — the populated card puts
+  // it behind the fold, the empty one has no fold to put it behind — and while it was spelled out
+  // twice, a change to its wording or its hint had two places to land and only ever reached one.
+  const manageStack = (
+    <ManageRow
+      label="Manage stack"
+      accessibilityLabel={`Manage ${stack.name} stack`}
+      accessibilityHint="Add acts, see insights, edit, or delete the stack."
+      onPress={() => onEditStack(stack.id)}
+    />
+  );
+
   return (
     <View>
       <Surface>
@@ -249,12 +261,16 @@ function StackCardBase({
         {collapsible ? (
           <Fold expanded={expanded} contentStyle={styles.bodyContent}>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            {members.map((habit, index) => (
-              <View key={habit.id}>
-                {/* Inset row divider — the same inset-grouped-list rule as the Settings sections. */}
-                {index > 0 ? <RowSeparator /> : null}
-                {/* Hold and drag an act to move it within the sequence, or into another stack. */}
-                <DraggableMemberRow habitId={habit.id} parentStackId={stack.id} memberIndex={index}>
+            {/* Inset row rules between the acts, and one more above the manage door — the same
+                grouped-list rule the settings cards and the day's sections keep. */}
+            <SeparatedRows trailing={manageStack}>
+              {members.map((habit, index) => (
+                // Hold and drag an act to move it within the sequence, or into another stack.
+                <DraggableMemberRow
+                  key={habit.id}
+                  habitId={habit.id}
+                  parentStackId={stack.id}
+                  memberIndex={index}>
                   <ActRow
                     habit={habit}
                     // Numbered over the acts actually in play, so an excused act doesn't
@@ -266,15 +282,8 @@ function StackCardBase({
                     onMove={onMoveHabit}
                   />
                 </DraggableMemberRow>
-              </View>
-            ))}
-            <RowSeparator />
-            <ManageRow
-              label="Manage stack"
-              accessibilityLabel={`Manage ${stack.name} stack`}
-              accessibilityHint="Add acts, see insights, edit, or delete the stack."
-              onPress={() => onEditStack(stack.id)}
-            />
+              ))}
+            </SeparatedRows>
           </Fold>
         ) : (
           // A brand-new stack waiting on its first act: the next step lives inside the card
@@ -282,32 +291,27 @@ function StackCardBase({
           // height driven from an unmeasured `contentH` would paint one frame at 0 and pop.
           <View>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <Touchable
-              onPress={() => onAddHabits?.(stack.id)}
-              androidRipple={{ color: theme.backgroundSelected }}
-              underlayColor={theme.backgroundSelected}
-              activeUnderlayOpacity={1}
-              accessibilityRole="button"
-              accessibilityLabel={`Add your first act to ${stack.name}`}
-              style={styles.addFirst}>
-              {/* Same 32-wide leading slot as the header glyph and the act numerals, so the +
-                  sits directly under the stack icon and the label lines up with the title. */}
-              <View style={styles.leading}>
-                <AppIcon name="add" size={26} color={theme.accent} />
-              </View>
-              <ThemedText type="rowTitle" themeColor="accent">
-                Add your first act
-              </ThemedText>
-            </Touchable>
-            {/* An empty card has no fold to hide it behind, and it is the one card most likely to
-                need deleting — a stack built by accident. */}
-            <RowSeparator />
-            <ManageRow
-              label="Manage stack"
-              accessibilityLabel={`Manage ${stack.name} stack`}
-              accessibilityHint="Add acts, see insights, edit, or delete the stack."
-              onPress={() => onEditStack(stack.id)}
-            />
+            {/* An empty card has no fold to hide the manage door behind, and it is the one card
+                most likely to need deleting — a stack built by accident. */}
+            <SeparatedRows trailing={manageStack}>
+              <Touchable
+                onPress={() => onAddHabits?.(stack.id)}
+                androidRipple={{ color: theme.backgroundSelected }}
+                underlayColor={theme.backgroundSelected}
+                activeUnderlayOpacity={1}
+                accessibilityRole="button"
+                accessibilityLabel={`Add your first act to ${stack.name}`}
+                style={styles.addFirst}>
+                {/* Same 32-wide leading slot as the header glyph and the act numerals, so the +
+                    sits directly under the stack icon and the label lines up with the title. */}
+                <View style={styles.leading}>
+                  <AppIcon name="add" size={26} color={theme.accent} />
+                </View>
+                <ThemedText type="rowTitle" themeColor="accent">
+                  Add your first act
+                </ThemedText>
+              </Touchable>
+            </SeparatedRows>
           </View>
         )}
       </Surface>

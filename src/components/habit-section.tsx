@@ -1,12 +1,7 @@
-import { StyleSheet, View } from 'react-native';
-
+import { CardSection } from '@/components/card-section';
 import { HabitRow } from '@/components/habit-row';
 import { ManageRow } from '@/components/manage-row';
-import { RowSeparator } from '@/components/row-separator';
-import { SectionLabel } from '@/components/section-label';
-import { Surface } from '@/components/surface';
 import { useToast } from '@/components/toast';
-import { Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits, type Habit } from '@/hooks/use-habits';
 import { suggestedMoments } from '@/lib/curated';
@@ -111,54 +106,43 @@ export function HabitSection({ habits: loose, topGap, completed, skipped, settli
   };
 
   return (
-    <View style={[styles.section, { paddingTop: topGap }]}>
-      <SectionLabel>HABITS</SectionLabel>
-      <Surface>
-        {loose.map((habit, i) => (
-          <View key={habit.id}>
-            {i > 0 ? <RowSeparator /> : null}
-            <HabitRow
-              habit={habit}
-              done={completed.has(habit.id)}
-              skipped={skipped.has(habit.id)}
-              settling={settling}
-              onToggle={onToggle}
-              onOptions={onOptions}
-            />
-          </View>
-        ))}
-        {/* The offer, not the premise: only when the library recognises something here, and phrased
-            as a shortcut past the per-habit "Move to a stack" rather than as a chore to clear.
-
-            A footer row inside the card, in the reading tone — the same `ManageRow` idiom as
-            "⋯ Manage stack" — and not the full-width accent button it used to be. That button was
-            the only primary action on the whole day, sitting under a list of things you tick, so it
-            read as what the section was *for*; accent is spent on what's live or interactive, and a
-            bulk convenience is neither of those enough to outrank the habits above it. */}
-        {suggested.length > 0 ? (
-          <>
-            <RowSeparator />
-            <ManageRow
-              icon="addLink"
-              label={
-                suggested.length === loose.length
-                  ? 'Anchor these to a moment'
-                  : `Anchor ${suggested.length} suggested`
-              }
-              accessibilityLabel={`Anchor ${suggested.length} suggested`}
-              accessibilityHint="Moves them into stacks at the moments the library suggests."
-              onPress={() => void anchorAll()}
-            />
-          </>
-        ) : null}
-      </Surface>
-    </View>
+    <CardSection
+      label="HABITS"
+      topGap={topGap}
+      // The offer, not the premise: only when the library recognises something here, and phrased
+      // as a shortcut past the per-habit "Move to a stack" rather than as a chore to clear.
+      //
+      // A footer row inside the card, in the reading tone — the same `ManageRow` idiom as
+      // "⋯ Manage stack" — and not the full-width accent button it used to be. That button was the
+      // only primary action on the whole day, sitting under a list of things you tick, so it read
+      // as what the section was *for*; accent is spent on what's live or interactive, and a bulk
+      // convenience is neither of those enough to outrank the habits above it.
+      trailing={
+        suggested.length > 0 ? (
+          <ManageRow
+            icon="addLink"
+            label={
+              suggested.length === loose.length
+                ? 'Anchor these to a moment'
+                : `Anchor ${suggested.length} suggested`
+            }
+            accessibilityLabel={`Anchor ${suggested.length} suggested`}
+            accessibilityHint="Moves them into stacks at the moments the library suggests."
+            onPress={() => void anchorAll()}
+          />
+        ) : null
+      }>
+      {loose.map((habit) => (
+        <HabitRow
+          key={habit.id}
+          habit={habit}
+          done={completed.has(habit.id)}
+          skipped={skipped.has(habit.id)}
+          settling={settling}
+          onToggle={onToggle}
+          onOptions={onOptions}
+        />
+      ))}
+    </CardSection>
   );
 }
-
-const styles = StyleSheet.create({
-  // The same 16pt horizontal inset `DragGrid` gives the stack cards — this section sits outside
-  // the drag layer, so it has to reproduce the alignment rather than inherit it. Top space comes
-  // from the screen (`topGap`), which is the only thing that knows what this section follows.
-  section: { gap: Spacing.two, paddingHorizontal: Spacing.three },
-});
