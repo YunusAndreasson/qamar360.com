@@ -44,9 +44,10 @@ const CURRENT_R = 4.5;
 
 /** Clearance between the average rule and its label — enough to read as attached, not sitting on it. */
 const AVERAGE_LABEL_GAP = 3;
-/** The label's own height (`smallCompact` is 14/16, plus a hair for the plate's padding), needed to
- *  hang it *above* the rule: an absolutely-positioned `top` places its edge, not its baseline. */
-const AVERAGE_LABEL_HEIGHT = 15;
+/** The label's own height — `smallCompact`'s 16pt line box, with no vertical padding to add to it.
+ *  Needed because an absolutely-positioned `top` places the plate's EDGE, not the text's baseline,
+ *  so every decision about what the plate would cover is made from this number. */
+const AVERAGE_LABEL_HEIGHT = 16;
 
 /** How far back the projection is fitted — recent shape only, so an old rhythm can't anchor it. */
 const FIT_WINDOW = 14;
@@ -201,6 +202,32 @@ export function OverTime({
   const average = useMemo(() => mean(closed.map((x) => x.p.rate)), [closed]);
   const averageY = width > 0 && average !== null ? pointAt(0, average, width, BOX).y : null;
   const averageEndX = settled.length > 0 ? settled[settled.length - 1]!.x : 0;
+
+  // Where the rule's label sits. Its plate is opaque — it has to be, to stay legible over the area
+  // fill — so wherever it lands it ERASES what is drawn there, and placing it has to answer two
+  // questions rather than one.
+  //
+  // It used to answer only "which side of the rule does the curve start on?" and take the other.
+  // That is right while the rule sits in open plot and wrong the moment it nears the floor: an
+  // average low enough to put it there leaves no room beneath, so the label dropped past the
+  // chart's own height and its plate punched a hole through the baseline AND through the curve
+  // running along it. A record with one strong day and the rest empty came out looking like a line
+  // with a piece missing — which is what it was, though nothing was wrong with the line.
+  //
+  // So: below the rule only when the curve is up there AND the label clears the baseline whole.
+  // Otherwise above, where a low average leaves the whole plot empty anyway.
+  //
+  // The plate still lands on the curve sometimes, and that stays deliberate — it is what keeps the
+  // reference readable where a line crosses it, and a slanted stroke behind a rounded chip reads as
+  // occlusion. What it must never sit on is something STRAIGHT: a gap in the baseline, or in the
+  // long flat run of a curve along it, is the one overlap the eye reads as breakage rather than as
+  // depth.
+  const averageLabelTop =
+    averageY === null
+      ? null
+      : settled[0] && settled[0].y < averageY && averageY + AVERAGE_LABEL_GAP + AVERAGE_LABEL_HEIGHT <= BASELINE_Y
+        ? averageY + AVERAGE_LABEL_GAP
+        : Math.max(0, averageY - AVERAGE_LABEL_GAP - AVERAGE_LABEL_HEIGHT);
 
   const settledPaths = buildSmoothPaths(settled, BASELINE_Y);
   const unsettledPath = buildSmoothPaths(unsettled, BASELINE_Y).line;
@@ -526,7 +553,7 @@ export function OverTime({
               through the text either way, and on this record it did. A label you have to read
               through a stroke is not a label; the plate costs a few pixels of the area fill and
               makes the reference legible whatever shape the curve turns out to be. */}
-          {averageY !== null ? (
+          {averageLabelTop !== null ? (
             <ThemedText
               type="smallCompact"
               themeColor="textSecondary"
@@ -535,13 +562,7 @@ export function OverTime({
               style={[
                 styles.averageLabel,
                 { backgroundColor: theme.backgroundElement },
-                {
-                  top:
-                    averageY +
-                    (settled[0] && settled[0].y < averageY
-                      ? AVERAGE_LABEL_GAP
-                      : -AVERAGE_LABEL_GAP - AVERAGE_LABEL_HEIGHT),
-                },
+                { top: averageLabelTop },
               ]}
               pointerEvents="none">
               avg {toDegrees(average!)}°
