@@ -98,16 +98,32 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
       // Float just above the tab bar; respects the home-indicator inset.
       style={[styles.wrap, { bottom: insets.bottom + BottomTabInset + Spacing.two }]}>
       <FadeInView style={styles.center}>
-        <Pressable
-          onPress={onDismiss}
-          accessibilityRole="alert"
-          accessibilityLabel={toast.message}
-          accessibilityLiveRegion="polite"
-          style={[styles.toast, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}>
-          <AppIcon name={ICONS[toast.variant]} size={20} color={tint} />
-          <ThemedText type="small" style={styles.text} numberOfLines={2}>
-            {toast.message}
-          </ThemedText>
+        {/* Two elements, never one nested inside the other. A `Pressable` is an accessibility
+            element by default, and on iOS an accessible view COLLAPSES its descendants into
+            itself — so while the whole toast was one pressable, the "Undo" inside it never
+            received VoiceOver focus and the only way back from a commit was sighted-only.
+            The plate is now an inert `View` and the two verbs sit side by side in it, the same
+            construction the day's rows use for their floated `⋯`. */}
+        <View style={[styles.toast, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}>
+          {/* The message, and the dismiss. They are the same target on purpose — tapping the
+              toast has always been how you wave it away — so this carries the words AND the
+              action, and a screen reader gets one element that reads the message and dismisses
+              on activation. (`alert` would be the truer role for the announcement, but a role
+              that isn't activatable would hide the dismiss again, which is the whole bug. The
+              announcement is carried by the live region on Android and by the explicit
+              `announceForAccessibility` above on iOS, so nothing is lost by naming it a button.) */}
+          <Pressable
+            onPress={onDismiss}
+            accessibilityRole="button"
+            accessibilityLabel={toast.message}
+            accessibilityHint="Dismisses this message."
+            accessibilityLiveRegion="polite"
+            style={({ pressed }) => [styles.message, pressed && styles.messagePressed]}>
+            <AppIcon name={ICONS[toast.variant]} size={20} color={tint} />
+            <ThemedText type="small" style={styles.text} numberOfLines={2}>
+              {toast.message}
+            </ThemedText>
+          </Pressable>
           {toast.action ? (
             <Pressable
               onPress={() => {
@@ -120,13 +136,14 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={toast.action.label}
+              accessibilityHint="Reverses what just happened."
               style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}>
               <ThemedText type="smallBold" themeColor="accent">
                 {toast.action.label}
               </ThemedText>
             </Pressable>
           ) : null}
-        </Pressable>
+        </View>
       </FadeInView>
     </View>
   );
@@ -138,6 +155,8 @@ const styles = StyleSheet.create({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
+    // Message group → action. With `styles.action`'s own paddingLeft this is the 16pt clearance
+    // that comment promises; the group's internal glyph → text gap is `message`'s own.
     gap: Spacing.two,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.three,
@@ -146,6 +165,12 @@ const styles = StyleSheet.create({
     // The shared card lift — the toast floats over content on the same recipe as raised cards.
     ...Elevation.card,
   },
+  // The spoken group: the glyph and the words, which are one element to a screen reader and one
+  // visual unit to the eye. `flex: 1` so it takes the toast's width and the action keeps its edge.
+  // The message and the dismiss: the glyph and the words, as one target. `flex: 1` so it takes
+  // the toast's width and the action keeps its edge.
+  message: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  messagePressed: { opacity: Pressed.dim },
   text: { flex: 1 },
   // The trailing action ("Undo") — padded out so its target clears the text comfortably.
   // The width floor keeps Android from squeezing the label below its measured width (the same

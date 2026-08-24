@@ -7,7 +7,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
 import { Spring } from '@/constants/motion';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { DenseLabelScale, Elevation, Radius, Spacing } from '@/constants/theme';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
@@ -110,7 +110,16 @@ export function Segmented<T extends string>({
             {option.icon ? (
               <AppIcon name={option.icon} size={16} color={selected ? theme.accent : theme.textSecondary} />
             ) : null}
-            <ThemedText type="smallBold" style={{ color: selected ? theme.accent : theme.textSecondary }}>
+            {/* A segment is a fixed slice of the track's width, so its label cannot be allowed to
+                grow past it: the Progress period selector holds FOUR of these ("Week / Month /
+                Year / Lifetime"), which at large accessibility text sizes pushed "Lifetime" out of
+                its slot. `DenseLabelScale` is the cap the theme keeps for exactly this — a label
+                in a fixed-size composition — and the clamp is the floor under it. */}
+            <ThemedText
+              type="smallBold"
+              numberOfLines={1}
+              maxFontSizeMultiplier={DenseLabelScale}
+              style={{ color: selected ? theme.accent : theme.textSecondary }}>
               {option.label}
             </ThemedText>
           </PressableScale>

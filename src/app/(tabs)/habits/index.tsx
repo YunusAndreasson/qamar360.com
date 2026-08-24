@@ -288,6 +288,27 @@ export default function HabitsScreen() {
     return m && MOMENTS[m].until ? chapterUntil : undefined;
   };
 
+  // Whether the TO DO card is ON SCREEN — which is not the same as whether there are to-dos.
+  // `TaskSection` also renders for a composer that has been asked for, and "+ → To-do" is the
+  // documented way to write the very first one: on a day that is otherwise empty that opens a card
+  // with a live field in it. Read as `tasks.length > 0`, the day then believed nothing was there
+  // and put the "Anchor your first stack" invitation directly under the field the keyboard was
+  // already up for — two first steps offered at once, one of them ignoring the other.
+  //
+  // The screen can't see the section's own `composing`/`editing`, but it doesn't need to: with no
+  // to-dos there is nothing to edit and nothing to type into until this param opens the field, and
+  // `onComposeHandled` returns it to undefined the moment the field closes.
+  const taskCardShowing = tasks.length > 0 || (isToday && compose === 'task');
+  // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks
+  // alone, so a day with to-dos but no stacks got 8pt of top padding that a day with stacks
+  // didn't, while the empty state below correctly stayed away. One predicate, both readers.
+  const showEmptyState =
+    entries.length === 0 && !taskCardShowing && looseHabits.length === 0 && exchanges.length === 0;
+  // Whether anything at all precedes a given section, so each one takes the same step from what
+  // is above it. Spelled once and threaded down the list rather than restated per section with
+  // one more clause each time — which is how the fourth section would have got it wrong.
+  const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
+
   const canGoBack = viewDate > minViewDate;
   const canGoForward = viewDate < today;
 
@@ -406,7 +427,6 @@ export default function HabitsScreen() {
   // The rendered entry order, mirrored into the drag layer's registry (keys in render order).
   const orderMeta = entries.map((entry): OrderMeta => ({
     key: `stack:${entry.stack.id}`,
-    kind: 'stack',
     stackId: entry.stack.id,
   }));
 
@@ -558,7 +578,7 @@ export default function HabitsScreen() {
         <Animated.ScrollView
           ref={scrollRef}
           style={[styles.list, styles.transparent]}
-          contentContainerStyle={[styles.listContent, entries.length === 0 && styles.emptyTop]}
+          contentContainerStyle={[styles.listContent, showEmptyState && styles.emptyTop]}
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
@@ -585,13 +605,13 @@ export default function HabitsScreen() {
             // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
             // something: a user who tracks only those has a day, and inviting them to anchor their
             // first stack above their own list would read as if it hadn't registered.
-            looseHabits.length > 0 || exchanges.length > 0 || tasks.length > 0 ? null : (
+            showEmptyState ? (
               <HabitsEmptyState
                 hasHabits={habits.length > 0}
                 isToday={isToday}
                 onBuild={() => router.push('/habits/stack-new')}
               />
-            )
+            ) : null
           ) : (
             <>
               {/* The day's two units, each under its own caption: the stacks, then the exchanges
@@ -599,7 +619,7 @@ export default function HabitsScreen() {
                   was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
-                style={[styles.stacksLabel, { paddingTop: tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD }]}>
+                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing) }]}>
                 STACKS
               </SectionLabel>
               <HabitDragProvider
@@ -622,7 +642,6 @@ export default function HabitsScreen() {
                       key={`stack-${entry.stack.id}`}
                       entryKey={`stack:${entry.stack.id}`}
                       index={index}
-                      kind="stack"
                       stackId={entry.stack.id}
                       // The empty "Add your first act" card holds the list's end and has no unit in
                       // the order math — every drop of it would snap back, so don't offer the lift.
@@ -673,7 +692,7 @@ export default function HabitsScreen() {
               the two because it is the ordinary case — an exchange is the special one. */}
           <HabitSection
             habits={looseHabits}
-            topGap={entries.length > 0 || tasks.length > 0 ? SECTION_BREAK : SECTION_LEAD}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -685,9 +704,7 @@ export default function HabitsScreen() {
           <ExchangeSection
             exchanges={exchanges}
             // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={
-              entries.length > 0 || tasks.length > 0 || looseHabits.length > 0 ? SECTION_BREAK : SECTION_LEAD
-            }
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || looseHabits.length > 0)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}

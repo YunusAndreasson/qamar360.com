@@ -34,11 +34,11 @@ const MEMBER_SEP = 1; // the hairline between act rows inside a card (a clean nu
  *  a habit never lives outside one. */
 function fixture() {
   const order: OrderMeta[] = [
-    { key: 'stack:A', kind: 'stack', stackId: 'A' },
-    { key: 'stack:S', kind: 'stack', stackId: 'S' },
-    { key: 'stack:B', kind: 'stack', stackId: 'B' },
-    { key: 'stack:T', kind: 'stack', stackId: 'T' },
-    { key: 'stack:C', kind: 'stack', stackId: 'C' },
+    { key: 'stack:A', stackId: 'A' },
+    { key: 'stack:S', stackId: 'S' },
+    { key: 'stack:B', stackId: 'B' },
+    { key: 'stack:T', stackId: 'T' },
+    { key: 'stack:C', stackId: 'C' },
   ];
   const heights = [SHORT_CARD, CARD, SHORT_CARD, CARD, SHORT_CARD];
   const frames: Record<string, Frame> = {};
@@ -197,7 +197,7 @@ describe('resolveDropSlot', () => {
   });
 
   it('a very short card has no into zone (inset floor leaves no body)', () => {
-    const tinyOrder: OrderMeta[] = [{ key: 'stack:S', kind: 'stack', stackId: 'S' }];
+    const tinyOrder: OrderMeta[] = [{ key: 'stack:S', stackId: 'S' }];
     const tinyFrames = { 'stack:S': { y: 0, h: 20 } }; // inset 12 each side → body empty
     const result = resolveDropSlot(10, tinyOrder, tinyFrames, 'member:m1', 'member', 'X', NO_MEMBERS, {});
     expect(result.kind).toBe('between');
@@ -212,7 +212,7 @@ describe('resolveDropSlot', () => {
 
 describe('in-card member reorder', () => {
   // One stack card (into-body y=32..168), three 50px member rows measured inside it.
-  const order: OrderMeta[] = [{ key: 'stack:S', kind: 'stack', stackId: 'S' }];
+  const order: OrderMeta[] = [{ key: 'stack:S', stackId: 'S' }];
   const frames: Record<string, Frame> = { 'stack:S': { y: 0, h: 200 } };
   const memberOrder = { S: ['member:m1', 'member:m2', 'member:m3'] };
   const memberFrames: Record<string, Frame> = {
@@ -451,10 +451,10 @@ describe('resolvableAnchor', () => {
   // The rendered order carries a memberless stack ("Add your first act") that buildUnits never
   // sees — it has no habit rows, so no unit of its own.
   const order: OrderMeta[] = [
-    { key: 'habit:a', kind: 'stack', stackId: null },
-    { key: 'stack:S', kind: 'stack', stackId: 'S' },
-    { key: 'stack:EMPTY', kind: 'stack', stackId: 'EMPTY' },
-    { key: 'habit:c', kind: 'stack', stackId: null },
+    { key: 'habit:a', stackId: null },
+    { key: 'stack:S', stackId: 'S' },
+    { key: 'stack:EMPTY', stackId: 'EMPTY' },
+    { key: 'habit:c', stackId: null },
   ];
   const units = buildUnits(habitsFixture());
 

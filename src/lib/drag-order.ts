@@ -23,15 +23,13 @@
  * spaces coincide and an insertion is purely additive ("insertion-only" mode).
  */
 
-/** What a top-level entry is: a lone habit row, or a stack (stack) card. */
-export type EntryKind = 'stack';
-
 /** What is being dragged: a whole stack card, or one act inside one. Every top-level entry is
- *  a stack — a habit never lives outside one — so there is no third case. */
+ *  a stack — a habit never lives outside one — so there is no third case, and the entry itself
+ *  needs no kind of its own. */
 export type DragKind = 'stack' | 'member';
 
-/** A top-level entry in render order. `key` is `habit:<id>` / `stack:<id>`. */
-export type OrderMeta = { key: string; kind: EntryKind; stackId: string | null };
+/** A top-level entry in render order. `key` is `stack:<id>`. */
+export type OrderMeta = { key: string; stackId: string | null };
 
 /** An entry's measured frame, relative to the grid container: top edge and height. */
 export type Frame = { y: number; h: number };

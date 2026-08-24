@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -18,6 +18,7 @@ import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, PageEnter } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
+import { useLatestRef } from '@/hooks/use-latest-ref';
 import type { RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { buildSmoothPaths, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
@@ -225,7 +226,25 @@ export function OverTime({
   const unsettledProps = useAnimatedProps(() => ({ opacity: 0.55 * reveal.get() }));
 
   // ── Scrub ────────────────────────────────────────────────────────────────────────────────────
-  const [focused, setFocused] = useState<number | null>(null);
+  //
+  // A parked reading belongs to the span it was taken on, so it is stored WITH that span and
+  // *derived* rather than reset. `focused` survives a period switch — the selector writes a
+  // preference and re-renders this same instance, it does not remount — so a reading stepped to on
+  // Week would otherwise stay put when the reader tapped Lifetime: the index now names a different
+  // bucket, or none at all past the new end. A refetch that changes the bucket count, and a
+  // rotation that changes `width`, invalidate it the same way, and all three are exactly the
+  // inputs `slotX` places the mark from. (Derived, not reset, for the reason the day's fold state
+  // is: an effect chasing the change would be a cascading render, and would miss any path that
+  // changes the span without going through the control.)
+  const span = `${period}|${total}|${width}`;
+  const spanRef = useLatestRef(span);
+  const [focus, setFocus] = useState<{ span: string; index: number } | null>(null);
+  const focused = focus?.span === span ? focus.index : null;
+  // Stable, and takes a primitive — `moveTo` is a worklet, and only primitives cross that line.
+  const setFocused = useCallback(
+    (index: number | null) => setFocus(index === null ? null : { span: spanRef.current, index }),
+    [spanRef],
+  );
   const cursorX = useSharedValue(0);
   const cursorOn = useSharedValue(0);
   const lastIndex = useSharedValue(-1);
@@ -256,6 +275,14 @@ export function OverTime({
     // is left parked.
     scheduleOnRN(setFocused, null);
   };
+  /** The same return-to-rest, from the JS thread — the assistive path's equivalent of a lifted
+   *  finger. Both clear the mark AND the reading together; a cursor left standing over a reading
+   *  that has gone back to resting is the exact mark/words disagreement this card must not have. */
+  const rest = () => {
+    setFocused(null);
+    cursorOn.set(0);
+    lastIndex.set(-1);
+  };
 
   const scrub = usePanGesture({
     // 12pt of horizontal travel to claim the touch, and a fail on 12pt of vertical — so the page
@@ -270,6 +297,15 @@ export function OverTime({
   // ends in a recognised tap, and flicking the page would take a reading on the way past.
   const read = useTapGesture({ maxDistance: 8, onActivate: (e) => moveTo(e.x), onFinalize: () => release() });
   const gesture = useCompetingGestures(scrub, read);
+
+  // The reading above derives itself; the MARK cannot — `cursorX`/`cursorOn` are shared values, and
+  // a hairline left standing at an x computed from the old span is the mark/words disagreement this
+  // card exists to avoid. Taking it down is a write to the UI thread, not a setState, so it is the
+  // one thing here that an effect is genuinely for.
+  useEffect(() => {
+    cursorOn.set(0);
+    lastIndex.set(-1);
+  }, [span, cursorOn, lastIndex]);
 
   const cursorProps = useAnimatedProps(() => ({ x1: cursorX.get(), x2: cursorX.get(), opacity: cursorOn.get() }));
   const focusProps = useAnimatedProps(() => ({ opacity: cursorOn.get() }));
@@ -298,12 +334,42 @@ export function OverTime({
 
   // "of N days each" only where the buckets have a width to name — a year's are calendar months.
   const grain = period === 'year' ? ' of one Hijri month each' : series.bucketDays > 1 ? ` of ${series.bucketDays} days each` : '';
-  const a11y = `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.${average !== null ? ` Averaging ${toDegrees(average)} degrees.` : ''} ${restingText ?? ''}`;
+  const a11y = [
+    `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.`,
+    average !== null ? `Averaging ${toDegrees(average)} degrees.` : null,
+    restingText,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  // The non-visual twin of the scrub — the `adjustable` role's increment/decrement.
+  //
+  // It drives the CURSOR as well as the reading. It used to set `focused` alone, and the cursor
+  // hairline and focus dot both take their opacity from `cursorOn`, which only a finger ever set:
+  // so stepping through the record announced a new date and a new figure while the plot sat
+  // perfectly still. The mark now lands where the reading is, and stays there — an adjustable
+  // control's current value is a place you are standing, not a place you are touching.
+  //
+  // From rest the reading already points at the last bucket, so the first press in EITHER
+  // direction lands on it rather than stepping off. (It used to start at `count - 1` and add, so
+  // the very first increment fell out of range and did nothing at all.)
   const step = (by: number) => {
-    const next = (focused ?? count - 1) + by;
+    // Stepping DOWN off the first bucket is how you put the chart back to rest — the readout
+    // returns to what the card says when nobody is touching it ("Rising since Rajab", the
+    // screen's one multi-month sentence). A finger gets that for free when it lifts; without
+    // this an assistive user who stepped once could never see the resting reading again.
+    if (focused === 0 && by < 0) {
+      haptics.selection();
+      rest();
+      return;
+    }
+    const next = focused === null ? count - 1 : focused + by;
     if (next < 0 || next > count - 1) return;
     haptics.selection();
     setFocused(next);
+    if (width > 0) {
+      cursorX.set(slotX(next, total, width, BOX));
+      cursorOn.set(1);
+    }
   };
 
   if (count === 0) return null;

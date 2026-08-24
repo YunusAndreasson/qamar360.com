@@ -94,7 +94,13 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
           </ThemedText>
         )}
       </View>
-      <ThemedText type="rowTitle" style={[styles.name, { color }]}>
+      {/* Clamped like every other row on the day. An act's name is free text, and this was the
+          one title in the list that could grow without limit — which matters more here than
+          elsewhere, because the drag engine measures a card's height at lift (`ghostH`/`slotSize`)
+          and the floating ghost has to be the same size as the hole it left. Two lines, matching
+          the day's other free-text rows (a task, a stackless habit); one-line clamps are for rows
+          whose text is a fixed label. */}
+      <ThemedText type="rowTitle" numberOfLines={2} style={[styles.name, { color }]}>
         {habit.name}
       </ThemedText>
       {/* A count goal's target, read as part of the deed ("Drank water · 8 cups") rather than

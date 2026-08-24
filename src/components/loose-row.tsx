@@ -91,7 +91,7 @@ export function LooseRow({ contract, settling, onToggle, options }: Props) {
           )}
         </View>
         <View style={styles.text}>
-          <ThemedText type="rowTitle" style={{ color }} numberOfLines={1}>
+          <ThemedText type="rowTitle" style={{ color }} numberOfLines={2}>
             {contract.title}
           </ThemedText>
           {/* One line: a second would only ever fire on something named at essay length. */}

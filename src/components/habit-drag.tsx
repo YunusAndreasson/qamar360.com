@@ -31,7 +31,6 @@ import {
   SLOT_HYSTERESIS,
   type DragKind,
   type DropSlot,
-  type EntryKind,
   type Frame,
   type OrderMeta,
 } from '@/lib/drag-order';
@@ -93,6 +92,9 @@ const PRE_LIFT_SHADOW_OPACITY = 0.16;
 const PRE_LIFT_SHADOW_RADIUS = 10;
 const PRE_LIFT_SHADOW_LIFT = 5; // shadow y-offset (px): the card's apparent height off the surface
 const PRE_LIFT_ELEVATION = 6; // Android's shadow is elevation-driven
+/** The floating ghost's elevation at full lift — a step above the pre-lift bloom, since by then
+ *  the card is genuinely off the page rather than announcing that it is about to be. */
+const GHOST_ELEVATION = 8;
 /** A member row's grain-free pre-lift instead of the shadow — a barely-there dim as the hold arms. */
 const PRE_LIFT_DIM = 0.06;
 
@@ -487,14 +489,12 @@ function partingTransform(active: boolean, shift: number, reduceMotion: boolean)
 export function DraggableEntry({
   entryKey,
   index,
-  kind,
   stackId,
   draggable = true,
   children,
 }: {
   entryKey: string;
   index: number;
-  kind: EntryKind;
   stackId: string | null;
   /** False disables the lift (the empty "Add your first habit" card: a memberless stack has no
    *  unit in the order math, so every drop of it would silently snap back — don't offer the
@@ -511,7 +511,6 @@ export function DraggableEntry({
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
-  const holdMs = kind === 'stack' ? CARD_LIFT_HOLD_MS : LIFT_HOLD_MS;
 
   // Register this entry's frame (grid coordinates). `e.nativeEvent.layout` is parent-relative in
   // principle, but on this RN/Fabric build a view tracked by `useAnimatedRef` reports layout.x/y
@@ -542,13 +541,13 @@ export function DraggableEntry({
   // onTouchesCancel. The worklets babel plugin autoworkletizes this object's callbacks.
   const pan = usePanGesture({
     enabled: draggable,
-    activateAfterLongPress: holdMs,
+    activateAfterLongPress: CARD_LIFT_HOLD_MS,
     shouldCancelWhenOutside: false,
     // The pre-lift swell: eased in over the back half of the hold, wiped the instant the
     // touch ends or the gesture loses (a quick tap or a swipe never shows it).
     onTouchesDown: () => {
       if (draggingKey.get() !== null || reduceMotion) return;
-      preLift.set(withDelay(PRE_LIFT_DELAY_MS, withTiming(1, { duration: holdMs - PRE_LIFT_DELAY_MS })));
+      preLift.set(withDelay(PRE_LIFT_DELAY_MS, withTiming(1, { duration: CARD_LIFT_HOLD_MS - PRE_LIFT_DELAY_MS })));
     },
     onTouchesUp: () => preLift.set(withTiming(0, { duration: Duration.fast })),
     onTouchesCancel: () => preLift.set(withTiming(0, { duration: Duration.fast })),
@@ -573,7 +572,9 @@ export function DraggableEntry({
       slotSize.set(m.height + DRAG_GRID_GAP);
       dragIndex.set(index);
       insertIndex.set(index); // sentinel: gaps closed, the original slot is the hole
-      dragKind.set(kind);
+      // Always a stack: a habit never lives outside one, so a top-level entry has no other kind
+      // to be. (The member row's own pan sets 'member'.)
+      dragKind.set('stack');
       ownStackId.set(null);
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
@@ -951,6 +952,10 @@ export function DragGhost({ children }: { children: ReactNode }) {
       shadowOpacity: l * 0.24,
       shadowRadius: l * 12,
       shadowOffset: { width: 0, height: l * 6 },
+      // Android draws none of the three above — its shadow is elevation-driven, so the lift has
+      // to ride this instead or the ghost's shadow snaps to full strength the instant it appears.
+      // The pre-lift bloom already animates elevation the same way (see `liftStyle`).
+      elevation: l * GHOST_ELEVATION,
     };
   });
 
@@ -980,8 +985,9 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   ghost: {
+    // Colour only — the elevation itself is animated with the lift (see the ghost's style above),
+    // so a static one here would fight it and hold the shadow up while the ghost is still landing.
     shadowColor: '#000',
-    elevation: 8,
   },
   // Static shadow colour for the pre-lift bloom; the animated style supplies the (zero-at-rest)
   // opacity/radius/offset, so an entry casts no shadow until a deliberate hold begins.

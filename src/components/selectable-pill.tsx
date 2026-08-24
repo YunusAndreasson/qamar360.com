@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewSt
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, type Typography } from '@/constants/theme';
+import { DenseLabelScale, Radius, Spacing, type Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = Omit<PressableProps, 'style' | 'children'> & {
@@ -37,8 +37,16 @@ export function SelectablePill({ selected, label, textType = 'smallBold', style,
     { backgroundColor: selected ? theme.accentSubtle : theme.backgroundElement, borderColor: selected ? theme.accent : theme.border },
     style,
   ];
+  // Every call site gives the pill a fixed shape — a 40pt weekday circle, a grid cell, a flex
+  // segment — so the label has a box it must stay inside. Capped at `DenseLabelScale` and clamped
+  // to one line for the same reason `Segmented`'s is: a three-letter weekday at 200% text would
+  // otherwise wrap out of a circle it can't grow.
   const content = (
-    <ThemedText type={textType} style={{ color: selected ? theme.accent : theme.textSecondary }}>
+    <ThemedText
+      type={textType}
+      numberOfLines={1}
+      maxFontSizeMultiplier={DenseLabelScale}
+      style={{ color: selected ? theme.accent : theme.textSecondary }}>
       {label}
     </ThemedText>
   );
