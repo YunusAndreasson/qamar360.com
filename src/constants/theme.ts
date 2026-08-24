@@ -18,6 +18,10 @@ import { palette } from '@/constants/palette';
 // daylight, champagne moonglow at night. Two temperatures carry two meanings — cold steel =
 // working, warm gold = done — so a good state is never a same-hue guess (manuscript logic:
 // lapis ground, gold leaf). Light and dark are the same panel, day side and night side.
+//
+// A role with no reader is not a role — it is a colour waiting to drift from whatever it once
+// described — so one that loses its last caller comes out. (`sun` did: it named a glyph the
+// stack card stopped drawing when the current chapter started saying itself with a clock.)
 export const Colors = {
   light: {
     text: palette.light.night[12],
@@ -66,10 +70,6 @@ export const Colors = {
     complete: palette.light.moon[9],
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
     glow: palette.light.moon[6],
-    // The resting sun glyph on the current chapter's stack — a deliberate literal (like the
-    // card whites): amber-ochre, clearly more *orange* than the bronze-gold `complete`, so the
-    // sun's presence can never read as achievement (warm gold means DONE; this is just daylight).
-    sun: '#B8783C',
     danger: palette.light.ember[9],
     dangerText: palette.light.ember.contrast,
     dangerSubtle: palette.light.ember[3],
@@ -115,9 +115,6 @@ export const Colors = {
     // both brightness AND temperature (warm gold vs the cold steel of in-progress).
     complete: palette.dark.moon[9],
     glow: palette.dark.moon[10],
-    // See light note. On the night side it is the star-field's warm-anchor cream (STAR_WARM) —
-    // the sun glyph carries the same temperature as the sky's warm stars, not the moon's gold.
-    sun: '#F2D8B8',
     danger: palette.dark.ember[9],
     dangerText: palette.dark.ember.contrast,
     dangerSubtle: palette.dark.ember[3],

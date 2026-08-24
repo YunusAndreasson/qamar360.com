@@ -13,6 +13,10 @@ import { haptics } from '@/lib/haptics';
 
 import type { ReactNode } from 'react';
 
+/** What the chevron says on the way back. Every row in every library hides the same kind of thing
+ *  — the detail behind the row — so there has never been a second thing to call it. */
+const COLLAPSE_HINT = 'Collapse details';
+
 type Props = {
   title: string;
   subtitle: string;
@@ -23,7 +27,6 @@ type Props = {
   /** Accessible name for the row body (item name + schedule/summary). */
   rowAccessibilityLabel: string;
   expandHint: string;
-  collapseHint?: string;
   /** The revealed detail — evidence text, a habit sequence, etc. Read-only: adding is the row's job. */
   children: ReactNode;
 };
@@ -42,7 +45,6 @@ export function ExpandableAddRow({
   onRemove,
   rowAccessibilityLabel,
   expandHint,
-  collapseHint = 'Collapse details',
   children,
 }: Props) {
   const theme = useTheme();
@@ -110,7 +112,7 @@ export function ExpandableAddRow({
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           accessibilityLabel={`${title} details`}
-          accessibilityHint={expanded ? collapseHint : expandHint}
+          accessibilityHint={expanded ? COLLAPSE_HINT : expandHint}
           style={styles.expandButton}>
           <AppIcon name={expanded ? 'expandLess' : 'expandMore'} size={16} color={theme.textSecondary} />
         </Touchable>

@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
-import { Platform, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
 
 import { Icons, type IconGlyph, type IconName } from '@/constants/icons';
 
@@ -15,7 +15,6 @@ type Props = {
    *  differs slightly — tune per call if needed). */
   size?: number;
   color: string;
-  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -23,24 +22,14 @@ type Props = {
  * Android. {@link AppIcon} keys it by registry name; the header button passes a glyph record
  * directly. A single definition so the resolution rule can never drift between the two.
  */
-export function GlyphIcon({
-  glyph,
-  size,
-  color,
-  style,
-}: {
-  glyph: IconGlyph;
-  size: number;
-  color: string;
-  style?: StyleProp<ViewStyle>;
-}) {
+export function GlyphIcon({ glyph, size, color }: { glyph: IconGlyph; size: number; color: string }) {
   if (Platform.OS === 'ios') {
-    return <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" style={style} />;
+    return <SymbolView name={glyph.sf} size={size} tintColor={color} type="monochrome" />;
   }
   return 'materialCommunity' in glyph ? (
-    <MaterialCommunityIcons name={glyph.materialCommunity} size={size} color={color} style={style as StyleProp<TextStyle>} />
+    <MaterialCommunityIcons name={glyph.materialCommunity} size={size} color={color} />
   ) : (
-    <MaterialIcons name={glyph.material} size={size} color={color} style={style as StyleProp<TextStyle>} />
+    <MaterialIcons name={glyph.material} size={size} color={color} />
   );
 }
 
@@ -49,6 +38,6 @@ export function GlyphIcon({
  * the same native convention the tab bar and nav headers use. Always prefer this over importing a
  * raw `MaterialIcons`, so an icon is native to whichever OS it renders on.
  */
-export function AppIcon({ name, size = 22, color, style }: Props) {
-  return <GlyphIcon glyph={Icons[name]} size={size} color={color} style={style} />;
+export function AppIcon({ name, size = 22, color }: Props) {
+  return <GlyphIcon glyph={Icons[name]} size={size} color={color} />;
 }

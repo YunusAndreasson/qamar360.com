@@ -10,15 +10,20 @@ import { MoonHalo } from '@/components/ornament/moon-halo';
  * rather than "there is nothing here". Shared so the first-run (Today) and no-data (Progress)
  * states read as one family.
  */
-export function MoonEmblem({ size = 104 }: { size?: number }) {
+export function MoonEmblem() {
   return (
-    <View style={[styles.frame, { width: size, height: size }]}>
-      <MoonHalo size={size} strokeOpacity={0.16} />
-      <MoonPhase illumination={0.42} waxing size={size * 0.46} />
+    <View style={styles.frame}>
+      <MoonHalo size={SIZE} strokeOpacity={0.16} />
+      <MoonPhase illumination={0.42} waxing size={SIZE * 0.46} />
     </View>
   );
 }
 
+/** One size, because there is one mark. Both empty states show it at the same scale — that is
+ *  the point of sharing it, and a size knob neither of them turned was a promise of variation
+ *  the family doesn't want. */
+const SIZE = 104;
+
 const styles = StyleSheet.create({
-  frame: { alignItems: 'center', justifyContent: 'center' },
+  frame: { width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' },
 });

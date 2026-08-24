@@ -2,7 +2,6 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   asMonthLength,
-  isMilestoneDay,
   LUNAR_PHASES,
   MILESTONE_ASSET_KEYS,
   MILESTONE_DAYS,
@@ -56,10 +55,8 @@ describe('phaseOf', () => {
 });
 
 describe('milestones', () => {
-  it('recognises exactly the four quarter days', () => {
+  it('is exactly the four quarter days', () => {
     expect(MILESTONE_DAYS).toEqual([1, 8, 15, 22]);
-    for (const day of MILESTONE_DAYS) expect(isMilestoneDay(day)).toBe(true);
-    for (const day of [2, 13, 16, 29, 30]) expect(isMilestoneDay(day)).toBe(false);
   });
 });
 

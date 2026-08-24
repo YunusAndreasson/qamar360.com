@@ -25,26 +25,17 @@ const EDGE_GLOW = 0.3;
  * classic vesica-petal field). `rings` is the hex radius: 1 → the 7-circle seed of life,
  * 2 → 19 circles. Returns the circle centres clipped to a hexagon of that radius.
  *
- * Each circle also carries a luminosity weight `w`: the field is brightest at the `focal`
- * point — by default the lattice heart (the seed-of-life rosette) — and eases outward to
- * {@link EDGE_GLOW}. This is the figure/ground reading of classical Islamic geometry (faint
- * construction circles, a legible figure) and, on theme, light blooming from one point. A
- * caller can shift `focal` off-centre — e.g. to the right, so a left-aligned card's text sits
- * over the faded side. The caller multiplies its base stroke opacity by `w`, so the motif
- * gains depth instead of reading as a flat field. Euclidean distance keeps the falloff smooth.
+ * Each circle also carries a luminosity weight `w`: the field is brightest at the lattice heart
+ * (the seed-of-life rosette) and eases outward to {@link EDGE_GLOW}. This is the figure/ground
+ * reading of classical Islamic geometry (faint construction circles, a legible figure) and, on
+ * theme, light blooming from one point. The caller multiplies its base stroke opacity by `w`, so
+ * the motif gains depth instead of reading as a flat field. Euclidean distance keeps the falloff
+ * smooth.
  */
-export function flowerOfLife(
-  cx: number,
-  cy: number,
-  r: number,
-  rings: number,
-  focal?: { x: number; y: number },
-): GCircle[] {
+export function flowerOfLife(cx: number, cy: number, r: number, rings: number): GCircle[] {
   // Triangular-lattice basis: e1 along x, e2 at 60°. Spacing = r.
   const e2x = r / 2;
   const e2y = (r * Math.sqrt(3)) / 2;
-  const fx = focal?.x ?? cx;
-  const fy = focal?.y ?? cy;
 
   const points: { x: number; y: number }[] = [];
   for (let i = -rings; i <= rings; i++) {
@@ -55,12 +46,12 @@ export function flowerOfLife(
       points.push({ x: cx + i * r + j * e2x, y: cy + j * e2y });
     }
   }
-  // Normalise by the farthest circle from the focal, so `w` always eases from 1 (at the focal)
-  // to EDGE_GLOW at the rim — wherever the focal sits.
-  const maxDist = Math.max(1, ...points.map((p) => Math.hypot(p.x - fx, p.y - fy)));
+  // Normalise by the farthest circle from the centre, so `w` always eases from 1 at the heart to
+  // EDGE_GLOW at the rim, whatever the lattice's size.
+  const maxDist = Math.max(1, ...points.map((p) => Math.hypot(p.x - cx, p.y - cy)));
   return points.map((p) => {
-    const t = Math.min(1, Math.hypot(p.x - fx, p.y - fy) / maxDist);
-    const ease = (1 + Math.cos(Math.PI * t)) / 2; // raised-cosine: 1 at focal → 0 at rim
+    const t = Math.min(1, Math.hypot(p.x - cx, p.y - cy) / maxDist);
+    const ease = (1 + Math.cos(Math.PI * t)) / 2; // raised-cosine: 1 at the heart → 0 at the rim
     return { cx: round(p.x), cy: round(p.y), r: round(r), w: round(EDGE_GLOW + (1 - EDGE_GLOW) * ease) };
   });
 }

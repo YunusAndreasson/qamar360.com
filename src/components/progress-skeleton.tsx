@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Skeleton } from '@/components/skeleton';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 
 /**
  * A loading screen's job is to hold the shape that is about to arrive, so the page doesn't jump
@@ -19,8 +19,8 @@ import { Radius, Spacing } from '@/constants/theme';
 export function ProgressSkeleton() {
   return (
     <View style={styles.root}>
-      <Skeleton height={392} radius={Radius.card} />
-      <Skeleton height={368} radius={Radius.card} />
+      <Skeleton height={392} />
+      <Skeleton height={368} />
     </View>
   );
 }
@@ -29,10 +29,10 @@ export function ProgressSkeleton() {
 export function InsightsSkeleton() {
   return (
     <View style={styles.root}>
-      <Skeleton height={300} radius={Radius.card} />
-      <Skeleton height={112} radius={Radius.card} />
-      <Skeleton height={200} radius={Radius.card} />
-      <Skeleton height={224} radius={Radius.card} />
+      <Skeleton height={300} />
+      <Skeleton height={112} />
+      <Skeleton height={200} />
+      <Skeleton height={224} />
     </View>
   );
 }

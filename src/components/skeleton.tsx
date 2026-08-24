@@ -5,8 +5,9 @@ import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
-  height?: number;
-  radius?: number;
+  /** The block's height. Required: a skeleton stands for something specific, and a default would
+   *  be a guess at the shape of whatever it is holding the place of. */
+  height: number;
 };
 
 /** The breathing fade as a declarative CSS animation (Reanimated 4): the library owns the
@@ -25,7 +26,7 @@ const pulse: CSSAnimationKeyframes = {
  * rather than "nothing yet" — the Linear/Notion default. The pulse is dropped under
  * Reduce Motion (the muted block alone still says "loading"; HIG: substitute, don't soften).
  */
-export function Skeleton({ height = 16, radius = Radius.control }: Props) {
+export function Skeleton({ height }: Props) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
 
@@ -35,7 +36,9 @@ export function Skeleton({ height = 16, radius = Radius.control }: Props) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={[
-        { width: '100%', height, borderRadius: radius, backgroundColor: theme.backgroundElement },
+        // `Radius.card`, always: every skeleton in the app holds the place of a card or a row
+        // inside one, so the corner it draws is the corner the real thing will have.
+        { width: '100%', height, borderRadius: Radius.card, backgroundColor: theme.backgroundElement },
         reduceMotion
           ? { opacity: 0.8 } // the pulse's resting brightness, held still
           : {

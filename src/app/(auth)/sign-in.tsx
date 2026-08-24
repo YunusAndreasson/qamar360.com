@@ -379,8 +379,9 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center' },
   social: { gap: Spacing.two },
-  // Tighter than the block gap above: the small print is one group, not more sections.
-  links: { gap: 0, alignItems: 'center' },
+  // No gap at all — tighter than the block gap above, because the small print is one group and
+  // not more sections. (Each `TextLink` carries its own 44pt box, so the rows still don't touch.)
+  links: { alignItems: 'center' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.two },
 });

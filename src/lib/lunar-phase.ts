@@ -48,10 +48,6 @@ export const MILESTONE_DAYS = [1, 8, 15, 22] as const;
 
 export type MilestoneDay = (typeof MILESTONE_DAYS)[number];
 
-export function isMilestoneDay(day: number): day is MilestoneDay {
-  return (MILESTONE_DAYS as readonly number[]).includes(day);
-}
-
 /** A month is 29 or 30 days; anything else is coerced so an asset key always resolves. */
 export type MonthLength = 29 | 30;
 
@@ -87,7 +83,9 @@ export function milestoneAssetKey(day: MilestoneDay, monthLength: number): strin
   return `d${String(day).padStart(2, '0')}-l${asMonthLength(monthLength)}`;
 }
 
-/** Every asset key the generator must produce, in a stable order. */
+/** Every asset key that must exist, in a stable order — asserted against the bundled map in
+ *  `moon.test.ts`, so a missing render fails the suite rather than the phone. `gen-moons.mjs` is
+ *  `.mjs` and can't import this, so it mirrors the two constants by hand and says so. */
 export const MILESTONE_ASSET_KEYS: readonly string[] = ([29, 30] as const).flatMap((length) =>
   MILESTONE_DAYS.map((day) => milestoneAssetKey(day, length)),
 );

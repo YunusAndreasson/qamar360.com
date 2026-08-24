@@ -19,13 +19,19 @@ type Props = {
   onPress?: () => void;
   /** Tint the icon + label with the danger color (destructive actions). */
   destructive?: boolean;
-  disabled?: boolean;
-  /** Swap the trailing area for a spinner while an async action runs. */
+  /**
+   * Swap the trailing area for a spinner while an async action runs, and block the press so a
+   * slow one can't be fired twice — which is what "Reset progress" and "Delete account" want.
+   *
+   * Only meaningful on a **pressable** row: a static row has no press to block, and a `switchValue`
+   * row renders its `Switch` in the same slot the spinner would take AND returns before the
+   * `Pressable` below, so `busy` neither shows nor gates anything there. No caller sets it on one;
+   * a switch that needs gating would need a real `disabled` prop rather than this.
+   */
   busy?: boolean;
   /** Make this a toggle row: the trailing area becomes a `Switch` over this value. */
   switchValue?: boolean;
   onSwitchChange?: (value: boolean) => void;
-  accessibilityLabel?: string;
 };
 
 /**
@@ -42,11 +48,9 @@ export function SettingsRow({
   showChevron,
   onPress,
   destructive,
-  disabled,
   busy,
   switchValue,
   onSwitchChange,
-  accessibilityLabel,
 }: Props) {
   const theme = useTheme();
   const labelColor = destructive ? theme.danger : theme.text;
@@ -71,10 +75,9 @@ export function SettingsRow({
         <Switch
           value={switchValue}
           onValueChange={onSwitchChange}
-          disabled={disabled}
           trackColor={{ true: theme.accent, false: theme.backgroundSelected }}
           ios_backgroundColor={theme.backgroundSelected}
-          accessibilityLabel={accessibilityLabel ?? label}
+          accessibilityLabel={label}
         />
       ) : busy ? (
         <ActivityIndicator color={iconColor} />
@@ -93,12 +96,14 @@ export function SettingsRow({
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled || busy}
+      disabled={busy}
       android_ripple={{ color: theme.backgroundSelected }}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? (value ? `${label}, ${value}` : label)}
-      accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed, (disabled || busy) && styles.faded]}>
+      // The trailing value is part of what the row says ("Hijri date, one day earlier"), so it is
+      // spoken with the label rather than left to be discovered as a second element.
+      accessibilityLabel={value ? `${label}, ${value}` : label}
+      accessibilityState={{ disabled: !!busy, busy: !!busy }}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed, busy && styles.faded]}>
       {content}
     </Pressable>
   );

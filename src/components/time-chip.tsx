@@ -1,6 +1,6 @@
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -32,12 +32,10 @@ export function TimeChip({
   minutes,
   onChange,
   accessibilityLabel,
-  style,
 }: {
   minutes: number;
   onChange: (minutes: number) => void;
   accessibilityLabel: string;
-  style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
   const [spinnerVisible, setSpinnerVisible] = useState(false);
@@ -59,7 +57,7 @@ export function TimeChip({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityValue={{ text: formatMinutes(minutes) }}
-        style={[styles.chip, { backgroundColor: theme.backgroundElement, borderColor: theme.border }, style]}>
+        style={[styles.chip, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
         <ThemedText type="smallBold">{formatMinutes(minutes)}</ThemedText>
       </PressableScale>
       {spinnerVisible && Platform.OS === 'ios' ? (

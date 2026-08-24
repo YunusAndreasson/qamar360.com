@@ -16,8 +16,6 @@ import type { StyleProp, ViewStyle } from 'react-native';
 type Props = {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  /** Fade duration (ms). Defaults to the shared `base` timing. */
-  duration?: number;
   /** Delay before the fade starts (ms) — for staggering a group. */
   delay?: number;
 };
@@ -35,7 +33,7 @@ type Props = {
  * the view's opacity on its very first frame, so no flash is possible; same proven pattern as
  * the month grid's staggered cells. Honours Reduce Motion.
  */
-export function FadeInView({ children, style, duration = Duration.base, delay = 0 }: Props) {
+export function FadeInView({ children, style, delay = 0 }: Props) {
   const reduceMotion = useReducedMotion();
   const opacity = useSharedValue(reduceMotion ? 1 : 0);
 
@@ -46,8 +44,9 @@ export function FadeInView({ children, style, duration = Duration.base, delay = 
     }
     // Decelerate in — the app's one "appear" easing (the coalesce card and the celebration
     // overlay fade the same way), so every entrance lands with the same character.
-    opacity.set(withDelay(delay, withTiming(1, { duration, easing: Easing.out(Easing.quad) })));
-  }, [reduceMotion, opacity, delay, duration]);
+    // One duration for every entrance in the app — the fade is a house character, not a knob.
+    opacity.set(withDelay(delay, withTiming(1, { duration: Duration.base, easing: Easing.out(Easing.quad) })));
+  }, [reduceMotion, opacity, delay]);
 
   const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));
 
