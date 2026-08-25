@@ -32,7 +32,11 @@ import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
 // quotes the instrument rather than approximating it — the last time a legend carried its own
 // numbers they drifted (an 8×7 CSS triangle against the ring's 10×10).
 export const ORBIT_SIZE = 232;
-export const RING_STROKE = 12;
+// The band is the reading, so it is given enough ink to be one. Raising it also shrinks the moon,
+// because MOON_SIZE is derived from it below — which is the trade this card needed: at 12 the disc
+// carried 3.6x the ink of the whole band while being, by the sheet's own admission, not your
+// progress. At 16 that is 2.5x, and the gauge is legible without the moon leaving.
+export const RING_STROKE = 16;
 // The moon fills the orbit's interior exactly as a day-grid cell fills its ring
 // (ProgressCircle: disc = box − 3×stroke, leaving a stroke/2 gap to the ring), so the hero and
 // the "This month" moons read as one object at two scales — not a snug disc beside a floating
@@ -229,8 +233,8 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 /**
  * The month as three readings on one ring:
  *
- *   accentTrackMuted   the month still to come
- *   accentTrack        the month elapsed — what it has asked of you (always present)
+ *   orbitTrack   the month still to come
+ *   orbitPace    the month elapsed — what it has asked of you (always present)
  *   accent / complete  you
  *
  * and nothing else. There is no fourth mark: what you are doing against your usual is said in
@@ -291,7 +295,7 @@ function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
         cx={RING_CENTER}
         cy={RING_CENTER}
         r={RING_RADIUS}
-        stroke={theme.accentTrackMuted}
+        stroke={theme.orbitTrack}
         strokeWidth={RING_STROKE}
         fill="none"
       />
@@ -303,20 +307,27 @@ function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
           cx={RING_CENTER}
           cy={RING_CENTER}
           r={RING_RADIUS}
-          stroke={theme.accentTrack}
+          stroke={theme.orbitPace}
           strokeWidth={RING_STROKE}
           strokeDasharray={`${paceArc} ${RING_CIRCUMFERENCE}`}
           fill="none"
           transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
         />
       ) : null}
+      {/* Butt-capped at exactly zero, round once there is an arc to cap. A round cap on a
+          ZERO-length dash is still drawn — SVG renders it as a full dot — so a month you have not
+          started put a bright accent mark at the top of the ring above a reading of 0°. It looked
+          like the first sliver of progress, which is the one thing it could not be. (The forecast
+          arrowhead had the same fault and the same fix: draw the mark only where the thing it
+          marks exists.) The cap follows the target rate, not the animated value, so a sweep that
+          starts from zero still rounds off the whole way up. */}
       <AnimatedCircle
         cx={RING_CENTER}
         cy={RING_CENTER}
         r={RING_RADIUS}
         stroke={currentColor}
         strokeWidth={RING_STROKE}
-        strokeLinecap="round"
+        strokeLinecap={currentRate > 0 ? 'round' : 'butt'}
         strokeDasharray={RING_CIRCUMFERENCE}
         animatedProps={arcProps}
         fill="none"

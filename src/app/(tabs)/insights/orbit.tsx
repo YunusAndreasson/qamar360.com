@@ -73,7 +73,7 @@ export default function OrbitReadingSheet() {
         {/* "The month so far", not "on pace": the number is where the month itself has got to, and
             catching it means the two arc heads meet. True on a first day, when there is no past
             self to race. */}
-        <LegendRow glyph={<ArcSwatch color={theme.accentTrack} />} label="The month so far" value={`${pace}°`} />
+        <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="The month so far" value={`${pace}°`} />
       </Surface>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
