@@ -9,10 +9,8 @@ import { normalizeName } from '@/lib/names';
  * live catalog and the user's current habits/stacks, then executes the returned plan
  * (`createHabits` → `createStack` / `updateStack`).
  *
- * The rules are the ones the old starter card proved: ids missing from the live catalog drop out
- * silently, an act whose *folded* name the user already has is skipped (so adding a second stack
- * never mints a near-duplicate habit), and a same-named stack the user already keeps is appended
- * to rather than twinned.
+ * A plan has two halves, and they are deliberately separate: habits to create, and habits the user
+ * already keeps that the stack should gather in. See {@link buildCuratedPlan} for why.
  */
 
 /** The habit row an act becomes — structurally the `HabitCreate` the habits hook accepts. */
@@ -24,6 +22,15 @@ export type HabitInput = {
   target_unit: string | null;
 };
 
+/**
+ * One act of a plan, in the stack's own sequence: a habit the user already keeps — gathered in,
+ * id and history intact — or one still to be created.
+ */
+type PlannedAct = { kind: 'own'; habitId: string } | { kind: 'new'; input: HabitInput };
+
+/** The habits the planner reads: identity, the name it dedupes on, and where the act sits today. */
+export type OwnedHabit = { id: string; name: string; stack_id: string | null };
+
 export type CuratedPlan = {
   /** The stack name to create — or that matched `existingStackId`. */
   name: string;
@@ -33,6 +40,12 @@ export type CuratedPlan = {
   existingStackId: string | null;
   /** The habit rows still to create, in stack sequence order. */
   inputs: HabitInput[];
+  /** The whole membership in sequence — what the stack holds once the plan has run. */
+  acts: PlannedAct[];
+  /** Acts the user already keeps that this plan will MOVE into the stack: they sit loose, or in
+   *  another stack, today. Counted apart from `inputs` because it is the one half of a plan that
+   *  rearranges something the user set up themselves — so the card has to say it out loud. */
+  gatherIds: string[];
 };
 
 /**
@@ -53,26 +66,54 @@ export function habitInputFor(preset: SunnahPreset, schedule?: number[]): HabitI
 }
 
 /**
- * Resolve one curated stack against what the user already has. Returns `null` when every act is
- * already owned — the library reads that as "added" and offers nothing to do.
+ * Resolve one curated stack against what the user already has.
+ *
+ * Owning the acts and having the stack are two different things, and reading the first as the
+ * second was a trap. A user who already kept every Ḍuḥā act as an ordinary habit was shown
+ * "Already yours" over a stack that did not exist, and the only way to make the card offer
+ * anything again was to delete one of their own habits first. So an act already kept is
+ * *gathered* into the stack rather than skipped — it keeps its id, and with it every tick it has
+ * ever earned — and only a stack that exists AND already holds every act has nothing left to do.
+ *
+ * The rest is what the old starter card proved: ids missing from the live catalog drop out
+ * silently, an act matches by its *folded* name (a habit saved before the preset gained its
+ * diacritics still counts as the same act), and a same-named stack the user already keeps is
+ * appended to rather than twinned.
  */
 export function buildCuratedPlan(
   curated: CuratedStack,
   presets: SunnahPreset[],
-  existingHabitNames: Set<string>,
+  habits: readonly OwnedHabit[],
   stacks: { id: string; name: string }[],
 ): CuratedPlan | null {
   const byId = new Map(presets.map((p) => [p.id, p]));
+  // First match wins, so a user holding the same act twice never has both gathered into one stack.
+  const owned = new Map<string, OwnedHabit>();
+  for (const habit of habits) {
+    const key = normalizeName(habit.name);
+    if (!owned.has(key)) owned.set(key, habit);
+  }
+  const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(curated.name)) ?? null;
+
+  const acts: PlannedAct[] = [];
   const inputs: HabitInput[] = [];
+  const gatherIds: string[] = [];
   for (const act of curated.acts) {
     const preset = byId.get(act.presetId);
     if (!preset) continue; // id missing from the live catalog — drop it, don't crash
-    if (existingHabitNames.has(normalizeName(preset.name))) continue; // already owned
-    inputs.push(habitInputFor(preset, act.schedule));
+    const already = owned.get(normalizeName(preset.name));
+    if (already) {
+      acts.push({ kind: 'own', habitId: already.id });
+      // An act already sitting in the very stack being built moves nowhere.
+      if (!twin || already.stack_id !== twin.id) gatherIds.push(already.id);
+    } else {
+      const input = habitInputFor(preset, act.schedule);
+      inputs.push(input);
+      acts.push({ kind: 'new', input });
+    }
   }
-  if (inputs.length === 0) return null;
-  const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(curated.name)) ?? null;
-  return { name: curated.name, moment: curated.moment, existingStackId: twin?.id ?? null, inputs };
+  if (inputs.length === 0 && gatherIds.length === 0) return null;
+  return { name: curated.name, moment: curated.moment, existingStackId: twin?.id ?? null, inputs, acts, gatherIds };
 }
 
 /**

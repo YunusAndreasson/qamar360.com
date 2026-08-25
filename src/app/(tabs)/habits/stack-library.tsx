@@ -20,7 +20,6 @@ import { useTheme } from '@/hooks/use-theme';
 import { buildCuratedPlan } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS } from '@/lib/moments';
-import { normalizeName } from '@/lib/names';
 
 /**
  * The library of ready-made stacks.
@@ -38,41 +37,68 @@ export default function StackLibraryScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { presets } = useCatalog();
-  const { habits, stacks, createHabits, createStack, updateStack, deleteStack, deleteHabit } = useHabits();
-
-  // Folded habit names, the dedupe key everywhere in the app. (No useMemo — the React Compiler
-  // memoizes derived values.)
-  const owned = new Set(habits.map((h) => normalizeName(h.name)));
+  const { habits, stacks, createHabits, createStack, updateStack, deleteStack, deleteHabit, moveHabit } = useHabits();
 
   const addStack = async (curated: CuratedStack) => {
-    const plan = buildCuratedPlan(curated, presets, owned, stacks);
-    if (!plan) return; // everything already owned — the card reads as added
-    const created = await createHabits(plan.inputs);
-    if (created.length === 0) return; // createHabits already surfaced the error
-    haptics.added();
+    const plan = buildCuratedPlan(curated, presets, habits, stacks);
+    if (!plan) return; // the stack exists and already holds every act — the card reads as added
+    // Where each gathered act sits right now, read before anything moves: Undo owes the acts the
+    // user already kept the same restoration as the ones this created.
+    const gatheredFrom = new Map(
+      plan.gatherIds.map((id) => [id, habits.find((h) => h.id === id)?.stack_id ?? null] as const),
+    );
 
-    const ids = created.map((h) => h.id);
+    const created = await createHabits(plan.inputs);
+    // Empty is the answer to an empty ask (a stack built only out of acts already kept), so only
+    // an ask that came back with nothing is a failure — and createHabits has already said so.
+    if (plan.inputs.length > 0 && created.length === 0) return;
+    if (created.length > 0) haptics.added();
+
+    // The membership in the stack's own sequence — the order the card numbers 1..n, and the order
+    // the acts are actually done in. An act already kept answers with its own id; a new one takes
+    // the next of the rows just created.
+    const pending = [...created];
+    const ids = plan.acts
+      .map((act) => (act.kind === 'own' ? act.habitId : pending.shift()?.id))
+      .filter((id): id is string => id !== undefined);
+
     let createdStackId: string | null = null;
     if (plan.existingStackId) {
-      // Append to the user's own same-named stack (its membership didn't change during the
-      // insert — the new rows landed unanchored), keeping their order ahead of the new tail.
+      // Append to the user's own same-named stack, keeping the members it already had — minus any
+      // this plan is about to re-seat — ahead of the curated sequence.
+      const planned = new Set(ids);
       const current = habits
-        .filter((h) => h.stack_id === plan.existingStackId)
+        .filter((h) => h.stack_id === plan.existingStackId && !planned.has(h.id))
         .sort((a, b) => a.position - b.position)
         .map((h) => h.id);
       await updateStack(plan.existingStackId, { orderedMemberIds: [...current, ...ids] });
     } else {
       createdStackId = await createStack(plan.name, ids, { moment: plan.moment });
+      // The stack is the whole point of this screen, so an anchoring that couldn't anchor undoes
+      // itself rather than leaving its acts behind. Half-applied was the worst of the three
+      // outcomes: the acts landed loose at the end of Today, and the card — which reads "already
+      // owned" off habit names alone — went quiet and offered no way to retry. (Found the day
+      // `duha` reached a CHECK constraint that had never heard of it.) `createStack` has already
+      // surfaced the failure; the success toast below would otherwise report the opposite.
+      if (!createdStackId) {
+        for (const habit of created) void deleteHabit(habit.id);
+        return;
+      }
     }
 
     show(`Added ${plan.name} — find it on Today`, 'success', {
       label: 'Undo',
       onPress: () => {
-        // Shell first, then acts: deleting the acts first would trip the stack's empty-shell
-        // sweep against a ref that hasn't seen the previous delete yet, and could strand a shell
-        // that now renders as an empty card.
-        if (createdStackId) void deleteStack(createdStackId);
-        for (const habit of created) void deleteHabit(habit.id);
+        void (async () => {
+          // Shell first, then acts: deleting the acts first would trip the stack's empty-shell
+          // sweep against a ref that hasn't seen the previous delete yet, and could strand a shell
+          // that now renders as an empty card. Awaited in turn for the same reason — each step
+          // reads the arrangement the one before it left.
+          if (createdStackId) await deleteStack(createdStackId);
+          // A gathered act goes back where it came from, not merely loose.
+          for (const [habitId, from] of gatheredFrom) await moveHabit(habitId, { toStackId: from });
+          for (const habit of created) await deleteHabit(habit.id);
+        })();
       },
     });
   };
@@ -91,8 +117,9 @@ export default function StackLibraryScreen() {
             <CuratedCard
               key={curated.id}
               curated={curated}
-              // A stack whose every act is already owned has nothing left to add.
-              plan={buildCuratedPlan(curated, presets, owned, stacks)}
+              // Null only once the stack exists AND holds every act — owning the acts alone
+              // leaves the card something to offer: the anchoring itself.
+              plan={buildCuratedPlan(curated, presets, habits, stacks)}
               onAdd={() => void addStack(curated)}
             />
           ))}
@@ -135,7 +162,20 @@ function CuratedCard({
   const byId = new Map(presets.map((p) => [p.id, p]));
   const acts = curated.acts.map((a) => byId.get(a.presetId)?.name).filter((n): n is string => n !== undefined);
   const adding = plan?.inputs.length ?? 0;
+  const gathering = plan?.gatherIds.length ?? 0;
   const moment = MOMENTS[curated.moment];
+
+  // Three offers a card can make, and the label has to name the right one: create every act,
+  // create only the ones missing, or create nothing at all and just anchor what is already kept.
+  // That last case used to render as "Already yours" — a card claiming the user had a stack they
+  // did not, over a button that was no longer there.
+  const label =
+    adding === 0 ? 'Anchor the acts you keep' : adding === acts.length ? 'Add this stack' : `Add the missing ${adding}`;
+  const said: string[] = [];
+  if (adding > 0) said.push(`Adds ${adding} act${adding === 1 ? '' : 's'}`);
+  if (gathering > 0)
+    said.push(`${said.length > 0 ? 'gathers' : 'Gathers'} ${gathering} act${gathering === 1 ? '' : 's'} you already keep`);
+  const hint = `${said.join(', ')}, anchored to ${moment.label}.`;
 
   return (
     <View style={styles.card}>
@@ -159,7 +199,7 @@ function CuratedCard({
               </Fragment>
             ))}
           </View>
-          {adding === 0 ? (
+          {plan === null ? (
             <View style={styles.added}>
               <AppIcon name="check" size={16} color={theme.textDisabled} />
               <ThemedText type="small" themeColor="textDisabled">
@@ -171,8 +211,8 @@ function CuratedCard({
               variant="secondary"
               onPress={onAdd}
               accessibilityLabel={`Add the ${curated.name} stack`}
-              accessibilityHint={`Adds ${adding} act${adding === 1 ? '' : 's'}, anchored to ${moment.label}.`}>
-              {adding === acts.length ? 'Add this stack' : `Add the missing ${adding}`}
+              accessibilityHint={hint}>
+              {label}
             </AppButton>
           )}
         </View>

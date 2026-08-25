@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from '@jest/globals';
 
 import { orderAfterHabitMove } from '@/lib/drag-order';
@@ -50,6 +53,33 @@ describe('the moment set', () => {
     // The four sky bands are the deliberate exception, and stay plain nouns so
     // Settings → Times of day can still say "Morning begins".
     for (const part of DAY_PARTS) expect(MOMENTS[part].label).toBe(MOMENTS[part].stackName);
+  });
+
+  // 2026-08-25: the client grew `duha` and `habit_stacks.moment`'s CHECK list did not, so every
+  // attempt to anchor a stack to Ḍuḥā was rejected 23514 — after its acts had already been
+  // inserted. The library's card then read "Already yours" over a stack that did not exist, and
+  // there was no way to retry from the UI. Nothing in TypeScript could see it: the column is
+  // `text`, so the mismatch only exists in the database.
+  //
+  // So the test reads the migration. It is the one place the two lists can be compared before
+  // a user finds the gap, and it fails on the next moment added without one.
+  it('the migrated CHECK constraint knows every moment (the Ḍuḥā trap)', () => {
+    const dir = join(__dirname, '..', '..', '..', 'supabase', 'migrations');
+    const defining = readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort() // filenames are timestamps: the last one to define it is the one in force
+      .filter((f) => readFileSync(join(dir, f), 'utf8').includes('habit_stacks_moment_check'));
+    const latest = defining.at(-1);
+    expect(latest).toBeDefined();
+
+    // The list inside `moment in ( ... )`, with SQL line comments stripped first so a word
+    // spelled in a comment can never be read as an allowed value.
+    const sql = readFileSync(join(dir, latest!), 'utf8').replace(/--[^\n]*/g, '');
+    const list = /moment in \(([^)]*)\)/.exec(sql)?.[1];
+    expect(list).toBeDefined();
+    const allowed = [...list!.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+    expect(allowed.sort()).toEqual(Object.keys(MOMENTS).sort());
   });
 
   it('the weakest-cue group is listed last, so the grid never leads with a bare time', () => {

@@ -41,7 +41,17 @@ const FRIDAY: CuratedStack = {
   acts: [{ presetId: 'kahf' }, { presetId: 'water', schedule: [5] }],
 };
 
-const names = (...raw: string[]) => new Set(raw.map(normalizeName));
+/** Habits the user already keeps. `stack_id` defaults to loose — the common case. */
+const owned = (...raw: (string | { name: string; stack_id: string })[]) =>
+  raw.map((entry, i) =>
+    typeof entry === 'string'
+      ? { id: `h${i}`, name: entry, stack_id: null }
+      : { id: `h${i}`, name: entry.name, stack_id: entry.stack_id },
+  );
+
+/** Every act of every preset, kept loose (or all inside one stack). */
+const ownsEverything = (stackId: string | null = null) =>
+  PRESETS.map((preset, i) => ({ id: `h${i}`, name: preset.name, stack_id: stackId }));
 
 describe('habitInputFor', () => {
   it('carries the preset schedule, count goal and Hijri recurrence across', () => {
@@ -65,7 +75,7 @@ describe('habitInputFor', () => {
 
 describe('buildCuratedPlan', () => {
   it('plans the acts in sequence order and drops ids missing from the catalog', () => {
-    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, names(), []);
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, [], []);
     expect(plan).not.toBeNull();
     expect(plan!.inputs.map((i) => i.name)).toEqual([
       'Said the duʿāʾ on waking',
@@ -74,26 +84,53 @@ describe('buildCuratedPlan', () => {
     ]);
     expect(plan!.moment).toBe('fajr');
     expect(plan!.existingStackId).toBeNull();
+    expect(plan!.gatherIds).toEqual([]);
   });
 
-  it('skips acts already owned, matching by the folded name (diacritics ignored)', () => {
-    // Saved before the preset gained its scholarly diacritics — must still count as owned.
-    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, names('Said the du’a’ on waking', 'PRAYED FAJR ON TIME'), []);
+  it('gathers an act already owned rather than minting a near-duplicate, matching by folded name', () => {
+    // Saved before the preset gained its scholarly diacritics — must still count as the same act.
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, owned('Said the du’a’ on waking', 'PRAYED FAJR ON TIME'), []);
     expect(plan!.inputs.map((i) => i.name)).toEqual(['Said the morning adhkār']);
+    expect(plan!.gatherIds).toEqual(['h0', 'h1']);
   });
 
-  it('returns null when every act is already owned — the library reads that as added', () => {
-    const all = names(...PRESETS.map((p) => p.name));
-    expect(buildCuratedPlan(AFTER_FAJR, PRESETS, all, [])).toBeNull();
+  it('keeps the curated sequence when a plan mixes gathered acts with new ones', () => {
+    // The order the card numbers 1..n and the order the acts are done in — it must survive the
+    // fact that some rows exist already and some are about to.
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, owned('Prayed Fajr on time'), []);
+    expect(plan!.acts.map((a) => (a.kind === 'own' ? a.habitId : a.input.name))).toEqual([
+      'Said the duʿāʾ on waking',
+      'h0',
+      'Said the morning adhkār',
+    ]);
+  });
+
+  it('still offers the stack when every act is already owned — owning the acts is not having it', () => {
+    // The Ḍuḥā trap: the card used to read "Already yours" over a stack that did not exist, and
+    // the only way to make it offer anything again was to delete one of your own habits first.
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything(), []);
+    expect(plan).not.toBeNull();
+    expect(plan!.inputs).toEqual([]);
+    expect(plan!.gatherIds).toEqual(['h1', 'h0', 'h2']);
+    expect(plan!.existingStackId).toBeNull();
+  });
+
+  it('returns null only once the stack exists AND already holds every act', () => {
+    const stacks = [{ id: 's1', name: 'fajr' }];
+    expect(buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything('s1'), stacks)).toBeNull();
+    // The same acts kept outside that stack still leave it something to do: gather them in.
+    const scattered = buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything('s2'), stacks);
+    expect(scattered!.existingStackId).toBe('s1');
+    expect(scattered!.gatherIds).toHaveLength(3);
   });
 
   it('matches a same-named existing stack for appending instead of creating a twin', () => {
-    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, names(), [{ id: 's1', name: 'fajr' }]);
+    const plan = buildCuratedPlan(AFTER_FAJR, PRESETS, [], [{ id: 's1', name: 'fajr' }]);
     expect(plan!.existingStackId).toBe('s1');
   });
 
   it('applies a weekly stack’s schedule override to the acts it borrows', () => {
-    const plan = buildCuratedPlan(FRIDAY, PRESETS, names(), []);
+    const plan = buildCuratedPlan(FRIDAY, PRESETS, [], []);
     expect(plan!.inputs.map((i) => i.schedule_days)).toEqual([[5], [5]]);
   });
 });
