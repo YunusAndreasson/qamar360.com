@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { usePathname } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useEffect, useEffectEvent } from 'react';
 import { AppState, Platform } from 'react-native';
@@ -40,10 +41,11 @@ function Tabs() {
   // appearance override too — otherwise it stays on the system theme.
   const colors = useTheme();
   const scheme = useEffectiveScheme();
+  const pathname = usePathname();
   // What the day still asks of you, counted in **units**: one per unsealed stack (never one per
   // act inside it — the stack is what you do and seal), one per open exchange, one per task still
   // on the list. Summed here because it is the one place both providers are in view.
-  const { remainingToday, today, habits } = useHabits();
+  const { remainingToday, today, habits, setViewDate } = useHabits();
   const { openToday } = useTasks();
   const { user } = useAuth();
   const remaining = remainingToday + openToday;
@@ -112,7 +114,19 @@ function Tabs() {
         selected: { color: colors.text, fontWeight: FontWeight.semibold },
       }}
       indicatorColor={colors.backgroundSelected}>
-      <Trigger name="habits">
+      <Trigger
+        name="habits"
+        listeners={{
+          // Pressing "Today" while Today is already what you are looking at means *today* — the
+          // tab is named for a day, and it was the one way back to it. The stepper only walks one
+          // day per tap, each of which remounts the whole list, so returning from a backfill three
+          // weeks back was twenty-one taps and no other route home. Guarded on being at the list
+          // itself: a press that is really "come back to this tab" from Insights should land you
+          // where you left off, and one arriving while a sheet is open is that sheet's to handle.
+          tabPress: () => {
+            if (pathname === '/habits') setViewDate(today);
+          },
+        }}>
         {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. */}
         {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
         {/* "Today", not "Habits": the screen holds stacks, exchanges and to-dos, and only one of

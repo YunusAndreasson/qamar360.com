@@ -121,12 +121,20 @@ export function HabitSection({ habits: loose, topGap, completed, skipped, settli
         suggested.length > 0 ? (
           <ManageRow
             icon="addLink"
+            // Both forms end "to a moment", because that phrase is the whole explanation of what
+            // anchoring IS and the partial form used to drop it — leaving "Anchor 1 suggested",
+            // where `suggested` is an adjective with no noun and the destination has vanished.
+            // The noun matches the one the toast reports back ("Anchored 1 habit").
             label={
               suggested.length === loose.length
                 ? 'Anchor these to a moment'
-                : `Anchor ${suggested.length} suggested`
+                : `Anchor ${suggested.length} ${suggested.length === 1 ? 'habit' : 'habits'} to a moment`
             }
-            accessibilityLabel={`Anchor ${suggested.length} suggested`}
+            accessibilityLabel={
+              suggested.length === loose.length
+                ? 'Anchor these to a moment'
+                : `Anchor ${suggested.length} ${suggested.length === 1 ? 'habit' : 'habits'} to a moment`
+            }
             accessibilityHint="Moves them into stacks at the moments the library suggests."
             onPress={() => void anchorAll()}
           />

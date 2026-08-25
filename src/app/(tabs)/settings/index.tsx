@@ -273,7 +273,16 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="moon"
             label="Lunar updates"
-            sublabel="Four nights a lunar month"
+            // The same rule `nextUpdate` already keeps — don't promise what the OS won't deliver —
+            // applied to the row that looks most satisfied. A switch reading ON directly above
+            // "Allow notifications · Off" is two adjacent rows saying opposite things, and leaves
+            // the reader to work out which one wins. The switch keeps the user's preference (it is
+            // still what they want); the sublabel just stops describing a schedule that cannot run.
+            sublabel={
+              lunarUpdatesOn && notifGranted === false
+                ? 'Nothing will arrive until notifications are on'
+                : 'Four nights a lunar month'
+            }
             switchValue={lunarUpdatesOn}
             onSwitchChange={onToggleLunarUpdates}
           />
