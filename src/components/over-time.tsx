@@ -69,7 +69,16 @@ const MAX_HORIZON = 6;
 /** A bucket as a reading. One day says its date; a wider span says the day it ends on, which is the
  *  most recent thing in it and so the one you were looking for. */
 function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod): string {
-  if (pending) return period === 'year' ? 'This month' : 'Today';
+  // A pending bucket is named for the span it MEASURES, not for the day you happen to read it on.
+  // Week and month bucket by the day, so "Today" is exactly right; a year buckets by the Hijri
+  // month. A lifetime buckets by however many days it takes to fit the whole record on one line
+  // (`lifeBucketDays`), so its last bucket is usually several days wide — and calling that "Today"
+  // hung a one-day label on a multi-day number, on the one card whose reading nothing else on the
+  // screen repeats. Anything wider than a day falls through and names its own range instead.
+  if (pending) {
+    if (period === 'year') return 'This month';
+    if (iso === endISO) return 'Today';
+  }
   const parts = hijriParts(endISO);
   if (!parts) return endISO;
   // A whole Hijri month has a name, and "1–30 Ṣafar" is a worse way to say it. Only the year view

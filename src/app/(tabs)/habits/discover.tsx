@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View, type ListRenderItemInfo } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -18,6 +18,7 @@ import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDestructive } from '@/lib/alerts';
 import { habitInputFor as toCreate } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { dedupeName, normalizeName } from '@/lib/names';
@@ -120,6 +121,16 @@ export default function DiscoverScreen() {
   const habitByName = useMemo(() => new Map(habits.map((h) => [normalizeName(h.name), h])), [habits]);
   const existing = useMemo(() => new Set(habitByName.keys()), [habitByName]);
 
+  // What this visit actually created. The ✓ is documented as undoing "what it created" — but it
+  // matched by NAME, so the same tap also reached a habit kept for months and deleted it, and
+  // `habit_completions` cascades: one tap on a row's title, and a year of ticks is gone with no
+  // confirmation and nothing to undo. (Found by tapping one by accident during a QA pass.) The act's
+  // own sheet has asked "Its history goes with it." all along; the library was the way around it.
+  //
+  // A ref, not state: nothing renders from it, and re-rendering the whole catalog to record an id
+  // would be the expensive half of a bookkeeping detail.
+  const createdHere = useRef<Set<string>>(new Set());
+
   // Scoped: a row is "added" only when its habit is a member of THIS stack — the surface
   // manages membership; the plain screen manages existence.
   const addedFor = (preset: SunnahPreset) => {
@@ -146,7 +157,11 @@ export default function DiscoverScreen() {
     if (!stack) {
       // Unscoped: land it as a stackless habit, straight into Today's HABITS section. `toCreate`
       // names no stack at all, which is what made this the three-line change it looks like.
-      if (!habitByName.has(normalizeName(preset.name))) void createHabits([toCreate(preset)]);
+      if (!habitByName.has(normalizeName(preset.name))) {
+        void createHabits([toCreate(preset)]).then(([created]) => {
+          if (created) createdHere.current.add(created.id);
+        });
+      }
       return;
     }
     const found = habitByName.get(normalizeName(preset.name));
@@ -186,7 +201,20 @@ export default function DiscoverScreen() {
       toast.show(home ? `Already in ${home.name}` : 'Already in a stack', 'success');
       return;
     }
-    void deleteHabit(habit.id);
+    // Undoing an add you just made is instant — that is the checklist idiom this row is built on,
+    // and there is nothing yet to lose. Reaching anything older is a deletion, not an undo, so it
+    // asks in the same words the act's own sheet does. Same destruction either way; the difference
+    // is whether the tap can cost you something you didn't come here to spend.
+    if (createdHere.current.has(habit.id)) {
+      createdHere.current.delete(habit.id);
+      void deleteHabit(habit.id);
+      return;
+    }
+    confirmDestructive({
+      title: 'Delete habit',
+      message: `Delete “${habit.name}”? Its history goes with it.`,
+      onConfirm: () => void deleteHabit(habit.id),
+    });
   };
 
   // Presets grouped by category, each gated by the chip then the search term. Empty
