@@ -1,3 +1,5 @@
+import { StyleSheet } from 'react-native';
+
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
@@ -5,6 +7,8 @@ import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { OverTime } from '@/components/over-time';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
+import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
@@ -72,6 +76,25 @@ export default function ProgressScreen() {
           the ones a wider period doesn't already draw. Only one scale is ever *in* a card, so a
           figure is never set beside one measured against a different span. */}
       <OverTime seriesByPeriod={seriesByPeriod} periods={seriesPeriods} trend={trend} />
+
+      {/* The unit, once, for the whole screen.
+          Every card reads in degrees and a degree means a different thing on each of them: a full
+          orbit is one perfect DAY on Week and Month, one perfect Hijri month on Year, and one
+          perfect bucket on Lifetime. The bucket is named beside every figure, which says *what* is
+          being measured but never what a full one would be — so the same "0°" appeared four times
+          down the screen meaning four different things, with nothing anywhere saying so. It sits
+          here rather than in four card headers because it is one fact about the screen, and the
+          Insights orbit says the same sentence about the month it measures. */}
+      <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+        A full orbit is 360° — everything the span asked for, kept. Touch a line to read any point
+        on it.
+      </ThemedText>
     </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  // Hung on the card edge, like every other closing caption in the app (SettingsSection's footer,
+  // the reading screen's note).
+  note: { marginLeft: Spacing.three, marginRight: Spacing.three },
+});

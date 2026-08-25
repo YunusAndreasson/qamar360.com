@@ -35,6 +35,17 @@ type Props = {
  * Tapping opens the act's sheet (excuse it today, its insights, edit, move) — tap is *inspect*,
  * the seal button completes, and a long-press still belongs to the drag layer's wrapper
  * (`DraggableMemberRow`) for reordering the sequence.
+ *
+ * **And the `⋯` says so.** The day's rule is written down in `row-trailing-button.tsx`: a chevron
+ * means there is more of this to READ, a `⋯` means there are things you can DO to this. Every
+ * other row on the day wears one of the two, and this one — the only row whose tap opens a menu
+ * rather than committing something — wore neither. So on one screen, tapping "Exercised" ticked it
+ * and tapping "Said the morning adhkār" opened a sheet, with nothing on either row to tell them
+ * apart until you had tried both.
+ *
+ * It is a glyph, not a button: the whole row already opens the sheet, so a second target inside it
+ * would only split one verb into two. It sits in the same {@link TRAILING_BOX} column the loose
+ * rows' real `⋯` buttons occupy, so the day's trailing marks still hold one vertical line.
  */
 function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
   const theme = useTheme();
@@ -111,6 +122,10 @@ function ActRowBase({ habit, ordinal, done, skipped, onPress, onMove }: Props) {
           {`· ${target}${habit.target_unit ? ` ${habit.target_unit}` : ''}`}
         </ThemedText>
       ) : null}
+      {/* The "there are things you can do to this" mark — see the component's doc. `textSecondary`
+          and 18pt, the tone and size `RowTrailingButton` gives the real `⋯` buttons above and
+          below, and the row's own 16pt right padding lands its centre on exactly their column. */}
+      <AppIcon name="ellipsis" size={18} color={theme.textSecondary} />
     </Touchable>
   );
 }

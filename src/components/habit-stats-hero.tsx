@@ -95,13 +95,22 @@ export function HabitStatsHero({
               strokeWidth={RING_STROKE}
               fill="none"
             />
+            {/* Butt-capped at exactly zero, round once there is an arc to cap. **A round cap on a
+                ZERO-length dash is still drawn** — SVG renders it as a full dot — so a habit you
+                have never kept put a bright 12pt accent mark at the top of the ring, directly above
+                a reading of "0°", where it read as the first sliver of progress. The same defect,
+                and the same fix, as the Progress orbit (`month-summary`) and the day's completion
+                mark (`completion-ring`, which hides the stroke below 0.004 instead); this ring was
+                the one place the guard had never been applied. The cap follows the TARGET rate, not
+                the animated value, so a sweep that starts from zero still rounds off the whole way
+                up. */}
             <AnimatedCircle
               cx={RING_CENTER}
               cy={RING_CENTER}
               r={RING_RADIUS}
               stroke={arcColor}
               strokeWidth={RING_STROKE}
-              strokeLinecap="round"
+              strokeLinecap={rate > 0 ? 'round' : 'butt'}
               strokeDasharray={RING_CIRCUMFERENCE}
               animatedProps={arcProps}
               fill="none"

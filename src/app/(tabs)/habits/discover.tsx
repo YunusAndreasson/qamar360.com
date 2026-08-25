@@ -7,10 +7,10 @@ import { DiscoverFilterChips, type Filter } from '@/components/discover-filter-c
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
+import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
-import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
@@ -346,14 +346,17 @@ export default function DiscoverScreen() {
           </View>
         );
       case 'category':
-        // A real heading (not the 14pt overline) so the eye can walk the library by section;
-        // it sits tight above its own card — closer to what it names than to what precedes it.
+        // The app's one section caption, the same `SectionLabel` the stack and exchange libraries
+        // use for the very same job — and Settings, and the day, and the Insights feed. This screen
+        // was the single place that reached for an 18pt `heading` instead, on the argument that a
+        // long library needs a stronger marker to walk by; but the two sibling libraries reached
+        // from the same + menu are no shorter, and this is the only one of the three that ALSO has
+        // filter chips pinned at its head. One idiom, and the wayfinding it was traded for is
+        // already on the screen.
         return (
           <View style={wrap}>
             <View style={styles.section}>
-              <ThemedText type="heading" style={styles.sectionTitle}>
-                {item.category.title}
-              </ThemedText>
+              <SectionLabel>{item.category.title.toUpperCase()}</SectionLabel>
               <SettingsSection>
                 {item.presets.map((preset) => (
                   <SunnahPresetRow
@@ -474,5 +477,4 @@ const styles = StyleSheet.create({
   // A category: its heading hugs the card it names (the inter-section gap above provides the
   // separation from the previous group).
   section: { gap: Spacing.two },
-  sectionTitle: { marginLeft: Spacing.one },
 });

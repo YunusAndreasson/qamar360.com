@@ -6,6 +6,10 @@ import { moonPhasePath } from '@/lib/moon';
 /** The unlit disc — the rest of the moon in shadow, a faint wash of the moon's own moonlight. */
 const FAINT = 0.14;
 
+/** The limb, for a moon small enough to be mistaken for something else. See `rim`. */
+const RIM_OPACITY = 0.32;
+const RIM_WIDTH = 0.045; // of the diameter — ~1.2pt on a 26pt row glyph, ~2pt on a 44pt card one
+
 /**
  * The moon at a given phase: a faint full disc (the moon in shadow) with the lit portion
  * bright on top. Purely presentational — the lunar-month card carries the label. It shows
@@ -16,6 +20,7 @@ export function MoonPhase({
   waxing,
   size,
   brightness = 1,
+  rim = false,
 }: {
   illumination: number;
   waxing: boolean;
@@ -26,9 +31,26 @@ export function MoonPhase({
    * translucent and letting the halo bleed through. The Progress hero lights it to full at completion.
    */
   brightness?: number;
+  /**
+   * Trace the limb in the moon's own light — earthshine, in effect: the edge of the disc stays
+   * visible however little of it the sun is on.
+   *
+   * For the moons that sit in a LIST, where the glyph is a row's leading mark and not the subject.
+   * A new moon is 14% of one colour on a card of nearly the same colour, so on the Insights feed
+   * every fourth row led with what looked like a failed image while its three neighbours led with
+   * a bright disc — the reader's eye reads that as a fault, not as a phase. A hairline says "this
+   * is a moon, and it is dark", which is the actual fact.
+   *
+   * Off by default, and deliberately off on the hero: that moon is 184pt inside a 232pt ring, and
+   * a rim on it would simply be a fourth concentric circle in a composition already carrying three.
+   */
+  rim?: boolean;
 }) {
   const theme = useTheme();
   const r = size / 2;
+  // Inset by half the stroke: a stroke is centred on its path, so one drawn at the full radius
+  // would hang half its width outside the viewBox and be shaved off by the SVG's own bounds.
+  const rimWidth = Math.max(1, size * RIM_WIDTH);
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {/* Solid base so the moon is an opaque object — it occludes the halo behind it, rather
@@ -38,6 +60,17 @@ export function MoonPhase({
       <Circle cx={r} cy={r} r={r} fill={theme.complete} fillOpacity={FAINT * brightness} />
       {illumination > 0.005 ? (
         <Path d={moonPhasePath(r, r, r, illumination, waxing)} fill={theme.complete} fillOpacity={brightness} />
+      ) : null}
+      {rim ? (
+        <Circle
+          cx={r}
+          cy={r}
+          r={r - rimWidth / 2}
+          stroke={theme.complete}
+          strokeOpacity={RIM_OPACITY * brightness}
+          strokeWidth={rimWidth}
+          fill="none"
+        />
       ) : null}
     </Svg>
   );

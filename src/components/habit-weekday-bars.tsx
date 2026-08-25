@@ -39,20 +39,26 @@ function weekdayA11y(stat: WeekdayStat, best: number | null, tough: number | nul
   return `${plural(stat.weekday)}, ${toDegrees(stat.rate)} degrees${tag}`;
 }
 
-/** One weekday's bar — a track the fill grows up within on appear (staggered left-to-right, the
- *  month grid's wave at bar scale). The best day is warm `complete` moonlight; the rest cool
- *  steel. No persistent focus mark: the readout swap + selection haptic are the acknowledgment
- *  (the same restraint as the year chart). */
+/**
+ * One weekday's bar — a track the fill grows up within on appear (staggered left-to-right, the
+ * month grid's wave at bar scale). No persistent focus mark: the readout swap + selection haptic
+ * are the acknowledgment (the same restraint as the year chart).
+ *
+ * **Every bar is the same tone.** The best day used to be drawn in warm `complete` moonlight, which
+ * is the one colour this app reserves for a thing KEPT IN FULL — the lit moon, the closed orbit, a
+ * quarter's figure at 360°. "Your strongest weekday" is a superlative, not a completion: a gold
+ * Sunday standing at 40° told a reader who had learned the app's one colour rule that Sundays were
+ * finished. The rank was never the colour's job anyway — the tallest bar is the best one, which is
+ * what a bar chart is FOR, and the readout above names it in words.
+ */
 function Bar({
   stat,
   index,
-  isBest,
   onPress,
   a11yLabel,
 }: {
   stat: WeekdayStat;
   index: number;
-  isBest: boolean;
   onPress: () => void;
   a11yLabel: string;
 }) {
@@ -73,7 +79,7 @@ function Bar({
   return (
     <Pressable style={styles.barCol} onPress={onPress} accessibilityRole="button" accessibilityLabel={a11yLabel}>
       <View style={[styles.track, { backgroundColor: theme.accentTrack }]}>
-        <Animated.View style={[styles.fill, { backgroundColor: isBest ? theme.complete : theme.accent }, fillStyle]} />
+        <Animated.View style={[styles.fill, { backgroundColor: theme.accent }, fillStyle]} />
       </View>
       <ThemedText type="smallCompact" themeColor="textSecondary" maxFontSizeMultiplier={DenseLabelScale}>
         {WEEKDAY_LABELS[stat.weekday]}
@@ -139,7 +145,6 @@ export function HabitWeekdayBars({
             key={w.weekday}
             stat={w}
             index={i}
-            isBest={w.weekday === bestWeekday}
             a11yLabel={weekdayA11y(w, bestWeekday, toughestWeekday)}
             onPress={() => {
               haptics.selection();

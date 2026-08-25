@@ -44,7 +44,7 @@ function ReadingRow({ reading }: { reading: Reading }) {
       accessibilityLabel={`${reading.phaseLabel}, ${readingSpanLabel(reading)}. ${reading.lead.headline}`}
       accessibilityHint="Opens the reading in full"
       style={styles.row}>
-      <MoonPhase illumination={reading.illumination} waxing={reading.waxing} size={26} />
+      <MoonPhase illumination={reading.illumination} waxing={reading.waxing} size={26} rim />
       <View style={styles.rowText}>
         <ThemedText type="rowTitle" numberOfLines={2}>
           {reading.lead.headline}
@@ -56,6 +56,28 @@ function ReadingRow({ reading }: { reading: Reading }) {
       <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
     </Touchable>
   );
+}
+
+/**
+ * The earlier readings, cut into the Hijri months they are about — newest month first, which is
+ * the order they already arrive in ({@link computeReadings} returns newest first, and a month's
+ * four quarters with it), so one pass with no sorting keeps the feed's order exactly.
+ *
+ * A year of quarters is ~48 rows, and a flat run of them is a wall: every row is a claim about a
+ * span, none of them says which part of the year you are looking at, and the only way to find the
+ * month you remembered was to read every headline on the way down. A month is the unit this whole
+ * feature is written in — the orbit measures one, the four moons quarter one — so it is the unit
+ * the back-catalogue is filed under.
+ */
+function byMonth(readings: Reading[]): { key: string; label: string; readings: Reading[] }[] {
+  const groups: { key: string; label: string; readings: Reading[] }[] = [];
+  for (const reading of readings) {
+    const key = `${reading.span.year}-${reading.span.monthNumber}`;
+    const open = groups.at(-1);
+    if (open?.key === key) open.readings.push(reading);
+    else groups.push({ key, label: `${reading.span.monthName} ${reading.span.year}`, readings: [reading] });
+  }
+  return groups;
 }
 
 /**
@@ -148,13 +170,17 @@ export default function InsightsScreen() {
       {newest ? (
         <>
           <ReadingCard reading={newest} onPress={() => router.push({ pathname: '/(tabs)/insights/[id]', params: { id: newest.id } })} />
-          {earlier.length > 0 ? (
-            <SettingsSection title="Earlier">
-              {earlier.map((reading) => (
+          {/* One card per Hijri month, under its own name. The label used to be a single "EARLIER"
+              over every reading ever written; it named the pile rather than anything in it, and
+              said nothing a reader could navigate by. The months do both — they say what is below
+              them AND where in the record you have scrolled to. */}
+          {byMonth(earlier).map((group) => (
+            <SettingsSection key={group.key} title={group.label}>
+              {group.readings.map((reading) => (
                 <ReadingRow key={reading.id} reading={reading} />
               ))}
             </SettingsSection>
-          ) : null}
+          ))}
         </>
       ) : (
         // Habits exist, but no quarter has closed yet. Say when the first one will — a wait with

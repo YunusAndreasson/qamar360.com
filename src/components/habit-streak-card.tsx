@@ -38,10 +38,16 @@ export function HabitStreakCard({ currentStreak, longestStreak }: { currentStrea
         <StatCardHeader title="Streak" />
         <StatReadout text={readout} refreshKey={currentStreak} />
       </View>
+      {/* Subject on the left, reference on the right — and the left one is the brighter, which is
+          the rule the reading card's quarter-on-quarter pair also keeps ("this quarter" in `text`,
+          "last quarter" muted). It was the other way round here: `longest` sat in full `text` while
+          a `current` of 0 sat in `textSecondary`, so a pair whose whole point is the streak you are
+          on gave its weight to the one you are not. `accent` stays for a live streak — the app's
+          "this is running" tone, the same one the open ring on the day wears. */}
       <View style={styles.figures}>
-        <Figure value={currentStreak} label="current" tone={currentStreak > 0 ? theme.accent : theme.textSecondary} />
+        <Figure value={currentStreak} label="current" tone={currentStreak > 0 ? theme.accent : theme.text} />
         <View style={[styles.divider, { backgroundColor: theme.border }]} />
-        <Figure value={longestStreak} label="longest" tone={theme.text} />
+        <Figure value={longestStreak} label="longest" tone={theme.textSecondary} />
       </View>
     </StatCard>
   );

@@ -40,7 +40,8 @@ export const RING_STROKE = 16;
 // The moon fills the orbit's interior exactly as a day-grid cell fills its ring
 // (ProgressCircle: disc = box − 3×stroke, leaving a stroke/2 gap to the ring), so the hero and
 // the "This month" moons read as one object at two scales — not a snug disc beside a floating
-// one. 232 − 3×12 = 196.
+// one. 232 − 3×16 = 184. (It was 196 while the stroke was 12; the size is DERIVED, so raising
+// RING_STROKE to give the band enough ink to read as a gauge is what shrank the disc.)
 const MOON_SIZE = ORBIT_SIZE - RING_STROKE * 3;
 // The halo radiates past the orbit into the card; sized to stay within the card's width.
 const HALO_SIZE = 330;

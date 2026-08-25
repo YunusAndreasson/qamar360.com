@@ -5,7 +5,7 @@ import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { StatsSkeleton } from '@/components/progress-skeleton';
-import { ReadingCard, readingSpanLabel } from '@/components/reading-card';
+import { ReadingCard } from '@/components/reading-card';
 import { SettingsSection } from '@/components/settings-section';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
@@ -43,13 +43,20 @@ function QuarterShape({ reading }: { reading: Reading }) {
   );
 }
 
+/**
+ * One line of the arithmetic: what was counted on the left, what it came to on the right.
+ *
+ * The figure carries the weight. Label and value were both plain 14pt and told apart only by
+ * colour, so three rows of evidence read as six equal fragments; bolding the values gives the card
+ * a column you can run your eye down without reading a word of the left-hand side.
+ */
 function Line({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.line}>
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="smallCompact">{value}</ThemedText>
+      <ThemedText type="smallCompactBold">{value}</ThemedText>
     </View>
   );
 }
@@ -106,8 +113,13 @@ export default function ReadingScreen() {
 
       <QuarterShape reading={reading} />
 
+      {/* The unit, and nothing else. This used to open "Written at the first quarter, about 1–7
+          Rabīʿ al-Awwal" — which is the screen's TITLE and the card's dateline, said a third time,
+          at the bottom of a screen you reached by tapping that very phrase. What was left after
+          striking it is the one thing here that appears nowhere else: what a full orbit means on
+          this screen, since a quarter's 360° is not the month's 360° on the tab behind it. */}
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        {`Written at the ${reading.phaseLabel.toLowerCase()}, about ${readingSpanLabel(reading)}. A full orbit is the whole quarter kept.`}
+        A full orbit is 360° — the whole quarter kept.
       </ThemedText>
     </AppScreen>
   );

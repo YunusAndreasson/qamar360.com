@@ -92,29 +92,6 @@ function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod
   return from ? `${from.day} ${from.monthName} – ${end}` : end;
 }
 
-/**
- * What the card's trailing caption says the line covers — but only where nothing else on screen
- * already says it.
- *
- * `month` and `year` open at the current Hijri month's and year's boundary, which is precisely what
- * the hero card at the top of the screen is CAPTIONED with ("Ṣafar 1448 H"). Printing "Ṣafar 1448"
- * or "1448 H" again on a card already titled "Month" is the same fact three times over. `week` and
- * `lifetime` name no date at all, so for them the caption is the record's only anchor and it stays.
- */
-function spanCaption(series: RecordSeries): string | undefined {
-  const from = series.sinceISO ? hijriParts(series.sinceISO) : null;
-  if (!from) return undefined;
-  switch (series.period) {
-    case 'week':
-      return `from ${from.day} ${from.monthName}`;
-    case 'life':
-      return `since ${from.monthName} ${from.year}`;
-    case 'month':
-    case 'year':
-      return undefined;
-  }
-}
-
 /** How each period names its card. Narrowest first — the order they are shown in. */
 const PERIOD_LABEL: Record<SeriesPeriod, string> = {
   week: 'Week',
@@ -398,11 +375,17 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
    * kept. A bucket's is that bucket's own rate — and the bucket rescales with the selector, so a
    * full orbit is one perfect day on Week and Month, one perfect Hijri month on Year, one perfect
    * span-of-N-days on Lifetime. Nothing else on screen says which. The label does.
+   *
+   * A bucket still running used to add " so far". It was a hedge, not a fact: every reading on this
+   * card is "so far" — a closed one is what a span came to, an open one is what it has come to —
+   * and the card already says which, twice, in the medium that can say it (the curve turns to a
+   * dash at the open bucket, and the dot on it is hollow). Four cards ending in the same three
+   * words down one screen read as an apology for the number above them.
    */
   const readingFor = (p: SeriesPoint) =>
     p.possible === 0
       ? `${bucketLabel(p, period)} · nothing due`
-      : `${bucketLabel(p, period)} · ${toDegrees(p.rate)}°${p.pending ? ' so far' : ''}`;
+      : `${bucketLabel(p, period)} · ${toDegrees(p.rate)}°`;
 
   // At rest the line reads the newest bucket — where you are now, which is what you came for.
   //
@@ -413,10 +396,28 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // when, or at what level. The one direction that survives is the multi-month sentence below,
   // which no arrowhead can draw: it names the month the run began in. (The word is not lost for
   // everyone — see the accessibility label, where an arrowhead is no use.)
+  // The newest bucket, or nothing at all. This read `points[count - 1]!` under a comment claiming
+  // "`count === 0` returned null long before here" — it does not: that guard is ~50 lines BELOW,
+  // and it has to be, because every hook in this component runs between here and there. So an
+  // empty series reached `readingFor(undefined)`, which dereferences `p.possible` on the first
+  // line, and took the whole Progress tab down.
+  //
+  // Not hypothetical: `seriesPeriods` returns `life` unconditionally ("the record itself is always
+  // readable"), and `computeProgress` hands back four EMPTY series whenever `live` is false — which
+  // includes a record whose only habits are optimistic rows with no `created_at` yet, and a device
+  // clock far enough ahead that `opened > today`. `habitsCount` is non-zero in both cases, so the
+  // screen's empty state does not fire and this card renders.
+  //
+  // A missing reading is already a state everything downstream handles (the readout renders only
+  // `readoutText ?` and the a11y value falls back to `''`), so the fix is to say there isn't one
+  // rather than to invent a guard the hook order can't support.
+  const latest = points[count - 1];
   const restingText =
     trend && trend.risingMonths >= 3 && trend.sinceMonthName
       ? `Rising since ${trend.sinceMonthName}`
-      : readingFor(points[count - 1]!); // `count === 0` returned null long before here
+      : latest
+        ? readingFor(latest)
+        : null;
   const readoutText = focusedPoint ? readingFor(focusedPoint) : restingText;
 
   // "of N days each" only where the buckets have a width to name — a year's are calendar months.
@@ -470,10 +471,16 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
 
   return (
     <StatCard>
-      {/* The period names the card — the same four words the selector used to carry, now sitting
-          where a card says what it is. What the line covers rides the caption, where the span still
-          needs saying (see {@link spanCaption}). */}
-      <StatCardHeader title={PERIOD_LABEL[period]} trailing={spanCaption(series)} />
+      {/* The period names the card, and nothing else does — the same four words the selector used
+          to carry, now sitting where a card says what it is.
+
+          Two of the four used to carry a trailing span caption as well ("from 6 Rabīʿ al-Awwal",
+          "since Dhū al-Qaʿdah 1447") while Month and Year carried none, so four cards of one kind
+          wore two different headers down one screen — and the reason the other two went without
+          (the hero above them was captioned with the month) left for Insights with the orbit. The
+          dates are not lost: this card's own rule is that nothing names a date until you ask, and
+          the reading below already names the bucket you are standing on. */}
+      <StatCardHeader title={PERIOD_LABEL[period]} />
 
       {/* The reading and the plot are ONE unit, and the layout now says so: the readout is the
           chart's caption, it changes with the finger scrubbing the chart, and nothing may come
