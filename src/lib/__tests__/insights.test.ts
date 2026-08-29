@@ -252,7 +252,7 @@ describe('computeReadings', () => {
     expect(`${third.lead.headline} ${third.lead.body}`).not.toMatch(/same as last/i);
   });
 
-  it('names the act that gained the most ground', () => {
+  it('names the act that rose the most', () => {
     const start = monthShape('2026-06-15').start;
     const today = addDaysISO(monthShape(start).end, 25);
     const q2 = addDaysISO(start, 7);

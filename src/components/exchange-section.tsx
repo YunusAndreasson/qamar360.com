@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import { CardSection } from '@/components/card-section';
 import { ExchangeRow } from '@/components/exchange-row';
 import type { Habit } from '@/hooks/use-habits';
@@ -34,7 +36,7 @@ type Props = {
  * opened onto did not justify the chevron (see {@link ExchangeRow}). Each row's `⋯` goes straight
  * to the sheet instead.
  */
-export function ExchangeSection({ exchanges, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
+function ExchangeSectionBase({ exchanges, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
   if (exchanges.length === 0) return null;
 
   return (
@@ -58,3 +60,21 @@ export function ExchangeSection({ exchanges, topGap, completed, skipped, settlin
     </CardSection>
   );
 }
+
+/** Set identity changes for every Today completion; only membership for these exchanges matters. */
+export const ExchangeSection = memo(ExchangeSectionBase, (prev, next) => {
+  if (
+    prev.exchanges !== next.exchanges ||
+    prev.topGap !== next.topGap ||
+    prev.settling !== next.settling ||
+    prev.onToggle !== next.onToggle ||
+    prev.onOptions !== next.onOptions
+  ) {
+    return false;
+  }
+  return next.exchanges.every(
+    (exchange) =>
+      prev.completed.has(exchange.id) === next.completed.has(exchange.id) &&
+      prev.skipped.has(exchange.id) === next.skipped.has(exchange.id),
+  );
+});

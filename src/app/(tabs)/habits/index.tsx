@@ -1,5 +1,5 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
@@ -76,6 +76,105 @@ function viewDateTitle(viewDate: string, today: string): string {
 /** A top-level card of the day: a stack and the acts it has due. Every habit lives in one, so
  *  this is the only kind of entry the list has. */
 type Entry = { stack: HabitStack; members: Habit[]; sortKey: number };
+
+type StackEntryProps = {
+  entry: Entry;
+  index: number;
+  completed: Set<string>;
+  skipped: Set<string>;
+  settling: boolean;
+  onSeal: (stackId: string) => void;
+  onUnseal: (stackId: string) => void;
+  onAct: (habit: Habit) => void;
+  onEditStack: (stackId: string) => void;
+  onMove: (stackId: string, delta: -1 | 1) => void;
+  onMoveHabit: (habit: Habit, delta: -1 | 1) => void;
+  onAddHabits: (stackId: string) => void;
+  expanded: boolean;
+  onSetExpanded: (stackId: string, expanded: boolean) => void;
+  isCurrentChapter: boolean;
+  currentChapterUntil: string | undefined;
+};
+
+function StackEntryBase({
+  entry,
+  index,
+  completed,
+  skipped,
+  settling,
+  onSeal,
+  onUnseal,
+  onAct,
+  onEditStack,
+  onMove,
+  onMoveHabit,
+  onAddHabits,
+  expanded,
+  onSetExpanded,
+  isCurrentChapter,
+  currentChapterUntil,
+}: StackEntryProps) {
+  return (
+    <DraggableEntry
+      entryKey={`stack:${entry.stack.id}`}
+      index={index}
+      stackId={entry.stack.id}
+      // The empty "Add your first act" card holds the list's end and has no unit in the order
+      // math — every drop of it would snap back, so don't offer the lift. It still accepts acts.
+      draggable={entry.members.length > 0}>
+      <StackCard
+        stack={entry.stack}
+        members={entry.members}
+        completed={completed}
+        skipped={skipped}
+        settling={settling}
+        onSeal={onSeal}
+        onUnseal={onUnseal}
+        onAct={onAct}
+        onEditStack={onEditStack}
+        onMove={onMove}
+        onMoveHabit={onMoveHabit}
+        onAddHabits={onAddHabits}
+        expanded={expanded}
+        onSetExpanded={onSetExpanded}
+        isCurrentChapter={isCurrentChapter}
+        currentChapterUntil={currentChapterUntil}
+      />
+    </DraggableEntry>
+  );
+}
+
+/**
+ * The compiler cannot infer that replacing the day's completed/skipped Sets is irrelevant to a
+ * stack whose own member ids did not change. Keep that semantic boundary around the drag wrapper:
+ * otherwise ticking one loose act rebuilds every card's gesture subtree before StackCard's own
+ * membership-aware memo gets a chance to reject the update.
+ */
+const StackEntry = memo(StackEntryBase, (prev, next) => {
+  if (
+    prev.entry !== next.entry ||
+    prev.index !== next.index ||
+    prev.settling !== next.settling ||
+    prev.onSeal !== next.onSeal ||
+    prev.onUnseal !== next.onUnseal ||
+    prev.onAct !== next.onAct ||
+    prev.onEditStack !== next.onEditStack ||
+    prev.onMove !== next.onMove ||
+    prev.onMoveHabit !== next.onMoveHabit ||
+    prev.onAddHabits !== next.onAddHabits ||
+    prev.expanded !== next.expanded ||
+    prev.onSetExpanded !== next.onSetExpanded ||
+    prev.isCurrentChapter !== next.isCurrentChapter ||
+    prev.currentChapterUntil !== next.currentChapterUntil
+  ) {
+    return false;
+  }
+  return next.entry.members.every(
+    (member) =>
+      prev.completed.has(member.id) === next.completed.has(member.id) &&
+      prev.skipped.has(member.id) === next.skipped.has(member.id),
+  );
+});
 
 /** The starting fold state of every day: all shut. Hoisted so a day-step reads one stable
  *  identity rather than minting an empty Set per render. */
@@ -638,41 +737,25 @@ export default function HabitsScreen() {
                     these has a screen-reader action twin — no capability is gesture-only. */}
                 <DragGrid style={styles.gridBreath}>
                   {entries.map((entry, index) => (
-                    <DraggableEntry
+                    <StackEntry
                       key={`stack-${entry.stack.id}`}
-                      entryKey={`stack:${entry.stack.id}`}
+                      entry={entry}
                       index={index}
-                      stackId={entry.stack.id}
-                      // The empty "Add your first act" card holds the list's end and has no unit in
-                      // the order math — every drop of it would snap back, so don't offer the lift.
-                      // (It still accepts acts dropped ONTO it, as always.)
-                      draggable={entry.members.length > 0}>
-                      <StackCard
-                        // Remount on a day-step, so the card's edge guards (`firstRun`, and the
-                        // `wasComplete` in both the seal flash and the completion ring) all start
-                        // from the new day's truth at rest — a stack already sealed on the
-                        // newly-viewed day mounts quiet instead of replaying its seal. An in-day
-                        // seal keeps the same key, so its fold still plays. (The fold state itself
-                        // is day-scoped in `expandedIds`, not carried by this key.)
-                        key={viewDate}
-                        stack={entry.stack}
-                        members={entry.members}
-                        completed={completed}
-                        skipped={skipped}
-                        settling={completionsLoading}
-                        onSeal={sealStack}
-                        onUnseal={unsealStack}
-                        onAct={openAct}
-                        onEditStack={openStackActions}
-                        onMove={moveStackForA11y}
-                        onMoveHabit={moveRowForA11y}
-                        onAddHabits={openAddHabits}
-                        expanded={expandedIds.has(entry.stack.id)}
-                        onSetExpanded={setCardExpanded}
-                        isCurrentChapter={stackLit(entry.stack)}
-                        currentChapterUntil={stackUntil(entry.stack)}
-                      />
-                    </DraggableEntry>
+                      completed={completed}
+                      skipped={skipped}
+                      settling={completionsLoading}
+                      onSeal={sealStack}
+                      onUnseal={unsealStack}
+                      onAct={openAct}
+                      onEditStack={openStackActions}
+                      onMove={moveStackForA11y}
+                      onMoveHabit={moveRowForA11y}
+                      onAddHabits={openAddHabits}
+                      expanded={expandedIds.has(entry.stack.id)}
+                      onSetExpanded={setCardExpanded}
+                      isCurrentChapter={stackLit(entry.stack)}
+                      currentChapterUntil={stackUntil(entry.stack)}
+                    />
                   ))}
                   <HabitsDragGhost
                     dragEntryKey={dragEntryKey}

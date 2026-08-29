@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
-import { useHabits } from '@/hooks/use-habits';
+import { useHabitsTaskBridge } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { todayLocalISO } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, setOpenTasksProbe } from '@/lib/day-close';
@@ -55,6 +55,7 @@ type TasksContextValue = {
 };
 
 const TasksContext = createContext<TasksContextValue | null>(null);
+const TasksSummaryContext = createContext<{ openToday: number } | null>(null);
 
 export function useTasks(): TasksContextValue {
   const value = useContext(TasksContext);
@@ -62,10 +63,17 @@ export function useTasks(): TasksContextValue {
   return value;
 }
 
+/** The one task value tab chrome needs, without subscribing it to the task collection. */
+export function useTasksSummary(): { openToday: number } {
+  const value = useContext(TasksSummaryContext);
+  if (!value) throw new Error('useTasksSummary must be used within a TasksProvider');
+  return value;
+}
+
 export function TasksProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const { viewDate, today, habits, completed, skipped } = useHabits();
+  const { viewDate, today, getDayCloseSnapshot } = useHabitsTaskBridge();
   const { celebrate: showDayComplete } = useDayComplete();
 
   // Seed from the last-known snapshot so the section paints on the first frame instead of shoving
@@ -81,14 +89,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const rowsRef = useLatestRef(rows);
   const viewDateRef = useLatestRef(viewDate);
   const todayRef = useLatestRef(today);
-  // The habits state the day-close rule is judged against, read at the instant of a tick and
-  // never rendered here — so it goes through refs like everything else a handler reaches for.
-  // Depending on it directly re-identified `toggleTask` on every seal, which re-identified this
-  // whole context value, which rebuilt every TaskRow (their comparator reads `onToggle`) and
-  // re-rendered the tab bar — all so that a habit tick could redraw the to-do list.
-  const habitsRef = useLatestRef(habits);
-  const completedRef = useLatestRef(completed);
-  const skippedRef = useLatestRef(skipped);
   const pending = useRef<Set<string>>(new Set()); // task ids with an in-flight write
   const cancelledTempIds = useRef<Set<string>>(new Set());
   // Rows this session has deleted. A delete removes the row optimistically, its sheet pops on that
@@ -237,10 +237,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       } else {
         // One crisp confirm — never the seal's rounder tail beat, which means "a group settled
         // together". A task is one thing, standing on its own, exactly like an exchange.
+        const habits = getDayCloseSnapshot();
         const close = dayCloseAfter(
-          habitsRef.current,
-          skippedRef.current,
-          completedRef.current,
+          habits.habits,
+          habits.skipped,
+          habits.completed,
           new Set<string>(),
           day,
           openCountOn(applied, day, todayRef.current),
@@ -267,7 +268,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         pending.current.delete(taskId);
       }
     },
-    [userId, showDayComplete, habitsRef, completedRef, skippedRef, rowsRef, viewDateRef, todayRef],
+    [userId, showDayComplete, getDayCloseSnapshot, rowsRef, viewDateRef, todayRef],
   );
 
   const renameTask = useCallback(async (taskId: string, title: string) => {
@@ -327,6 +328,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }),
     [tasks, openToday, loading, error, dismissError, createTask, toggleTask, renameTask, deleteTask, refresh],
   );
+  const summaryValue = useMemo(() => ({ openToday }), [openToday]);
 
-  return <TasksContext value={value}>{children}</TasksContext>;
+  return (
+    <TasksSummaryContext value={summaryValue}>
+      <TasksContext value={value}>{children}</TasksContext>
+    </TasksSummaryContext>
+  );
 }

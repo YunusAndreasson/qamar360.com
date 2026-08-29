@@ -6,8 +6,12 @@ import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { HabitsProvider, useHabits } from '@/hooks/use-habits';
-import { TasksProvider, useTasks } from '@/hooks/use-tasks';
+import {
+  HabitsProvider,
+  useHabitsNavigation,
+  useHabitsSummary,
+} from '@/hooks/use-habits';
+import { TasksProvider, useTasksSummary } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { latestReadingId } from '@/lib/insights';
 import { setAppBadgeCount } from '@/lib/notifications';
@@ -42,52 +46,9 @@ function Tabs() {
   const colors = useTheme();
   const scheme = useEffectiveScheme();
   const pathname = usePathname();
-  // What the day still asks of you, counted in **units**: one per unsealed stack (never one per
-  // act inside it — the stack is what you do and seal), one per open exchange, one per task still
-  // on the list. Summed here because it is the one place both providers are in view.
-  const { remainingToday, today, habits, setViewDate } = useHabits();
-  const { openToday } = useTasks();
-  const { user } = useAuth();
-  const remaining = remainingToday + openToday;
-
-  // Whether a moon quarter has closed since the user last opened Insights. Which quarter that is
-  // comes from the calendar alone ({@link latestReadingId}) — no fetch, so the tab bar costs
-  // nothing — and the screen stamps the preference when it is looked at. Held back until there
-  // is at least one habit: a dot promising a reading of a record that doesn't exist is a lie.
-  const seenReading = usePreference('insightsSeen');
-  const latestReading = latestReadingId(today);
-  const unread = habits.length > 0 && latestReading !== null && latestReading !== seenReading;
-
-  // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
-  // it — a firing lunar update carries no `badge`. Zeroed on unmount too: leaving the authed tree
-  // (sign-out) must not leave the previous user's count sitting on the icon at the sign-in screen.
-  useEffect(() => {
-    void setAppBadgeCount(user ? remaining : 0);
-  }, [user, remaining]);
-  useEffect(
-    () => () => {
-      void setAppBadgeCount(0);
-    },
-    [],
-  );
-  // Re-assert on every foreground, not just when `remaining` itself changes: the OS owns this
-  // number once set, and can hold a stale one across a background stretch (a backfilled day
-  // left `remaining` momentarily wrong before this session ever saw the correction, a lunar
-  // update fired while backgrounded, or the launcher simply didn't apply an earlier write) — the
-  // in-app tab badge always reads live, so only the icon can drift.
-  //
-  // An Effect Event, so the listener is registered ONCE. Reading `remaining` reactively meant
-  // every seal, every task tick and every day-step tore the AppState subscription down and put
-  // an identical one back — the exact churn `useEffectEvent` exists to remove.
-  const reassertBadge = useEffectEvent(() => {
-    void setAppBadgeCount(user ? remaining : 0);
-  });
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') reassertBadge();
-    });
-    return () => sub.remove();
-  }, []);
+  // Navigation needs the live calendar but not completion state. Keeping this subscription
+  // separate lets badge changes update a leaf below without rebuilding the native navigator.
+  const { today, setViewDate } = useHabitsNavigation();
 
   return (
     <NativeTabs
@@ -128,7 +89,7 @@ function Tabs() {
           },
         }}>
         {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. */}
-        {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
+        <TodayBadge />
         {/* "Today", not "Habits": the screen holds stacks, exchanges and to-dos, and only one of
             those is a habit in the ordinary sense. The route is still `habits` (renaming it would
             churn every pathname for nothing) — this is the label the user reads, and it has always
@@ -146,7 +107,7 @@ function Tabs() {
       <Trigger name="insights">
         {/* A dot, never a count. There is only ever one thing to say — a new quarter has closed —
             and a number here would read as a backlog to clear. */}
-        {unread ? <Trigger.Badge>{' '}</Trigger.Badge> : null}
+        <InsightsBadge />
         <Trigger.Label>Insights</Trigger.Label>
         {Platform.OS === 'ios' ? (
           <Trigger.Icon sf="moon.fill" />
@@ -172,4 +133,50 @@ function Tabs() {
       </Trigger>
     </NativeTabs>
   );
+}
+
+/** The completion-sensitive part of the tab tree. A tick updates this leaf, not NativeTabs. */
+function TodayBadge() {
+  // What the day still asks of you, counted in **units**: one per unsealed stack, one per open
+  // exchange, and one per open task. This is the one leaf where both providers are in view.
+  const { remainingToday } = useHabitsSummary();
+  const { openToday } = useTasksSummary();
+  const { user } = useAuth();
+  const remaining = remainingToday + openToday;
+
+  // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
+  // it. Zeroed on unmount so sign-out cannot leave the previous user's count on the icon.
+  useEffect(() => {
+    void setAppBadgeCount(user ? remaining : 0);
+  }, [user, remaining]);
+  useEffect(
+    () => () => {
+      void setAppBadgeCount(0);
+    },
+    [],
+  );
+
+  // Re-assert on every foreground. The Effect Event keeps the listener registered once while
+  // reading the latest count at the event seam.
+  const reassertBadge = useEffectEvent(() => {
+    void setAppBadgeCount(user ? remaining : 0);
+  });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') reassertBadge();
+    });
+    return () => sub.remove();
+  }, []);
+
+  return remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null;
+}
+
+/** Reading-state leaf: collection/calendar changes need not rebuild the native navigator. */
+function InsightsBadge() {
+  const { hasHabits } = useHabitsSummary();
+  const { today } = useHabitsNavigation();
+  const seenReading = usePreference('insightsSeen');
+  const latestReading = latestReadingId(today);
+  const unread = hasHabits && latestReading !== null && latestReading !== seenReading;
+  return unread ? <Trigger.Badge>{' '}</Trigger.Badge> : null;
 }

@@ -390,10 +390,10 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => openBrowser(Links.maker)}
           accessibilityRole="link"
-          accessibilityLabel="Made by Yunus Andreasson, opens andreassonphoto.com"
+          accessibilityLabel="Made by Edenmind, opens andreassonphoto.com"
           style={({ pressed }) => [styles.makerLink, pressed && styles.footerPressed]}>
           <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
-            Made by Yunus Andreasson
+            Made by Edenmind
           </ThemedText>
           <AppIcon name="openInNew" size={13} color={theme.textSecondary} />
         </Pressable>

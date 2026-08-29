@@ -392,7 +392,9 @@ const styles = StyleSheet.create({
 // fresh object and `entries` hands over a fresh `members` array each render — so the default
 // identity compare would rebuild the whole card (every act's drag subtree) on the frame a drop
 // commits. Compare the rendered stack fields, the members by the fields their rows read, and the
-// day-state Sets + callbacks by identity (a seal swaps the Set identity, so completions still land).
+// day-state by membership for this stack, plus callbacks by identity. The day-level Sets are
+// replaced for every completion, but a card only paints the status of its own members; comparing
+// the whole Set identities made one act rebuild every stack and all of their drag subtrees.
 // KEEP IN SYNC: any newly *rendered* stack field or prop must be compared here, or the card will
 // silently ignore its changes (`isCurrentChapter`/`currentChapterUntil` drive the status clock;
 // `expanded` drives the fold, and without it the chevron would look dead).
@@ -404,8 +406,6 @@ function stackPropsEqual(a: Props, b: Props): boolean {
     a.onSetExpanded !== b.onSetExpanded ||
     a.isCurrentChapter !== b.isCurrentChapter ||
     a.currentChapterUntil !== b.currentChapterUntil ||
-    a.completed !== b.completed ||
-    a.skipped !== b.skipped ||
     // `settling` usually rides along with a fresh `completed` Set, but not always: a day-switch
     // whose completions fetch FAILS turns it off while leaving the blanked sets at their existing
     // identity. Skipping the re-render then strands this card's `wasSettling` guard (and its
@@ -429,7 +429,9 @@ function stackPropsEqual(a: Props, b: Props): boolean {
       m.id === n.id &&
       m.name === n.name &&
       m.target_count === n.target_count &&
-      m.target_unit === n.target_unit
+      m.target_unit === n.target_unit &&
+      a.completed.has(m.id) === b.completed.has(n.id) &&
+      a.skipped.has(m.id) === b.skipped.has(n.id)
     );
   });
 }

@@ -77,7 +77,7 @@ export default function OrbitReadingSheet() {
       </Surface>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        A full orbit is 360° — the whole month kept. The moon inside it shows tonight’s real phase
+        A full orbit is 360°: the whole month kept. The moon inside it shows tonight’s real phase
         for the date, not your progress.
       </ThemedText>
     </FormSheet>

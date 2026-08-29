@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -139,11 +139,11 @@ type DragState = {
   // In-card member reorder: a member dragged within its own stack reorders the siblings.
   memberFrames: SharedValue<Record<string, Frame>>; // member row grid frames, keyed member:<id>
   memberOrder: SharedValue<Record<string, string[]>>; // stackId → member keys in sequence
-  /** JS-side registry of each member row's re-measurer, so a lift can refresh every member
-   *  frame at once (their own onLayout misses card-level shifts — see MemberRowDrag). */
-  memberMeasurers: Map<string, () => void>;
-  /** Re-run every registered member measurer (called via scheduleOnRN at member-drag start). */
-  remeasureMembers: () => void;
+  /** JS-side registry of each member row's re-measurer. Rows carry their stack id so a lift only
+   *  refreshes the siblings whose frames can participate in that in-card reorder. */
+  memberMeasurers: Map<string, { stackId: string; measure: () => void }>;
+  /** Re-run the measurers for one stack (called via scheduleOnRN at member-drag start). */
+  remeasureMembers: (stackId: string) => void;
   reorderStackId: SharedValue<string | null>; // the card being reordered (null = not reordering)
   memberDragIndex: SharedValue<number>; // dragged member's index within its card
   memberInsertIndex: SharedValue<number>; // live target compact index within the card
@@ -232,18 +232,21 @@ export function HabitDragProvider({
   const scrollOffset = useScrollOffset(scrollRef);
   const reduceMotion = useReducedMotion();
 
-  // Member rows re-register their measurer every render; a member drag's start sweeps the whole
-  // registry so every member frame is fresh in grid coordinates. A member's own onLayout only
+  // A member drag's start refreshes its siblings' frames in grid coordinates. A member's own onLayout only
   // fires when its layout changes RELATIVE TO ITS CARD — when the card itself shifts in the grid
   // (an entry above reordered, deleted, or auto-collapsed on completion), the stored grid Ys
   // drift silently and an in-card reorder would resolve against rows that are no longer there.
-  const [memberMeasurers] = useState(() => new Map<string, () => void>());
-  const remeasureMembers = () => {
-    for (const fn of memberMeasurers.values()) fn();
-  };
+  const [memberMeasurers] = useState(
+    () => new Map<string, { stackId: string; measure: () => void }>(),
+  );
+  const remeasureMembers = useCallback((stackId: string) => {
+    for (const entry of memberMeasurers.values()) {
+      if (entry.stackId === stackId) entry.measure();
+    }
+  }, [memberMeasurers]);
 
   /** A light tick as the open gap moves or a card starts/stops glowing — drag feedback. */
-  const hoverTick = () => haptics.selection();
+  const hoverTick = useCallback(() => haptics.selection(), []);
 
   /** Register where the finger's drop would land right now: the ring and the gap are mutually
    *  exclusive readings (one visible meaning at a time), each change ticking a light haptic. */
@@ -338,11 +341,11 @@ export function HabitDragProvider({
    *  been aborted (a mid-drag data change can null `draggingKey` on the JS thread while the
    *  gesture's own start callback is still in flight — without the guard the ghost would
    *  mount with no live gesture left to ever dismiss it). */
-  const setDragActive = (key: string | null) => {
+  const setDragActive = useCallback((key: string | null) => {
     if (key !== null && draggingKey.get() !== key) return;
     frame.setActive(key !== null);
     onDragActive(key);
-  };
+  }, [draggingKey, frame, onDragActive]);
 
   /** True between asking for a drop's mutation and seeing the order change it produces — the one
    *  order change this provider must NOT read as "the ground moved under a live drag". */
@@ -371,7 +374,7 @@ export function HabitDragProvider({
   // A frame's delay lets the commit land first, so every frame shows a self-consistent pair (old
   // layout + displacement, then new layout + none). rAF always fires, so a drop that changes no
   // order at all — a stale anchor `onDropBetween` declines to act on — still ends its drag.
-  const clearAfterCommit = () => {
+  const clearAfterCommit = useCallback(() => {
     // Claim the order change this mutation is about to produce, so the signature effect below can
     // tell "the order moved because I just committed" from "the ground moved under a live drag".
     // Without it that effect tears the drag down as a passive effect — same tick as the render, and
@@ -387,28 +390,28 @@ export function HabitDragProvider({
       frame.setActive(false);
       onDragActive(null);
     });
-  };
-  const finishBetween = (draggedKey: string, beforeKey: string) => {
+  }, [draggingKey, frame, hoveredStackId, memberInsertIndex, onDragActive, reorderStackId]);
+  const finishBetween = useCallback((draggedKey: string, beforeKey: string) => {
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropBetween(draggedKey, beforeKey);
     clearAfterCommit();
-  };
-  const finishInto = (draggedKey: string, stackId: string) => {
+  }, [clearAfterCommit, draggingKey, onDropBetween]);
+  const finishInto = useCallback((draggedKey: string, stackId: string) => {
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropInto(draggedKey, stackId);
     clearAfterCommit();
-  };
+  }, [clearAfterCommit, draggingKey, onDropInto]);
   // A member reorder settled inside its own card: commit the new member index (same protocol as
   // finishInto — this runs from the settle spring's finished=true completion, so the drop is felt
   // on the frame the ghost lands, and a cancelled-and-replayed settle can't re-commit).
-  const finishReorder = (draggedKey: string, stackId: string, index: number) => {
+  const finishReorder = useCallback((draggedKey: string, stackId: string, index: number) => {
     if (draggingKey.get() !== draggedKey) return;
     haptics.drop();
     onDropReorder(draggedKey, stackId, index);
     clearAfterCommit();
-  };
+  }, [clearAfterCommit, draggingKey, onDropReorder]);
   // Mirror the rendered entry order (top-level and per-card members) into the worklet-readable
   // registries; if either changes while a drag is live, the ground truth moved under the finger —
   // abort rather than commit stale. Member order changes on its own for an in-card reorder commit
@@ -436,15 +439,25 @@ export function HabitDragProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the orders' identity
   }, [orderSignature, memberSignature]);
 
-  // (No useMemo — the React Compiler memoizes this value with correct dependencies.)
-  const value: DragState = {
+  // The Compiler deliberately leaves this provider uncached (its worklets and shared values make
+  // it bail out), so an ordinary parent render used to mint a new context value and wake every
+  // draggable card and member — including the members hidden inside folded cards. Keep the
+  // provider identity still until one of its actual drag dependencies changes.
+  const value = useMemo<DragState>(() => ({
     draggingKey, dragKind, dragIndex, insertIndex, hoveredStackId,
     ownStackId, slotSize, committed, ghostY, ghostH, ghostLift, ghostOpacity, ghostMounted,
     grabY, lastTranslationY, pointerAbsoluteY, scrollAtGrab, viewportTop, viewportH, gridTop, gridH,
     minOffset, frames, order, memberFrames, memberOrder, memberMeasurers, remeasureMembers,
     reorderStackId, memberDragIndex, memberInsertIndex, scrollOffset, scrollRef, reduceMotion,
     onDragActive: setDragActive, finishBetween, finishInto, finishReorder, hoverTick,
-  };
+  }), [
+    committed, dragIndex, dragKind, draggingKey, finishBetween, finishInto, finishReorder,
+    frames, ghostH, ghostLift, ghostMounted, ghostOpacity, ghostY, grabY, gridH, gridTop, hoverTick,
+    hoveredStackId, insertIndex, lastTranslationY, memberDragIndex, memberFrames, memberInsertIndex,
+    memberMeasurers, memberOrder, minOffset, order, ownStackId, pointerAbsoluteY, reduceMotion,
+    remeasureMembers, reorderStackId, scrollAtGrab, scrollOffset, scrollRef, setDragActive, slotSize,
+    viewportH, viewportTop,
+  ]);
 
   return <HabitDragContext value={value}>{children}</HabitDragContext>;
 }
@@ -735,7 +748,7 @@ function MemberRowDrag({
   // the siblings. Member rows are nested inside the card, so a plain `onLayout` gives only
   // parent-relative coordinates — a `measure` is the honest read. `.modify` (not read-spread-set):
   // sibling rows lay out in the same tick, and a read-modify-write would drop all but the last.
-  const registerFrame = () => {
+  const registerFrame = useCallback(() => {
     scheduleOnUI(() => {
       'worklet';
       const m = measure(ref);
@@ -748,19 +761,20 @@ function MemberRowDrag({
         return f;
       });
     });
-  };
+  }, [entryKey, gridTop, memberFrames, ref, scrollOffset, scrollRef]);
 
   // onLayout above only fires when this row moves relative to its CARD — when the card itself
   // shifts in the grid (a stack above auto-collapses, an entry is reordered/removed), the stored
   // grid Y goes stale with no signal here. So every row keeps its measurer registered with the
-  // provider, and a member drag's start sweeps them all — frames are fresh by the time any drop
-  // could resolve. Re-registered each render (no dep array) so the latest closure is always held.
+  // provider, and a member drag's start sweeps that card's siblings — frames are fresh by the time
+  // any drop could resolve without measuring unrelated (and often folded) stacks.
   useEffect(() => {
-    memberMeasurers.set(entryKey, registerFrame);
+    const entry = { stackId: parentStackId, measure: registerFrame };
+    memberMeasurers.set(entryKey, entry);
     return () => {
-      if (memberMeasurers.get(entryKey) === registerFrame) memberMeasurers.delete(entryKey);
+      if (memberMeasurers.get(entryKey) === entry) memberMeasurers.delete(entryKey);
     };
-  });
+  }, [entryKey, memberMeasurers, parentStackId, registerFrame]);
 
   // Hook API (gesture-handler 3) — see the note on the top-level entry's pan. The 300ms hold here
   // vs the card's 350ms is still the ONLY thing arbitrating a member row against its parent card;
@@ -803,10 +817,10 @@ function MemberRowDrag({
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
-      // Refresh EVERY member row's grid frame: their onLayout misses card-level shifts (a stack
-      // above collapsing, entries reordered), and an in-card reorder resolving against drifted
-      // frames commits the wrong index. Lift-to-drop is hundreds of ms — plenty for the sweep.
-      scheduleOnRN(remeasureMembers);
+      // Refresh this card's member frames: their onLayout misses card-level shifts (a stack above
+      // collapsing, entries reordered), and an in-card reorder resolving against drifted frames
+      // commits the wrong index. Other stacks cannot participate in this reorder.
+      scheduleOnRN(remeasureMembers, parentStackId);
       scheduleOnRN(onDragActive, entryKey);
       scheduleOnRN(haptics.pickup);
     },

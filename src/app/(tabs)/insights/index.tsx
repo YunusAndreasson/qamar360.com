@@ -13,7 +13,7 @@ import { MonthSummary } from '@/components/month-summary';
 import { MoonPhase } from '@/components/moon-phase';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
-import { ReadingCard, readingSpanLabel } from '@/components/reading-card';
+import { ReadingCard, readingDaysLabel, readingMoonBrightness, readingSpanLabel } from '@/components/reading-card';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -44,13 +44,22 @@ function ReadingRow({ reading }: { reading: Reading }) {
       accessibilityLabel={`${reading.phaseLabel}, ${readingSpanLabel(reading)}. ${reading.lead.headline}`}
       accessibilityHint="Opens the reading in full"
       style={styles.row}>
-      <MoonPhase illumination={reading.illumination} waxing={reading.waxing} size={26} rim />
+      <MoonPhase
+        illumination={reading.illumination}
+        waxing={reading.waxing}
+        size={26}
+        brightness={readingMoonBrightness(reading)}
+        rim
+      />
       <View style={styles.rowText}>
         <ThemedText type="rowTitle" numberOfLines={2}>
           {reading.lead.headline}
         </ThemedText>
+        {/* The month is struck from the caption because the section above the row has just said
+            it. The a11y label above keeps it: a screen reader can land on a row without the
+            group's header in play, where "1–7" alone would be a span of nothing. */}
         <ThemedText type="small" themeColor="textSecondary">
-          {reading.phaseLabel} · {readingSpanLabel(reading)}
+          {reading.phaseLabel} · {readingDaysLabel(reading)}
         </ThemedText>
       </View>
       <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
@@ -96,8 +105,8 @@ export default function InsightsScreen() {
   const { refreshControl } = usePullToRefresh(refresh);
 
   // Looking at the tab IS reading it — stamp the quarter that has closed, and the tab bar's dot
-  // goes out. Stamped from the calendar rather than from `readings[0]`, so the "your first reading
-  // is on its way" state clears the dot too: there is nothing there to come back for.
+  // goes out. Stamped from the calendar rather than from `readings[0]`, so the "no quarter has
+  // closed yet" state clears the dot too: there is nothing there to come back for.
   useFocusEffect(
     useCallback(() => {
       const latest = latestReadingId(today);
@@ -132,8 +141,8 @@ export default function InsightsScreen() {
       <AppScreen transparent>
         <EmptyState
           art={<MoonEmblem />}
-          title="Your moons will rise here"
-          body="Anchor a habit and keep it. The orbit fills as the month goes, and every quarter of the moon brings a reading of it.">
+          title="Nothing to read yet"
+          body="Anchor a habit and keep it. The orbit fills through the month, and each quarter of the moon brings a reading of it.">
           <BrowseHabitsButton />
         </EmptyState>
       </AppScreen>
@@ -149,7 +158,7 @@ export default function InsightsScreen() {
         <EmptyState
           icon="cloudOff"
           title="Insights need the Islamic calendar"
-          body="This device's system is missing Islamic (Umm al-Qura) calendar support, which the moons, months and quarters are measured in."
+          body="This device is missing the Islamic (Umm al-Qura) calendar that the moons, months and quarters are measured in."
         />
       </AppScreen>
     );
@@ -173,22 +182,37 @@ export default function InsightsScreen() {
           {/* One card per Hijri month, under its own name. The label used to be a single "EARLIER"
               over every reading ever written; it named the pile rather than anything in it, and
               said nothing a reader could navigate by. The months do both — they say what is below
-              them AND where in the record you have scrolled to. */}
-          {byMonth(earlier).map((group) => (
-            <SettingsSection key={group.key} title={group.label}>
-              {group.readings.map((reading) => (
-                <ReadingRow key={reading.id} reading={reading} />
+              them AND where in the record you have scrolled to.
+
+              They are wrapped because the screen has two subjects and used to separate them by
+              nothing. `AppScreen` gaps every top-level child by the same 16 it also uses for a
+              card's padding and a card's own inner rhythm, so the live orbit, the newest reading
+              and each month of the back-catalogue arrived as four equal peers and proximity — the
+              one cue that could have grouped them — carried no information at all. Above is the
+              PRESENT: where you are this month, and what was just said about you. This is the
+              RECORD. Gathering the months into one view makes them a single region rather than N
+              siblings, and the extra 16 on top of the screen's own gives a 32pt break: twice the
+              rhythm inside the record, which is what it takes to read as a boundary instead of as
+              slack. Deliberately no heading — one was tried and removed. */}
+          {earlier.length > 0 ? (
+            <View style={styles.record}>
+              {byMonth(earlier).map((group) => (
+                <SettingsSection key={group.key} title={group.label}>
+                  {group.readings.map((reading) => (
+                    <ReadingRow key={reading.id} reading={reading} />
+                  ))}
+                </SettingsSection>
               ))}
-            </SettingsSection>
-          ))}
+            </View>
+          ) : null}
         </>
       ) : (
         // Habits exist, but no quarter has closed yet. Say when the first one will — a wait with
         // a date on it is a different thing from an empty screen.
         <EmptyState
           icon="stats"
-          title="Your first reading is on its way"
-          body={`Every quarter of the moon — the 1st, 8th, 15th and 22nd of ${month.monthName} — brings a reading of the days before it, set against the quarter before that.`}
+          title="No quarter has closed yet"
+          body={`A reading arrives at each quarter of the moon: the 1st, 8th, 15th and 22nd of ${month.monthName}. Each one reads the days before it against the quarter before that.`}
         />
       )}
     </AppScreen>
@@ -206,4 +230,6 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.three,
   },
   rowText: { flex: 1, gap: Spacing.half },
+  // The back-catalogue, as one region. `marginTop` rides on top of AppScreen's own 16pt child gap.
+  record: { gap: Spacing.three, marginTop: Spacing.three },
 });

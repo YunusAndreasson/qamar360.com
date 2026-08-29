@@ -276,14 +276,25 @@ const asDays = (credit: number): number => Math.round(credit);
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** A span named in Hijri days, e.g. "1–7 Muḥarram" — or across a month boundary, both ends. */
-export function spanLabel(span: { startISO: string; endISO: string; monthName: string }): string {
+/**
+ * A span named in Hijri days, e.g. "1–7 Muḥarram" — or across a month boundary, both ends.
+ *
+ * `withMonth: false` drops the month name, for a caller that has already said it — the feed's
+ * archive rows sit under a section titled with their own Hijri month, where repeating it spends
+ * the caption on a fact already on screen. A span that CROSSES a boundary keeps both months
+ * whatever is asked: there the month is not decoration, it is what makes "29–7" a span at all.
+ *
+ * An optional argument rather than a second exported form, so the two can never drift apart.
+ */
+export function spanLabel(
+  span: { startISO: string; endISO: string; monthName: string },
+  { withMonth = true }: { withMonth?: boolean } = {},
+): string {
   const from = hijriParts(span.startISO);
   const to = hijriParts(span.endISO);
   if (!from || !to) return span.monthName;
-  return from.month === to.month
-    ? `${from.day}–${to.day} ${from.monthName}`
-    : `${from.day} ${from.monthName} – ${to.day} ${to.monthName}`;
+  if (from.month !== to.month) return `${from.day} ${from.monthName} – ${to.day} ${to.monthName}`;
+  return withMonth ? `${from.day}–${to.day} ${from.monthName}` : `${from.day}–${to.day}`;
 }
 
 type Context = {
@@ -328,14 +339,14 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     const degrees = toDegrees(ctx.quarter.rate);
     return {
       kind: 'first',
-      headline: 'Your first quarter on the record.',
+      headline: 'Your first quarter.',
       // Never the word "moon": the notification that carries this headline is already titled
       // with the phase, and one banner describing the same moon twice is the rule
       // `lunar-update.test.ts` has always held.
       body:
         degrees > 0
-          ? `${degrees}° of it kept — and the next reading has this one to measure against.`
-          : 'Nothing closed yet — and the next reading will have this one to measure against.',
+          ? `${degrees}° of it kept. The next reading has this one to measure against.`
+          : 'Nothing closed yet. The next reading will have this one to measure against.',
       salience: 1,
       notifiable: true,
     };
@@ -354,7 +365,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
       kind: 'record',
       headline: perfect ? 'A whole quarter kept.' : 'Your strongest quarter yet.',
       body: perfect
-        ? `Every act this quarter asked for, on every day it asked.`
+        ? `Every act, on every day it was due.`
         : `${toDegrees(quarter.rate)}° this quarter, past the ${toDegrees(best.rate)}° you set in ${best.span.monthName}.`,
       salience: perfect ? 1 : 0.95,
       notifiable: true,
@@ -387,8 +398,8 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     if (!best) return null;
     return {
       kind: 'unbroken',
-      headline: `${ctx.nameOf(best.id)} — every day it was due.`,
-      body: `All ${plural(best.share.possible, 'day')} it asked for this quarter, kept.`,
+      headline: `${ctx.nameOf(best.id)}, every day it was due.`,
+      body: `Kept on all ${plural(best.share.possible, 'day')} it asked for this quarter.`,
       salience: 0.8,
       notifiable: true,
     };
@@ -406,10 +417,10 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     if (!best) return null;
     const rate = best.share.earned / best.share.possible;
     // Appositive, not a predicate: act names in this app are past-tense verbs ("Chose water"),
-    // so "X has begun" reads as nonsense where "X — new this quarter" reads as a label.
+    // so "X has begun" reads as nonsense where "X, new this quarter" reads as a label.
     return {
       kind: 'newcomer',
-      headline: rate >= 0.6 ? `${ctx.nameOf(best.id)} — new this quarter, and holding.` : `${ctx.nameOf(best.id)} — new this quarter.`,
+      headline: rate >= 0.6 ? `${ctx.nameOf(best.id)}, new this quarter and kept.` : `${ctx.nameOf(best.id)}, new this quarter.`,
       body: `${asDays(best.share.earned)} of ${plural(best.share.possible, 'day')} since you added it.`,
       salience: 0.75,
       notifiable: true,
@@ -423,8 +434,8 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     if (!found) return null;
     return {
       kind: 'riser',
-      headline: `${ctx.nameOf(found.id)} gained the most ground.`,
-      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, where the last one kept ${asDays(found.there.earned)} of ${found.there.possible}.`,
+      headline: `${ctx.nameOf(found.id)} rose the most.`,
+      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, against ${asDays(found.there.earned)} of ${found.there.possible} last quarter.`,
       salience: 0.7 + Math.min(0.2, found.gap * 0.2),
       notifiable: true,
     };
@@ -438,7 +449,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'streak',
       headline: `${plural(run.days, 'day')} closed in a row.`,
-      body: `${spanLabel({ ...run, monthName: ctx.quarter.span.monthName })} — the longest run of the quarter.`,
+      body: `${spanLabel({ ...run, monthName: ctx.quarter.span.monthName })}, the longest run of the quarter.`,
       salience: 0.5 + Math.min(0.3, run.days / (ctx.quarter.span.days * 2)),
       notifiable: true,
     };
@@ -457,10 +468,10 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     const days = daysOf(Math.abs(gap) / 360, quarter.span);
     return {
       kind: 'pace',
-      headline: ahead ? `Ahead of last quarter — ${here}° against ${there}°.` : 'A quieter quarter than the last.',
+      headline: ahead ? `Ahead of last quarter, ${here}° against ${there}°.` : 'A quieter quarter than the last.',
       body: ahead
-        ? `A gain of ${Math.abs(gap)}° — about ${plural(days, 'day')} more of the quarter kept.`
-        : `${here}° this quarter, where the last one reached ${there}°.`,
+        ? `A gain of ${Math.abs(gap)}°, about ${plural(days, 'day')} more of the quarter kept.`
+        : `${here}° this quarter, against ${there}° last quarter.`,
       salience: 0.4 + Math.min(0.35, Math.abs(gap) / 360),
       // Silence, not shame: a fall is worth knowing on a screen you opened, and is never worth
       // pushing to a lock screen.
@@ -468,15 +479,15 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     };
   },
 
-  // The act that gave up the most ground. Named as something asking for you, never as a failure
-  // — and kept out of every notification.
+  // The act that gave up the most ground. Named as the one to pick back up, never as a failure —
+  // and kept out of every notification.
   function slipper(ctx) {
     const found = mover(ctx, -1);
     if (!found) return null;
     return {
       kind: 'slipper',
-      headline: `${ctx.nameOf(found.id)} is the one asking for you.`,
-      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, where the last one kept ${asDays(found.there.earned)} of ${found.there.possible}.`,
+      headline: `${ctx.nameOf(found.id)} is the one to pick back up.`,
+      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, against ${asDays(found.there.earned)} of ${found.there.possible} last quarter.`,
       salience: 0.6,
       notifiable: false,
     };
@@ -509,7 +520,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     if (best < 0 || bestRate - overall < 0.15) return null; // no day stands out
     return {
       kind: 'weekday',
-      headline: `${WEEKDAY_NAMES[best]}s are your strongest day.`,
+      headline: `${WEEKDAY_NAMES[best]} is your strongest day.`,
       body: `${toDegrees(bestRate)}° on a ${WEEKDAY_NAMES[best]} across the record, against ${toDegrees(overall)}° on an average day.`,
       salience: 0.45,
       notifiable: true,
@@ -528,7 +539,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'steady',
       headline: 'About the same as last quarter.',
-      body: `${here}° against ${there}° — inside a day of it either way.`,
+      body: `${here}° against ${there}°, inside a day of it either way.`,
       salience: 0.3,
       notifiable: true,
     };
@@ -569,7 +580,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
  * detectors exist to prevent.
  *
  * Nothing is lost by it: a fact held back from the headline still appears in {@link Reading.also},
- * so "Fajr adhkār — every day it was due" is on all four cards. Only the *voice* rotates.
+ * so "Fajr adhkār, every day it was due" is on all four cards. Only the *voice* rotates.
  *
  * Ties break on {@link NOTICING_KINDS} order, so one history always chooses one lead.
  */

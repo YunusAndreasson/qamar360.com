@@ -1,6 +1,6 @@
 # Project Environment
 
-- React Native app using Expo SDK 57.0.12, React Native 0.86.2, and Expo Router 57.0.12.
+- React Native app using Expo SDK 57.0.18, React Native 0.86.3, and Expo Router 57.0.17.
 - Package manager: npm (`package-lock.json`).
 - Metro: `npm start`, default port 8081.
 - Run targets: `npm run android` and `npm run ios`.

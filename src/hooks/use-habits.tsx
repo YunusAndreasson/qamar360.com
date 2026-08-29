@@ -234,6 +234,29 @@ type HabitsContextValue = {
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
 
+type HabitsDayCloseSnapshot = Pick<HabitsContextValue, 'habits' | 'completed' | 'skipped'>;
+
+type HabitsTaskBridgeContextValue = {
+  viewDate: string;
+  today: string;
+  /** Event-time read for task completion. Kept stable so habit mutations do not redraw tasks. */
+  getDayCloseSnapshot: () => HabitsDayCloseSnapshot;
+};
+
+type HabitsNavigationContextValue = {
+  today: string;
+  setViewDate: (iso: string) => void;
+};
+
+type HabitsSummaryContextValue = {
+  remainingToday: number;
+  hasHabits: boolean;
+};
+
+const HabitsTaskBridgeContext = createContext<HabitsTaskBridgeContextValue | null>(null);
+const HabitsNavigationContext = createContext<HabitsNavigationContextValue | null>(null);
+const HabitsSummaryContext = createContext<HabitsSummaryContextValue | null>(null);
+
 /**
  * Brackets a mutation's whole round-trip, so the fetches can tell whether one overlapped them.
  *
@@ -630,11 +653,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    * rollover both come through here).
    *
    * The day's ticks/skips/counts are blanked in this same commit, not in an effect keyed on
-   * `viewDate` afterwards, and that ordering is load-bearing rather than tidiness. The Today list
-   * remounts every `StackCard` on a day-step (`key={viewDate}`), so with the blanking one render
-   * late every card mounted for the NEW day holding the DEPARTING day's ticks: a wasted full-list
-   * render, a frame of the wrong marks, and — because a remount is where the cards' animation
-   * guards take their "at rest" reading — shared values born at the wrong day's answer.
+   * `viewDate` afterwards, and that ordering is load-bearing rather than tidiness. With the
+   * blanking one render late, every retained card would briefly paint the DEPARTING day's ticks
+   * under the NEW date: a wasted full-list render, a frame of wrong marks, and completion effects
+   * observing a false edge before the new day's rows arrive.
    *
    * Sharing one empty Set/Map is safe: every update in this provider is copy-on-write
    * (`new Set(prev)` / `new Map(prev)`), so these are never mutated.
@@ -747,10 +769,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    * The day a burst of steps is walking toward, or null at rest.
    *
    * Advanced **synchronously inside `stepViewDate`**, which a ref written during render (like
-   * `viewDateRef`) cannot be. Switching days is heavy enough to block the JS thread for a beat —
-   * every card in the list is keyed by `viewDate`, so they all remount — and the taps that land
-   * during that beat don't queue up as separate frames: they are delivered together, in one
-   * synchronous batch, once the thread frees. Every one of them then read the same
+   * `viewDateRef`) cannot be. Switching days is heavy enough to block the JS thread for a beat,
+   * and taps that land during that beat don't queue up as separate frames: they are delivered
+   * together, in one synchronous batch, once the thread frees. Every one of them then read the same
    * not-yet-re-rendered day and resolved to the same target, so a burst of ten taps moved the
    * day exactly twice (once for the tap that got through, once for all the rest). Cleared when
    * the render finally lands, so the next burst starts from the day actually on screen.
@@ -1797,6 +1818,18 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
   const dismissError = useCallback(() => setError(null), []);
 
+  // Tasks need the viewed day reactively, but habit completion state only at the instant a task
+  // is ticked. A stable getter keeps ordinary habit mutations out of TasksProvider's render path
+  // while preserving the freshest possible day-close inputs at that event seam.
+  const getDayCloseSnapshot = useCallback<() => HabitsDayCloseSnapshot>(
+    () => ({
+      habits: habitsRef.current,
+      completed: completedRef.current,
+      skipped: skippedRef.current,
+    }),
+    [completedRef, habitsRef, skippedRef],
+  );
+
   const value = useMemo<HabitsContextValue>(() => {
     const min = addDaysISO(today, -BACKFILL_DAYS);
     return {
@@ -1865,11 +1898,53 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createHabitInStack,
   ]);
 
-  return <HabitsContext value={value}>{children}</HabitsContext>;
+  const taskBridgeValue = useMemo<HabitsTaskBridgeContextValue>(
+    () => ({ viewDate, today, getDayCloseSnapshot }),
+    [viewDate, today, getDayCloseSnapshot],
+  );
+  const navigationValue = useMemo<HabitsNavigationContextValue>(
+    () => ({ today, setViewDate }),
+    [today, setViewDate],
+  );
+  const summaryValue = useMemo<HabitsSummaryContextValue>(
+    () => ({ remainingToday, hasHabits: habits.length > 0 }),
+    [remainingToday, habits.length],
+  );
+
+  return (
+    <HabitsTaskBridgeContext value={taskBridgeValue}>
+      <HabitsNavigationContext value={navigationValue}>
+        <HabitsSummaryContext value={summaryValue}>
+          <HabitsContext value={value}>{children}</HabitsContext>
+        </HabitsSummaryContext>
+      </HabitsNavigationContext>
+    </HabitsTaskBridgeContext>
+  );
 }
 
 export function useHabits() {
   const ctx = useContext(HabitsContext);
   if (!ctx) throw new Error('useHabits must be used within a HabitsProvider');
+  return ctx;
+}
+
+/** Narrow bridge for TasksProvider: changes on day navigation, never on an in-day habit action. */
+export function useHabitsTaskBridge(): HabitsTaskBridgeContextValue {
+  const ctx = useContext(HabitsTaskBridgeContext);
+  if (!ctx) throw new Error('useHabitsTaskBridge must be used within a HabitsProvider');
+  return ctx;
+}
+
+/** Stable tab-navigation inputs, isolated from completion and collection mutations. */
+export function useHabitsNavigation(): HabitsNavigationContextValue {
+  const ctx = useContext(HabitsNavigationContext);
+  if (!ctx) throw new Error('useHabitsNavigation must be used within a HabitsProvider');
+  return ctx;
+}
+
+/** Minimal live summary for badge/read-status leaves. */
+export function useHabitsSummary(): HabitsSummaryContextValue {
+  const ctx = useContext(HabitsSummaryContext);
+  if (!ctx) throw new Error('useHabitsSummary must be used within a HabitsProvider');
   return ctx;
 }

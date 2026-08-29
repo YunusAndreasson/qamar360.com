@@ -23,7 +23,7 @@ export function MakerSignature({ className }: { className?: string }) {
         rel="me noopener noreferrer"
         className="transition-colors hover:text-signal"
       >
-        Made by Yunus Andreasson
+        Made by Edenmind
       </a>
     </div>
   )
