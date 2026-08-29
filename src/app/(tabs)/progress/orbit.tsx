@@ -31,7 +31,7 @@ const BOW_SWEEP_Y = BOW_R * Math.cos((50 * Math.PI) / 180);
 const BOW_CY = CENTER + BOW_R * 0.82;
 
 /**
- * What the orbit means — the hero's own key, on the sheet it opens.
+ * What the Progress orbit means — the hero's own key, on the sheet it opens.
  *
  * The ring above is a progress bar bent into a circle with a target mark on it, and the two figures
  * here are the two things drawn on it, named once. They used to sit under the orbit as quiet legend

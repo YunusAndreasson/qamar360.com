@@ -101,9 +101,7 @@ function Tabs() {
           <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="wb-sunny" />} />
         )}
       </Trigger>
-      {/* Second, and carrying the moon — because the moon came with it. Progress held this slot
-          and this glyph while the orbit lived there; the orbit is now the head of Insights, so a
-          finger aimed at the moon still lands on the moon. */}
+      {/* Second, carrying the moon that dates each newly published quarterly reading. */}
       <Trigger name="insights">
         {/* A dot, never a count. There is only ever one thing to say — a new quarter has closed —
             and a number here would read as a backlog to clear. */}

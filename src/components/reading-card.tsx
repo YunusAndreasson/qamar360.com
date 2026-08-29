@@ -9,8 +9,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { spanLabel, type Reading } from '@/lib/insights';
 
-/** The Hijri days a reading covers — the span its figures are measured over, which is what makes
- *  a degrees figure mean anything here (360° is a perfect week, not a perfect month). */
+/** The Hijri days a reading covers — the span its evidence was measured over. */
 export const readingSpanLabel = (reading: Reading): string => spanLabel(reading.span);
 
 /** The same span with the month struck out, for a caller that has already named it — the feed's
@@ -56,15 +55,8 @@ export const readingMoonBrightness = (reading: Reading): number => (reading.quar
  * claim, then the evidence under it. The phase and span are still on every card and still first in
  * reading order; they simply stopped outranking what they date.
  *
- * **The quarter-on-quarter figure pair used to hang under all this, on both screens, and is gone.**
- * It restated the comparison a third time — `pace` leads with "Ahead of last quarter, 257° against
- * 214°." and follows with "A gain of 43°…", and then the same two numbers were set out again as
- * figures. Worse, on the feed those quarter-scaled degrees sat a few hundred points under the
- * hero's MONTH-scaled 46pt reading, two numbers with one glyph and different denominators, with
- * nothing on the screen to say so. The comparison now lives once, as the first two lines of the
- * detail screen's quarter table, where every figure on the screen shares one denominator. What is
- * left here is the article — and the feed is left with exactly one bare number on it, the hero's,
- * which can therefore only mean one thing.
+ * The card carries exactly one finding. Its evidence is already written as recognizable counts;
+ * the detail screen adds only the direct quarter comparison rather than more competing claims.
  */
 export function ReadingCard({ reading, onPress }: { reading: Reading; onPress?: () => void }) {
   const theme = useTheme();

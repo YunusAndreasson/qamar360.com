@@ -12,7 +12,7 @@
  * That in turn demands the derivation be *deterministic* — no clock, no randomness — so the
  * same history always writes the same feed.
  *
- * **Why detectors rather than a template.** Four reports a month that all say "you did N°"
+ * **Why detectors rather than a template.** Four reports a month that all say "you kept N acts"
  * stop being read by the second month. So each reading runs a set of small noticings over the
  * quarter, scores them, and leads with the best one that hasn't led recently
  * ({@link RECENCY_WINDOW}). The comparison the user actually asked for — this quarter against
@@ -151,8 +151,6 @@ export type Reading = {
   /** The quarter before it, when one asked anything. `null` on the first reading. */
   previous: QuarterTally | null;
   lead: Noticing;
-  /** The rest, best first — the detail screen's supporting rows. */
-  also: Noticing[];
   /** False while the quarter is still being lived. Only closed readings belong in the feed. */
   closed: boolean;
 };
@@ -265,14 +263,16 @@ function tallyQuarter(span: QuarterSpan, habits: NamedHabit[], credit: QuarterCr
   };
 }
 
-/** A rate as whole days of its own quarter — the translation that makes a degree figure mean
- *  something. `38° of a 7-day quarter` is `about one more day`. */
-function daysOf(rate: number, span: QuarterSpan): number {
-  return Math.max(1, Math.round(rate * span.days));
-}
+/** Credit can be fractional for count goals. Keep that truth visible without noisy decimals. */
+const asCount = (credit: number): string => String(Math.round(credit * 10) / 10);
 
-/** Credit as a day count, for copy that says "5 of 7 days". */
-const asDays = (credit: number): number => Math.round(credit);
+/** One habit's evidence, in the familiar unit of due days. */
+const dueDays = (share: HabitShare): string =>
+  `${asCount(share.earned)} of ${plural(share.possible, 'due day')}`;
+
+/** A whole quarter's evidence, in the acts the schedule actually asked for. */
+export const scheduledActs = (tally: Pick<QuarterTally, 'earned' | 'possible'>): string =>
+  `${asCount(tally.earned)} of ${plural(tally.possible, 'scheduled act')}`;
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -336,7 +336,6 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
   // the next reading will make — the feature explaining itself, once, where it can't be missed.
   function first(ctx) {
     if (ctx.previous) return null;
-    const degrees = toDegrees(ctx.quarter.rate);
     return {
       kind: 'first',
       headline: 'Your first quarter.',
@@ -344,8 +343,8 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
       // with the phase, and one banner describing the same moon twice is the rule
       // `lunar-update.test.ts` has always held.
       body:
-        degrees > 0
-          ? `${degrees}° of it kept. The next reading has this one to measure against.`
+        ctx.quarter.earned > 0
+          ? `${scheduledActs(ctx.quarter)} kept. The next reading has this one to measure against.`
           : 'Nothing closed yet. The next reading will have this one to measure against.',
       salience: 1,
       notifiable: true,
@@ -365,8 +364,8 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
       kind: 'record',
       headline: perfect ? 'A whole quarter kept.' : 'Your strongest quarter yet.',
       body: perfect
-        ? `Every act, on every day it was due.`
-        : `${toDegrees(quarter.rate)}° this quarter, past the ${toDegrees(best.rate)}° you set in ${best.span.monthName}.`,
+        ? `${scheduledActs(quarter)} kept — every act that was due.`
+        : `${scheduledActs(quarter)} kept, past ${scheduledActs(best)} in ${best.span.monthName}.`,
       salience: perfect ? 1 : 0.95,
       notifiable: true,
     };
@@ -381,7 +380,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'return',
       headline: 'You came back.',
-      body: `${toDegrees(quarter.rate)}° this quarter, after one that stayed quiet.`,
+      body: `${scheduledActs(quarter)} kept, after a quarter that stayed quiet.`,
       salience: 0.9,
       notifiable: true,
     };
@@ -421,7 +420,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'newcomer',
       headline: rate >= 0.6 ? `${ctx.nameOf(best.id)}, new this quarter and kept.` : `${ctx.nameOf(best.id)}, new this quarter.`,
-      body: `${asDays(best.share.earned)} of ${plural(best.share.possible, 'day')} since you added it.`,
+      body: `${dueDays(best.share)} kept since you added it.`,
       salience: 0.75,
       notifiable: true,
     };
@@ -435,7 +434,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'riser',
       headline: `${ctx.nameOf(found.id)} rose the most.`,
-      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, against ${asDays(found.there.earned)} of ${found.there.possible} last quarter.`,
+      body: `${dueDays(found.here)} kept this quarter, against ${dueDays(found.there)} last quarter.`,
       salience: 0.7 + Math.min(0.2, found.gap * 0.2),
       notifiable: true,
     };
@@ -460,18 +459,13 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
   function pace(ctx) {
     const { quarter, previous } = ctx;
     if (!previous || previous.possible === 0 || quarter.possible === 0) return null;
-    const here = toDegrees(quarter.rate);
-    const there = toDegrees(previous.rate);
-    const gap = here - there;
+    const gap = toDegrees(quarter.rate) - toDegrees(previous.rate);
     if (Math.abs(gap) <= deadBand(quarter.span)) return null; // `steady` has this
     const ahead = gap > 0;
-    const days = daysOf(Math.abs(gap) / 360, quarter.span);
     return {
       kind: 'pace',
-      headline: ahead ? `Ahead of last quarter, ${here}° against ${there}°.` : 'A quieter quarter than the last.',
-      body: ahead
-        ? `A gain of ${Math.abs(gap)}°, about ${plural(days, 'day')} more of the quarter kept.`
-        : `${here}° this quarter, against ${there}° last quarter.`,
+      headline: ahead ? 'Ahead of last quarter.' : 'A quieter quarter than the last.',
+      body: `${scheduledActs(quarter)} kept this quarter, against ${scheduledActs(previous)} kept last quarter.`,
       salience: 0.4 + Math.min(0.35, Math.abs(gap) / 360),
       // Silence, not shame: a fall is worth knowing on a screen you opened, and is never worth
       // pushing to a lock screen.
@@ -487,7 +481,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'slipper',
       headline: `${ctx.nameOf(found.id)} is the one to pick back up.`,
-      body: `${asDays(found.here.earned)} of ${plural(found.here.possible, 'day')} this quarter, against ${asDays(found.there.earned)} of ${found.there.possible} last quarter.`,
+      body: `${dueDays(found.here)} kept this quarter, against ${dueDays(found.there)} last quarter.`,
       salience: 0.6,
       notifiable: false,
     };
@@ -521,7 +515,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'weekday',
       headline: `${WEEKDAY_NAMES[best]} is your strongest day.`,
-      body: `${toDegrees(bestRate)}° on a ${WEEKDAY_NAMES[best]} across the record, against ${toDegrees(overall)}° on an average day.`,
+      body: `${scheduledActs(totals[best]!)} kept on ${WEEKDAY_NAMES[best]}s across your record.`,
       salience: 0.45,
       notifiable: true,
     };
@@ -539,7 +533,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'steady',
       headline: 'About the same as last quarter.',
-      body: `${here}° against ${there}°, inside a day of it either way.`,
+      body: `${scheduledActs(quarter)} kept this quarter, against ${scheduledActs(previous)} kept last quarter.`,
       salience: 0.3,
       notifiable: true,
     };
@@ -559,7 +553,7 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     return {
       kind: 'quiet',
       headline: 'A quiet quarter.',
-      body: `Nothing closed between ${spanLabel(quarter.span)}. The next one opens tonight.`,
+      body: `${scheduledActs(quarter)} kept from ${spanLabel(quarter.span)}. The next quarter opens tonight.`,
       salience: 0.3,
       // The zero-guard in `computeReadings` would hold this back anyway; saying so here as well
       // means the rule survives anyone loosening that guard.
@@ -569,27 +563,34 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
 ];
 
 /**
- * Rank the candidates, holding back anything that has led one of the last {@link RECENCY_WINDOW}
- * readings.
+ * Rank the candidates by usefulness first, then vary the voice within that usefulness tier.
  *
- * The hold-back is **absolute**, not a penalty: a kind that led recently sorts below every kind
- * that didn't, however much more salient it is. A weighted penalty was tried first and did not
- * work — the salience spread between "an act kept every day" (0.8) and "your strongest weekday"
- * (0.45) is wider than any penalty that leaves the ordering sane, so the same headline led four
- * readings running while three other true things sat under it. Which is the exact failure the
- * detectors exist to prevent.
- *
- * Nothing is lost by it: a fact held back from the headline still appears in {@link Reading.also},
- * so "Fajr adhkār, every day it was due" is on all four cards. Only the *voice* rotates.
- *
- * Ties break on {@link NOTICING_KINDS} order, so one history always chooses one lead.
+ * A named act or concrete pattern must never be displaced by a generic performance summary just
+ * because that summary has not spoken recently. Inside a tier, fresh kinds still come first;
+ * salience and the detector order keep the result deterministic after that.
  */
+const USEFULNESS: Record<NoticingKind, number> = {
+  slipper: 0,
+  riser: 0,
+  unbroken: 1,
+  newcomer: 1,
+  streak: 2,
+  weekday: 2,
+  return: 2,
+  record: 3,
+  pace: 3,
+  steady: 3,
+  quiet: 3,
+  first: 3,
+};
+
 function rank(candidates: Noticing[], recentLeads: NoticingKind[]): Noticing[] {
   return candidates
     .map((noticing) => ({ noticing, age: recentLeads.indexOf(noticing.kind) }))
     .sort(
       (a, b) =>
-        // Fresh kinds first; among the held-back, the one that led longest ago.
+        USEFULNESS[a.noticing.kind] - USEFULNESS[b.noticing.kind] ||
+        // Fresh kinds first within a tier; among held-back kinds, prefer the oldest lead.
         Number(a.age >= 0) - Number(b.age >= 0) ||
         b.age - a.age ||
         b.noticing.salience - a.noticing.salience ||
@@ -597,9 +598,6 @@ function rank(candidates: Noticing[], recentLeads: NoticingKind[]): Noticing[] {
     )
     .map((entry) => entry.noticing);
 }
-
-/** How many supporting noticings a reading keeps beyond its lead. */
-const ALSO_MAX = 3;
 
 /**
  * Every reading the record can write, newest first — closed quarters and the one still being
@@ -656,12 +654,11 @@ export function computeReadings(habits: NamedHabit[], credit: QuarterCredit, tod
     // A quarter that earned nothing has no figure worth pushing — the same silence the lunar
     // update already keeps for a 0° month. It still gets a reading; it just doesn't get pushed.
     const silent = toDegrees(quarter.rate) === 0;
-    const ranked = rank(
+    const [lead] = rank(
       silent ? candidates.map((n) => ({ ...n, notifiable: false })) : candidates,
       recentLeads.slice(0, RECENCY_WINDOW),
     );
-
-    const lead = ranked[0]!;
+    if (!lead) continue;
     // The moon the reading goes out under is the one that CLOSES the quarter — the day after
     // its last, which is the next milestone. So a reading and the notification announcing it
     // are headed by the same phase, and the card the user opens matches the banner they tapped.
@@ -681,7 +678,6 @@ export function computeReadings(habits: NamedHabit[], credit: QuarterCredit, tod
       quarter,
       previous,
       lead,
-      also: ranked.slice(1, 1 + ALSO_MAX),
       closed: quarter.span.endISO < today,
     });
     recentLeads.unshift(lead.kind);

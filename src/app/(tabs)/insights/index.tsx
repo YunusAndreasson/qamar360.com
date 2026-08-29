@@ -9,10 +9,9 @@ import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
-import { MonthSummary } from '@/components/month-summary';
 import { MoonPhase } from '@/components/moon-phase';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
-import { ProgressSkeleton } from '@/components/progress-skeleton';
+import { InsightsSkeleton } from '@/components/progress-skeleton';
 import { ReadingCard, readingDaysLabel, readingMoonBrightness, readingSpanLabel } from '@/components/reading-card';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
@@ -97,8 +96,8 @@ function byMonth(readings: Reading[]): { key: string; label: string; readings: R
  * Deliberately not a story carousel — a reading is something you re-read, not something that
  * plays.
  *
- * The month's orbit heads the screen because the moon is the clock all of this is written on: the
- * live reading of where you are, above the finished readings of where you have been.
+ * The newest concrete finding is the first object on the screen. The live monthly orbit belongs
+ * to Progress; putting it here made the clock visually outrank the thing this tab is for.
  */
 export default function InsightsScreen() {
   const { loading, error, dismissError, refresh, habitsCount, month, readings, today } = useProgress();
@@ -117,7 +116,7 @@ export default function InsightsScreen() {
   if (loading) {
     return (
       <AppScreen transparent>
-        <ProgressSkeleton />
+        <InsightsSkeleton />
       </AppScreen>
     );
   }
@@ -142,7 +141,7 @@ export default function InsightsScreen() {
         <EmptyState
           art={<MoonEmblem />}
           title="Nothing to read yet"
-          body="Anchor a habit and keep it. The orbit fills through the month, and each quarter of the moon brings a reading of it.">
+          body="Anchor a habit and keep it. Each quarter brings a short reading of what changed.">
           <BrowseHabitsButton />
         </EmptyState>
       </AppScreen>
@@ -174,26 +173,11 @@ export default function InsightsScreen() {
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
-      <MonthSummary month={month} />
-
       {newest ? (
         <>
           <ReadingCard reading={newest} onPress={() => router.push({ pathname: '/(tabs)/insights/[id]', params: { id: newest.id } })} />
-          {/* One card per Hijri month, under its own name. The label used to be a single "EARLIER"
-              over every reading ever written; it named the pile rather than anything in it, and
-              said nothing a reader could navigate by. The months do both — they say what is below
-              them AND where in the record you have scrolled to.
-
-              They are wrapped because the screen has two subjects and used to separate them by
-              nothing. `AppScreen` gaps every top-level child by the same 16 it also uses for a
-              card's padding and a card's own inner rhythm, so the live orbit, the newest reading
-              and each month of the back-catalogue arrived as four equal peers and proximity — the
-              one cue that could have grouped them — carried no information at all. Above is the
-              PRESENT: where you are this month, and what was just said about you. This is the
-              RECORD. Gathering the months into one view makes them a single region rather than N
-              siblings, and the extra 16 on top of the screen's own gives a 32pt break: twice the
-              rhythm inside the record, which is what it takes to read as a boundary instead of as
-              slack. Deliberately no heading — one was tried and removed. */}
+          {/* Older readings remain recognizable by month, but begin below a larger proximity
+              break so they read as an archive rather than as peers of the newest finding. */}
           {earlier.length > 0 ? (
             <View style={styles.record}>
               {byMonth(earlier).map((group) => (
@@ -212,7 +196,7 @@ export default function InsightsScreen() {
         <EmptyState
           icon="stats"
           title="No quarter has closed yet"
-          body={`A reading arrives at each quarter of the moon: the 1st, 8th, 15th and 22nd of ${month.monthName}. Each one reads the days before it against the quarter before that.`}
+          body={`Your first reading arrives when this quarter of ${month.monthName} closes.`}
         />
       )}
     </AppScreen>

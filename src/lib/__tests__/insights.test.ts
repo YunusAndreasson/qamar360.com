@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, hijriMonthRange, hijriParts } from '@/lib/dates';
-import { computeReadings, latestReadingId, NOTICING_KINDS, type Noticing, type Reading } from '@/lib/insights';
+import { computeReadings, latestReadingId, NOTICING_KINDS, type Reading } from '@/lib/insights';
 import { MILESTONE_DAYS } from '@/lib/lunar-phase';
 import { creditOnDay, toDegrees, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
@@ -39,6 +39,12 @@ const whiteDays = (id: string, name = id): NamedHabit => ({
 
 const done = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'done', count: null });
 const skip = (habit_id: string, completed_at: string): CompletionRow => ({ habit_id, completed_at, status: 'skipped', count: null });
+const partial = (habit_id: string, completed_at: string, count: number): CompletionRow => ({
+  habit_id,
+  completed_at,
+  status: 'partial',
+  count,
+});
 
 /** Rows marking `ids` done on every day of an inclusive span. */
 function doneAcross(ids: string[], startISO: string, endISO: string): CompletionRow[] {
@@ -76,8 +82,6 @@ function monthStarts(baseISO: string, months: number): string[] {
 }
 
 const SWEEP = monthStarts('2026-01-01', 13); // a full Hijri year + both month lengths
-
-const all = (r: Reading): Noticing[] => [r.lead, ...r.also];
 
 /** The reading for one named quarter of the month containing `anchor`. The feed spans a Hijri
  *  year, so matching on the milestone alone would pick whichever month came last. */
@@ -202,7 +206,7 @@ describe('computeReadings', () => {
   it('says so plainly when there is nothing yet to compare against', () => {
     const start = monthShape('2026-06-15').start;
     const today = dayOfMonth(start, 10); // the first quarter has closed, and only it
-    const feed = readings([born('a', start)], doneAcross(['a'], start, addDaysISO(start, 6)), today);
+    const feed = readings([daily('a')], [done('a', start)], today);
     const first = feed[feed.length - 1]!;
 
     expect(first.previous).toBeNull();
@@ -228,15 +232,11 @@ describe('computeReadings', () => {
     const start = monthShape('2026-06-15').start;
     const today = addDaysISO(monthShape(start).end, 25);
     // 4 of 7 days in the first quarter, 4 of 7 in the second: identical rates.
-    const rows = [
-      ...doneAcross(['a'], start, addDaysISO(start, 3)),
-      ...doneAcross(['a'], addDaysISO(start, 7), addDaysISO(start, 10)),
-    ];
+    const rows = [0, 2, 4, 6, 7, 9, 11, 13].map((offset) => done('a', addDaysISO(start, offset)));
     const feed = readings([daily('a')], rows, today);
     const second = quarterOf(feed, start, 8);
 
-    expect(all(second).map((n) => n.kind)).toContain('steady');
-    expect(all(second).map((n) => n.kind)).not.toContain('pace');
+    expect(second.lead.kind).toBe('steady');
   });
 
   it('does not call two empty quarters "about the same" — parity of nothing is not parity of effort', () => {
@@ -247,8 +247,7 @@ describe('computeReadings', () => {
     const third = quarterOf(feed, start, 15);
 
     expect(toDegrees(third.quarter.rate)).toBe(0);
-    expect(all(third).map((n) => n.kind)).toContain('quiet');
-    expect(all(third).map((n) => n.kind)).not.toContain('steady');
+    expect(third.lead.kind).toBe('quiet');
     expect(`${third.lead.headline} ${third.lead.body}`).not.toMatch(/same as last/i);
   });
 
@@ -265,21 +264,17 @@ describe('computeReadings', () => {
     ];
     const feed = readings([daily('steady', 'Steady act'), daily('climber', 'Fajr adhkār')], rows, today);
     const second = quarterOf(feed, start, 8);
-    const riser = all(second).find((n) => n.kind === 'riser');
-
-    expect(riser).toBeDefined();
-    expect(riser!.headline).toContain('Fajr adhkār');
+    expect(second.lead.kind).toBe('riser');
+    expect(second.lead.headline).toContain('Fajr adhkār');
   });
 
   it('names an act kept on every day it asked for', () => {
     const start = monthShape('2026-06-15').start;
     const today = addDaysISO(monthShape(start).end, 25);
-    const feed = readings([daily('a', 'Qurʾān')], doneAcross(['a'], start, addDaysISO(start, 6)), today);
+    const feed = readings([born('a', start, 'Qurʾān')], doneAcross(['a'], start, addDaysISO(start, 6)), today);
     const first = quarterOf(feed, start, 1);
-    const unbroken = all(first).find((n) => n.kind === 'unbroken');
-
-    expect(unbroken).toBeDefined();
-    expect(unbroken!.headline).toContain('Qurʾān');
+    expect(first.lead.kind).toBe('unbroken');
+    expect(first.lead.headline).toContain('Qurʾān');
   });
 
   it('notices something begun inside the quarter', () => {
@@ -287,12 +282,10 @@ describe('computeReadings', () => {
     const today = addDaysISO(monthShape(start).end, 25);
     const q2 = addDaysISO(start, 7);
     const rows = [...doneAcross(['old'], start, addDaysISO(start, 20)), ...doneAcross(['new'], q2, addDaysISO(q2, 5))];
-    const feed = readings([daily('old', 'Old act'), born('new', q2, 'Duʿāʾ after ʿAṣr')], rows, today);
+    const feed = readings([born('old', start, 'Old act'), born('new', q2, 'Duʿāʾ after ʿAṣr')], rows, today);
     const second = quarterOf(feed, start, 8);
-    const newcomer = all(second).find((n) => n.kind === 'newcomer');
-
-    expect(newcomer).toBeDefined();
-    expect(newcomer!.headline).toContain('Duʿāʾ after ʿAṣr');
+    expect(second.lead.kind).toBe('newcomer');
+    expect(second.lead.headline).toContain('Duʿāʾ after ʿAṣr');
   });
 
   it('has no weekday reading for a record made only of Hijri-scheduled acts', () => {
@@ -300,50 +293,30 @@ describe('computeReadings', () => {
     const today = addDaysISO(start, 300);
     const feed = readings([whiteDays('w')], doneAcross(['w'], start, today), today);
 
-    expect(feed.flatMap(all).map((n) => n.kind)).not.toContain('weekday');
+    expect(feed.map((r) => r.lead.kind)).not.toContain('weekday');
   });
 
-  // ── Variety ───────────────────────────────────────────────────────────────
+  // ── Usefulness and voice ──────────────────────────────────────────────────
 
-  it('never repeats a headline within three readings while another is available', () => {
-    const start = monthShape('2026-01-01').start;
-    const today = addDaysISO(start, 320);
-    // A record with real texture: one act steadily kept, one wandering.
-    const rows: CompletionRow[] = [];
-    let day = start;
-    for (let i = 0; day <= today; i += 1, day = addDaysISO(day, 1)) {
-      rows.push(done('steady', day));
-      if (i % 5 !== 0) rows.push(done('wander', day));
-    }
-    const feed = readings([daily('steady', 'Fajr'), daily('wander', 'Witr')], rows, today).filter((r) => r.closed);
-
-    expect(feed.length).toBeGreaterThan(8);
-    for (let i = 0; i < feed.length; i += 1) {
-      const here = feed[i]!;
-      const recent = feed.slice(i + 1, i + 4).map((r) => r.lead.kind); // the feed runs newest first
-      if (!recent.includes(here.lead.kind)) continue;
-      // A repeat is only allowed where nothing FRESH was on offer. `also` is ranked by the same
-      // rule, fresh first — so if the lead was held back, everything under it must be too.
-      for (const n of here.also) expect(recent).toContain(n.kind);
-    }
-
-    // And the promise this is all for: a year of readings does not say one thing over and over.
-    expect(new Set(feed.map((r) => r.lead.kind)).size).toBeGreaterThanOrEqual(3);
-  });
-
-  it('keeps a fact held back from the headline, rather than dropping it', () => {
+  it('keeps a concrete act finding ahead of generic summaries, even when it led recently', () => {
     const start = monthShape('2026-01-01').start;
     const today = addDaysISO(start, 320);
     const rows: CompletionRow[] = [];
     for (let day = start; day <= today; day = addDaysISO(day, 1)) rows.push(done('a', day));
     const feed = readings([daily('a', 'Fajr')], rows, today).filter((r) => r.closed);
 
-    // Every quarter of this record was kept in full, so every reading must SAY so somewhere —
-    // the rotation moves a claim out of the headline, it never silences one.
     expect(feed.length).toBeGreaterThan(8);
-    for (const r of feed.slice(0, 8)) {
-      expect(all(r).map((n) => n.kind)).toContain('unbroken');
-    }
+    expect(feed.slice(0, 8).every((r) => r.lead.kind === 'unbroken')).toBe(true);
+  });
+
+  it('writes evidence as counts, including partial count-goal credit, never degrees', () => {
+    const start = monthShape('2026-06-15').start;
+    const today = dayOfMonth(start, 10);
+    const habit = { ...daily('a', 'Read'), target_count: 2 };
+    const first = quarterOf(readings([habit], [partial('a', start, 1)], today), start, 1);
+
+    expect(first.lead.body).toContain('0.5 of 7 scheduled acts');
+    expect(`${first.lead.headline} ${first.lead.body}`).not.toContain('°');
   });
 
   it('is deterministic — the same record always writes the same feed', () => {
@@ -389,15 +362,13 @@ describe('computeReadings', () => {
 
     it('never pushes a scold', () => {
       for (const r of texturedFeed()) {
-        for (const n of all(r).filter((x) => x.notifiable)) {
-          expect(`${n.headline} ${n.body}`).not.toMatch(/missed|slipp|fail|behind last|catch up|you only|fell/i);
-        }
+        if (r.lead.notifiable) expect(`${r.lead.headline} ${r.lead.body}`).not.toMatch(/missed|slipp|fail|behind last|catch up|you only|fell/i);
       }
     });
 
     it('never pushes a fall, and always keeps one in the app', () => {
       const feed = texturedFeed();
-      const slips = feed.flatMap(all).filter((n) => n.kind === 'slipper' || (n.kind === 'pace' && /quieter/.test(n.headline)));
+      const slips = feed.map((r) => r.lead).filter((n) => n.kind === 'slipper' || (n.kind === 'pace' && /quieter/.test(n.headline)));
       expect(slips.length).toBeGreaterThan(0); // the record really does fall away
       expect(slips.every((n) => !n.notifiable)).toBe(true);
     });
@@ -409,16 +380,20 @@ describe('computeReadings', () => {
       const empty = quarterOf(feed, start, 8);
 
       expect(toDegrees(empty.quarter.rate)).toBe(0);
-      expect(all(empty).every((n) => !n.notifiable)).toBe(true);
+      expect(empty.lead.notifiable).toBe(false);
     });
 
     it("never describes the moon — the notification's title already has", () => {
-      for (const r of texturedFeed()) for (const n of all(r)) expect(`${n.headline} ${n.body}`).not.toMatch(/moon/i);
+      for (const r of texturedFeed()) expect(`${r.lead.headline} ${r.lead.body}`).not.toMatch(/moon/i);
+    });
+
+    it('keeps orbit degrees out of every generated finding', () => {
+      for (const r of texturedFeed()) expect(`${r.lead.headline} ${r.lead.body}`).not.toContain('°');
     });
 
     it('quotes no undefined, NaN or null', () => {
       for (const r of texturedFeed()) {
-        for (const n of all(r)) expect(`${n.headline} ${n.body}`).not.toMatch(/undefined|NaN|null|\[object/);
+        expect(`${r.lead.headline} ${r.lead.body}`).not.toMatch(/undefined|NaN|null|\[object/);
         expect(r.lead.headline.trim()).not.toBe('');
       }
     });
@@ -443,7 +418,7 @@ describe('computeReadings', () => {
     const start = monthShape('2026-01-01').start;
     const today = addDaysISO(start, 320);
     const feed = readings([daily('a'), daily('b')], doneAcross(['a'], start, addDaysISO(start, 150)), today);
-    for (const r of feed) for (const n of all(r)) expect(NOTICING_KINDS).toContain(n.kind);
+    for (const r of feed) expect(NOTICING_KINDS).toContain(r.lead.kind);
   });
 });
 

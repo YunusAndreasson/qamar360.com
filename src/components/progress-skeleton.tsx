@@ -25,6 +25,16 @@ export function ProgressSkeleton() {
   );
 }
 
+/** Insights: one complete finding, followed by the first quiet archive group. */
+export function InsightsSkeleton() {
+  return (
+    <View style={styles.root}>
+      <Skeleton height={136} />
+      <Skeleton height={200} />
+    </View>
+  );
+}
+
 /** Habits → Stats: the consistency ring, the streak pair, the weekday bars, the trend line. */
 export function StatsSkeleton() {
   return (

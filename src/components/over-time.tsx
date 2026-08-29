@@ -477,7 +477,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
           Two of the four used to carry a trailing span caption as well ("from 6 Rabīʿ al-Awwal",
           "since Dhū al-Qaʿdah 1447") while Month and Year carried none, so four cards of one kind
           wore two different headers down one screen — and the reason the other two went without
-          (the hero above them was captioned with the month) left for Insights with the orbit. The
+          (the hero above them is already captioned with the month) stays out of the chart. The
           dates are not lost: this card's own rule is that nothing names a date until you ask, and
           the reading below already names the bucket you are standing on. */}
       <StatCardHeader title={PERIOD_LABEL[period]} />

@@ -141,7 +141,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   // and a detail view that disagrees with the card it opened from is worse than a stale one.
   const openReading = () =>
     router.push({
-      pathname: '/(tabs)/insights/orbit',
+      pathname: '/(tabs)/progress/orbit',
       params: {
         monthName,
         year: String(year),

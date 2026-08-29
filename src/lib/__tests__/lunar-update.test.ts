@@ -188,13 +188,12 @@ function reading(over: Partial<Reading> = {}, lead: Partial<Noticing> = {}): Rea
     previous: null,
     lead: {
       kind: 'pace',
-      headline: 'Ahead of last quarter — 216° against 171°.',
-      body: 'A gain of 45° — about 1 day more of the quarter kept.',
+      headline: 'Ahead of last quarter.',
+      body: '4.2 of 7 scheduled acts kept, against 3 of 7 last quarter.',
       salience: 0.5,
       notifiable: true,
       ...lead,
     },
-    also: [],
     closed: true,
     ...over,
   };
@@ -203,7 +202,7 @@ function reading(over: Partial<Reading> = {}, lead: Partial<Noticing> = {}): Rea
 describe('the reading an update carries', () => {
   it("speaks the reading's headline instead of the landmark and the bare figure", () => {
     const copy = lunarUpdateCopy(fire(8), month(), [reading()]);
-    expect(copy.body).toBe('Ahead of last quarter — 216° against 171°.');
+    expect(copy.body).toBe('Ahead of last quarter.');
     // Both of the things it replaced are gone — a lock screen gets one claim, not three.
     expect(copy.body).not.toMatch(/A quarter of Muḥarram is behind you/);
     expect(copy.body).not.toMatch(/You're at/);
@@ -221,7 +220,7 @@ describe('the reading an update carries', () => {
 
   it('keeps the sky clause, which is about tonight and not about the record', () => {
     const copy = lunarUpdateCopy(fire(8, { moonAlt: VISIBLE_ALT + 1 }), month(), [reading()]);
-    expect(copy.body).toBe('Ahead of last quarter — 216° against 171°. The moon is up now.');
+    expect(copy.body).toBe('Ahead of last quarter. The moon is up now.');
   });
 
   it('picks the reading published on ITS day, never merely the newest', () => {
