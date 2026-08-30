@@ -9,37 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
-import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
-import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
+import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
+import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
+import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
+import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
+import { Route as AuthedJournalIndexRouteImport } from './routes/_authed/journal/index'
+import { Route as AuthedJournalDayRouteImport } from './routes/_authed/journal/$day'
 import { Route as ApiInsightsReadingIdRouteImport } from './routes/api/insights/$readingId'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
-  id: '/routines',
-  path: '/routines',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedProgressRoute = AuthedProgressRouteImport.update({
-  id: '/progress',
-  path: '/progress',
+const AuthedDiscoverRoute = AuthedDiscoverRouteImport.update({
+  id: '/discover',
+  path: '/discover',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedHabitsRoute = AuthedHabitsRouteImport.update({
@@ -47,9 +44,24 @@ const AuthedHabitsRoute = AuthedHabitsRouteImport.update({
   path: '/habits',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedDiscoverRoute = AuthedDiscoverRouteImport.update({
-  id: '/discover',
-  path: '/discover',
+const AuthedProgressRoute = AuthedProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
+  id: '/routines',
+  path: '/routines',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJournalIndexRoute = AuthedJournalIndexRouteImport.update({
+  id: '/journal/',
+  path: '/journal/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJournalDayRoute = AuthedJournalDayRouteImport.update({
+  id: '/journal/$day',
+  path: '/journal/$day',
   getParentRoute: () => AuthedRoute,
 } as any)
 const ApiInsightsReadingIdRoute = ApiInsightsReadingIdRouteImport.update({
@@ -65,7 +77,9 @@ export interface FileRoutesByFullPath {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
+  '/journal/$day': typeof AuthedJournalDayRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
+  '/journal/': typeof AuthedJournalIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -74,7 +88,9 @@ export interface FileRoutesByTo {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
+  '/journal/$day': typeof AuthedJournalDayRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
+  '/journal': typeof AuthedJournalIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,7 +101,9 @@ export interface FileRoutesById {
   '/_authed/habits': typeof AuthedHabitsRoute
   '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
+  '/_authed/journal/$day': typeof AuthedJournalDayRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
+  '/_authed/journal/': typeof AuthedJournalIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,7 +114,9 @@ export interface FileRouteTypes {
     | '/habits'
     | '/progress'
     | '/routines'
+    | '/journal/$day'
     | '/api/insights/$readingId'
+    | '/journal/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -105,7 +125,9 @@ export interface FileRouteTypes {
     | '/habits'
     | '/progress'
     | '/routines'
+    | '/journal/$day'
     | '/api/insights/$readingId'
+    | '/journal'
   id:
     | '__root__'
     | '/'
@@ -115,7 +137,9 @@ export interface FileRouteTypes {
     | '/_authed/habits'
     | '/_authed/progress'
     | '/_authed/routines'
+    | '/_authed/journal/$day'
     | '/api/insights/$readingId'
+    | '/_authed/journal/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -127,11 +151,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed': {
@@ -141,25 +165,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/routines': {
-      id: '/_authed/routines'
-      path: '/routines'
-      fullPath: '/routines'
-      preLoaderRoute: typeof AuthedRoutinesRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/progress': {
-      id: '/_authed/progress'
-      path: '/progress'
-      fullPath: '/progress'
-      preLoaderRoute: typeof AuthedProgressRouteImport
+    '/_authed/discover': {
+      id: '/_authed/discover'
+      path: '/discover'
+      fullPath: '/discover'
+      preLoaderRoute: typeof AuthedDiscoverRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/habits': {
@@ -169,11 +186,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHabitsRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/discover': {
-      id: '/_authed/discover'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof AuthedDiscoverRouteImport
+    '/_authed/progress': {
+      id: '/_authed/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof AuthedProgressRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/routines': {
+      id: '/_authed/routines'
+      path: '/routines'
+      fullPath: '/routines'
+      preLoaderRoute: typeof AuthedRoutinesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/journal/': {
+      id: '/_authed/journal/'
+      path: '/journal'
+      fullPath: '/journal/'
+      preLoaderRoute: typeof AuthedJournalIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/journal/$day': {
+      id: '/_authed/journal/$day'
+      path: '/journal/$day'
+      fullPath: '/journal/$day'
+      preLoaderRoute: typeof AuthedJournalDayRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/api/insights/$readingId': {
@@ -191,6 +229,8 @@ interface AuthedRouteChildren {
   AuthedHabitsRoute: typeof AuthedHabitsRoute
   AuthedProgressRoute: typeof AuthedProgressRoute
   AuthedRoutinesRoute: typeof AuthedRoutinesRoute
+  AuthedJournalDayRoute: typeof AuthedJournalDayRoute
+  AuthedJournalIndexRoute: typeof AuthedJournalIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -198,6 +238,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedHabitsRoute: AuthedHabitsRoute,
   AuthedProgressRoute: AuthedProgressRoute,
   AuthedRoutinesRoute: AuthedRoutinesRoute,
+  AuthedJournalDayRoute: AuthedJournalDayRoute,
+  AuthedJournalIndexRoute: AuthedJournalIndexRoute,
 }
 
 const AuthedRouteWithChildren =

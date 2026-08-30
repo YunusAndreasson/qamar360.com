@@ -15,8 +15,9 @@ The Expo mobile app lives at the repo root and has a separate release flow.
 pnpm dev              # vite dev --port 3000
 pnpm build            # vite build
 pnpm test             # vitest run
+pnpm typecheck        # tsc --noEmit
 pnpm generate-routes  # tsr generate (TanStack Router route tree)
-pnpm verify           # test + build (full check — run before finishing)
+pnpm verify           # test + typecheck + build (full check — run before finishing)
 pnpm deploy           # vite build + wrangler deploy (see Deploy)
 ```
 

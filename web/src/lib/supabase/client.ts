@@ -12,3 +12,10 @@ export const supabaseBrowser = createBrowserClient<Database>(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 )
+
+/** The signed-in user's id, for the `user_id` column on every insert. Throws when signed out. */
+export async function requireUserId(): Promise<string> {
+  const { data, error } = await supabaseBrowser.auth.getUser()
+  if (error || !data.user) throw new Error('Not signed in')
+  return data.user.id
+}

@@ -129,12 +129,17 @@ body::before {
     linear-gradient(180deg, var(--void-2) 0%, var(--void) 62%, #04060a 100%);
 }
 
-a {
-  color: var(--signal);
-  text-decoration: none;
-}
-a:hover {
-  color: var(--signal-hot);
+/* Layered on purpose. Unlayered rules outrank every layer, so a bare `a { color }` here would
+   beat any Tailwind `text-*` utility — and a Button rendered `asChild` as a Link would come out
+   signal-on-signal, invisible. Inside `@layer base` the utilities layer wins, as it should. */
+@layer base {
+  a {
+    color: var(--signal);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--signal-hot);
+  }
 }
 
 ::selection {
@@ -172,13 +177,18 @@ a:hover {
 
 /* Quiet metric eyebrow — the one label style for KPIs and readouts. Clean sans,
    sentence case: a human label, not a telemetry callsign. */
-.metric-label {
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0;
-  color: var(--muted-foreground);
+/* Layered for the same reason: a bare `.metric-label` would beat `text-destructive`
+   on a counter that has run over its limit. */
+@layer components {
+  .metric-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0;
+    color: var(--muted-foreground);
+  }
 }
+
 
 /* ── Command bar (top chrome) ──────────────────────────────────────────── */
 .command-bar {
@@ -225,46 +235,53 @@ a:hover {
 }
 
 /* ── Panels ────────────────────────────────────────────────────────────── */
-.panel {
-  position: relative;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent 60%),
-    var(--panel);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
+/* Layered, like the base rules above: an unlayered class outranks every Tailwind
+   utility, so a `.panel` could never be given `fixed` or `rounded-none` at the call
+   site. Inside `@layer components` the utilities layer wins, which is the point of
+   composing a house class with utilities at all. */
+@layer components {
+  .panel {
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent 60%),
+      var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+  }
+
+  /* list row: quiet hairline card that lights a signal edge on hover */
+  .rowcard {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition:
+      border-color 160ms ease,
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+  .rowcard::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    transform: scaleY(0);
+    transform-origin: top;
+    background: linear-gradient(180deg, var(--signal), var(--signal-deep));
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .rowcard:hover {
+    border-color: var(--hairline-2);
+    background: var(--panel-2);
+  }
+  .rowcard:hover::before {
+    transform: scaleY(1);
+  }
 }
 
-/* list row: quiet hairline card that lights a signal edge on hover */
-.rowcard {
-  position: relative;
-  background: var(--panel);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  overflow: hidden;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    transform 160ms ease;
-}
-.rowcard::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  transform: scaleY(0);
-  transform-origin: top;
-  background: linear-gradient(180deg, var(--signal), var(--signal-deep));
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.rowcard:hover {
-  border-color: var(--hairline-2);
-  background: var(--panel-2);
-}
-.rowcard:hover::before {
-  transform: scaleY(1);
-}
 
 /* ── Entrance motion ───────────────────────────────────────────────────────
    A quick, gentle settle — small enough that a page reads as simply *there* on

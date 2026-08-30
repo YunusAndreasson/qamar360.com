@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query'
 
 import type { Tables } from '#/lib/database.types'
 import type { HijriSchedule } from '#/lib/schedule'
-import { supabaseBrowser } from '#/lib/supabase/client'
+import { requireUserId, supabaseBrowser } from '#/lib/supabase/client'
 
 /** A habit row, with `hijri_schedule` narrowed from the DB's raw Json to a structured shape. */
 export type Habit = Omit<Tables<'habits'>, 'hijri_schedule'> & { hijri_schedule: HijriSchedule | null }
@@ -50,12 +50,6 @@ export const stacksQueryOptions = () =>
 export function invalidateHabitData(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['habits'] })
   qc.invalidateQueries({ queryKey: ['stacks'] })
-}
-
-async function requireUserId(): Promise<string> {
-  const { data, error } = await supabaseBrowser.auth.getUser()
-  if (error || !data.user) throw new Error('Not signed in')
-  return data.user.id
 }
 
 /** The next `position` (habits are ordered by it) — append to the end of the list. */
