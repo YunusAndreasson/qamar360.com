@@ -16,6 +16,7 @@ import { normalizeName } from '@/lib/names';
 /** The habit row an act becomes — structurally the `HabitCreate` the habits hook accepts. */
 export type HabitInput = {
   name: string;
+  preset_id: string;
   schedule_days: number[];
   hijri_schedule: HijriSchedule | null;
   target_count: number | null;
@@ -56,6 +57,7 @@ export type CuratedPlan = {
 export function habitInputFor(preset: SunnahPreset, schedule?: number[]): HabitInput {
   return {
     name: preset.name,
+    preset_id: preset.id,
     // Hijri presets store empty weekdays + a hijri_schedule; weekly presets the reverse.
     schedule_days: preset.hijriSchedule ? [] : (schedule ?? preset.defaultSchedule),
     hijri_schedule: preset.hijriSchedule ?? null,

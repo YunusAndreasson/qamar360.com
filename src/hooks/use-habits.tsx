@@ -64,6 +64,8 @@ export type HabitPatch = {
 /** Everything needed to create a habit (name + schedule + optional goal). */
 export type HabitCreate = {
   name: string;
+  /** Curated catalog row this habit came from, so insights may attach only vetted evidence. */
+  preset_id?: string | null;
   schedule_days: number[];
   /** A Hijri recurrence instead of weekdays; omit/null for a weekly habit. */
   hijri_schedule?: HijriSchedule | null;
@@ -1125,6 +1127,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         id: `temp-${stamp}-${k}`,
         user_id: userId,
         name: input.name,
+        preset_id: input.preset_id ?? null,
         position: base + k,
         created_at: null,
         updated_at: null,
@@ -1147,6 +1150,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             clean.map((input, k) => ({
               user_id: userId,
               name: input.name,
+              preset_id: input.preset_id ?? null,
               position: base + k,
               schedule_days: input.schedule_days,
               hijri_schedule: input.hijri_schedule ?? null,

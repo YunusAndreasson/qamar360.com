@@ -16,6 +16,7 @@ import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
 import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
 import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
 import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
+import { Route as ApiInsightsReadingIdRouteImport } from './routes/api/insights/$readingId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -51,6 +52,11 @@ const AuthedDiscoverRoute = AuthedDiscoverRouteImport.update({
   path: '/discover',
   getParentRoute: () => AuthedRoute,
 } as any)
+const ApiInsightsReadingIdRoute = ApiInsightsReadingIdRouteImport.update({
+  id: '/api/insights/$readingId',
+  path: '/api/insights/$readingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
+  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
+  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,13 +85,27 @@ export interface FileRoutesById {
   '/_authed/habits': typeof AuthedHabitsRoute
   '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
+  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
+    | '/'
+    | '/login'
+    | '/discover'
+    | '/habits'
+    | '/progress'
+    | '/routines'
+    | '/api/insights/$readingId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
+  to:
+    | '/'
+    | '/login'
+    | '/discover'
+    | '/habits'
+    | '/progress'
+    | '/routines'
+    | '/api/insights/$readingId'
   id:
     | '__root__'
     | '/'
@@ -93,12 +115,14 @@ export interface FileRouteTypes {
     | '/_authed/habits'
     | '/_authed/progress'
     | '/_authed/routines'
+    | '/api/insights/$readingId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiInsightsReadingIdRoute: typeof ApiInsightsReadingIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDiscoverRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/api/insights/$readingId': {
+      id: '/api/insights/$readingId'
+      path: '/api/insights/$readingId'
+      fullPath: '/api/insights/$readingId'
+      preLoaderRoute: typeof ApiInsightsReadingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -176,6 +207,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiInsightsReadingIdRoute: ApiInsightsReadingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

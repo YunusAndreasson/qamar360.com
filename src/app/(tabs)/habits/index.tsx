@@ -640,6 +640,14 @@ export default function HabitsScreen() {
               {Platform.OS !== 'ios' ? (
                 <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
               ) : null}
+              {isToday ? (
+                <HeaderIconButton
+                  icon={Icons.note}
+                  color={theme.accent}
+                  accessibilityLabel="Write today’s reflection"
+                  onPress={() => router.push('/habits/note')}
+                />
+              ) : null}
               {/* One door to add: the sheet forks to a stack, an exchange, or a one-off task —
                   hence the bare "Add", which is all this button can honestly promise. */}
               <HeaderIconButton

@@ -91,6 +91,8 @@ type ProgressData = {
   /** Re-pull the window (pull-to-refresh). Silent — owns no spinner of its own. */
   refresh: () => Promise<void>;
   habitsCount: number;
+  /** Persisted habits behind the readings, used to send metric ids to the secure insight API. */
+  habits: Habit[];
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
   /** The rising-months statement for the Over-time card, or `null` if the calendar is unavailable. */
@@ -163,5 +165,5 @@ export function useProgress(): ProgressData {
 
   const derived = useMemo(() => derive(habits, completions, today), [habits, completions, today]);
 
-  return { loading, error, dismissError, refresh: fetchData, today, ...derived };
+  return { loading, error, dismissError, refresh: fetchData, today, habits, ...derived };
 }

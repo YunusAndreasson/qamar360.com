@@ -16,6 +16,7 @@ import { useToast } from '@/components/toast';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { useAiNoteConsent } from '@/hooks/use-ai-note-consent';
 import { useAuth } from '@/hooks/use-auth';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
@@ -45,6 +46,7 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
+  const noteConsent = useAiNoteConsent();
 
   // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
   // user who never opens this screen has made no choices, and one who does can undo any of them.
@@ -298,6 +300,18 @@ export default function SettingsScreen() {
             showChevron
           />
         ) : null}
+      </SettingsSection>
+
+      <SettingsSection
+        title="Personal insights"
+        footer="When on, notes from a closed lunar quarter may shape that quarter’s deeper insight. Turning it off removes insights that used notes.">
+        <SettingsRow
+          icon="privacy"
+          label="Use daily notes"
+          sublabel={noteConsent.error ?? (noteConsent.loading ? 'Loading…' : 'Never quoted or used in notifications')}
+          switchValue={noteConsent.enabled}
+          onSwitchChange={(value) => void noteConsent.setEnabled(value)}
+        />
       </SettingsSection>
 
       {/* Feel — the app's own texture. Every one defaults on; turning one off is a preference

@@ -23,6 +23,7 @@ export type IconGlyph =
 export const Icons = {
   // ── Navigation / chrome ────────────────────────────────────────────────
   add: { sf: 'plus', material: 'add' },
+  note: { sf: 'note.text', material: 'notes' },
   check: { sf: 'checkmark', material: 'check' },
   chevronLeft: { sf: 'chevron.left', material: 'chevron-left' },
   chevronRight: { sf: 'chevron.right', material: 'chevron-right' },

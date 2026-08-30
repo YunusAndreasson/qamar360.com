@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
@@ -8,10 +9,12 @@ import { StatsSkeleton } from '@/components/progress-skeleton';
 import { ReadingCard } from '@/components/reading-card';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
+import { usePersonalizedInsight } from '@/hooks/use-personalized-insight';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { scheduledActs, type Reading } from '@/lib/insights';
 
 /** The only arithmetic left on a reading: two recognizable counts, compared directly. */
@@ -41,6 +44,58 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DeeperReflection({ reading, habits }: { reading: Reading; habits: ReturnType<typeof useProgress>['habits'] }) {
+  const theme = useTheme();
+  const { insight, loading, error, retry } = usePersonalizedInsight(reading, habits);
+
+  return (
+    <StatCard>
+      <StatCardHeader title="A deeper reflection" trailing={insight?.used_notes ? 'With your notes' : undefined} />
+      {loading ? (
+        <View style={styles.loading} accessible accessibilityLabel="Writing your deeper reflection">
+          <ActivityIndicator />
+          <ThemedText type="small" themeColor="textSecondary">
+            Reflecting on this quarter…
+          </ThemedText>
+        </View>
+      ) : error || !insight ? (
+        <View style={styles.reflectionError}>
+          <ThemedText type="small" themeColor="textSecondary">
+            {error ?? 'The deeper reflection is unavailable right now.'}
+          </ThemedText>
+          <AppButton variant="secondary" onPress={retry} style={styles.retry}>
+            Try again
+          </AppButton>
+        </View>
+      ) : (
+        <>
+          <View style={styles.paragraphs}>
+            {insight.paragraphs.map((paragraph, index) => (
+              <ThemedText key={index}>{paragraph}</ThemedText>
+            ))}
+          </View>
+          <View style={[styles.nextStep, { backgroundColor: theme.accentSubtle }]}>
+            <ThemedText type="smallBold" themeColor="accent">
+              NEXT QUARTER
+            </ThemedText>
+            <ThemedText type="defaultSemiBold">{insight.next_step}</ThemedText>
+          </View>
+          {insight.evidence ? (
+            <View style={styles.evidence}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                FROM YOUR HABIT’S SOURCE
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {insight.evidence}
+              </ThemedText>
+            </View>
+          ) : null}
+        </>
+      )}
+    </StatCard>
+  );
+}
+
 /**
  * One moon quarter's reading, in full — reached from the feed, and straight from the notification
  * that announced it (`readingId` rides in the payload).
@@ -51,7 +106,7 @@ function Line({ label, value }: { label: string; value: string }) {
  */
 export default function ReadingScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { loading, error, dismissError, refresh, readings } = useProgress();
+  const { loading, error, dismissError, refresh, readings, habits } = useProgress();
   const { refreshControl } = usePullToRefresh(refresh);
 
   const reading = readings.find((r) => r.id === id) ?? null;
@@ -82,6 +137,7 @@ export default function ReadingScreen() {
       <ErrorBanner message={error} onDismiss={dismissError} />
 
       <ReadingCard reading={reading} />
+      <DeeperReflection reading={reading} habits={habits} />
       <QuarterComparison reading={reading} />
     </AppScreen>
   );
@@ -90,4 +146,10 @@ export default function ReadingScreen() {
 const styles = StyleSheet.create({
   comparison: { gap: Spacing.two },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Spacing.three },
+  loading: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.four },
+  reflectionError: { gap: Spacing.two, alignItems: 'flex-start' },
+  retry: { minWidth: 0 },
+  paragraphs: { gap: Spacing.three },
+  nextStep: { gap: Spacing.one, padding: Spacing.three, borderRadius: Radius.control },
+  evidence: { gap: Spacing.one, paddingTop: Spacing.one },
 });

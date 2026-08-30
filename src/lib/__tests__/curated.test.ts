@@ -57,6 +57,7 @@ describe('habitInputFor', () => {
   it('carries the preset schedule, count goal and Hijri recurrence across', () => {
     expect(habitInputFor(PRESETS[3]!)).toEqual({
       name: 'Drank water',
+      preset_id: 'water',
       schedule_days: [0, 1, 2, 3, 4, 5, 6],
       hijri_schedule: null,
       target_count: 8,

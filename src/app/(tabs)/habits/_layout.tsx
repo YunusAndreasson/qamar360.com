@@ -40,6 +40,8 @@ export default function HabitsStackLayout() {
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
+      {/* Today's private journal entry and its explicit AI-processing consent. */}
+      <Stack.Screen name="note" options={modalHeaderOptions(theme)} />
       {/* A single act's or exchange's Stats (figures + graphs) — a pushed transparent screen so
           the fixed sky shows behind its cards, like Progress. Reached from its options sheet. */}
       <Stack.Screen name="stats" options={transparentScreen} />

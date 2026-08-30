@@ -1,4 +1,6 @@
 allowBuilds:
-  esbuild: set this to true or false
-  sharp: set this to true or false
-  workerd: set this to true or false
+  esbuild: true
+  lightningcss: true
+  # Optional image tooling has no Node 25 binary in this environment and is not used by the app.
+  sharp: false
+  workerd: true

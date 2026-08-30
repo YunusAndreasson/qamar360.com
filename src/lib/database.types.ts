@@ -57,6 +57,92 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_notes: {
+        Row: {
+          content: string
+          created_at: string
+          note_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          note_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          note_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generated_insights: {
+        Row: {
+          evidence_preset_id: string | null
+          evidence_text: string | null
+          generated_at: string
+          model: string
+          next_step: string
+          paragraphs: string[]
+          prompt_version: number
+          reading_id: string
+          used_notes: boolean
+          user_id: string
+        }
+        Insert: {
+          evidence_preset_id?: string | null
+          evidence_text?: string | null
+          generated_at?: string
+          model: string
+          next_step: string
+          paragraphs: string[]
+          prompt_version: number
+          reading_id: string
+          used_notes?: boolean
+          user_id: string
+        }
+        Update: {
+          evidence_preset_id?: string | null
+          evidence_text?: string | null
+          generated_at?: string
+          model?: string
+          next_step?: string
+          paragraphs?: string[]
+          prompt_version?: number
+          reading_id?: string
+          used_notes?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_insights_evidence_preset_id_fkey"
+            columns: ["evidence_preset_id"]
+            isOneToOne: false
+            referencedRelation: "presets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_completions: {
         Row: {
           completed_at: string
@@ -149,6 +235,7 @@ export type Database = {
           instead_of: string | null
           name: string
           position: number
+          preset_id: string | null
           reminder_time: string | null
           schedule_days: number[]
           stack_id: string | null
@@ -165,6 +252,7 @@ export type Database = {
           instead_of?: string | null
           name: string
           position: number
+          preset_id?: string | null
           reminder_time?: string | null
           schedule_days?: number[]
           stack_id?: string | null
@@ -181,6 +269,7 @@ export type Database = {
           instead_of?: string | null
           name?: string
           position?: number
+          preset_id?: string | null
           reminder_time?: string | null
           schedule_days?: number[]
           stack_id?: string | null
@@ -190,6 +279,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "habits_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "presets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "habits_stack_id_fkey"
             columns: ["stack_id"]
@@ -368,18 +464,24 @@ export type Database = {
       }
       users: {
         Row: {
+          ai_notes_consent_at: string | null
+          ai_notes_consent_version: number | null
           created_at: string | null
           email: string
           id: string
           updated_at: string | null
         }
         Insert: {
+          ai_notes_consent_at?: string | null
+          ai_notes_consent_version?: number | null
           created_at?: string | null
           email: string
           id: string
           updated_at?: string | null
         }
         Update: {
+          ai_notes_consent_at?: string | null
+          ai_notes_consent_version?: number | null
           created_at?: string | null
           email?: string
           id?: string
