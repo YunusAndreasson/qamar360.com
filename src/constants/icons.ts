@@ -40,6 +40,10 @@ export const Icons = {
   // A one-off task: a written list with things struck off it. Not a checkmark — that glyph is
   // "done" everywhere else in the app, and this names the kind of thing, not its state.
   task: { sf: 'checklist', material: 'checklist' },
+  // A plan: something written down that has no day yet. A map, because the noun this names is a
+  // route you have worked out but not set off on — and because every calendar glyph would promise
+  // exactly the date a plan is defined by not having.
+  plan: { sf: 'map', material: 'map' },
   // A habit that belongs to no stack: the thing that recurs, with nothing it hangs off. A cycle is
   // right here where it would be wrong for an exchange — this one genuinely comes round again.
   repeat: { sf: 'repeat', material: 'repeat' },

@@ -18,6 +18,8 @@ import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
 import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
 import { Route as AuthedJournalIndexRouteImport } from './routes/_authed/journal/index'
 import { Route as AuthedJournalDayRouteImport } from './routes/_authed/journal/$day'
+import { Route as AuthedPlansIndexRouteImport } from './routes/_authed/plans/index'
+import { Route as AuthedPlansIdRouteImport } from './routes/_authed/plans/$id'
 import { Route as ApiInsightsReadingIdRouteImport } from './routes/api/insights/$readingId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -64,6 +66,16 @@ const AuthedJournalDayRoute = AuthedJournalDayRouteImport.update({
   path: '/journal/$day',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedPlansIndexRoute = AuthedPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPlansIdRoute = AuthedPlansIdRouteImport.update({
+  id: '/plans/$id',
+  path: '/plans/$id',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const ApiInsightsReadingIdRoute = ApiInsightsReadingIdRouteImport.update({
   id: '/api/insights/$readingId',
   path: '/api/insights/$readingId',
@@ -78,8 +90,10 @@ export interface FileRoutesByFullPath {
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
   '/journal/$day': typeof AuthedJournalDayRoute
+  '/plans/$id': typeof AuthedPlansIdRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/journal/': typeof AuthedJournalIndexRoute
+  '/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,8 +103,10 @@ export interface FileRoutesByTo {
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
   '/journal/$day': typeof AuthedJournalDayRoute
+  '/plans/$id': typeof AuthedPlansIdRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/journal': typeof AuthedJournalIndexRoute
+  '/plans': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,8 +118,10 @@ export interface FileRoutesById {
   '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
   '/_authed/journal/$day': typeof AuthedJournalDayRoute
+  '/_authed/plans/$id': typeof AuthedPlansIdRoute
   '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/_authed/journal/': typeof AuthedJournalIndexRoute
+  '/_authed/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,8 +133,10 @@ export interface FileRouteTypes {
     | '/progress'
     | '/routines'
     | '/journal/$day'
+    | '/plans/$id'
     | '/api/insights/$readingId'
     | '/journal/'
+    | '/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -126,8 +146,10 @@ export interface FileRouteTypes {
     | '/progress'
     | '/routines'
     | '/journal/$day'
+    | '/plans/$id'
     | '/api/insights/$readingId'
     | '/journal'
+    | '/plans'
   id:
     | '__root__'
     | '/'
@@ -138,8 +160,10 @@ export interface FileRouteTypes {
     | '/_authed/progress'
     | '/_authed/routines'
     | '/_authed/journal/$day'
+    | '/_authed/plans/$id'
     | '/api/insights/$readingId'
     | '/_authed/journal/'
+    | '/_authed/plans/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -214,6 +238,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedJournalDayRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/plans/': {
+      id: '/_authed/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof AuthedPlansIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/plans/$id': {
+      id: '/_authed/plans/$id'
+      path: '/plans/$id'
+      fullPath: '/plans/$id'
+      preLoaderRoute: typeof AuthedPlansIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/api/insights/$readingId': {
       id: '/api/insights/$readingId'
       path: '/api/insights/$readingId'
@@ -230,7 +268,9 @@ interface AuthedRouteChildren {
   AuthedProgressRoute: typeof AuthedProgressRoute
   AuthedRoutinesRoute: typeof AuthedRoutinesRoute
   AuthedJournalDayRoute: typeof AuthedJournalDayRoute
+  AuthedPlansIdRoute: typeof AuthedPlansIdRoute
   AuthedJournalIndexRoute: typeof AuthedJournalIndexRoute
+  AuthedPlansIndexRoute: typeof AuthedPlansIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -239,7 +279,9 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedProgressRoute: AuthedProgressRoute,
   AuthedRoutinesRoute: AuthedRoutinesRoute,
   AuthedJournalDayRoute: AuthedJournalDayRoute,
+  AuthedPlansIdRoute: AuthedPlansIdRoute,
   AuthedJournalIndexRoute: AuthedJournalIndexRoute,
+  AuthedPlansIndexRoute: AuthedPlansIndexRoute,
 }
 
 const AuthedRouteWithChildren =

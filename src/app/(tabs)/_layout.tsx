@@ -11,6 +11,7 @@ import {
   useHabitsNavigation,
   useHabitsSummary,
 } from '@/hooks/use-habits';
+import { PlansProvider } from '@/hooks/use-plans';
 import { TasksProvider, useTasksSummary } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { latestReadingId } from '@/lib/insights';
@@ -31,10 +32,16 @@ export default function TabsLayout() {
   // `TasksProvider` nests inside it: the day itself (viewDate, today, the midnight rollover) and
   // the habits state a closing day is judged against both live in the habits provider, so tasks
   // has to sit underneath to read them.
+  //
+  // `PlansProvider` nests innermost. It needs nothing from either of the others — a plan is on no
+  // day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan writes
+  // through `useTasks`, so it has to be able to see both.
   return (
     <HabitsProvider>
       <TasksProvider>
-        <Tabs />
+        <PlansProvider>
+          <Tabs />
+        </PlansProvider>
       </TasksProvider>
     </HabitsProvider>
   );

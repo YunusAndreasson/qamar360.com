@@ -19,6 +19,7 @@ const NAV = [
   { to: '/habits', label: 'Habits' },
   { to: '/routines', label: 'Routines' },
   { to: '/journal', label: 'Journal' },
+  { to: '/plans', label: 'Plans' },
   { to: '/progress', label: 'Progress' },
   { to: '/discover', label: 'Discover' },
 ] as const
@@ -42,13 +43,26 @@ function AuthedLayout() {
             <QamarWordmark />
           </Link>
 
-          <nav className="ml-auto flex items-center gap-5 sm:gap-7">
+          {/* Scrolls rather than squeezing on a narrow window. Six uppercase mono tabs at 0.16em
+              tracking do not fit beside the wordmark and Sign out on a phone, and the alternatives
+              are worse: wrapping would break the 14-unit bar, and shortening the labels would cost
+              every reader clarity to spare one layout. `min-w-0` is what lets the flex child give
+              way; `shrink-0` on the tabs is what keeps them from being compressed to initials. The
+              scrollbar itself is hidden: this bar is 56px tall, and a thin horizontal track inside
+              it would cost more height than it buys clarity.
+
+              `py-1` is load-bearing, not spacing. CSS forces `overflow-y` to `auto` as soon as
+              `overflow-x` is not `visible`, and `.console-tab::after` — the active underline — sits
+              at `bottom: -1px`. That 1px of vertical overflow was enough to raise a *vertical*
+              scrollbar inside the nav and eat 10px of its width. The padding contains the
+              underline so there is nothing to scroll. */}
+          <nav className="no-scrollbar ml-auto flex min-w-0 items-center gap-5 overflow-x-auto py-1 sm:gap-7">
             {NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
-                className="console-tab"
-                activeProps={{ className: 'console-tab is-active' }}
+                className="console-tab shrink-0"
+                activeProps={{ className: 'console-tab is-active shrink-0' }}
               >
                 {item.label}
               </Link>

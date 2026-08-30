@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react';
 
 import { CardSection } from '@/components/card-section';
+import { PlanPicks } from '@/components/plan-picks';
 import { TaskComposer } from '@/components/task-composer';
 import { TaskRow } from '@/components/task-row';
 import { confirmDestructive } from '@/lib/alerts';
+import type { Plan } from '@/lib/plans';
 import type { Task } from '@/lib/tasks';
 
 type Props = {
@@ -20,6 +22,10 @@ type Props = {
   /** The request is spent — clears it, so returning to the tab doesn't raise the keyboard again. */
   onComposeHandled: () => void;
   onCreate: (title: string) => void;
+  /** The plans worth offering under an untouched field — `lib/plans.planPicks`. */
+  planPicks: Plan[];
+  /** Write a to-do from one of them, carrying the plan's id. */
+  onPick: (plan: Plan) => void;
   onToggle: (task: Task) => void;
   onRename: (task: Task, title: string) => void;
   onDelete: (task: Task) => void;
@@ -46,6 +52,8 @@ export function TaskSection({
   composeRequested,
   onComposeHandled,
   onCreate,
+  planPicks,
+  onPick,
   onToggle,
   onRename,
   onDelete,
@@ -54,6 +62,10 @@ export function TaskSection({
   const [editing, setEditing] = useState<Task | null>(null);
   const [composing, setComposing] = useState(false);
   const [text, setText] = useState('');
+  // Whether anything has been typed since the field opened. Not `text === ''`: Return commits and
+  // clears for the next one, and a strip of suggestions slamming back under the keyboard after
+  // every to-do would be worse than not offering them at all.
+  const [touched, setTouched] = useState(false);
 
   // Stable across renders, so the rows' memo comparators hold — an arrow minted inside the map
   // would rebuild every row on every keystroke in the composer.
@@ -92,6 +104,7 @@ export function TaskSection({
     setComposing(false);
     setEditing(null);
     setText('');
+    setTouched(false);
     if (composeRequested) onComposeHandled();
   };
 
@@ -118,14 +131,24 @@ export function TaskSection({
       // field for that is up in the list and two live fields would fight for the keyboard.
       trailing={
         isToday && !editing ? (
-          <TaskComposer
-            open={composerOpen}
-            value={text}
-            onChangeText={setText}
-            onOpen={() => setComposing(true)}
-            onSubmit={submit}
-            onClose={closeComposer}
-          />
+          <>
+            <TaskComposer
+              open={composerOpen}
+              value={text}
+              onChangeText={(next) => {
+                setText(next);
+                setTouched(true);
+              }}
+              onOpen={() => setComposing(true)}
+              onSubmit={submit}
+              onClose={closeComposer}
+            />
+            {/* Only while the field is open and still untouched. The strip is a shortcut for the
+                moment before you start writing, not a panel that lives under the field. */}
+            {composerOpen && !touched && planPicks.length > 0 ? (
+              <PlanPicks plans={planPicks} onPick={onPick} />
+            ) : null}
+          </>
         ) : null
       }>
       {tasks.map((task) =>

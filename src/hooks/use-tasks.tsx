@@ -8,7 +8,7 @@ import { todayLocalISO } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, setOpenTasksProbe } from '@/lib/day-close';
 import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
-import { openCountOn, visibleTasks, type Task } from '@/lib/tasks';
+import { isOpen, openCountOn, visibleTasks, type Task } from '@/lib/tasks';
 import { readTasksSnapshot, writeTasksSnapshot } from '@/lib/tasks-cache';
 
 /**
@@ -38,13 +38,34 @@ type TasksContextValue = {
   tasks: Task[];
   /** How many are still open on the *real* today — the tab badge's share of the day. */
   openToday: number;
+  /**
+   * Every open to-do there is, unfiltered by day — including the ones dated ahead, which `tasks`
+   * deliberately leaves out because they belong to their own day and no other. The head of Today
+   * reads this to name what tomorrow is holding, since the day view cannot be walked forward to
+   * go and look.
+   */
+  openTasks: Task[];
   /** True only until the first load settles (false immediately when a snapshot seeded it). */
   loading: boolean;
   /** Plain-language message for the last failure, or null. */
   error: string | null;
   dismissError: () => void;
-  /** Write a new task onto the viewed day. Blank titles are ignored. */
-  createTask: (title: string) => Promise<void>;
+  /**
+   * Write a new task. Blank titles are ignored; the answer says whether it was persisted, so a
+   * caller that navigates away can wait for the row rather than racing its own refetch.
+   *
+   * `day` defaults to the viewed day, which is every existing caller. A plan passes tomorrow, and
+   * its own id, so the plan can afterwards say where the to-do went.
+   */
+  createTask: (title: string, options?: { day?: string; planId?: string }) => Promise<boolean>;
+  /**
+   * Plan id → the `due_on` of the earliest open to-do pulled from that plan, for the label a plan
+   * wears once something has come out of it.
+   *
+   * Derived from the rows already in memory rather than queried: `fetchTasks` asks for every open
+   * task there is, not just the viewed day's, so a to-do sitting on tomorrow is already here.
+   */
+  scheduledPlans: Map<string, string>;
   /** Tick it, or put it back on the list. */
   toggleTask: (taskId: string) => Promise<void>;
   /** Rewrite a task's title (the long-press edit). */
@@ -157,16 +178,43 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const tasks = useMemo(() => visibleTasks(rows, viewDate, today), [rows, viewDate, today]);
   const openToday = useMemo(() => openCountOn(rows, today, today), [rows, today]);
+  const openTasks = useMemo(() => rows.filter(isOpen), [rows]);
+  // Earliest wins: a plan that has put something on today and something on tomorrow should say the
+  // one you can still act on. Done rows are skipped — a plan you finished with last week is not
+  // still "on today's list".
+  const scheduledPlans = useMemo(() => {
+    const byPlan = new Map<string, string>();
+    for (const row of rows) {
+      if (row.plan_id === null || row.done_on !== null) continue;
+      const held = byPlan.get(row.plan_id);
+      if (held === undefined || row.due_on < held) byPlan.set(row.plan_id, row.due_on);
+    }
+    return byPlan;
+  }, [rows]);
 
   const dismissError = useCallback(() => setError(null), []);
 
   const createTask = useCallback(
-    async (title: string) => {
-      if (!userId) return;
+    async (title: string, options?: { day?: string; planId?: string }) => {
+      if (!userId) return false;
       const clean = title.trim();
-      if (!clean) return;
+      if (!clean) return false;
 
-      const day = viewDateRef.current;
+      // The viewed day unless a caller names one. A plan is the only thing that names one, and the
+      // only day it can name besides today is tomorrow — see `plans.scheduledLabel` for why that
+      // to-do is then invisible until it arrives, which is correct rather than a gap.
+      const day = options?.day ?? viewDateRef.current;
+      const planId = options?.planId ?? null;
+      // One to-do per plan per day while a write is in flight. A plan's row is pressed from a
+      // screen that stays put, so two taps inside a frame both see the same render state — and
+      // unlike a typed to-do, where a repeat is a repeat the user chose, this one would be pure
+      // duplication of a title they never retyped. Read and written at call time, which is what
+      // `saving` state cannot be.
+      const guard = planId === null ? null : `plan:${planId}:${day}`;
+      if (guard !== null) {
+        if (pending.current.has(guard)) return false;
+        pending.current.add(guard);
+      }
       const position = rowsRef.current.reduce((max, t) => Math.max(max, t.position), -1) + 1;
       const tempId = `temp-${position}-${clean.length}-${day}`;
       const optimistic: Task = {
@@ -175,6 +223,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         title: clean,
         due_on: day,
         done_on: null,
+        plan_id: planId,
         position,
         created_at: null,
         updated_at: null,
@@ -185,7 +234,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error: insError } = await supabase
           .from('tasks')
-          .insert({ user_id: userId, title: clean, due_on: day, position })
+          .insert({ user_id: userId, title: clean, due_on: day, position, plan_id: planId })
           .select()
           .single();
         if (insError || !data) throw insError ?? new Error('no row');
@@ -193,15 +242,19 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         // row back down, rather than letting the swap resurrect it.
         if (cancelledTempIds.current.delete(tempId)) {
           void supabase.from('tasks').delete().eq('id', data.id);
-          return;
+          return true;
         }
         setRows((prev) => prev.map((t) => (t.id === tempId ? data : t)));
         rowsRef.current = rowsRef.current.map((t) => (t.id === tempId ? data : t));
+        return true;
       } catch {
         cancelledTempIds.current.delete(tempId);
         setRows((prev) => prev.filter((t) => t.id !== tempId));
         rowsRef.current = rowsRef.current.filter((t) => t.id !== tempId);
         setError('Could not add that. Check your connection.');
+        return false;
+      } finally {
+        if (guard !== null) pending.current.delete(guard);
       }
     },
     [userId, rowsRef, viewDateRef],
@@ -317,6 +370,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     () => ({
       tasks,
       openToday,
+      openTasks,
+      scheduledPlans,
       loading,
       error,
       dismissError,
@@ -326,7 +381,20 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       deleteTask,
       refresh,
     }),
-    [tasks, openToday, loading, error, dismissError, createTask, toggleTask, renameTask, deleteTask, refresh],
+    [
+      tasks,
+      openToday,
+      openTasks,
+      scheduledPlans,
+      loading,
+      error,
+      dismissError,
+      createTask,
+      toggleTask,
+      renameTask,
+      deleteTask,
+      refresh,
+    ],
   );
   const summaryValue = useMemo(() => ({ openToday }), [openToday]);
 

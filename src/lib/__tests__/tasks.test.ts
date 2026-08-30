@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { Task } from '@/lib/tasks';
-import { carriedLabel, isOpen, openCountOn, showsOn, taskRowContract, visibleTasks } from '@/lib/tasks';
+import { carriedLabel, isOpen, openCountOn, openTitlesOn, showsOn, taskRowContract, visibleTasks } from '@/lib/tasks';
 
 const TODAY = '2026-08-06'; // a Thursday
 
@@ -12,6 +12,7 @@ function task(overrides: Partial<Task> = {}): Task {
     title: 'Call the landlord',
     due_on: TODAY,
     done_on: null,
+    plan_id: null,
     position: 0,
     created_at: null,
     updated_at: null,
@@ -139,5 +140,37 @@ describe('taskRowContract', () => {
     expect(taskRowContract({ title: 'Call the landlord', dueOn: TODAY, today: TODAY, done: false }).label).toBe(
       'Call the landlord',
     );
+  });
+});
+
+describe('openTitlesOn', () => {
+  // A to-do put on tomorrow shows on no day until tomorrow — correct, and the reason the head of
+  // Today has to be able to name it in the meantime.
+  it('names the open to-dos waiting on a day', () => {
+    const rows = [
+      task({ id: 'a', title: 'Ferry tickets', due_on: '2026-08-07', position: 1 }),
+      task({ id: 'b', title: 'Pack the car', due_on: '2026-08-07', position: 0 }),
+      task({ id: 'c', title: 'Call the landlord', due_on: TODAY }),
+    ];
+    expect(openTitlesOn(rows, '2026-08-07')).toEqual(['Pack the car', 'Ferry tickets']);
+  });
+
+  it('leaves out one already done', () => {
+    const rows = [task({ due_on: '2026-08-07', done_on: '2026-08-07' })];
+    expect(openTitlesOn(rows, '2026-08-07')).toEqual([]);
+  });
+
+  // Date-exact, and deliberately unlike `showsOn`: this answers "what is that day asking for",
+  // and its one caller asks it about tomorrow. So a to-do stays listed under the day it was
+  // written for whether or not that day has passed...
+  it('lists a to-do under its own day, past or not', () => {
+    const rows = [task({ due_on: '2026-08-01' })];
+    expect(openTitlesOn(rows, '2026-08-01')).toEqual(['Call the landlord']);
+  });
+
+  // ...and does not follow the carry-forward onto today, which is where `showsOn` would put it.
+  it('does not carry an overdue to-do onto another day', () => {
+    const rows = [task({ due_on: '2026-08-01' })];
+    expect(openTitlesOn(rows, TODAY)).toEqual([]);
   });
 });

@@ -30,8 +30,11 @@ import { useTheme } from '@/hooks/use-theme';
  * your own, and the exchange presumes you have already noticed a specific one going the wrong way.
  * (A habit here lands with no stack, which was impossible until 2026-08-09 — see `HabitSection`.)
  *
- * ONE-OFF: the task, which asks nothing of the future. It is the only choice that leads back to
- * Today instead of on to a form — a task is a line you type, so the field is the row it becomes.
+ * ONE-OFF: the two things that happen once. A to-do asks nothing of the future and is the only
+ * choice that leads back to Today instead of on to a form — it is a line you type, so the field is
+ * the row it becomes. A plan is the same kind of thing with the date taken off and the notes put
+ * on: something you mean to do, kept until it has a day. They belong under one caption because the
+ * question the captions answer is whether it comes back tomorrow, and neither of these does.
  *
  * The choices are given room to breathe as separate cards — an icon chip, a noun, and a one-line
  * explanation, so the choice teaches the vocabulary as it's made. Presented `fitToContents` from
@@ -73,18 +76,28 @@ export default function AddMenuScreen() {
 
       <View style={styles.group}>
         <SectionLabel>ONE-OFF</SectionLabel>
-        <ChoiceCard
-          icon="task"
-          // "To-do", matching the `TO DO` the day files it under. The code still calls the record a
-          // task (the table, the hook, the `compose` param) — but the user is only ever shown one
-          // word for it, and two names for one thing on two screens is how a menu stops matching
-          // the list it writes to.
-          label="To-do"
-          sublabel="Something to do once, not to keep."
-          // `dismissTo`, not `replace`: this one goes *back* down the stack to the day itself
-          // (carrying the param), where `replace` would stack a second Today on top of the sheet.
-          onPress={() => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } })}
-        />
+        <View style={styles.choices}>
+          <ChoiceCard
+            icon="task"
+            // "To-do", matching the `TO DO` the day files it under. The code still calls the record
+            // a task (the table, the hook, the `compose` param) — but the user is only ever shown
+            // one word for it, and two names for one thing on two screens is how a menu stops
+            // matching the list it writes to.
+            label="To-do"
+            sublabel="Something to do once, not to keep."
+            // `dismissTo`, not `replace`: this one goes *back* down the stack to the day itself
+            // (carrying the param), where `replace` would stack a second Today on top of the sheet.
+            onPress={() => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } })}
+          />
+          <ChoiceCard
+            icon="plan"
+            label="Plan"
+            sublabel="Something to do later, and the notes that go with it."
+            // The list, not a blank form — the same door the three cards above open, and the only
+            // one that also lets you find what you have already written down.
+            onPress={() => router.replace('/habits/plans')}
+          />
+        </View>
       </View>
     </FormSheet>
   );

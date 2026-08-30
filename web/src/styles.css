@@ -160,6 +160,17 @@ body::before {
   background: rgba(150, 173, 205, 0.2);
   border-radius: 20px;
 }
+/* A scroll region that must not show its track. Unlayered, like the three rules above it — a
+   Tailwind utility cannot win here, because `* { scrollbar-width: thin }` is unlayered and every
+   utility lives in a layer. The only user is the nav bar, which scrolls sideways on a narrow
+   window inside a 56px header: a 9px track there costs more height than it buys clarity, and the
+   tabs clipping mid-word is already the affordance that says there is more to the right. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* ── Type roles ────────────────────────────────────────────────────────── */
 .font-display {

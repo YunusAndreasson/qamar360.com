@@ -234,6 +234,44 @@ export type Database = {
         }
         Relationships: []
       }
+      plans: {
+        Row: {
+          body: string
+          created_at: string | null
+          id: string
+          position: number
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string | null
+          id?: string
+          position?: number
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presets: {
         Row: {
           category_id: string
@@ -337,6 +375,57 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          created_at: string | null
+          done_on: string | null
+          due_on: string
+          id: string
+          plan_id: string | null
+          position: number
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          done_on?: string | null
+          due_on: string
+          id?: string
+          plan_id?: string | null
+          position?: number
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          done_on?: string | null
+          due_on?: string
+          id?: string
+          plan_id?: string | null
+          position?: number
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {

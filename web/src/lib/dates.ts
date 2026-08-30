@@ -123,6 +123,16 @@ export function formatGregorian(iso: string): string {
 }
 
 /**
+ * A `YYYY-MM-DD` day as a short weekday and date, e.g. "Sat, 5 Sep".
+ *
+ * The form a scheduled row wants: near enough to read at a glance, dated enough to be unambiguous.
+ * Deliberately no year — the only rows that reach it are days away, not months.
+ */
+export function formatDayShort(iso: string): string {
+  return localDate(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+/**
  * The Gregorian span of the Hijri month that contains `iso`: `start`/`end` as inclusive
  * `YYYY-MM-DD`, the month `length` (29 or 30), the month name, and the Hijri `year`. Built purely
  * from {@link hijriParts} + day arithmetic. Returns `null` when the Islamic calendar is unavailable.

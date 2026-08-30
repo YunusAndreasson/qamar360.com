@@ -42,6 +42,16 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
       {/* Today's private journal entry and its explicit AI-processing consent. */}
       <Stack.Screen name="note" options={modalHeaderOptions(theme)} />
+      {/* What you mean to do, before any of it has a day — a native modal sheet with a
+          left-aligned Close, like the two libraries above it. */}
+      <Stack.Screen
+        name="plans"
+        options={{ ...modalHeaderOptions(theme), title: 'Plans', headerLeft: headerCloseAction(() => router.back()) }}
+      />
+      {/* One plan and its notes. PUSHED inside that modal, not presented over it: it wants a back
+          button and a title of its own, the same call `stacking-info` makes from inside the
+          New-stack form. Its Cancel/Save live in the nav bar. */}
+      <Stack.Screen name="plan" />
       {/* A single act's or exchange's Stats (figures + graphs) — a pushed transparent screen so
           the fixed sky shows behind its cards, like Progress. Reached from its options sheet. */}
       <Stack.Screen name="stats" options={transparentScreen} />

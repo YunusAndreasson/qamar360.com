@@ -24,7 +24,10 @@ export type TasksSnapshot = {
   tasks: Task[];
 };
 
-const CACHE_KEY = 'tasks.snapshot.v1';
+// v2: rows gained `plan_id`. A v1 snapshot's rows have no such field, and the map a plan's label
+// is read from is derived straight off these seeded rows — so a stale snapshot would paint every
+// plan as unscheduled for one frame after a cold start. Cheaper to drop it than to migrate it.
+const CACHE_KEY = 'tasks.snapshot.v2';
 
 const storage = getWebStorage();
 

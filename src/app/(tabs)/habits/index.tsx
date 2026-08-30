@@ -25,11 +25,13 @@ import { Icons } from '@/constants/icons';
 import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
+import { usePlans } from '@/hooks/use-plans';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
+import { tomorrowLine } from '@/lib/almanac';
 import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -43,10 +45,11 @@ import {
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
+import { type Plan, planPicks } from '@/lib/plans';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
-import type { Task } from '@/lib/tasks';
+import { openTitlesOn, type Task } from '@/lib/tasks';
 
 // The scroll's bottom inset — one constant shared by the layout and the drag layer's
 // auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
@@ -218,7 +221,12 @@ export default function HabitsScreen() {
     error: taskError,
     dismissError: dismissTaskError,
     refresh: refreshTasks,
+    scheduledPlans,
+    openTasks,
   } = useTasks();
+  // What you meant to do before it had a day. Read here only for the shortcut inside the to-do
+  // field; the list itself is a place you go, behind the "+".
+  const { plans } = usePlans();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -283,6 +291,13 @@ export default function HabitsScreen() {
           !scheduledOn(h, today, hijriOffset),
       ),
     [habits, tomorrow, today, hijriOffset],
+  );
+
+  // What tomorrow is holding: the acts whose schedule begins then, and the to-dos deliberately put
+  // there from a plan. The second is the only place one of those can be seen before it arrives.
+  const tomorrowHint = useMemo(
+    () => tomorrowLine(upcomingTomorrow.map((h) => h.name), openTitlesOn(openTasks, tomorrow)),
+    [upcomingTomorrow, openTasks, tomorrow],
   );
 
   // The day's habits that belong to no stack — their own section, ticked one at a time.
@@ -437,7 +452,15 @@ export default function HabitsScreen() {
 
   // The same discipline for the task rows: the composer re-renders this screen on every keystroke,
   // and an arrow minted here would rebuild every row in the card behind it.
+  // Three is a shortcut; a fourth would be the list, which is a place you go rather than a strip
+  // under a field.
+  const offeredPlans = useMemo(() => planPicks(plans, scheduledPlans, today, 3), [plans, scheduledPlans, today]);
+
   const addTask = useCallback((title: string) => void createTask(title), [createTask]);
+  // A plan writes its title onto the viewed day and keeps its id on the row, so the plan can say
+  // afterwards where the to-do went. The field stays open, the way it does after Return — and the
+  // plan drops out of the strip on its own, since `planPicks` stops offering one already on today.
+  const addFromPlan = useCallback((plan: Plan) => void createTask(plan.title, { planId: plan.id }), [createTask]);
   const tickTask = useCallback((task: Task) => void toggleTask(task.id), [toggleTask]);
   const rewriteTask = useCallback((task: Task, title: string) => void renameTask(task.id, title), [renameTask]);
   const removeTask = useCallback((task: Task) => void deleteTask(task.id), [deleteTask]);
@@ -690,7 +713,7 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
-          {isToday && upcomingTomorrow.length > 0 ? <UpcomingHint habits={upcomingTomorrow} /> : null}
+          {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
           {/* The day's one-off things, above the practice: a stack missed today comes round again
@@ -704,6 +727,8 @@ export default function HabitsScreen() {
             composeRequested={compose === 'task'}
             onComposeHandled={clearCompose}
             onCreate={addTask}
+            planPicks={offeredPlans}
+            onPick={addFromPlan}
             onToggle={tickTask}
             onRename={rewriteTask}
             onDelete={removeTask}
@@ -914,13 +939,13 @@ function DateStepperButtons({
 }
 
 /**
- * A quiet "the night before" line listing Hijri acts that begin tomorrow. Read-only, so it
- * wears the almanac's reading tone (the Hijri line's family), not the accent-pill costume —
- * that dress is the checklist's "tappable" vocabulary, and a notice must not promise a tap.
+ * A quiet "the night before" line: the Hijri acts that begin tomorrow, and any to-do put there
+ * from a plan. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
+ * the accent-pill costume — that dress is the checklist's "tappable" vocabulary, and a notice must
+ * not promise a tap. What it says is resolved in {@link tomorrowLine}, where the rule has a test.
  */
-function UpcomingHint({ habits }: { habits: Habit[] }) {
+function UpcomingHint({ label }: { label: string }) {
   const theme = useTheme();
-  const label = habits.length === 1 && habits[0] ? habits[0].name : `${habits.length} Sunnah acts`;
   return (
     <View accessibilityRole="text" accessibilityLabel={`Tomorrow: ${label}`} style={styles.almanacLine}>
       <AppIcon name="moon" size={14} color={theme.textSecondary} />
