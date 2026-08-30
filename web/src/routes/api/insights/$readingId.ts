@@ -17,7 +17,7 @@ const REQUEST_LIMIT = 32_000
 
 type StoredInsight = Database['public']['Tables']['generated_insights']['Row']
 type HabitRow = Pick<Database['public']['Tables']['habits']['Row'], 'id' | 'name' | 'preset_id'>
-type NoteRow = Pick<Database['public']['Tables']['daily_notes']['Row'], 'note_date' | 'content'>
+type NoteRow = Pick<Database['public']['Tables']['daily_notes']['Row'], 'note_date' | 'body'>
 type EvidenceRow = Pick<Database['public']['Tables']['presets']['Row'], 'id' | 'evidence'>
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: NO_STORE })
@@ -186,7 +186,7 @@ async function postInsight(request: Request, readingId: string) {
       consented
         ? caller
             .from('daily_notes')
-            .select('note_date,content')
+            .select('note_date,body')
             .eq('user_id', userId)
             .gte('note_date', input.reading.span.startISO)
             .lte('note_date', input.reading.span.endISO)

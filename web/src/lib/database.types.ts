@@ -58,9 +58,9 @@ export type Database = {
         Relationships: []
       }
       daily_notes: {
-        Row: { content: string; created_at: string; note_date: string; updated_at: string; user_id: string }
-        Insert: { content: string; created_at?: string; note_date: string; updated_at?: string; user_id: string }
-        Update: { content?: string; created_at?: string; note_date?: string; updated_at?: string; user_id?: string }
+        Row: { body: string; created_at: string | null; id: string; note_date: string; spoken_seconds: number | null; updated_at: string | null; user_id: string }
+        Insert: { body?: string; created_at?: string | null; id?: string; note_date: string; spoken_seconds?: number | null; updated_at?: string | null; user_id: string }
+        Update: { body?: string; created_at?: string | null; id?: string; note_date?: string; spoken_seconds?: number | null; updated_at?: string | null; user_id?: string }
         Relationships: [{ foreignKeyName: "daily_notes_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] }]
       }
       generated_insights: {

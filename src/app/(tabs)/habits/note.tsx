@@ -54,7 +54,7 @@ export default function DailyNoteScreen() {
     if (!refresh.shouldLoad) return;
     const { data, error: readError } = await supabase
       .from('daily_notes')
-      .select('content')
+      .select('body')
       .eq('user_id', user.id)
       .eq('note_date', noteDate)
       .maybeSingle();
@@ -62,7 +62,7 @@ export default function DailyNoteScreen() {
       setError('Could not load today’s note.');
       return;
     }
-    const content = data?.content ?? '';
+    const content = data?.body ?? '';
     noteRef.current = content;
     savedNoteRef.current = content;
     setNote(content);
@@ -81,7 +81,7 @@ export default function DailyNoteScreen() {
     setError(null);
     const result = trimmed
       ? await supabase.from('daily_notes').upsert(
-          { user_id: user.id, note_date: noteDate, content: trimmed, updated_at: new Date().toISOString() },
+          { user_id: user.id, note_date: noteDate, body: trimmed, updated_at: new Date().toISOString() },
           { onConflict: 'user_id,note_date' },
         )
       : await supabase.from('daily_notes').delete().eq('user_id', user.id).eq('note_date', noteDate);

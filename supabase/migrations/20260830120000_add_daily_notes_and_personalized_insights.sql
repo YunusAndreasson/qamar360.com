@@ -22,14 +22,22 @@ alter table public.users
     or (ai_notes_consent_at is not null and ai_notes_consent_version = 1)
   );
 
-create table public.daily_notes (
+-- Production already has this shape from its original private-journal rollout. Reuse it when
+-- present so existing reflections (including optional voice metadata) remain intact.
+create table if not exists public.daily_notes (
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
   note_date date not null,
-  content text not null check (char_length(trim(content)) between 1 and 4000),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (user_id, note_date)
+  body text not null default '',
+  spoken_seconds integer,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, note_date)
 );
+
+alter table public.daily_notes
+  add constraint daily_notes_body_length_check
+  check (char_length(trim(body)) between 1 and 4000);
 
 alter table public.daily_notes enable row level security;
 alter table public.daily_notes force row level security;
