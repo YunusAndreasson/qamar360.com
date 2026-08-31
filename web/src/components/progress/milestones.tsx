@@ -30,7 +30,7 @@ export function Milestones({
             <div className="text-sm font-medium text-foreground">{r.label}</div>
             <div className="mt-1 text-xs text-muted-foreground">{r.sub}</div>
           </div>
-          <div className="display-title shrink-0 text-4xl leading-none text-foreground tabular-nums">
+          <div className="shrink-0 text-3xl font-semibold leading-none text-foreground tabular-nums">
             {r.value.toLocaleString()}
           </div>
         </div>

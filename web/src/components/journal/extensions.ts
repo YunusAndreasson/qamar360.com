@@ -39,7 +39,7 @@ const PLACEHOLDER = 'What was easy, difficult, or present in your heart today?'
 const writingTheme = EditorView.theme({
   '&': {
     height: '100%',
-    color: 'var(--ink)',
+    color: 'var(--foreground)',
     backgroundColor: 'transparent',
     fontFamily: 'var(--font-sans)',
     fontSize: '1.1875rem',
@@ -50,16 +50,16 @@ const writingTheme = EditorView.theme({
     lineHeight: '1.75',
     overflow: 'auto',
   },
-  '.cm-content': { padding: '0', caretColor: 'var(--signal)' },
+  '.cm-content': { padding: '0', caretColor: 'var(--primary)' },
   // Typewriter mode's air, defined here rather than in its own theme. A theme mounted later
   // is inserted *earlier* in <head> by style-mod, so a separate module would lose the padding
   // tie to this one. One stylesheet, one winner: the class below is what the compartment adds.
   '&.cm-typewriter .cm-content': { padding: '38vh 0 45vh' },
   '.cm-line': { padding: '0' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--signal)', borderLeftWidth: '2px' },
-  '.cm-placeholder': { color: 'var(--ink-faint)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--primary)', borderLeftWidth: '2px' },
+  '.cm-placeholder': { color: 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'rgba(158, 199, 219, 0.26)',
+    backgroundColor: 'color-mix(in oklab, var(--primary) 26%, transparent)',
   },
   // Focus mode: everything outside the paragraph under the caret recedes.
   '.cm-dimmed': { opacity: '0.32', transition: 'opacity 180ms ease' },
@@ -75,18 +75,18 @@ const writingTheme = EditorView.theme({
  * scale is the whole iA Writer trick.
  */
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, color: 'var(--ink)', fontWeight: '600', fontSize: '1.35em' },
-  { tag: tags.heading2, color: 'var(--ink)', fontWeight: '600', fontSize: '1.2em' },
-  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], color: 'var(--ink)', fontWeight: '600', fontSize: '1.1em' },
+  { tag: tags.heading1, color: 'var(--foreground)', fontWeight: '600', fontSize: '1.35em' },
+  { tag: tags.heading2, color: 'var(--foreground)', fontWeight: '600', fontSize: '1.2em' },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], color: 'var(--foreground)', fontWeight: '600', fontSize: '1.1em' },
   { tag: tags.strong, fontWeight: '600' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.quote, color: 'var(--ink-dim)', fontStyle: 'italic' },
-  { tag: tags.link, color: 'var(--signal)' },
-  { tag: tags.url, color: 'var(--ink-faint)' },
-  { tag: tags.monospace, fontFamily: 'var(--font-mono)', fontSize: '0.85em', color: 'var(--ink-dim)' },
-  { tag: tags.contentSeparator, color: 'var(--ink-faint)' },
-  { tag: tags.processingInstruction, color: 'var(--ink-faint)', fontWeight: '400' },
+  { tag: tags.quote, color: 'var(--muted-foreground)', fontStyle: 'italic' },
+  { tag: tags.link, color: 'var(--primary)' },
+  { tag: tags.url, color: 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)' },
+  { tag: tags.monospace, fontFamily: 'var(--font-mono)', fontSize: '0.85em', color: 'var(--muted-foreground)' },
+  { tag: tags.contentSeparator, color: 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)' },
+  { tag: tags.processingInstruction, color: 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)', fontWeight: '400' },
 ])
 
 /**

@@ -3,7 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { PenLine } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { EmptyState, ListSkeleton, PageHeader, RowCard, RowList, Section } from '#/components/console'
+import { EmptyState, ListSkeleton, PageHeader, RowCard, RowList, Section } from '#/components/page'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -57,7 +57,7 @@ function JournalPage() {
       />
 
       {entries.length > 0 && (
-        <div className="rise-in mb-6 max-w-sm">
+        <div className="mb-6 max-w-sm">
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -105,7 +105,7 @@ function EntryRow({ entry, today }: { entry: JournalEntry; today: string | null 
     <Link to="/journal/$day" params={{ day: entry.note_date }} className="block">
       <RowCard className="items-center gap-4 py-3.5">
         <div className="w-10 shrink-0 text-center">
-          <div className="display-title text-lg leading-none text-foreground tabular-nums">
+          <div className="text-lg font-semibold leading-none text-foreground tabular-nums">
             {dayNumber}
           </div>
           <div className="mt-1 text-[0.68rem] uppercase tracking-wide text-muted-foreground">
@@ -114,7 +114,7 @@ function EntryRow({ entry, today }: { entry: JournalEntry; today: string | null 
         </div>
         <p className="min-w-0 flex-1 truncate text-sm text-foreground">{noteExcerpt(entry.body)}</p>
         {entry.note_date === today && (
-          <Badge variant="outline" className="shrink-0 border-border text-muted-foreground">
+          <Badge variant="secondary" className="shrink-0">
             Today
           </Badge>
         )}

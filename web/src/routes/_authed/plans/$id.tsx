@@ -3,8 +3,18 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { CalendarPlus, ChevronLeft, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Field, FormDialog, FormError, Panel } from '#/components/console'
-import { Button } from '#/components/ui/button'
+import { Field, FormError, Panel } from '#/components/page'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '#/components/ui/alert-dialog'
+import { Button, buttonVariants } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Textarea } from '#/components/ui/textarea'
@@ -264,12 +274,12 @@ function PlanEditor({ id }: { id: string }) {
 
   return (
     <div className="grid gap-6">
-      <div className="rise-in flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <Link to="/plans" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="size-4" />
           Plans
         </Link>
-        <span className="metric-label">{saveLabel(save)}</span>
+        <span className="text-xs text-muted-foreground">{saveLabel(save)}</span>
       </div>
 
       {isError ? (
@@ -305,7 +315,7 @@ function PlanEditor({ id }: { id: string }) {
             </Panel>
           )}
 
-          <Panel className="rise-in grid gap-5 px-5 py-6 sm:px-8 sm:py-7">
+          <Panel className="grid gap-5 px-5 py-6 sm:px-8 sm:py-7">
             <Field label="Title" htmlFor="plan-title">
               <Input
                 id="plan-title"
@@ -328,12 +338,12 @@ function PlanEditor({ id }: { id: string }) {
                 placeholder="Anything worth remembering about it."
               />
             </Field>
-            <p className="metric-label">
+            <p className="text-xs text-muted-foreground">
               {body.length.toLocaleString()}/{MAX_PLAN_BODY.toLocaleString()}
             </p>
           </Panel>
 
-          <Panel className="rise-in grid gap-4 px-5 py-5 sm:px-8">
+          <Panel className="grid gap-4 px-5 py-5 sm:px-8">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Add as a to-do</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -379,7 +389,7 @@ function PlanEditor({ id }: { id: string }) {
             <Button
               size="sm"
               variant="ghost"
-              className="text-destructive hover:text-destructive"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={remove.isPending}
               onClick={() => setConfirming(true)}
             >
@@ -392,27 +402,27 @@ function PlanEditor({ id }: { id: string }) {
           {/* A plan can hold four thousand characters of notes, and there is no undo. The habits
               page deletes a row on one click, which is survivable for a name and a schedule; this
               is not the same thing. The phone asks too. */}
-          <FormDialog open={confirming} onClose={() => setConfirming(false)} title="Delete plan">
-            <div className="grid gap-4">
-              <p className="text-sm text-muted-foreground">
-                “{known.current?.title ?? title}” and its notes will be deleted. Anything it has
-                already put on a list stays there.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => setConfirming(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-destructive text-white hover:bg-destructive/90"
+          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete plan</AlertDialogTitle>
+                <AlertDialogDescription>
+                  “{known.current?.title ?? title}” and its notes will be deleted. Anything it has
+                  already put on a list stays there.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className={buttonVariants({ variant: 'destructive' })}
                   disabled={remove.isPending}
                   onClick={() => remove.mutate()}
                 >
                   {remove.isPending ? 'Deleting…' : 'Delete'}
-                </Button>
-              </div>
-            </div>
-          </FormDialog>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>

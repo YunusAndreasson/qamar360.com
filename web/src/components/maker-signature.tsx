@@ -21,7 +21,7 @@ export function MakerSignature({ className }: { className?: string }) {
         href={PROJECTS}
         target="_blank"
         rel="me noopener noreferrer"
-        className="transition-colors hover:text-signal"
+        className="transition-colors hover:text-foreground"
       >
         Made by Edenmind
       </a>

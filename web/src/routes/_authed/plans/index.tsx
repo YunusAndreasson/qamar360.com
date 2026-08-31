@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Map, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { EmptyState, Field, FormDialog, FormError, ListSkeleton, PageHeader, RowCard, RowList } from '#/components/console'
+import { EmptyState, Field, FormDialog, FormError, ListSkeleton, PageHeader, RowCard, RowList } from '#/components/page'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -109,7 +109,7 @@ function PlanRow({ plan, today, scheduledOn }: { plan: Plan; today: string | nul
           {excerpt != null && <p className="mt-1 truncate text-xs text-muted-foreground">{excerpt}</p>}
         </div>
         {scheduledOn != null && today != null && (
-          <Badge variant="outline" className="shrink-0 border-border text-muted-foreground">
+          <Badge variant="secondary" className="shrink-0">
             {scheduledLabel(scheduledOn, today)}
           </Badge>
         )}

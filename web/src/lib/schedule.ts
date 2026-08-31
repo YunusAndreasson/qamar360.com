@@ -13,7 +13,8 @@ export type { HijriSchedule }
 
 /** One-letter weekday labels, 0=Sun … 6=Sat — for the schedule picker. */
 export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const
-const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/** Full-enough weekday names, 0=Sun … 6=Sat — the picker's accessible labels. */
+export const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 /** Every day, 0..6 — a new habit's default weekday schedule. */
 export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6]

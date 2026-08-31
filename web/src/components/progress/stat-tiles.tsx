@@ -1,17 +1,19 @@
-import { Panel } from '#/components/console'
+import { Card, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
 import { toDegrees } from '#/lib/progress'
 
 function Tile({ label, value, sub }: { label: string; value: string | number; sub: string }) {
   return (
-    <Panel className="p-5">
-      <div className="metric-label">{label}</div>
-      <div className="display-title mt-3 text-[2rem] leading-none text-foreground tabular-nums">{value}</div>
-      <div className="mt-2 text-xs text-muted-foreground">{sub}</div>
-    </Panel>
+    <Card className="gap-0 py-5">
+      <CardHeader className="gap-1 px-5">
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="text-2xl font-semibold tracking-tight">{value}</CardTitle>
+        <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+      </CardHeader>
+    </Card>
   )
 }
 
-/** Four quiet HUD readouts under the hero — the numbers you'd glance at first. */
+/** The four numbers you'd glance at first, under the hero. */
 export function StatTiles({
   streak,
   rate30,

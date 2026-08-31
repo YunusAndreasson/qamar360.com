@@ -10,17 +10,20 @@ export function MoonGradients() {
   return (
     <svg width="0" height="0" aria-hidden className="absolute">
       <defs>
-        {/* the unlit sphere: a soft top-left highlight falling to a dark limb */}
+        {/* The unlit sphere, shaded off the neutral chart ramp down to the card it sits on.
+            NOT --secondary/--muted/--accent: in zinc all three are the same oklch value, so a
+            gradient built from them is flat however many stops it declares. */}
         <radialGradient id="moon-body" cx="34%" cy="30%" r="80%">
-          <stop offset="0%" stopColor="#1c2637" />
-          <stop offset="52%" stopColor="#0d121b" />
-          <stop offset="100%" stopColor="#06080d" />
+          <stop offset="0%" stopColor="var(--chart-4)" />
+          <stop offset="55%" stopColor="var(--chart-5)" />
+          <stop offset="100%" stopColor="var(--card)" />
         </radialGradient>
-        {/* moonlight: bright near the disc's face, cooling to steel at the limb */}
-        <radialGradient id="moon-light" cx="40%" cy="36%" r="82%">
-          <stop offset="0%" stopColor="var(--signal-hot)" />
-          <stop offset="58%" stopColor="var(--signal)" />
-          <stop offset="100%" stopColor="var(--signal-deep)" />
+        {/* Moonlight. One hue, shaded — a flat fill at this size reads as a sticker, not a sphere,
+            so the ramp runs from the accent down the neutral scale rather than glowing. */}
+        <radialGradient id="moon-light" cx="38%" cy="34%" r="86%">
+          <stop offset="0%" stopColor="var(--primary)" />
+          <stop offset="55%" stopColor="var(--chart-1)" />
+          <stop offset="100%" stopColor="var(--chart-2)" />
         </radialGradient>
       </defs>
     </svg>
@@ -49,9 +52,8 @@ export function MoonDisc({
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength)
   return (
     <svg viewBox={`0 0 ${size} ${size}`} className={cn('h-full w-full', className)} aria-hidden>
-      <circle cx={c} cy={c} r={r} fill="url(#moon-body)" stroke="var(--hairline)" strokeWidth={size * 0.012} />
+      <circle cx={c} cy={c} r={r} fill="url(#moon-body)" stroke="var(--border)" strokeWidth={size * 0.012} />
       <path d={moonPhasePath(c, c, r, illumination, waxing)} fill="url(#moon-light)" opacity={litOpacity} />
-      <circle cx={c} cy={c} r={r} fill="none" stroke="var(--signal)" strokeWidth={size * 0.01} opacity={0.12 * litOpacity} />
     </svg>
   )
 }

@@ -1,10 +1,11 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 
-import { Field, FormError, FormNotice } from '#/components/console'
+import { Field, FormError, FormNotice } from '#/components/page'
 import { MakerSignature } from '#/components/maker-signature'
 import { QamarBrandName, QamarMark } from '#/components/qamar-logo'
 import { Button } from '#/components/ui/button'
+import { Card } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
 import { supabaseBrowser } from '#/lib/supabase/client'
 import { getUserFn } from '#/server/auth'
@@ -52,18 +53,11 @@ function LoginPage() {
   const isSignIn = mode === 'sign-in'
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden p-6">
-      {/* one faint ring echoing the mark, for quiet depth behind the card */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[112vmin] w-[112vmin] -translate-x-1/2 -translate-y-1/2 rounded-full border"
-        style={{ borderColor: 'rgba(150,173,205,0.05)' }}
-      />
-
-      <div className="rise-in panel w-full max-w-[25rem] p-8 sm:p-9">
+    <div className="relative flex min-h-svh items-center justify-center p-6">
+      <Card className="w-full max-w-sm gap-0 p-8">
         <div className="flex flex-col items-center text-center">
-          <QamarMark size={56} className="text-signal" />
-          <h1 className="display-title mt-5 text-2xl leading-none text-foreground">
+          <QamarMark size={48} className="text-foreground" />
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
             <QamarBrandName />
           </h1>
           <p className="mt-3 max-w-[26ch] text-sm text-muted-foreground">
@@ -109,7 +103,7 @@ function LoginPage() {
           {isSignIn ? "Don't have an account? " : 'Already have an account? '}
           <button
             type="button"
-            className="font-medium text-signal underline-offset-4 hover:underline"
+            className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
             onClick={() => {
               setMode(isSignIn ? 'sign-up' : 'sign-in')
               setError(null)
@@ -119,7 +113,7 @@ function LoginPage() {
             {isSignIn ? 'Sign up' : 'Sign in'}
           </button>
         </p>
-      </div>
+      </Card>
 
       <MakerSignature className="absolute inset-x-0 bottom-6 px-6" />
     </div>

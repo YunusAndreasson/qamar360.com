@@ -1,62 +1,76 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 /* ─────────────────────────────────────────────────────────────────────────
-   QAMAR MISSION CONTROL — an orbital telemetry console.
-   Dark-first, monochrome instrument surfaces + one steel "moonlight" accent.
-   The brand mark is a pure geometric Q: a 360° circle (one lunar orbit) with
-   a tail-tick crossing it. Everything here reads as the panel it lives on.
+   Qamar360 web console — stock shadcn (new-york / zinc), dark-only.
+   The moon is the brand, so the orbit gauge and moon discs stay; everything
+   else is shadcn's own surfaces, radii and type.
    ──────────────────────────────────────────────────────────────────────── */
 
-:root {
-  /* Raw instrument palette */
-  --void: #05070b;
-  --void-2: #070a10;
-  --panel: #0b0e15;
-  --panel-2: #10141d;
-  --panel-3: #151a24;
-  --hairline: rgba(150, 173, 205, 0.14);
-  --hairline-2: rgba(150, 173, 205, 0.26);
-  --ink: #e9eef7;
-  --ink-dim: #98a4b8;
-  --ink-faint: #5b6579;
-  --signal: #9ec7db; /* steel moonlight — the single accent */
-  --signal-hot: #d3ecf7;
-  --signal-deep: #4e7d92;
-  --ok: #57c9a2; /* status-OK light, tiny dots only */
-  --danger: #e5806e;
+/* Font stacks live in a PLAIN `@theme`, not `@theme inline`. An `inline` theme
+   variable is substituted into utilities and never emitted to `:root`, so a raw
+   `var(--font-mono)` — which is how the CodeMirror theme, the recharts ticks and
+   `code {}` ask for it — would resolve to nothing. Declared here it is a real
+   custom property AND still drives `--default-font-family`. */
+@theme {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+}
 
-  /* shadcn tokens, retuned to the console (dark-first, no light mode) */
-  --background: oklch(0.16 0.008 250);
-  --foreground: oklch(0.94 0.008 240);
-  --card: oklch(0.185 0.01 250);
-  --card-foreground: oklch(0.94 0.008 240);
-  --popover: oklch(0.2 0.012 250);
-  --popover-foreground: oklch(0.94 0.008 240);
-  --primary: oklch(0.82 0.055 224); /* signal */
-  --primary-foreground: oklch(0.19 0.03 240);
-  --secondary: oklch(0.24 0.012 250);
-  --secondary-foreground: oklch(0.86 0.01 240);
-  --muted: oklch(0.22 0.01 250);
-  --muted-foreground: oklch(0.68 0.018 245);
-  --accent: oklch(0.26 0.016 245);
-  --accent-foreground: oklch(0.95 0.008 240);
-  --destructive: oklch(0.68 0.14 32);
-  --destructive-foreground: oklch(0.96 0.01 40);
-  --border: rgba(150, 173, 205, 0.14);
-  --input: rgba(150, 173, 205, 0.2);
-  --ring: oklch(0.82 0.055 224);
-  --radius: 0.55rem;
+/* shadcn zinc, dark values. The app is dark-only — `<html class="dark">` is
+   fixed in __root.tsx — so the dark palette lives directly in `:root` and there
+   is no `.dark` block. The class still matters: the primitives carry `dark:`
+   variants of their own. */
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+
+  /* zinc's chart ramp is deliberately monochrome — right for single-series
+     charts that should read as instrument, not decoration. */
+  --chart-1: oklch(0.871 0.006 286.286);
+  --chart-2: oklch(0.552 0.016 285.938);
+  --chart-3: oklch(0.442 0.017 285.786);
+  --chart-4: oklch(0.37 0.013 285.805);
+  --chart-5: oklch(0.274 0.006 286.033);
+
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+
+  /* The one non-stock token. Confirming a completed act needs a colour that is
+     not "primary" and not "destructive", and the alternative — a literal green
+     in three SVG/TSX files — is worse. This is shadcn's own default chart-2. */
+  --success: oklch(0.696 0.17 162.48);
 }
 
 @theme inline {
-  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
-
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -72,279 +86,72 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-signal: var(--signal);
-  --color-ok: var(--ok);
+  --color-success: var(--success);
 
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 3px);
-  --radius-xl: calc(var(--radius) + 7px);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {
-  /* signal-tinted keyboard focus everywhere; shadcn controls override with their own ring */
   * {
     @apply border-border outline-ring/50;
   }
-}
 
-html,
-body,
-#app {
-  min-height: 100%;
-}
-
-html {
-  color-scheme: dark;
-  /* Always reserve the scrollbar track so the centered column never shifts
-     sideways when navigating between a short page and a tall, scrolling one. */
-  scrollbar-gutter: stable;
-}
-
-/* ── The console backdrop: void + radar dot-grid + moonlight glows ──────── */
-body {
-  margin: 0;
-  color: var(--ink);
-  font-family: var(--font-sans);
-  background-color: var(--void);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
-
-/* fixed atmosphere layer, behind everything — one restrained moonlight wash,
-   high overhead, over a calm vertical fade. No radar grid, no competing glows. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  pointer-events: none;
-  background:
-    radial-gradient(1200px 760px at 50% -14%, rgba(120, 165, 195, 0.06), transparent 66%),
-    linear-gradient(180deg, var(--void-2) 0%, var(--void) 62%, #04060a 100%);
-}
-
-/* Layered on purpose. Unlayered rules outrank every layer, so a bare `a { color }` here would
-   beat any Tailwind `text-*` utility — and a Button rendered `asChild` as a Link would come out
-   signal-on-signal, invisible. Inside `@layer base` the utilities layer wins, as it should. */
-@layer base {
-  a {
-    color: var(--signal);
-    text-decoration: none;
+  body {
+    @apply bg-background text-foreground;
   }
-  a:hover {
-    color: var(--signal-hot);
+
+  html {
+    color-scheme: dark;
+    /* Reserve the scrollbar track so the content column never shifts sideways
+       between a short page and a tall, scrolling one. */
+    scrollbar-gutter: stable;
+  }
+
+  code {
+    @apply rounded-sm border bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
   }
 }
 
-::selection {
-  background: rgba(158, 199, 219, 0.26);
-  color: #fff;
-}
-
-/* thin instrument scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(150, 173, 205, 0.24) transparent;
-}
-*::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-*::-webkit-scrollbar-thumb {
-  background: rgba(150, 173, 205, 0.2);
-  border-radius: 20px;
-}
-/* A scroll region that must not show its track. Unlayered, like the three rules above it — a
-   Tailwind utility cannot win here, because `* { scrollbar-width: thin }` is unlayered and every
-   utility lives in a layer. The only user is the nav bar, which scrolls sideways on a narrow
-   window inside a 56px header: a 9px track there costs more height than it buys clarity, and the
-   tabs clipping mid-word is already the affordance that says there is more to the right. */
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* ── Type roles ────────────────────────────────────────────────────────── */
-.font-display {
-  font-family: var(--font-display);
-}
-.font-mono {
-  font-family: var(--font-mono);
-}
-
-.display-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-/* Quiet metric eyebrow — the one label style for KPIs and readouts. Clean sans,
-   sentence case: a human label, not a telemetry callsign. */
-/* Layered for the same reason: a bare `.metric-label` would beat `text-destructive`
-   on a counter that has run over its limit. */
 @layer components {
-  .metric-label {
-    font-size: 0.78rem;
-    font-weight: 500;
-    line-height: 1.2;
-    letter-spacing: 0;
-    color: var(--muted-foreground);
-  }
-}
-
-
-/* ── Command bar (top chrome) ──────────────────────────────────────────── */
-.command-bar {
-  background: linear-gradient(180deg, rgba(11, 15, 22, 0.86), rgba(7, 10, 16, 0.78));
-  border-bottom: 1px solid var(--hairline);
-  backdrop-filter: blur(14px) saturate(1.2);
-}
-
-/* console navigation tabs */
-.console-tab {
-  position: relative;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  padding: 0.5rem 0.15rem;
-  transition: color 160ms ease;
-}
-.console-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1.5px;
-  transform: scaleX(0);
-  transform-origin: center;
-  background: var(--ink-dim);
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.console-tab:hover {
-  color: var(--ink-dim);
-}
-.console-tab:hover::after {
-  transform: scaleX(1);
-}
-.console-tab.is-active {
-  color: var(--ink);
-}
-.console-tab.is-active::after {
-  transform: scaleX(1);
-  background: var(--signal);
-}
-
-/* ── Panels ────────────────────────────────────────────────────────────── */
-/* Layered, like the base rules above: an unlayered class outranks every Tailwind
-   utility, so a `.panel` could never be given `fixed` or `rounded-none` at the call
-   site. Inside `@layer components` the utilities layer wins, which is the point of
-   composing a house class with utilities at all. */
-@layer components {
-  .panel {
-    position: relative;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent 60%),
-      var(--panel);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-  }
-
-  /* list row: quiet hairline card that lights a signal edge on hover */
-  .rowcard {
-    position: relative;
-    background: var(--panel);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition:
-      border-color 160ms ease,
-      background-color 160ms ease,
-      transform 160ms ease;
-  }
-  .rowcard::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    transform: scaleY(0);
-    transform-origin: top;
-    background: linear-gradient(180deg, var(--signal), var(--signal-deep));
-    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .rowcard:hover {
-    border-color: var(--hairline-2);
-    background: var(--panel-2);
-  }
-  .rowcard:hover::before {
-    transform: scaleY(1);
-  }
-}
-
-
-/* ── Entrance motion ───────────────────────────────────────────────────────
-   A quick, gentle settle — small enough that a page reads as simply *there* on
-   navigation, not assembling itself. (Kept subtle after nav felt unstable.) */
-.rise-in {
-  animation: rise-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-code {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  border: 1px solid var(--hairline);
-  background: var(--panel-2);
-  border-radius: 5px;
-  padding: 2px 6px;
-}
-
-/* ── Progress: orbit gauge draw-on ─────────────────────────────────────────
-   The arc sweeps from empty to its filled length on mount. Each gauge sets
-   --orbit-circumference (the full ring) and --orbit-offset (the target) inline,
-   so the keyframe reads its own instance's values. */
-.orbit-arc {
-  stroke-dashoffset: var(--orbit-offset);
-  animation: orbit-draw 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes orbit-draw {
-  from {
-    stroke-dashoffset: var(--orbit-circumference);
-  }
-  to {
+  /* The orbit gauge's draw-on. Each gauge sets --orbit-circumference and
+     --orbit-offset inline, so the keyframe reads its own instance's values. */
+  .orbit-arc {
     stroke-dashoffset: var(--orbit-offset);
+    animation: orbit-draw 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes orbit-draw {
+    from {
+      stroke-dashoffset: var(--orbit-circumference);
+    }
+    to {
+      stroke-dashoffset: var(--orbit-offset);
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .orbit-arc {
-    animation: none !important;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rise-in {
     animation: none !important;
   }
   * {

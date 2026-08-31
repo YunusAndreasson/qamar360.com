@@ -21,13 +21,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Qamar360 — Orbital Habit Console' },
+      { title: 'Qamar360 — Sunnah habits & routines' },
       {
         name: 'description',
         content:
-          'Track your Sunnah habits and routines across the lunar cycle — a precise, calm console for daily practice.',
+          'Track your Sunnah habits and routines across the lunar cycle — a calm, precise place for daily practice.',
       },
-      { name: 'theme-color', content: '#05070b' },
+      { name: 'theme-color', content: '#09090b' },
       { name: 'color-scheme', content: 'dark' },
       // Maker identity — pairs with the Person JSON-LD below.
       { name: 'author', content: 'Yunus Andreasson' },
@@ -36,11 +36,11 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       // Open Graph / Twitter card — these were entirely missing.
       { property: 'og:type', content: 'website' },
       { property: 'og:site_name', content: 'Qamar360' },
-      { property: 'og:title', content: 'Qamar360 — Orbital Habit Console' },
+      { property: 'og:title', content: 'Qamar360 — Sunnah habits & routines' },
       {
         property: 'og:description',
         content:
-          'Track your Sunnah habits and routines across the lunar cycle — a precise, calm console for daily practice.',
+          'Track your Sunnah habits and routines across the lunar cycle — a calm, precise place for daily practice.',
       },
     ],
     links: [

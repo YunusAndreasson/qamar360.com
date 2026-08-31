@@ -10,8 +10,10 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { FormError, Panel } from '#/components/console'
+import { FormError, Panel } from '#/components/page'
 import { Button } from '#/components/ui/button'
+import { Toggle as UIToggle } from '#/components/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import { Skeleton } from '#/components/ui/skeleton'
 import { addDaysISO, formatGregorian, formatHijriDate, localDate, todayLocalISO } from '#/lib/dates'
 import {
@@ -253,13 +255,13 @@ function DayEditor({ day }: { day: string }) {
 
   return (
     <div>
-      <header className="rise-in mb-6">
-        <Link to="/journal" className="metric-label hover:text-foreground">
+      <header className="mb-6">
+        <Link to="/journal" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
           ← Journal
         </Link>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="display-title text-[2rem] leading-none text-foreground sm:text-[2.4rem]">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {hijri ?? gregorian}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
@@ -293,7 +295,7 @@ function DayEditor({ day }: { day: string }) {
       </header>
 
       {save.status === 'conflict' && (
-        <Panel className="rise-in mb-4 flex flex-wrap items-center gap-3 px-4 py-3">
+        <Panel className="mb-4 flex flex-wrap items-center gap-3 px-4 py-3">
           <p className="text-sm text-foreground">
             This reflection changed on your phone. Nothing has been overwritten.
           </p>
@@ -310,10 +312,10 @@ function DayEditor({ day }: { day: string }) {
 
       <section
         className={cn(
-          'panel flex flex-col',
+          'flex flex-col rounded-xl border bg-card text-card-foreground',
           fullscreen
             ? 'fixed inset-0 z-50 rounded-none border-0 px-5 py-6 sm:px-8'
-            : 'rise-in px-5 py-7 sm:px-10 sm:py-9',
+            : 'px-5 py-7 sm:px-10 sm:py-9',
         )}
       >
         <div
@@ -357,18 +359,18 @@ function DayEditor({ day }: { day: string }) {
         </div>
 
         <div className="mx-auto mt-6 flex w-full max-w-[68ch] flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4">
-          <span className="metric-label font-mono tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {words} {words === 1 ? 'word' : 'words'} · {readingMinutes(words)} min
           </span>
           <span
             className={cn(
-              'metric-label font-mono tabular-nums',
+              'text-xs text-muted-foreground tabular-nums',
               body.length > MAX_NOTE_LENGTH - 200 && 'text-destructive',
             )}
           >
             {body.length}/{MAX_NOTE_LENGTH}
           </span>
-          <span className="metric-label ml-auto">{saveLabel(save)}</span>
+          <span className="ml-auto text-xs text-muted-foreground">{saveLabel(save)}</span>
           <div className="flex items-center gap-0.5">
             <Toggle
               on={focusMode}
@@ -404,6 +406,7 @@ function DayEditor({ day }: { day: string }) {
   )
 }
 
+/** An editor mode switch: pressed state comes from the primitive, the name from a tooltip. */
 function Toggle({
   on,
   label,
@@ -416,17 +419,20 @@ function Toggle({
   onClick: () => void
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={on}
-      title={label}
-      className={on ? 'text-signal' : 'text-muted-foreground'}
-    >
-      {icon}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <UIToggle
+          size="sm"
+          pressed={on}
+          onPressedChange={onClick}
+          aria-label={label}
+          className="text-muted-foreground data-[state=on]:text-foreground"
+        >
+          {icon}
+        </UIToggle>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

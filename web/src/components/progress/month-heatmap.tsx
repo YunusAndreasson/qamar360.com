@@ -30,12 +30,12 @@ export function MonthHeatmap({ month }: { month: MonthProgress }) {
               className={cn(
                 'relative aspect-square rounded-md p-1',
                 d.state === 'future' && 'opacity-45',
-                d.state === 'today' && 'ring-1 ring-signal',
-                isWhite && d.state !== 'today' && 'ring-1 ring-[var(--hairline-2)]',
+                d.state === 'today' && 'ring-1 ring-primary',
+                isWhite && d.state !== 'today' && 'ring-1 ring-border',
               )}
             >
               <MoonDisc dayOfMonth={d.day} monthLength={month.monthLength} litOpacity={litOpacity} />
-              <span className="absolute right-1 top-0.5 font-mono text-[9px] tabular-nums text-muted-foreground/40">
+              <span className="absolute right-1 top-0.5 text-[10px] tabular-nums text-muted-foreground/75">
                 {d.day}
               </span>
             </div>

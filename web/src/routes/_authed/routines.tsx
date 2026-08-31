@@ -12,9 +12,10 @@ import {
   PageHeader,
   Panel,
   RowList,
-} from '#/components/console'
+} from '#/components/page'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
+import { ScrollArea } from '#/components/ui/scroll-area'
 import { DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import {
@@ -91,8 +92,8 @@ function RoutinesPage() {
                 <ol className="mt-3 grid gap-1.5">
                   {members.map((m, i) => (
                     <li key={m.id} className="flex items-center gap-3 text-sm">
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
-                        {String(i + 1).padStart(2, '0')}
+                      <span className="w-4 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                        {i + 1}
                       </span>
                       <span className="truncate text-foreground">{m.name}</span>
                     </li>
@@ -165,14 +166,19 @@ function NewRoutineForm({ ungrouped, onSaved }: { ungrouped: Habit[]; onSaved: (
             No ungrouped habits available. Add some on the Habits page first.
           </p>
         ) : (
-          <div className="grid max-h-64 gap-1 overflow-y-auto rounded-md border p-2">
-            {ungrouped.map((h) => (
-              <label key={h.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
-                <Checkbox checked={selected.has(h.id)} onCheckedChange={() => toggle(h.id)} />
-                <span className="text-sm">{h.name}</span>
-              </label>
-            ))}
-          </div>
+          <ScrollArea className="h-64 rounded-md border">
+            <div className="grid gap-1 p-2">
+              {ungrouped.map((h) => (
+                <label
+                  key={h.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent"
+                >
+                  <Checkbox checked={selected.has(h.id)} onCheckedChange={() => toggle(h.id)} />
+                  <span className="text-sm">{h.name}</span>
+                </label>
+              ))}
+            </div>
+          </ScrollArea>
         )}
       </Field>
       <FormError message={error} />

@@ -3,9 +3,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Check, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { EmptyState, ListSkeleton, PageHeader, Panel, RowCard, Section } from '#/components/console'
+import { EmptyState, ListSkeleton, PageHeader, Panel, RowCard, Section } from '#/components/page'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
 import {
   catalogQueryOptions,
   presetToHabit,
@@ -77,22 +77,23 @@ function DiscoverPage() {
     <div>
       <PageHeader title="Discover" readout="A curated library of Sunnah habits and routines." />
 
-      <div className="relative mb-7">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+      <InputGroup className="mb-7">
+        <InputGroupAddon>
+          <Search />
+        </InputGroupAddon>
+        <InputGroupInput
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search habits and routines…"
-          className="h-11 pl-9"
         />
-      </div>
+      </InputGroup>
 
       {isPending ? (
         <ListSkeleton rows={6} height={72} />
       ) : (
         <div className="grid gap-8">
           {!q && essentialsRemaining.length > 0 && (
-            <Panel className="rise-in p-5">
+            <Panel className="p-5">
               <div className="text-base font-medium text-foreground">
                 New here? Start with the essentials
               </div>
@@ -152,7 +153,7 @@ function DiscoverPage() {
 function AddButton({ added, busy, onAdd }: { added: boolean; busy: boolean; onAdd: () => void }) {
   if (added) {
     return (
-      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ok">
+      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-success">
         <Check className="size-4" /> Added
       </span>
     )

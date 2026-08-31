@@ -14,7 +14,7 @@ export function FirstYear({ year }: { year: YearProgress }) {
   return (
     <div className="flex h-[240px] flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-        <div className="display-title text-2xl text-foreground">{year.year} is just beginning</div>
+        <div className="text-xl font-semibold tracking-tight text-foreground">{year.year} is just beginning</div>
         <p className="max-w-[44ch] text-sm leading-relaxed text-muted-foreground">
           Each Hijri month charts here as it passes — you’re in {current?.monthName ?? '—'}, month{' '}
           {current?.month ?? 1} of 12.
@@ -22,15 +22,15 @@ export function FirstYear({ year }: { year: YearProgress }) {
       </div>
 
       {/* the chart's own x-axis, drawn empty — the panel the trend will grow into */}
-      <div className="flex items-end justify-between border-t border-border px-1 pt-2">
+      <div className="flex items-end justify-between border-t px-1 pt-2">
         {year.months.map((m) => (
           <span
             key={m.month}
             title={m.monthName}
             className={cn(
-              'font-mono text-[11px] tabular-nums',
+              'text-[11px] tabular-nums',
               m.state === 'current'
-                ? 'text-signal'
+                ? 'font-medium text-foreground'
                 : m.state === 'past'
                   ? 'text-muted-foreground'
                   : 'text-muted-foreground/40',

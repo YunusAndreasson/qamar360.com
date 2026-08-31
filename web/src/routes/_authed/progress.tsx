@@ -2,7 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 
-import { EmptyState, PageHeader, Panel, Section } from '#/components/console'
+import { EmptyState, PageHeader } from '#/components/page'
+import { Badge } from '#/components/ui/badge'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import { FirstYear } from '#/components/progress/first-year'
 import { HabitBreakdown } from '#/components/progress/habit-breakdown'
 import { Milestones } from '#/components/progress/milestones'
@@ -103,21 +111,25 @@ function ProgressPage() {
     <div>
       {header}
       <div className="grid grid-cols-12 gap-4">
-        <Panel className="rise-in col-span-12 p-6 lg:col-span-5">
-          <Section title="This month">
-            <div className="flex justify-center py-4">
-              <OrbitGauge month={progress.month} />
-            </div>
-          </Section>
-        </Panel>
+        <Card className="col-span-12 lg:col-span-5">
+          <CardHeader>
+            <CardTitle>This month</CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center pb-2">
+            <OrbitGauge month={progress.month} />
+          </CardContent>
+        </Card>
 
-        <Panel className="rise-in col-span-12 p-6 lg:col-span-7">
-          <Section title="This year">
+        <Card className="col-span-12 lg:col-span-7">
+          <CardHeader>
+            <CardTitle>This year</CardTitle>
+          </CardHeader>
+          <CardContent>
             {showYearTrend ? <YearTrend year={progress.year} /> : <FirstYear year={progress.year} />}
-          </Section>
-        </Panel>
+          </CardContent>
+        </Card>
 
-        <div className="rise-in col-span-12">
+        <div className="col-span-12">
           <StatTiles
             streak={streak}
             rate30={rate30}
@@ -127,33 +139,48 @@ function ProgressPage() {
           />
         </div>
 
-        <Panel className="rise-in col-span-12 p-6 lg:col-span-7">
-          <Section title="Best day of week">
+        <Card className="col-span-12 lg:col-span-7">
+          <CardHeader>
+            <CardTitle>Best day of week</CardTitle>
+          </CardHeader>
+          <CardContent>
             <WeekdayBars rates={weekday} />
-          </Section>
-        </Panel>
+          </CardContent>
+        </Card>
 
-        <Panel className="rise-in col-span-12 p-6 lg:col-span-5">
-          <Section title="Records">
+        <Card className="col-span-12 lg:col-span-5">
+          <CardHeader>
+            <CardTitle>Records</CardTitle>
+          </CardHeader>
+          <CardContent>
             <Milestones
               longestStreak={milestones.longestStreak}
               perfectDays={milestones.perfectDays}
               totalActs={milestones.totalActs}
             />
-          </Section>
-        </Panel>
+          </CardContent>
+        </Card>
 
-        <Panel className="rise-in col-span-12 p-6">
-          <Section title={`${progress.month.monthName} · day by day`}>
+        <Card className="col-span-12">
+          <CardHeader>
+            <CardTitle>{progress.month.monthName} · day by day</CardTitle>
+          </CardHeader>
+          <CardContent>
             <MonthHeatmap month={progress.month} />
-          </Section>
-        </Panel>
+          </CardContent>
+        </Card>
 
-        <Panel className="rise-in col-span-12 p-6">
-          <Section title="By habit" count={habitStats.length}>
+        <Card className="col-span-12">
+          <CardHeader>
+            <CardTitle>By habit</CardTitle>
+            <CardAction>
+              <Badge variant="secondary">{habitStats.length}</Badge>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
             <HabitBreakdown stats={habitStats} />
-          </Section>
-        </Panel>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

@@ -1,3 +1,4 @@
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 import { ringMetrics, toDegrees, type MonthProgress } from '#/lib/progress'
@@ -41,17 +42,9 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
           height={SIZE}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           aria-hidden
-          className={cn(isComplete && 'drop-shadow-[0_0_12px_color-mix(in_oklab,var(--ok)_55%,transparent)]')}
         >
-          <defs>
-            <linearGradient id="orbit-grad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="var(--signal-hot)" />
-              <stop offset="100%" stopColor="var(--signal-deep)" />
-            </linearGradient>
-          </defs>
-
           {/* orbit track */}
-          <circle cx={c} cy={c} r={ringRadius} fill="none" stroke="var(--hairline)" strokeWidth={STROKE} />
+          <circle cx={c} cy={c} r={ringRadius} fill="none" stroke="var(--muted)" strokeWidth={STROKE} />
 
           {/* filled arc — sweeps clockwise from 12 o'clock */}
           <circle
@@ -60,7 +53,7 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
             cy={c}
             r={ringRadius}
             fill="none"
-            stroke={isComplete ? 'var(--ok)' : 'url(#orbit-grad)'}
+            stroke={isComplete ? 'var(--success)' : 'var(--primary)'}
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -75,14 +68,13 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
 
           {/* last month's pace tick */}
           {month.hasPrevious && (
-            <line x1={t1.x} y1={t1.y} x2={t2.x} y2={t2.y} stroke="var(--ink-dim)" strokeWidth={2} strokeLinecap="round" />
+            <line x1={t1.x} y1={t1.y} x2={t2.x} y2={t2.y} stroke="var(--muted-foreground)" strokeWidth={2} strokeLinecap="round" />
           )}
         </svg>
 
         {/* moon at today's true phase, luminous over the ring's centre */}
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div
-            className="drop-shadow-[0_0_14px_color-mix(in_oklab,var(--signal)_32%,transparent)]"
             style={{ width: MOON_D, height: MOON_D }}
           >
             <MoonDisc dayOfMonth={month.dayOfMonth} monthLength={month.monthLength} litOpacity={0.95} />
@@ -91,7 +83,7 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
       </div>
 
       <div className="mt-6 text-center">
-        <div className="display-title text-6xl leading-none text-foreground tabular-nums">
+        <div className="text-6xl font-semibold leading-none tracking-tight text-foreground">
           {degrees}
           <span className="align-top text-2xl text-muted-foreground">°</span>
         </div>
@@ -101,12 +93,16 @@ export function OrbitGauge({ month }: { month: MonthProgress }) {
             <span
               className={cn(
                 'inline-flex items-center gap-1 tabular-nums',
-                delta > 0 ? 'text-ok' : delta < 0 ? 'text-foreground/80' : 'text-muted-foreground',
+                delta === 0 ? 'text-muted-foreground' : 'text-foreground',
               )}
             >
-              <span aria-hidden className="text-xs leading-none">
-                {delta > 0 ? '↑' : delta < 0 ? '↓' : '·'}
-              </span>
+              {delta > 0 ? (
+                <TrendingUp aria-hidden className="size-3.5" />
+              ) : delta < 0 ? (
+                <TrendingDown aria-hidden className="size-3.5" />
+              ) : (
+                <Minus aria-hidden className="size-3.5" />
+              )}
               {Math.abs(delta)}°
             </span>
             <span>vs {month.previousMonthName}</span>

@@ -42,8 +42,8 @@ export function QamarBrandName({ className }: { className?: string }) {
 export function QamarWordmark({ size = 24, className }: { size?: number; className?: string }) {
   return (
     <span className={cn('flex items-center gap-2.5', className)}>
-      <QamarMark size={size} className="text-signal" />
-      <QamarBrandName className="font-display text-[0.95rem] font-semibold tracking-[0.02em] text-foreground" />
+      <QamarMark size={size} className="text-primary" />
+      <QamarBrandName className="text-[0.95rem] font-semibold tracking-tight text-foreground" />
     </span>
   )
 }

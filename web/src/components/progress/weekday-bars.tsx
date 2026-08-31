@@ -6,7 +6,7 @@ import { usePrefersReducedMotion } from './use-reduced-motion'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const config = { value: { label: 'Completion', color: 'var(--signal)' } } satisfies ChartConfig
+const config = { value: { label: 'Completion', color: 'var(--chart-1)' } } satisfies ChartConfig
 
 type BarDatum = { weekday: number; label: string; value: number; sample: number }
 
@@ -15,9 +15,9 @@ function BarTooltip({ active, payload }: { active?: boolean; payload?: { payload
   const p = active && payload?.length ? payload[0]!.payload : null
   if (!p || p.sample === 0) return null
   return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs shadow-lg">
+    <div className="rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <div className="font-medium text-foreground">{DOW[p.weekday]}</div>
-      <div className="font-mono tabular-nums text-muted-foreground">{toDegrees(p.value)}°</div>
+      <div className="tabular-nums text-muted-foreground">{toDegrees(p.value)}°</div>
     </div>
   )
 }
@@ -47,12 +47,11 @@ export function WeekdayBars({ rates }: { rates: { weekday: number; rate: number;
             tickLine={false}
             axisLine={false}
             tickMargin={10}
-            tick={{ fontSize: 12, fontFamily: 'var(--font-sans)', fill: 'var(--muted-foreground)' }}
           />
-          <ChartTooltip cursor={{ fill: 'var(--hairline)' }} content={<BarTooltip />} />
-          <Bar dataKey="value" radius={[5, 5, 0, 0]} isAnimationActive={!reduced} animationDuration={800}>
+          <ChartTooltip cursor={false} content={<BarTooltip />} />
+          <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={!reduced} animationDuration={800}>
             {data.map((_, i) => (
-              <Cell key={i} fill="var(--signal)" fillOpacity={i === best ? 0.95 : 0.28} />
+              <Cell key={i} fill={i === best ? 'var(--color-value)' : 'var(--muted)'} />
             ))}
           </Bar>
         </BarChart>

@@ -12,11 +12,12 @@ import {
   PageHeader,
   RowCard,
   RowList,
-} from '#/components/console'
+} from '#/components/page'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
+import { ToggleGroup, ToggleGroupItem } from '#/components/ui/toggle-group'
 import {
   createHabit,
   deleteHabit,
@@ -25,8 +26,8 @@ import {
   updateHabit,
   type Habit,
 } from '#/lib/habits'
-import { DAILY_SCHEDULE, scheduleSummary, WEEKDAY_LABELS } from '#/lib/schedule'
-import { cn, countLabel } from '#/lib/utils'
+import { DAILY_SCHEDULE, scheduleSummary, SHORT_WEEKDAYS, WEEKDAY_LABELS } from '#/lib/schedule'
+import { countLabel } from '#/lib/utils'
 
 export const Route = createFileRoute('/_authed/habits')({ component: HabitsPage })
 
@@ -67,7 +68,7 @@ function HabitsPage() {
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="truncate font-medium text-foreground">{h.name}</span>
                 {h.stack_id && (
-                  <Badge variant="outline" className="border-border text-muted-foreground">
+                  <Badge variant="secondary">
                     routine
                   </Badge>
                 )}
@@ -144,9 +145,6 @@ function HabitForm({ habit, onSaved }: { habit: Habit | null; onSaved: () => voi
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const toggleDay = (d: number) =>
-    setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b)))
-
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!name.trim()) return setError('Name is required')
@@ -192,24 +190,26 @@ function HabitForm({ habit, onSaved }: { habit: Habit | null; onSaved: () => voi
         </p>
       ) : (
         <Field label="Days">
-          <div className="flex gap-1.5">
+          {/* The labels repeat (S M T W T F S), so the value carried is the day INDEX. */}
+          <ToggleGroup
+            type="multiple"
+            variant="outline"
+            value={days.map(String)}
+            onValueChange={(v: string[]) => setDays(v.map(Number).sort((a, b) => a - b))}
+          >
             {WEEKDAY_LABELS.map((lbl, d) => (
-              <button
-                type="button"
+              <ToggleGroupItem
                 key={d}
-                onClick={() => toggleDay(d)}
-                aria-pressed={days.includes(d)}
-                className={cn(
-                  'size-9 rounded-md border font-mono text-xs uppercase transition-colors',
-                  days.includes(d)
-                    ? 'border-primary bg-primary font-bold text-primary-foreground'
-                    : 'border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
+                value={String(d)}
+                aria-label={SHORT_WEEKDAYS[d]}
+                // The stock on-state is `bg-accent`, one 0.06-lightness step off this card — far
+                // too quiet for a control whose only job is showing which days are picked.
+                className="size-9 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
                 {lbl}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         </Field>
       )}
 

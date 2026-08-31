@@ -6,16 +6,16 @@ import { usePrefersReducedMotion } from './use-reduced-motion'
 
 type TrendPoint = { month: number; label: string; monthName: string; value: number | null; state: string }
 
-const config = { value: { label: 'Completion', color: 'var(--signal)' } } satisfies ChartConfig
+const config = { value: { label: 'Completion', color: 'var(--chart-1)' } } satisfies ChartConfig
 
 /** Themed tooltip: the Hijri month name over the exact figure in degrees. */
 function TrendTooltip({ active, payload }: { active?: boolean; payload?: { payload: TrendPoint }[] }) {
   const p = active && payload?.length ? payload[0]!.payload : null
   if (!p || p.value == null) return null
   return (
-    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs shadow-lg">
+    <div className="rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <div className="font-medium text-foreground">{p.monthName}</div>
-      <div className="font-mono tabular-nums text-muted-foreground">{toDegrees(p.value)}°</div>
+      <div className="tabular-nums text-muted-foreground">{toDegrees(p.value)}°</div>
     </div>
   )
 }
@@ -41,18 +41,17 @@ export function YearTrend({ year }: { year: YearProgress }) {
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--signal)" stopOpacity={0.26} />
-            <stop offset="100%" stopColor="var(--signal)" stopOpacity={0} />
+            <stop offset="0%" stopColor="var(--color-value)" stopOpacity={0.26} />
+            <stop offset="100%" stopColor="var(--color-value)" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid vertical={false} stroke="var(--hairline)" />
+        <CartesianGrid vertical={false} />
         <XAxis
           dataKey="label"
           interval={0}
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--muted-foreground)' }}
         />
         <YAxis
           domain={[0, 1]}
@@ -61,18 +60,17 @@ export function YearTrend({ year }: { year: YearProgress }) {
           tickLine={false}
           axisLine={false}
           tickFormatter={(v: number) => `${toDegrees(v)}°`}
-          tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--muted-foreground)' }}
         />
-        <ChartTooltip cursor={{ stroke: 'var(--hairline-2)', strokeWidth: 1 }} content={<TrendTooltip />} />
+        <ChartTooltip cursor={false} content={<TrendTooltip />} />
         <Area
           type="monotone"
           dataKey="value"
           connectNulls={false}
-          stroke="var(--signal)"
+          stroke="var(--color-value)"
           strokeWidth={2}
           fill="url(#trend-fill)"
           dot={false}
-          activeDot={{ r: 4, fill: 'var(--signal)', stroke: 'var(--background)', strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: 'var(--color-value)', stroke: 'var(--background)', strokeWidth: 2 }}
           isAnimationActive={!reduced}
           animationDuration={900}
           animationEasing="ease-out"
@@ -82,7 +80,7 @@ export function YearTrend({ year }: { year: YearProgress }) {
             x={String(current.month)}
             y={current.fraction}
             r={4}
-            fill="var(--signal-hot)"
+            fill="var(--foreground)"
             stroke="var(--background)"
             strokeWidth={2}
           />
