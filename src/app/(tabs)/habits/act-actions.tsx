@@ -52,8 +52,14 @@ export default function ActActionsScreen() {
 
   // The goal this act drives, if any. A goal that has been set aside or reached asks nothing of
   // the day, so it neither interrupts a skip nor offers a row.
-  const goalAct = goalActs.find((a) => a.habit_id === habit.id) ?? null;
-  const goal = goalAct ? (goals.find((g) => g.id === goalAct.goal_id && g.status === 'open') ?? null) : null;
+  //
+  // Resolved from the OPEN goals rather than from the first engine row that names this habit: an
+  // act can drive more than one goal, and taking whichever row came first meant a single released
+  // goal could hide a live one — the row and the if-then prompt would both vanish while a real
+  // goal still depended on the act.
+  const openGoalIds = new Set(goals.filter((g) => g.status === 'open').map((g) => g.id));
+  const goalAct = goalActs.find((a) => a.habit_id === habit.id && openGoalIds.has(a.goal_id)) ?? null;
+  const goal = goalAct ? (goals.find((g) => g.id === goalAct.goal_id) ?? null) : null;
 
   const toggleSkip = () => {
     // Un-skipping is putting the act back; there is nothing to talk anyone out of.
@@ -121,7 +127,15 @@ export default function ActActionsScreen() {
                 icon: 'moon',
                 label: goal.title,
                 sublabel: goalAct?.contributes ? 'This act counts toward it' : 'This act holds it in place',
-                onPress: () => router.replace({ pathname: '/(tabs)/insights/goal/[id]', params: { id: goal.id } }),
+                // Close the sheet, then navigate — not `replace`. Every other action here swaps
+                // one screen of the *habits* stack for another, while this one leaves for the
+                // Insights tab, whose stack declares the goal route's options. Replacing across
+                // the two would leave this sheet's slot holding a route its own navigator does
+                // not know about.
+                onPress: () => {
+                  router.back();
+                  router.push({ pathname: '/(tabs)/insights/goal/[id]', params: { id: goal.id } });
+                },
               }
             : null,
           { icon: 'edit', label: `Edit ${noun}`, onPress: edit },

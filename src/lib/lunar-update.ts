@@ -24,6 +24,7 @@
  * - **Never claim a sky we didn't check.** The "up now" clause needs a verified altitude
  *   ({@link VISIBLE_ALT}), which is why the schedule bothers to compute one.
  */
+import { formatMeasure } from '@/lib/goals';
 import type { Reading } from '@/lib/insights';
 import { milestoneAssetKey } from '@/lib/lunar-phase';
 import { type LunarFire, VISIBLE_ALT } from '@/lib/lunar-schedule';
@@ -35,7 +36,9 @@ import { type MonthProgress, toDegrees } from '@/lib/progress';
  */
 export type GoalAsk = {
   title: string;
-  /** This month's ask, already rounded — the copy prints it as given. */
+  /** This month's ask. Printed through `formatMeasure`, like every in-app surface — a four-figure
+   *  ask reaching a lock screen as "1510" beside a goal screen saying "1,510" is one measure
+   *  wearing two faces. */
   quota: number;
   unit: string;
 };
@@ -113,7 +116,7 @@ export function lunarUpdateCopy(
       // too many, which is the same rule a quarterly reading is admitted under.
       title = `New moon · 1 ${monthName}`;
       lead = goalAsk
-        ? `${monthName} begins. ${goalAsk.quota} ${goalAsk.unit} toward ${goalAsk.title}.`
+        ? `${monthName} begins. ${formatMeasure(goalAsk.quota)} ${goalAsk.unit} toward ${goalAsk.title}.`
         : `${monthName} begins. 360° ahead of you.`;
       break;
     case 8:

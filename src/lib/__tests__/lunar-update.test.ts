@@ -289,4 +289,11 @@ describe('the new moon’s goal', () => {
   it('falls back to the landmark when there is no goal to speak for', () => {
     expect(lunarUpdateCopy(fire(1), month(), [], null).body).toContain('360°');
   });
+
+  // A four-figure ask reaching the lock screen as "1510" beside a goal screen saying "1,510" is
+  // one measure wearing two faces.
+  it('prints the ask the way every other surface prints a measure', () => {
+    const { body } = lunarUpdateCopy(fire(1), month(), [], { ...ask, quota: 1510 });
+    expect(body).toContain('1,510 lines');
+  });
 });

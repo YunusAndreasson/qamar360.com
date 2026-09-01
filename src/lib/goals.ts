@@ -335,7 +335,7 @@ export function computeGoals(
 export function horizonFromLunarMonths(today: string, months: number): string | null {
   const start = hijriMonthRange(today);
   if (!start) return null;
-  // Step month by month: the run is short (240 months for the longest span offered) and every
+  // Step month by month: the run is short (239 months for the longest span offered) and every
   // hop is served by the per-day parts cache.
   let range = start;
   for (let i = 0; i < months; i += 1) {

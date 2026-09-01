@@ -17,8 +17,7 @@ import { GOAL_TEMPLATES, HORIZON_SPANS, type GoalTemplate } from '@/constants/go
 import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
 import { useHabits } from '@/hooks/use-habits';
-import { useProgress } from '@/hooks/use-progress';
-import { hijriParts } from '@/lib/dates';
+import { hijriParts, todayLocalISO } from '@/lib/dates';
 import { horizonFromLunarMonths } from '@/lib/goals';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
@@ -45,11 +44,14 @@ export default function GoalComposerScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const { show } = useToast();
-  const { goals: readings, today, refresh } = useProgress();
-  const { createGoal, updateGoal } = useGoals();
+  // Deliberately NOT `useProgress`: that hook pulls the user's entire completion history on
+  // mount (it has to — "this life" is measured in Hijri years), and this screen needs one stored
+  // row and today's date. `useGoals` already holds the row, and the date is a pure function.
+  const { createGoal, updateGoal, goals: storedGoals, loading: goalsLoading } = useGoals();
+  const today = todayLocalISO();
   const { habits, stacks, createHabits, createStack, updateStack, deleteHabit } = useHabits();
 
-  const editing = id ? (readings.find((r) => r.goal.id === id)?.goal ?? null) : null;
+  const editing = id ? (storedGoals.find((g) => g.id === id) ?? null) : null;
 
   const [templateId, setTemplateId] = useState<string | null>(editing ? 'blank' : null);
   const template = GOAL_TEMPLATES.find((t) => t.id === templateId) ?? null;
@@ -67,6 +69,13 @@ export default function GoalComposerScreen() {
     const months = (parts.year - now.year) * 12 + (parts.month - now.month);
     return HORIZON_SPANS.reduce((best, s) => (Math.abs(s.months - months) < Math.abs(best - months) ? s.months : best), 59);
   });
+  /**
+   * Whether the span control has been touched this session. Without it, editing a goal moved its
+   * horizon: the stored date is SNAPPED to the nearest offered span on open (51 months left reads
+   * as "5 years"), and saving wrote that span forward from today — so opening a goal to fix a
+   * typo pushed its by-when eight months out, silently, every time.
+   */
+  const [spanTouched, setSpanTouched] = useState(false);
   const [moment, setMoment] = useState<MomentKey | null>(null);
   const [obstacle, setObstacle] = useState(editing?.obstacle ?? '');
   const [ifThen, setIfThen] = useState(editing?.if_then ?? '');
@@ -81,7 +90,11 @@ export default function GoalComposerScreen() {
     setMoment(next.moment);
   };
 
-  const horizon = useMemo(() => horizonFromLunarMonths(today, spanMonths), [today, spanMonths]);
+  // An untouched edit keeps the date exactly as stored; only a deliberate span choice recomputes.
+  const horizon = useMemo(
+    () => (editing && !spanTouched ? editing.horizon_on : horizonFromLunarMonths(today, spanMonths)),
+    [editing, spanTouched, today, spanMonths],
+  );
   const target = Number(targetText.replace(/[^0-9.]/g, ''));
   const canSave = title.trim().length > 0 && unit.trim().length > 0 && target > 0 && horizon !== null;
 
@@ -100,7 +113,6 @@ export default function GoalComposerScreen() {
           obstacle: obstacle.trim(),
           if_then: ifThen.trim(),
         });
-        await refresh();
       })();
       return;
     }
@@ -166,11 +178,25 @@ export default function GoalComposerScreen() {
       });
       if (!goal) return;
       haptics.added();
-      await refresh();
       router.back();
       show(created.length > 0 ? `${title.trim()} — its acts are on Today` : `${title.trim()} set`, 'success');
     })();
   };
+
+  // An edit whose row has not arrived yet must show nothing rather than the template picker: its
+  // fields are seeded once, from `editing`, so a form built before the goal loaded would be blank
+  // AND still wired to `updateGoal` — one Save away from overwriting the goal with its own
+  // defaults.
+  if (id && !editing) {
+    return (
+      <FormScreen>
+        <Stack.Screen options={{ title: 'Edit goal', headerTitleAlign: 'center' }} />
+        <ThemedText type="small" themeColor="textSecondary" style={styles.lede}>
+          {goalsLoading ? 'Loading…' : 'That goal is no longer here.'}
+        </ThemedText>
+      </FormScreen>
+    );
+  }
 
   // The template choice comes first and alone: everything below it is prefilled by the answer.
   if (!template) {
@@ -239,7 +265,10 @@ export default function GoalComposerScreen() {
             key={span.months}
             label={span.label}
             selected={spanMonths === span.months}
-            onPress={() => setSpanMonths(span.months)}
+            onPress={() => {
+              setSpanMonths(span.months);
+              setSpanTouched(true);
+            }}
           />
         ))}
       </View>

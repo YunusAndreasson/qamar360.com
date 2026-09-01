@@ -73,8 +73,12 @@ async function arm(userId: string, today: string, doneToday: string[]): Promise<
   let goalAsk: GoalAsk | null = null;
   try {
     const goals = await loadGoalReadings(userId, today);
+    // `overdue` is excluded, and it has to be: `computeGoals` pins a passed horizon's `monthsLeft`
+    // to 0 and makes its quota the WHOLE outstanding remainder, so a lapsed goal would both sort
+    // ahead of every live one and put its entire nine thousand lines on the lock screen as the
+    // month's ask. A goal whose by-when has gone needs a new horizon, not a louder number.
     const nearest = goals
-      .filter((reading) => !reading.met && reading.quota !== null && reading.quota > 0)
+      .filter((reading) => !reading.met && !reading.overdue && reading.quota !== null && reading.quota > 0)
       .sort((a, b) => a.monthsLeft - b.monthsLeft)[0];
     if (nearest?.quota != null) goalAsk = { title: nearest.goal.title, quota: nearest.quota, unit: nearest.goal.unit };
   } catch {

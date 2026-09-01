@@ -35,18 +35,19 @@ export default function GoalScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { goals: readings, refresh } = useProgress();
-  const { updateGoal, deleteGoal, error, dismissError } = useGoals();
+  const { updateGoal, deleteGoal, error, dismissError, loading } = useGoals();
   const { updateHabit } = useHabits();
 
   const reading = readings.find((r) => r.goal.id === id) ?? null;
 
   if (!reading) {
-    // Deleted from under us, or a link to a goal this account doesn't have. Say so rather than
-    // render an empty shell.
+    // Two different states wearing one shape. Until the goals have loaded — a cold start, or a
+    // notification opening this route directly — there is simply no answer yet, and saying "no
+    // longer here" would be a verdict delivered before the question was asked.
     return (
       <AppScreen transparent centered>
         <Stack.Screen options={{ title: 'Goal' }} />
-        <ThemedText type="rowTitle">That goal is no longer here.</ThemedText>
+        <ThemedText type="rowTitle">{loading ? 'Loading…' : 'That goal is no longer here.'}</ThemedText>
       </AppScreen>
     );
   }
@@ -61,7 +62,10 @@ export default function GoalScreen() {
     if (!contributor || dailyTarget === null) return;
     haptics.added();
     void (async () => {
-      await updateHabit(contributor.habitId, { target_count: dailyTarget, target_unit: goal.unit });
+      // `reconcileViewedDay: false` — this screen has no view of a day. The habit editor's
+      // reconcile rewrites whatever day the Today tab is parked on, which here would mean an
+      // accepted target quietly editing a completion row weeks in the past.
+      await updateHabit(contributor.habitId, { target_count: dailyTarget, target_unit: goal.unit }, { reconcileViewedDay: false });
       await refresh();
       show(`${contributor.name} now asks ${dailyTarget} a day`, 'success');
     })();
@@ -125,9 +129,12 @@ export default function GoalScreen() {
         </SettingsSection>
       ) : null}
 
-      {/* The horizon is wrong, not the person. Say what would fit, and leave the change to them. */}
+      {/* The horizon is wrong, not the person. Say what would fit, and leave the change to them.
+          The reach test and the arrival date are two different figures — the first is measured
+          against your BEST closed month, the second against your recent pace — so the sentence
+          names the one it is actually quoting. */}
       {!reachable && arrival ? (
-        <SettingsSection footer={`Your best month so far would reach this in ${arrival.monthName} ${arrival.year}. Moving the horizon there is the honest version of this goal — the alternative is a monthly target you have never once hit.`}>
+        <SettingsSection footer={`At the pace of your last few months this arrives in ${arrival.monthName} ${arrival.year}. Moving the horizon there is the honest version of this goal — the alternative is a monthly target you have never once hit.`}>
           <SettingsRow
             icon="calendar"
             label="This asks for more than your best month"
@@ -162,7 +169,7 @@ export default function GoalScreen() {
         title="THE ACTS"
         footer={
           acts.length === 0
-            ? 'Nothing is driving this goal. Its acts were deleted, so nothing can move the number until you attach another.'
+            ? 'Nothing is driving this goal — its acts were deleted, and their history went with them. Set the goal again to give it new ones.'
             : 'Revision does not add to the count. It is what keeps what you have already done from draining away.'
         }>
         {acts.map((act) => (

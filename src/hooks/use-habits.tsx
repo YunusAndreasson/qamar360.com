@@ -193,7 +193,12 @@ type HabitsContextValue = {
   toggleLoose: (habitId: string) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
-  updateHabit: (habitId: string, patch: HabitPatch) => Promise<void>;
+  /**
+   * Edit a habit. A `target_count` change also reconciles the **viewed day's** logged count,
+   * which is right when the edit comes from the day itself and wrong when it comes from
+   * anywhere else — pass `reconcileViewedDay: false` from screens outside the day view.
+   */
+  updateHabit: (habitId: string, patch: HabitPatch, opts?: { reconcileViewedDay?: boolean }) => Promise<void>;
   deleteHabit: (habitId: string) => Promise<void>;
   /** Persist a full new habit order (`position = index`) — the commit of the Today list's
    *  drag-reorder and its Move up/down accessibility actions (keep stack members contiguous;
@@ -1195,7 +1200,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const createHabits = useGuardedMutation(beginMutation, endMutation, runCreateHabits);
 
   const runUpdateHabit = useCallback(
-    async (habitId: string, patch: HabitPatch) => {
+    async (habitId: string, patch: HabitPatch, opts?: { reconcileViewedDay?: boolean }) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
       const prev = habitsRef.current.find((h) => h.id === habitId);
@@ -1220,6 +1225,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // the clamp) — and raising it left a 'done' row below its new target. Mirrors
       // adjustHabitCount's write; silent (an edit, not a tick — no haptics, no celebration).
       if (patch.target_count === undefined) return;
+      // The reconcile below rewrites the VIEWED day, which the day-stepper can have parked up to
+      // a month back. That is what you want from the habit editor on the day you are looking at,
+      // and data loss anywhere else: a goal accepting its monthly target from the Insights tab
+      // has no view of the day at all, and would silently turn a closed day's 'done' row into a
+      // 'partial' one — lowering that month's degrees and the goal's own pace.
+      if (opts?.reconcileViewedDay === false) return;
       const day = viewDateRef.current;
       const newTarget = patch.target_count;
       const count = countsRef.current.get(habitId) ?? 0;

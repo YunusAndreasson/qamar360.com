@@ -37,7 +37,9 @@ export type GoalCreate = {
   acts: { habitId: string; contributes: boolean }[];
 };
 
-/** What the goal screen may change. The engine is edited through {@link setGoalActs}. */
+/** What the goal screen may change. The engine is fixed at creation: an act can be edited or
+ *  deleted like any other habit, but re-attaching one to a goal has no surface yet, so a goal
+ *  that loses every act is set again rather than repaired (its screen says so). */
 export type GoalPatch = Partial<Pick<Goal, 'title' | 'unit' | 'target_value' | 'milestone_step' | 'horizon_on' | 'obstacle' | 'if_then' | 'status'>>;
 
 type GoalsContextValue = {
@@ -49,8 +51,6 @@ type GoalsContextValue = {
   dismissError: () => void;
   createGoal: (input: GoalCreate) => Promise<Goal | null>;
   updateGoal: (goalId: string, patch: GoalPatch) => Promise<boolean>;
-  /** Replace a goal's engine wholesale — the shape the goal screen's act list edits in. */
-  setGoalActs: (goalId: string, acts: { habitId: string; contributes: boolean }[]) => Promise<boolean>;
   deleteGoal: (goalId: string) => Promise<boolean>;
   refresh: () => Promise<boolean>;
 };
@@ -74,13 +74,24 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const rowsRef = useLatestRef(rows);
   const deletedIds = useRef<Set<string>>(new Set());
+  /** The user this provider currently serves. A fetch that lands after a sign-out or an account
+   *  switch must neither be kept nor written — the same guard `use-progress` keeps, and without
+   *  it one account's goals stay on screen under another's name. */
+  const userRef = useLatestRef(userId);
 
   const fetchGoals = useCallback(async () => {
-    if (!userId) return true;
+    if (!userId) {
+      // Signed out: the rows belong to whoever just left, so they go with them.
+      setRows([]);
+      setActs([]);
+      setError(null);
+      return true;
+    }
     const [goalsRes, actsRes] = await Promise.all([
       supabase.from('goals').select('*').eq('user_id', userId).order('position', { ascending: true }),
       supabase.from('goal_acts').select('*').eq('user_id', userId),
     ]);
+    if (userRef.current !== userId) return true; // superseded mid-flight — discard, don't write
     if (goalsRes.error || actsRes.error) {
       setError(LOAD_ERROR);
       return false;
@@ -94,12 +105,13 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     setActs((actsRes.data ?? []).filter((act) => live.has(act.goal_id)));
     setError(null);
     return true;
-  }, [userId]);
+  }, [userId, userRef]);
 
   // The `void (async …)()` shape rather than a bare `setState` in the effect body, which the
   // React Compiler's lint rejects.
   useEffect(() => {
     let active = true;
+    deletedIds.current.clear(); // ids are per-account; a new user's row must never be filtered out
     void (async () => {
       await fetchGoals();
       if (active) setLoading(false);
@@ -175,38 +187,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [rowsRef],
   );
 
-  const setGoalActs = useCallback(
-    async (goalId: string, next: { habitId: string; contributes: boolean }[]): Promise<boolean> => {
-      if (!userId) return false;
-      // Replace rather than diff: an engine is two or three rows, and a wholesale swap has one
-      // failure mode instead of three. The delete lands first so a re-attached act with a changed
-      // `contributes` does not collide with its own primary key.
-      const { error: delError } = await supabase.from('goal_acts').delete().eq('goal_id', goalId);
-      if (delError) {
-        setError(SAVE_ERROR);
-        return false;
-      }
-      let inserted: GoalAct[] = [];
-      if (next.length > 0) {
-        const { data, error: insError } = await supabase
-          .from('goal_acts')
-          .insert(next.map((a) => ({ goal_id: goalId, habit_id: a.habitId, user_id: userId, contributes: a.contributes })))
-          .select();
-        if (insError) {
-          setError(SAVE_ERROR);
-          // The old engine is already gone; re-read so the screen shows what is really there
-          // rather than a list the server no longer agrees with.
-          void fetchGoals();
-          return false;
-        }
-        inserted = data ?? [];
-      }
-      setActs((prev) => [...prev.filter((act) => act.goal_id !== goalId), ...inserted]);
-      return true;
-    },
-    [userId, fetchGoals],
-  );
-
   const deleteGoal = useCallback(
     async (goalId: string): Promise<boolean> => {
       deletedIds.current.add(goalId);
@@ -227,8 +207,8 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ goals: rows, goalActs: acts, loading, error, dismissError, createGoal, updateGoal, setGoalActs, deleteGoal, refresh: fetchGoals }),
-    [rows, acts, loading, error, dismissError, createGoal, updateGoal, setGoalActs, deleteGoal, fetchGoals],
+    () => ({ goals: rows, goalActs: acts, loading, error, dismissError, createGoal, updateGoal, deleteGoal, refresh: fetchGoals }),
+    [rows, acts, loading, error, dismissError, createGoal, updateGoal, deleteGoal, fetchGoals],
   );
 
   return <GoalsContext value={value}>{children}</GoalsContext>;
