@@ -53,3 +53,22 @@ export function confirmDestructiveChoice({
     { text: destroyLabel, style: 'destructive', onPress: onDestroy },
   ]);
 }
+
+/**
+ * The dialog a goal's own plan raises, at the one moment it is for.
+ *
+ * Mental contrasting works by pairing the wish with the obstacle, and its practical half is the
+ * if-then: a response decided in advance, before the moment that needs it. That is worth nothing
+ * written on a screen you visit monthly, and worth a great deal handed back at the instant you
+ * reach to skip the act it was written about — which is the only place this is ever shown.
+ *
+ * The plan is the default answer and carries no style, so the OS gives it the emphasis; skipping
+ * is the plain one. Neither is destructive: excusing a day is a legitimate move in this app and
+ * must never be dressed as damage.
+ */
+export function confirmAgainstPlan({ plan, onSkip }: { plan: string; onSkip: () => void }) {
+  Alert.alert('You planned for this', plan, [
+    { text: 'I’ll do that', style: 'cancel' },
+    { text: 'Skip today', onPress: onSkip },
+  ]);
+}

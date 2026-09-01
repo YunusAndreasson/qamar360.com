@@ -1,0 +1,250 @@
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+
+import { AppScreen } from '@/components/app-screen';
+import { ErrorBanner } from '@/components/error-banner';
+import { SettingsRow } from '@/components/settings-row';
+import { SettingsSection } from '@/components/settings-section';
+import { Surface } from '@/components/surface';
+import { ThemedText } from '@/components/themed-text';
+import { useToast } from '@/components/toast';
+import { Spacing } from '@/constants/theme';
+import { useGoals } from '@/hooks/use-goals';
+import { useHabits } from '@/hooks/use-habits';
+import { useProgress } from '@/hooks/use-progress';
+import { confirmDestructive } from '@/lib/alerts';
+import { formatMeasure, type GoalReading } from '@/lib/goals';
+import { haptics } from '@/lib/haptics';
+
+/**
+ * One goal, in full.
+ *
+ * The screen is built around a single sentence — what this lunar month is asking for — and one
+ * button that turns it into today's target. Everything under those two is context for a decision
+ * you have already been given: how far along you are, how fast you are really going, and the
+ * month you arrive at that speed.
+ *
+ * There is no bar, no percentage and no "behind". A long goal is lost by abandonment rather than
+ * by any single bad month, and a screen that scores you invites exactly the all-or-nothing reading
+ * that ends one. What it does instead is re-plan: the ask is recomputed from what actually
+ * happened, and when it outruns what you have ever managed the screen says the horizon is wrong
+ * rather than that you are.
+ */
+export default function GoalScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { show } = useToast();
+  const { goals: readings, refresh } = useProgress();
+  const { updateGoal, deleteGoal, error, dismissError } = useGoals();
+  const { updateHabit } = useHabits();
+
+  const reading = readings.find((r) => r.goal.id === id) ?? null;
+
+  if (!reading) {
+    // Deleted from under us, or a link to a goal this account doesn't have. Say so rather than
+    // render an empty shell.
+    return (
+      <AppScreen transparent centered>
+        <Stack.Screen options={{ title: 'Goal' }} />
+        <ThemedText type="rowTitle">That goal is no longer here.</ThemedText>
+      </AppScreen>
+    );
+  }
+
+  const { goal, acts, earned, dailyTarget, pace, arrival, horizon, milestones, met, overdue, reachable } = reading;
+  const contributor = acts.find((a) => a.contributes) ?? null;
+  // Only worth offering when it would actually change something: an act already sitting at the
+  // right target needs no button, and a button that does nothing teaches you to stop reading them.
+  const offerTarget = dailyTarget !== null && contributor !== null && contributor.targetCount !== dailyTarget;
+
+  const acceptTarget = () => {
+    if (!contributor || dailyTarget === null) return;
+    haptics.added();
+    void (async () => {
+      await updateHabit(contributor.habitId, { target_count: dailyTarget, target_unit: goal.unit });
+      await refresh();
+      show(`${contributor.name} now asks ${dailyTarget} a day`, 'success');
+    })();
+  };
+
+  const markReached = () => {
+    void (async () => {
+      if (await updateGoal(goal.id, { status: 'reached' })) {
+        haptics.added();
+        show('Marked as reached', 'success');
+      }
+    })();
+  };
+
+  const setAside = () => {
+    void (async () => {
+      if (await updateGoal(goal.id, { status: 'released' })) show('Set aside — it stays in your record', 'success');
+    })();
+  };
+
+  const reopen = () => {
+    void (async () => {
+      if (await updateGoal(goal.id, { status: 'open' })) show('Open again', 'success');
+    })();
+  };
+
+  const remove = () =>
+    confirmDestructive({
+      title: `Delete ${goal.title}?`,
+      // The acts are the user's own habits and their history is the record — deleting the horizon
+      // must not reach into either, and the dialog has to say so or nobody will risk the button.
+      message: 'The acts behind it stay on your day, with everything you have logged against them.',
+      onConfirm: () => {
+        router.back();
+        void deleteGoal(goal.id);
+      },
+    });
+
+  return (
+    <AppScreen transparent>
+      <Stack.Screen options={{ title: goal.title }} />
+      <ErrorBanner message={error} onDismiss={dismissError} />
+
+      <Ask reading={reading} />
+
+      {offerTarget ? (
+        <SettingsSection>
+          {/* The label says what the tap does; the act it does it to goes underneath. Naming the
+              act first ("Ask memorised the new lines for 14 a day") read as a garbled sentence
+              and ran past the row's width. */}
+          <SettingsRow
+            icon="check"
+            label={`Set today’s target to ${dailyTarget} a day`}
+            sublabel={
+              contributor.targetCount === null
+                ? contributor.name
+                : `${contributor.name} · ${contributor.targetCount} a day now`
+            }
+            onPress={acceptTarget}
+          />
+        </SettingsSection>
+      ) : null}
+
+      {/* The horizon is wrong, not the person. Say what would fit, and leave the change to them. */}
+      {!reachable && arrival ? (
+        <SettingsSection footer={`Your best month so far would reach this in ${arrival.monthName} ${arrival.year}. Moving the horizon there is the honest version of this goal — the alternative is a monthly target you have never once hit.`}>
+          <SettingsRow
+            icon="calendar"
+            label="This asks for more than your best month"
+            sublabel={`Move the horizon to ${arrival.monthName} ${arrival.year}`}
+            showChevron
+            onPress={() => router.push({ pathname: '/(tabs)/insights/goal/new', params: { id: goal.id } })}
+          />
+        </SettingsSection>
+      ) : null}
+
+      <SettingsSection title="THE MEASURE">
+        <SettingsRow label="Done so far" value={`${formatMeasure(earned)} of ${formatMeasure(goal.target_value)} ${goal.unit}`} />
+        {milestones ? (
+          <SettingsRow
+            label="Steps done"
+            value={`${milestones.reached} of ${Math.round(goal.target_value / milestones.step)}`}
+            sublabel={milestones.next === null ? 'The last step is the whole of it' : `Next at ${formatMeasure(milestones.next)} ${goal.unit}`}
+          />
+        ) : null}
+        {/* Pace `null` means no closed month yet — a goal a week old has not earned an opinion
+            about itself, so it is given none rather than a zero that reads as a verdict. */}
+        {pace !== null ? (
+          <SettingsRow label="Each month lately" value={`${formatMeasure(pace)} ${goal.unit}`} />
+        ) : null}
+        {arrival && !met ? <SettingsRow label="At this pace" value={`${arrival.monthName} ${arrival.year}`} /> : null}
+        {horizon ? (
+          <SettingsRow label="By" value={`${horizon.monthName} ${horizon.year}`} sublabel={overdue ? 'The horizon has passed' : undefined} />
+        ) : null}
+      </SettingsSection>
+
+      <SettingsSection
+        title="THE ACTS"
+        footer={
+          acts.length === 0
+            ? 'Nothing is driving this goal. Its acts were deleted, so nothing can move the number until you attach another.'
+            : 'Revision does not add to the count. It is what keeps what you have already done from draining away.'
+        }>
+        {acts.map((act) => (
+          <SettingsRow
+            key={act.habitId}
+            label={act.name}
+            sublabel={act.contributes ? `Counts toward the ${goal.unit}` : 'Revision — holds what is already there'}
+            value={act.targetCount !== null ? `${act.targetCount} a day` : undefined}
+          />
+        ))}
+      </SettingsSection>
+
+      {/* Not a slogan on the wall: this is also shown at the one moment it is for, when an engine
+          act is about to be skipped (`act-actions.tsx`). Here it is only so you can read it back. */}
+      {goal.if_then ? (
+        <SettingsSection title="WHEN IT SLIPS" footer={goal.obstacle ? `What usually stops it: ${goal.obstacle}` : undefined}>
+          <SettingsRow label={goal.if_then} />
+        </SettingsSection>
+      ) : null}
+
+      <SettingsSection>
+        <SettingsRow icon="edit" label="Edit" showChevron onPress={() => router.push({ pathname: '/(tabs)/insights/goal/new', params: { id: goal.id } })} />
+        {goal.status === 'open' ? (
+          <>
+            {met ? <SettingsRow icon="check" label="Mark as reached" onPress={markReached} /> : null}
+            <SettingsRow label="Set aside" sublabel="Keeps the record and stops the monthly ask" onPress={setAside} />
+          </>
+        ) : (
+          <SettingsRow label="Open it again" onPress={reopen} />
+        )}
+        <SettingsRow icon="delete" label="Delete goal" destructive onPress={remove} />
+      </SettingsSection>
+    </AppScreen>
+  );
+}
+
+/**
+ * The ask — the one thing on this screen that is about today.
+ *
+ * A dateline, the claim, and the per-day division under it: the same three-part shape the
+ * quarterly readings wear ({@link import('@/components/reading-card').ReadingCard}), because this
+ * is the same kind of statement — a sentence about a span, not a stat.
+ */
+function Ask({ reading }: { reading: GoalReading }) {
+  const { goal, quota, quotaRemaining, dailyTarget, met, overdue, acts } = reading;
+  const contributor = acts.find((a) => a.contributes) ?? null;
+
+  let claim: string;
+  let under: string | null = null;
+  if (met || goal.status === 'reached') {
+    claim = `All ${formatMeasure(goal.target_value)} ${goal.unit}.`;
+    under = 'Reached.';
+  } else if (goal.status === 'released') {
+    claim = 'Set aside.';
+    under = 'It keeps its record, and asks nothing of the month.';
+  } else if (quota === null) {
+    claim = `${formatMeasure(reading.remaining)} ${goal.unit} to go.`;
+  } else if (quotaRemaining === 0) {
+    claim = 'This month is settled.';
+    under = `${formatMeasure(quota)} ${goal.unit} asked for, and done.`;
+  } else {
+    claim = `${formatMeasure(quotaRemaining)} ${goal.unit} left this month.`;
+    if (dailyTarget !== null && contributor) under = `About ${formatMeasure(dailyTarget)} a day from here.`;
+  }
+
+  return (
+    <Surface padded>
+      <View style={styles.ask}>
+        <ThemedText type="small" themeColor="textSecondary">
+          {overdue ? 'Past its horizon' : `${reading.monthsLeft === 0 ? 'The last month' : `${reading.monthsLeft + 1} months`}`}
+        </ThemedText>
+        <ThemedText type="claim">{claim}</ThemedText>
+        {under ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {under}
+          </ThemedText>
+        ) : null}
+      </View>
+    </Surface>
+  );
+}
+
+const styles = StyleSheet.create({
+  ask: { gap: Spacing.one },
+});

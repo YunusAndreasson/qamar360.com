@@ -149,6 +149,105 @@ export type Database = {
           },
         ]
       }
+      goal_acts: {
+        Row: {
+          contributes: boolean
+          goal_id: string
+          habit_id: string
+          user_id: string
+        }
+        Insert: {
+          contributes?: boolean
+          goal_id: string
+          habit_id: string
+          user_id: string
+        }
+        Update: {
+          contributes?: boolean
+          goal_id?: string
+          habit_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_acts_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_acts_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_acts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals: {
+        Row: {
+          created_at: string | null
+          horizon_on: string
+          id: string
+          if_then: string
+          milestone_step: number | null
+          obstacle: string
+          position: number
+          status: string
+          target_value: number
+          title: string
+          unit: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          horizon_on: string
+          id?: string
+          if_then?: string
+          milestone_step?: number | null
+          obstacle?: string
+          position?: number
+          status?: string
+          target_value: number
+          title: string
+          unit: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          horizon_on?: string
+          id?: string
+          if_then?: string
+          milestone_step?: number | null
+          obstacle?: string
+          position?: number
+          status?: string
+          target_value?: number
+          title?: string
+          unit?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_completions: {
         Row: {
           completed_at: string

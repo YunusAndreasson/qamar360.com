@@ -6,6 +6,7 @@ import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { GoalsProvider } from '@/hooks/use-goals';
 import {
   HabitsProvider,
   useHabitsNavigation,
@@ -33,14 +34,21 @@ export default function TabsLayout() {
   // the habits state a closing day is judged against both live in the habits provider, so tasks
   // has to sit underneath to read them.
   //
-  // `PlansProvider` nests innermost. It needs nothing from either of the others — a plan is on no
-  // day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan writes
-  // through `useTasks`, so it has to be able to see both.
+  // `PlansProvider` nests inside those. It needs nothing from either of the others — a plan is on
+  // no day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan
+  // writes through `useTasks`, so it has to be able to see both.
+  //
+  // `GoalsProvider` nests innermost, and only has to be inside the tab group at all because
+  // `useProgress` reads it: a goal's figures are derived from the same habits and completions the
+  // month and the quarterly readings are, so they are computed in one place rather than fetched
+  // twice. It owns no day and no habits of its own.
   return (
     <HabitsProvider>
       <TasksProvider>
         <PlansProvider>
-          <Tabs />
+          <GoalsProvider>
+            <Tabs />
+          </GoalsProvider>
         </PlansProvider>
       </TasksProvider>
     </HabitsProvider>

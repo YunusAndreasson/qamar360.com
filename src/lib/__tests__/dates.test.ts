@@ -6,7 +6,9 @@ import {
   describeHijriOffset,
   describeHijriSchedule,
   describeWeekdays,
+  hijriMonthAfter,
   hijriMonthRange,
+  hijriMonthsBetween,
   hijriParts,
   hijriYearRange,
   scheduledOn,
@@ -275,5 +277,47 @@ describe('describeWeekdays', () => {
 
   it('never renders a blank, even for a schedule the editor can’t produce', () => {
     expect(describeWeekdays([], 1)).toBe('No days');
+  });
+});
+
+describe('hijriMonthsBetween', () => {
+  const ISO = '2026-09-01'; // 19 Rabīʿ al-Awwal 1448
+
+  it('is zero inside one Hijri month and counts whole months across', () => {
+    if (!hijriParts(ISO)) return; // runtime without islamic-umalqura
+    expect(hijriMonthsBetween(ISO, '2026-09-11')).toBe(0); // same month, its last day
+    expect(hijriMonthsBetween(ISO, '2026-09-12')).toBe(1); // the next month opens
+    expect(hijriMonthsBetween(ISO, '2026-08-01')).toBe(-1); // the month before
+  });
+
+  // Twelve months to an Umm al-Qura year, always — which is why this subtracts month numbers
+  // instead of dividing a day count by 29.53 and accumulating drift over a long horizon.
+  it('crosses year boundaries exactly', () => {
+    if (!hijriParts(ISO)) return;
+    expect(hijriMonthsBetween(ISO, '2046-09-01')).toBe(247);
+  });
+});
+
+describe('hijriMonthAfter', () => {
+  const ISO = '2026-09-01'; // Rabīʿ al-Awwal (month 3), 1448
+
+  it('names the month that many ahead, rolling the year over', () => {
+    if (!hijriParts(ISO)) return;
+    expect(hijriMonthAfter(ISO, 0)).toEqual({ monthName: 'Rabīʿ al-Awwal', year: 1448 });
+    expect(hijriMonthAfter(ISO, 6)).toEqual({ monthName: 'Ramaḍān', year: 1448 });
+    expect(hijriMonthAfter(ISO, 12)).toEqual({ monthName: 'Rabīʿ al-Awwal', year: 1449 });
+  });
+
+  it('walks backwards for a negative count', () => {
+    if (!hijriParts(ISO)) return;
+    expect(hijriMonthAfter(ISO, -3)).toEqual({ monthName: 'Dhū al-Ḥijjah', year: 1447 });
+  });
+
+  // The inverse of hijriMonthsBetween, which is what lets an arrival be computed in one step
+  // rather than by stepping a month at a time through the calendar.
+  it('inverts hijriMonthsBetween', () => {
+    if (!hijriParts(ISO)) return;
+    const months = hijriMonthsBetween(ISO, '2046-09-01');
+    expect(hijriMonthAfter(ISO, months!)).toEqual({ monthName: 'Shawwāl', year: 1468 });
   });
 });

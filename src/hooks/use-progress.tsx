@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
+import { useGoals } from '@/hooks/use-goals';
 import type { Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
+import { computeGoals, type GoalReading } from '@/lib/goals';
 import { computeReadings, type Reading } from '@/lib/insights';
 import { computeProgress, creditOnDay, withDoneToday, type CompletionRow, type MonthProgress, type ProgressDerived, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
@@ -104,6 +106,13 @@ type ProgressData = {
   seriesPeriods: SeriesPeriod[];
   /** The moon-quarter readings, newest first — see {@link Derived.readings}. */
   readings: Reading[];
+  /**
+   * Every goal, read against this same record. Derived here rather than in {@link derive}
+   * because a goal is stored — it needs `useGoals` — while everything in `derive` is a pure
+   * function of habits and completions, and {@link loadProgress} calls it from outside the
+   * navigator where no provider is mounted.
+   */
+  goals: GoalReading[];
   /** The local day these figures describe. Owned here because it survives a midnight rollover,
    *  which a `todayLocalISO()` call in a screen's render would not. */
   today: string;
@@ -118,6 +127,7 @@ type ProgressData = {
 export function useProgress(): ProgressData {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { goals: goalRows, goalActs } = useGoals();
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [completions, setCompletions] = useState<CompletionRow[]>([]);
@@ -165,5 +175,12 @@ export function useProgress(): ProgressData {
 
   const derived = useMemo(() => derive(habits, completions, today), [habits, completions, today]);
 
-  return { loading, error, dismissError, refresh: fetchData, today, habits, ...derived };
+  // The goals ride on the same fetch. `computeGoals` walks only the rows of acts some goal
+  // actually drives, so a user with none pays for one `Set` and nothing else.
+  const goals = useMemo(
+    () => computeGoals(goalRows, goalActs, habits, completions, today),
+    [goalRows, goalActs, habits, completions, today],
+  );
+
+  return { loading, error, dismissError, refresh: fetchData, today, habits, goals, ...derived };
 }

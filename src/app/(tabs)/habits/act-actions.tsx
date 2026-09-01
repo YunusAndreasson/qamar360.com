@@ -2,8 +2,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { FormSheet, SheetActions } from '@/components/form-sheet';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
+import { useGoals } from '@/hooks/use-goals';
 import { useHabits } from '@/hooks/use-habits';
-import { confirmDestructive } from '@/lib/alerts';
+import { confirmAgainstPlan, confirmDestructive } from '@/lib/alerts';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 
@@ -31,6 +32,9 @@ export default function ActActionsScreen() {
   const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
   const { habits, skipped, skipHabit, deleteHabit, isToday, viewDate } = useHabits();
+  // The stored rows only — not `useProgress`, which would pull the whole record to raise a sheet.
+  // All this needs is which goal an act drives and what its owner wrote about slipping.
+  const { goals, goalActs } = useGoals();
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
 
@@ -46,7 +50,23 @@ export default function ActActionsScreen() {
   // and what the row's own "Manage habit" promised. An exchange is neither.
   const noun = exchange ? 'exchange' : habit.stack_id ? 'act' : 'habit';
 
+  // The goal this act drives, if any. A goal that has been set aside or reached asks nothing of
+  // the day, so it neither interrupts a skip nor offers a row.
+  const goalAct = goalActs.find((a) => a.habit_id === habit.id) ?? null;
+  const goal = goalAct ? (goals.find((g) => g.id === goalAct.goal_id && g.status === 'open') ?? null) : null;
+
   const toggleSkip = () => {
+    // Un-skipping is putting the act back; there is nothing to talk anyone out of.
+    if (!isSkipped && goal?.if_then) {
+      confirmAgainstPlan({
+        plan: goal.if_then,
+        onSkip: () => {
+          void skipHabit(habit.id);
+          router.back();
+        },
+      });
+      return;
+    }
     void skipHabit(habit.id);
     router.back();
   };
@@ -93,6 +113,17 @@ export default function ActActionsScreen() {
             onPress: toggleSkip,
           },
           { icon: 'stats', label: 'Stats', onPress: openStats },
+          // Where this act is going, for the acts that are going somewhere. It reads as part of
+          // the act rather than as a separate feature, which is the whole arrangement: the goal
+          // has no daily surface of its own and does not need one.
+          goal
+            ? {
+                icon: 'moon',
+                label: goal.title,
+                sublabel: goalAct?.contributes ? 'This act counts toward it' : 'This act holds it in place',
+                onPress: () => router.replace({ pathname: '/(tabs)/insights/goal/[id]', params: { id: goal.id } }),
+              }
+            : null,
           { icon: 'edit', label: `Edit ${noun}`, onPress: edit },
           // An exchange has no stack to move between — its anchor is the urge, not a moment. A
           // habit that has none yet is moving to *a* stack, not to another one.

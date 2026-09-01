@@ -19,11 +19,12 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { AppState } from 'react-native';
 
+import { loadGoalReadings } from '@/hooks/use-goals';
 import { loadProgress } from '@/hooks/use-progress';
 import { deviceLocation } from '@/lib/geo';
 import type { Reading } from '@/lib/insights';
 import { planLunarFires } from '@/lib/lunar-schedule';
-import { lunarUpdateCopy } from '@/lib/lunar-update';
+import { lunarUpdateCopy, type GoalAsk } from '@/lib/lunar-update';
 import { notificationsAvailable, scheduleLunarUpdates } from '@/lib/notifications';
 import { usePreference } from '@/lib/preferences';
 import type { MonthProgress } from '@/lib/progress';
@@ -58,9 +59,31 @@ async function arm(userId: string, today: string, doneToday: string[]): Promise<
   } catch {
     // The landmark is still true without a figure, and the copy knows how to drop it.
   }
+
+  // The goal a new moon speaks for: the nearest horizon among those still asking for something.
+  // Read separately from the progress window on purpose — a goal's measure is a lifetime sum, and
+  // a windowed one would put a wrong number on a lock screen (see `loadGoalReadings`).
+  //
+  // The figure is the CLOSING month's ask, since the update is armed before the month it fires in
+  // opens — the same approximation the quarterly readings are baked in under, and arming re-runs
+  // on every trip to the background, so the number is refreshed right up to the night itself. It
+  // errs low rather than high: a month you kept pace with leaves next month's ask about where
+  // this one's was, and a month you did not raises it. Understating what is asked is the side to
+  // be wrong on.
+  let goalAsk: GoalAsk | null = null;
+  try {
+    const goals = await loadGoalReadings(userId, today);
+    const nearest = goals
+      .filter((reading) => !reading.met && reading.quota !== null && reading.quota > 0)
+      .sort((a, b) => a.monthsLeft - b.monthsLeft)[0];
+    if (nearest?.quota != null) goalAsk = { title: nearest.goal.title, quota: nearest.quota, unit: nearest.goal.unit };
+  } catch {
+    // Same rule as the figure above: the landmark stands on its own.
+  }
+
   await scheduleLunarUpdates(
     fires.map((fire) => {
-      const { title, body, assetKey, readingId } = lunarUpdateCopy(fire, month, readings);
+      const { title, body, assetKey, readingId } = lunarUpdateCopy(fire, month, readings, goalAsk);
       return { at: fire.at, title, body, assetKey, readingId };
     }),
   );

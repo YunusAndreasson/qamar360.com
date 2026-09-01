@@ -261,3 +261,32 @@ describe('the reading an update carries', () => {
     }
   });
 });
+
+describe('the new moon’s goal', () => {
+  const ask = { title: 'Ḥifẓ of the Qurʾān', quota: 420, unit: 'lines' };
+
+  // A temporal landmark is when an aspiration is most likely to be taken up, and this is the one
+  // update that reaches you whether or not you opened the app.
+  it('names what the opening month asks, in place of the degrees', () => {
+    const { body } = lunarUpdateCopy(fire(1), month(), [], ask);
+    expect(body).toContain('420 lines toward Ḥifẓ of the Qurʾān.');
+    expect(body).not.toContain('360°');
+  });
+
+  // Three sentences on a lock screen is one too many — the same rule a reading is admitted under.
+  it('replaces rather than joins', () => {
+    const { body } = lunarUpdateCopy(fire(1), month(), [], ask);
+    expect(body.match(/\./g)?.length).toBe(2); // "Ṣafar begins." + the ask
+  });
+
+  // Only the new moon. The other three milestones are about the month that is passing.
+  it('says nothing on the other milestones', () => {
+    for (const day of [8, 15, 22] as const) {
+      expect(lunarUpdateCopy(fire(day), month(), [], ask).body).not.toContain('420');
+    }
+  });
+
+  it('falls back to the landmark when there is no goal to speak for', () => {
+    expect(lunarUpdateCopy(fire(1), month(), [], null).body).toContain('360°');
+  });
+});
