@@ -25,10 +25,15 @@ import { useTheme } from '@/hooks/use-theme';
  * ready-made ones actually in view.
  *
  * REPEATING: a stack hangs a sequence off a moment the day already has; a plain habit asks for one
- * deed and nothing else; an exchange puts one where an old routine keeps taking its place. The
- * order is by how much each presumes — the stack offers you a moment, the habit assumes you have
- * your own, and the exchange presumes you have already noticed a specific one going the wrong way.
- * (A habit here lands with no stack, which was impossible until 2026-08-09 — see `HabitSection`.)
+ * deed and nothing else; an exchange puts one where an old routine keeps taking its place; a
+ * check-in asks nothing of you but a number. The order is by how much each presumes — the stack
+ * offers you a moment, the habit assumes you have your own, the exchange presumes you have already
+ * noticed a specific one going the wrong way, and the check-in presumes a goal to report on, which
+ * is why it comes last and why its own screen begins by naming one. (A habit here lands with no
+ * stack, which was impossible until 2026-08-09 — see `HabitSection`.)
+ *
+ * A check-in is under REPEATING and not ONE-OFF because the captions answer exactly one question —
+ * does it come back tomorrow? — and this one does, on a cadence you set.
  *
  * ONE-OFF: the two things that happen once. A to-do asks nothing of the future and is the only
  * choice that leads back to Today instead of on to a form — it is a line you type, so the field is
@@ -70,6 +75,12 @@ export default function AddMenuScreen() {
             label="Exchange"
             sublabel="Put a good act where an old one keeps happening."
             onPress={() => router.replace('/habits/exchange-library')}
+          />
+          <ChoiceCard
+            icon="checkIn"
+            label="Check-in"
+            sublabel="Report where you are on a goal, on the days you choose."
+            onPress={() => router.replace('/habits/check-in-new')}
           />
         </View>
       </View>

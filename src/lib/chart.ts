@@ -195,6 +195,31 @@ export function columnBounds(
 
 
 /**
+ * Tap columns for points at **arbitrary** spans — each one running to the midpoint of the gap to
+ * its neighbours, and the outer two out to the card's edges.
+ *
+ * {@link columnBounds}' sibling for a series that is not evenly spaced. A goal's readings sit
+ * where their dates put them, so slicing the width into equal columns would hand a tap to the
+ * wrong dot the moment two readings came close together — which for an irregular check-in is most
+ * of the time.
+ */
+export function spanColumns(
+  spans: readonly number[],
+  width: number,
+  box: PlotBox,
+): { left: number; width: number }[] {
+  const inner = width - 2 * box.padX;
+  const xs = spans.map((span) => box.padX + inner * span);
+  return xs.map((x, i) => {
+    const before = xs[i - 1];
+    const after = xs[i + 1];
+    const left = before === undefined ? 0 : (before + x) / 2;
+    const right = after === undefined ? width : (x + after) / 2;
+    return { left, width: Math.max(0, right - left) };
+  });
+}
+
+/**
  * The plain average of `values` — the chart's one horizontal reference.
  *
  * `null` below two points, for the same reason {@link linearFit} is: the average of a single

@@ -7,6 +7,7 @@ import { ActRow } from '@/components/act-row';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { CheckInSection } from '@/components/check-in-section';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
@@ -24,6 +25,7 @@ import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
 import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
+import { useGoals } from '@/hooks/use-goals';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePlans } from '@/hooks/use-plans';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -32,6 +34,7 @@ import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
+import { visibleCheckIns } from '@/lib/check-ins';
 import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -227,6 +230,10 @@ export default function HabitsScreen() {
   // What you meant to do before it had a day. Read here only for the shortcut inside the to-do
   // field; the list itself is a place you go, behind the "+".
   const { plans } = usePlans();
+  // The goals, only for what they are asking today. Deliberately the raw rows and not
+  // `useProgress`: whether a check-in is due needs a cadence and a list of readings, and pulling
+  // in the whole completion record to answer that would make the day pay for the goals screen.
+  const { goals, checkIns, refresh: refreshGoals } = useGoals();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -244,7 +251,11 @@ export default function HabitsScreen() {
       }
       void refresh();
       void refreshTasks();
-    }, [refresh, refreshTasks]),
+      // A cadence set from the "+" sheet lands while this screen is behind a modal, so the day has
+      // to re-read on the way back — the same rule the Insights screen follows, and for the same
+      // reason: `useGoals` is a provider, but the modal's write does not pass through this render.
+      void refreshGoals();
+    }, [refresh, refreshTasks, refreshGoals]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -413,11 +424,25 @@ export default function HabitsScreen() {
   // to-dos there is nothing to edit and nothing to type into until this param opens the field, and
   // `onComposeHandled` returns it to undefined the moment the field closes.
   const taskCardShowing = tasks.length > 0 || (isToday && compose === 'task');
+  // What the day's goals are asking. Read straight from `useGoals` rather than through
+  // `useProgress`: the visibility rule needs only the cadence and the readings, and Today has no
+  // business fetching every completion ever written to find out whether to draw one row.
+  const checkInEntries = useMemo(
+    () => visibleCheckIns(goals, checkIns, viewDate, today),
+    [goals, checkIns, viewDate, today],
+  );
   // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks
   // alone, so a day with to-dos but no stacks got 8pt of top padding that a day with stacks
   // didn't, while the empty state below correctly stayed away. One predicate, both readers.
   const showEmptyState =
-    entries.length === 0 && !taskCardShowing && looseHabits.length === 0 && exchanges.length === 0;
+    entries.length === 0 &&
+    !taskCardShowing &&
+    checkInEntries.length === 0 &&
+    looseHabits.length === 0 &&
+    exchanges.length === 0;
+  // Everything the check-in section has to step down from, and everything below it has to step
+  // down from in turn.
+  const checkInCardShowing = checkInEntries.length > 0;
   // Whether anything at all precedes a given section, so each one takes the same step from what
   // is above it. Spelled once and threaded down the list rather than restated per section with
   // one more clause each time — which is how the fourth section would have got it wrong.
@@ -443,6 +468,14 @@ export default function HabitsScreen() {
   const openAct = useCallback(
     (habit: Habit) => router.push({ pathname: '/habits/act-actions', params: { habitId: habit.id } }),
     [router],
+  );
+
+  // A check-in is answered with a number, so the row opens a field rather than ticking. The viewed
+  // day rides along: stepping back to a day and correcting what was recorded then has to write to
+  // that day, not to today.
+  const openCheckIn = useCallback(
+    (goalId: string) => router.push({ pathname: '/habits/check-in', params: { goalId, day: viewDate } }),
+    [router, viewDate],
   );
 
   // One tick for both stackless sections — a habit with no stack and an exchange are the same
@@ -733,6 +766,15 @@ export default function HabitsScreen() {
             onRename={rewriteTask}
             onDelete={removeTask}
           />
+          {/* What the goals are asking. Under the errands that expire and above the practice that
+              comes round again: a check-in is an ask like a to-do, but it reports on the acts
+              rather than competing with them. */}
+          <CheckInSection
+            entries={checkInEntries}
+            topGap={gapAfter(taskCardShowing)}
+            today={today}
+            onPress={openCheckIn}
+          />
           {entries.length === 0 ? (
             // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
             // something: a user who tracks only those has a day, and inviting them to anchor their
@@ -751,7 +793,7 @@ export default function HabitsScreen() {
                   was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
-                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing) }]}>
+                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing || checkInCardShowing) }]}>
                 STACKS
               </SectionLabel>
               <HabitDragProvider
@@ -808,7 +850,7 @@ export default function HabitsScreen() {
               the two because it is the ordinary case — an exchange is the special one. */}
           <HabitSection
             habits={looseHabits}
-            topGap={gapAfter(entries.length > 0 || taskCardShowing)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -820,7 +862,7 @@ export default function HabitsScreen() {
           <ExchangeSection
             exchanges={exchanges}
             // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={gapAfter(entries.length > 0 || taskCardShowing || looseHabits.length > 0)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing || looseHabits.length > 0)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}

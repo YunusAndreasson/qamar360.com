@@ -23,12 +23,17 @@
  * arithmetic inside a screen would have no test at all.
  */
 
+import { hasCadence, type GoalCheckIn } from '@/lib/check-ins';
 import type { Tables } from '@/lib/database.types';
-import { addDaysISO, createdDayISO, hijriMonthAfter, hijriMonthRange, hijriMonthsBetween, hijriParts, scheduledOn } from '@/lib/dates';
+import { addDaysISO, createdDayISO, daysBetweenISO, hijriMonthAfter, hijriMonthRange, hijriMonthsBetween, hijriParts, scheduledOn, type HijriSchedule } from '@/lib/dates';
 import type { CompletionRow, ProgressHabit } from '@/lib/progress';
 
-/** One goal, as stored. */
-export type Goal = Tables<'goals'>;
+/**
+ * One goal, as stored — with the cadence's JSON narrowed the way `Habit` narrows
+ * `hijri_schedule`. The generated row type carries it as `Json`, and every consumer in the app
+ * reads it as a {@link HijriSchedule}; doing it once here means no screen has to cast.
+ */
+export type Goal = Omit<Tables<'goals'>, 'check_in_hijri'> & { check_in_hijri: HijriSchedule | null };
 
 /** Which acts drive a goal, and which of them move its number. */
 export type GoalAct = Tables<'goal_acts'>;
@@ -81,10 +86,23 @@ export type GoalReading = {
   goal: Goal;
   /** The engine, in the order the acts were attached. Empty when every act has been deleted. */
   acts: GoalEngineAct[];
-  /** The measure so far, in the goal's own unit. Uncapped — see {@link contributedCredit}. */
+  /**
+   * The measure so far, in the goal's own unit. Uncapped — see {@link contributedCredit}.
+   *
+   * Where a goal reports its own position ({@link measured}) this is that position rather than a
+   * sum: 82.4 kg, page 340. It is still "how far the measure has got", which is why it is the same
+   * field and not a second one.
+   */
   earned: number;
-  /** What is left of the target; 0 once it is met. */
+  /** What is left to cover, whichever way the measure travels; 0 once the target is met. */
   remaining: number;
+  /** The goal's number comes from its own readings rather than from the acts' sum. */
+  measured: boolean;
+  /**
+   * It asks for its measure and has not been told one yet. Nothing below can be known until the
+   * first reading lands, so the screen says so rather than printing a confident zero.
+   */
+  awaiting: boolean;
   /** Whole lunar months from this one to the horizon's, inclusive of both. 0 when the horizon
    *  has already passed — there is no negative amount of time to plan over. */
   monthsLeft: number;
@@ -178,18 +196,36 @@ function scheduledDaysBetween(habit: EngineHabit, fromISO: string, toISO: string
 }
 
 /**
+ * Round up to a step.
+ *
+ * `Math.ceil` is right for 151 lines and wrong for 1.7 kilograms, and a month's ask rounded to
+ * the next whole kilogram is a different instruction from the one the arithmetic gave. The step
+ * is chosen per goal from what its own numbers look like, not from its unit — a unit is free text
+ * and nothing else in this app branches on it.
+ *
+ * The 1e-9 slack is not decoration: `1.7 / 0.1` is `17.000000000000004` in binary floating point,
+ * which would round a quota of exactly 1.7 up to 1.8.
+ */
+function ceilTo(value: number, step: number): number {
+  const steps = Math.ceil(value / step - 1e-9);
+  return Math.round(steps * step * 1e6) / 1e6;
+}
+
+/**
  * Read every goal against the record.
  *
- * Takes the same three arguments the rest of the derived layer does — habits, all-time
- * completions, today — because the Progress tab already fetches exactly that
- * (`use-progress.tsx`, no window: "This life" needs the whole record), so a goal spanning twenty
- * years costs no query of its own.
+ * Takes the same arguments the rest of the derived layer does — habits, all-time completions,
+ * today — because the Progress tab already fetches exactly that (`use-progress.tsx`, no window:
+ * "This life" needs the whole record), so a goal spanning twenty years costs no query of its own.
+ * `checkIns` rides along beside them, and is unwindowed for the same reason: the first reading a
+ * goal ever took is its baseline, however long ago that was.
  */
 export function computeGoals(
   goals: readonly Goal[],
   goalActs: readonly GoalAct[],
   habits: readonly EngineHabit[],
   completions: readonly CompletionRow[],
+  checkIns: readonly GoalCheckIn[],
   today: string,
 ): GoalReading[] {
   const byHabit = new Map(habits.map((h) => [h.id, h]));
@@ -200,6 +236,9 @@ export function computeGoals(
   // are dropped here rather than filtered per goal, so a long record is walked once.
   const driven = new Set(goalActs.filter((a) => a.contributes).map((a) => a.habit_id));
   const tallies = new Map<string, Map<string, number>>(); // habitId → monthKey → credit
+  // The same credits again, kept by day. A goal told where it stands counts only what its acts
+  // have added *since* that day, and a month bucket cannot answer that.
+  const dayCredits: { habitId: string; day: string; credit: number }[] = [];
   for (const row of completions) {
     if (!driven.has(row.habit_id)) continue;
     const habit = byHabit.get(row.habit_id);
@@ -215,6 +254,24 @@ export function computeGoals(
     }
     const key = monthKey(parts.year, parts.month);
     months.set(key, (months.get(key) ?? 0) + credit);
+    dayCredits.push({ habitId: row.habit_id, day: row.completed_at, credit });
+  }
+
+  // Gregorian last days of this Hijri month and the twelve before it, newest first — the
+  // boundaries a series of readings has to be sliced on. The act tallies need no such thing: they
+  // are already bucketed by `monthKey`, whereas a reading is a position on a *day* and has to be
+  // asked "where had this got to by then?". Built once for every goal, and every hop is served by
+  // the per-day Hijri parts cache.
+  const monthEnds: string[] = [];
+  if (month) {
+    let range = month;
+    monthEnds.push(range.end);
+    for (let back = 1; back <= BEST_MONTHS; back += 1) {
+      const previous = hijriMonthRange(addDaysISO(range.start, -1));
+      if (!previous) break;
+      monthEnds.push(previous.end);
+      range = previous;
+    }
   }
 
   return goals.map((goal) => {
@@ -229,12 +286,62 @@ export function computeGoals(
     const contributors = acts.filter((a) => a.contributes);
 
     // Sum every month of every contributing act.
-    let earned = 0;
+    let actTotal = 0;
     for (const a of contributors) {
-      for (const credit of tallies.get(a.habit_id)?.values() ?? []) earned += credit;
+      for (const credit of tallies.get(a.habit_id)?.values() ?? []) actTotal += credit;
     }
-    const remaining = Math.max(0, goal.target_value - earned);
-    const met = remaining === 0;
+
+    // This goal's readings, oldest first. The first is its baseline and the last is where it
+    // stands; everything between them is the line the goal screen draws.
+    const readings = checkIns.filter((c) => c.goal_id === goal.id).sort((a, b) => (a.taken_on < b.taken_on ? -1 : 1));
+    const latest = readings[readings.length - 1] ?? null;
+    const baseline = readings[0] ?? null;
+    const measured = latest !== null;
+    const down = goal.direction === 'down';
+    // Nothing measures it yet: it asks for its position and has not been given one, and it has no
+    // act adding to it either. Distinct from a goal whose acts were all deleted, which the screen
+    // already words differently.
+    const awaiting = !measured && contributors.length === 0 && hasCadence(goal);
+
+    /** Credit from this goal's contributing acts after `day` — what has been added since a reading. */
+    const creditAfter = (day: string): number => {
+      let total = 0;
+      for (const row of dayCredits) {
+        if (row.day <= day) continue;
+        if (contributors.some((a) => a.habit_id === row.habitId)) total += row.credit;
+      }
+      return total;
+    };
+
+    /**
+     * The measure at the end of `day`, from readings alone, carried forward. `null` before the
+     * first one — which is the readings twin of `monthOf`'s "before this goal existed" break.
+     */
+    const measureAt = (day: string | undefined): number | null => {
+      if (day === undefined) return null;
+      let at: number | null = null;
+      for (const r of readings) {
+        if (r.taken_on > day) break;
+        at = r.value;
+      }
+      return at;
+    };
+
+    /** Signed progress from one measure to another. A falling goal travels the other way. */
+    const toward = (from: number, to: number): number => (down ? from - to : to - from);
+
+    // Where the measure has got to.
+    //
+    // A reading is a *position*, not a gain: "I am on page 340" replaces whatever the acts had
+    // summed to, and only what they have added since counts on top of it. That is what makes a
+    // check-in a repair of the drift `contributedCredit`'s `?? target_count` fallback already
+    // admits to, rather than a second, competing ledger.
+    //
+    // A falling measure takes no act credit at all. An act adds; nothing you tick subtracts, so a
+    // weight is whatever the scale last said and the composer offers such a goal no contributors.
+    const earned = !measured ? actTotal : down ? latest.value : latest.value + creditAfter(latest.taken_on);
+    const remaining = down ? Math.max(0, earned - goal.target_value) : Math.max(0, goal.target_value - earned);
+    const met = !awaiting && remaining === 0;
 
     // The goal's own first month: months before it belong to a past this goal never asked for,
     // and averaging them in would report a pace of nothing for a goal set last week.
@@ -243,6 +350,16 @@ export function computeGoals(
 
     const monthOf = (delta: number): number | null => {
       if (!now) return null;
+      // A measured goal is sliced on the calendar rather than bucketed: how far the position moved
+      // between the end of the month before and the end of this one. The current month reads
+      // `earned` instead of the month's last day, so credit added today counts.
+      if (measured) {
+        const back = -delta;
+        const from = measureAt(monthEnds[back + 1]);
+        if (from === null) return null; // before the first reading — nothing to compare against
+        const to = back === 0 ? earned : (measureAt(monthEnds[back]) ?? from);
+        return toward(from, to);
+      }
       const at = shiftMonth(now.year, now.month, delta);
       if (startParts && monthKey(at.year, at.month) < monthKey(startParts.year, startParts.month)) return null;
       const key = monthKey(at.year, at.month);
@@ -274,12 +391,19 @@ export function computeGoals(
     // the month's ask every time you worked, and a target that retreats as you approach it can
     // never be *attained*: attainment is the whole mechanism a subgoal works by, so a quota you
     // cannot finish is not a smaller version of one you can.
-    const quota = met ? null : Math.ceil((remaining + earnedThisMonth) / monthsToSpread);
-    const quotaRemaining = quota === null ? 0 : Math.max(0, quota - earnedThisMonth);
+    //
+    // Rounded to a step the goal's own numbers justify: whole where its target and every reading
+    // are whole (lines, words, pages), a tenth where they are not (kilograms). Rounding 1.7 kg up
+    // to 2 is a different instruction from the one the division gave.
+    const roundStep = Number.isInteger(goal.target_value) && readings.every((r) => Number.isInteger(r.value)) ? 1 : 0.1;
+    const quota = met || awaiting ? null : ceilTo((remaining + earnedThisMonth) / monthsToSpread, roundStep);
+    const quotaRemaining = quota === null ? 0 : Math.max(0, ceilTo(quota - earnedThisMonth, roundStep));
 
     // One contributor only — see the field note on `dailyTarget`.
     let dailyTarget: number | null = null;
-    if (quota !== null && contributors.length === 1 && month) {
+    // Never for a falling measure: there is no act to hand a per-day target to, and `9 kg a day`
+    // would be the app's one genuinely absurd sentence.
+    if (quota !== null && !down && contributors.length === 1 && month) {
       const habit = byHabit.get(contributors[0]!.habit_id);
       if (habit) {
         const days = scheduledDaysBetween(habit, today, month.end);
@@ -290,13 +414,28 @@ export function computeGoals(
     const monthsAtPace = pace !== null && pace > 0 ? Math.ceil(remaining / pace) : null;
     const arrival = met || monthsAtPace === null ? null : hijriMonthAfter(today, monthsAtPace);
 
-    const step = goal.milestone_step;
+    // Steps are counted on the ground actually covered, which for a summed goal is `earned` itself
+    // and for a measured one is the distance from its first reading. A weight starting at 85 and
+    // aiming at 75 in steps of two has passed one mark at 83, and its next is at 81 — a *measure*,
+    // like every other number the screen prints, not a count of steps dressed up as one.
+    const stepSize = goal.milestone_step;
     const milestones: GoalMilestones | null =
-      step && step > 0
+      stepSize && stepSize > 0 && !awaiting
         ? (() => {
-            const reached = Math.floor(earned / step);
-            const next = (reached + 1) * step;
-            return { step, reached, next: next <= goal.target_value ? next : null };
+            if (!measured || !baseline) {
+              const reached = Math.floor(earned / stepSize);
+              const next = (reached + 1) * stepSize;
+              return { step: stepSize, reached, next: next <= goal.target_value ? next : null };
+            }
+            const covered = Math.max(0, toward(baseline.value, earned));
+            const whole = Math.abs(goal.target_value - baseline.value);
+            const reached = Math.floor(covered / stepSize);
+            const nextCovered = (reached + 1) * stepSize;
+            const next =
+              nextCovered <= whole
+                ? Math.round((down ? baseline.value - nextCovered : baseline.value + nextCovered) * 1e6) / 1e6
+                : null;
+            return { step: stepSize, reached, next };
           })()
         : null;
 
@@ -305,6 +444,8 @@ export function computeGoals(
       acts: engine,
       earned,
       remaining,
+      measured,
+      awaiting,
       monthsLeft,
       overdue,
       quota,
@@ -365,14 +506,102 @@ export function formatMeasure(value: number): string {
  * negative — there is no "behind", no "%", and no counterpart to the sentence a good month gets.
  */
 export function goalMeta(reading: GoalReading, today: string): string {
-  const { goal, quota, quotaRemaining, remaining, met, overdue } = reading;
+  const { goal, quota, quotaRemaining, remaining, met, overdue, measured, awaiting, earned } = reading;
   if (goal.status === 'reached' || met) return 'Reached';
   if (goal.status === 'released') return 'Set aside';
+  // It asks where you are and has not been told yet. Every other line here would be a guess.
+  if (awaiting) return 'Not measured yet';
   const monthName = hijriParts(today)?.monthName;
+  // A goal that reports its position leads with the position, because that is the thing that
+  // moved. A summed one leads with the month's ask, because a sum only ever creeps. The unit is
+  // said once: "82.4 kg, 7.4 to go" needs no second "kg" to be read correctly.
+  if (measured) {
+    const here = `${formatMeasure(earned)} ${goal.unit}`;
+    if (overdue) return `${here}, past its horizon`;
+    if (!monthName || quota === null) return `${here}, ${formatMeasure(remaining)} to go`;
+    if (quotaRemaining === 0) return `${here} · ${monthName} settled`;
+    return `${here} · ${monthName} asks ${formatMeasure(quotaRemaining)}`;
+  }
   // No Islamic calendar on this runtime: there are no lunar months to divide by, so the row says
   // the one thing that is still true.
   if (!monthName || quota === null) return `${formatMeasure(remaining)} ${goal.unit} to go`;
   if (overdue) return `The horizon has passed · ${formatMeasure(remaining)} ${goal.unit} to go`;
   if (quotaRemaining === 0) return `${monthName} settled`;
   return `${monthName} asks ${formatMeasure(quotaRemaining)} ${goal.unit}`;
+}
+
+/**
+ * A goal's readings as a line: one point per day it was answered, oldest first.
+ *
+ * Only the readings — no carrying forward, no interpolation onto days that were never answered.
+ * A check-in is a measurement, and a chart that invents the days between two of them is drawing
+ * something nobody observed.
+ */
+export function goalSeries(goalId: string, checkIns: readonly GoalCheckIn[]): { day: string; value: number }[] {
+  return checkIns
+    .filter((c) => c.goal_id === goalId)
+    .sort((a, b) => (a.taken_on < b.taken_on ? -1 : 1))
+    .map((c) => ({ day: c.taken_on, value: c.value }));
+}
+
+/** A goal's readings, ready to draw: each point 0–1 left to right by date, 0–1 bottom to top by
+ *  value, against a scale that always contains the target. */
+export type GoalPlot = {
+  points: { day: string; value: number; span: number; fraction: number }[];
+  /** Where the target's rule sits on the same 0–1 vertical scale. */
+  targetFraction: number;
+  /** The value at the bottom and top of the plot, for the axis labels. */
+  low: number;
+  high: number;
+};
+
+/** How much of the plot is breathing room above the highest reading and below the lowest. */
+const PLOT_PAD = 0.08;
+
+/**
+ * Place a goal's readings on a plot.
+ *
+ * Two decisions worth stating.
+ *
+ * **The x axis is time, not the reading's turn in the queue.** Check-ins are irregular by nature —
+ * a weekly one answered on the Thursday, a monthly one three days late — and spacing them evenly
+ * would draw a steady descent through readings that were actually two months apart. The line has
+ * to be readable as a rate or it is decoration.
+ *
+ * **The target is inside the range, always.** A weight chart whose scale ran only over the
+ * readings would put the goal off the top or bottom of its own picture, and the distance still to
+ * go is the one thing the picture is for.
+ *
+ * `null` below two readings: a line through one point says nothing, and a flat line pinned to the
+ * floor reads as a chart that failed to draw — the same call {@link
+ * import('@/components/habit-trend-chart').HabitTrendChart} makes about an empty week.
+ */
+export function goalPlot(series: readonly { day: string; value: number }[], target: number): GoalPlot | null {
+  if (series.length < 2) return null;
+  const first = series[0]!;
+  const last = series[series.length - 1]!;
+  const days = daysBetweenISO(first.day, last.day);
+
+  const values = series.map((p) => p.value);
+  const rawLow = Math.min(target, ...values);
+  const rawHigh = Math.max(target, ...values);
+  // A goal already sitting exactly on its target has no spread to scale against; give it one so
+  // the line lands mid-plot rather than dividing by zero.
+  const spread = rawHigh - rawLow || Math.max(1, Math.abs(rawHigh) * 0.1);
+  const low = rawLow - spread * PLOT_PAD;
+  const high = rawHigh + spread * PLOT_PAD;
+  const fraction = (value: number) => (value - low) / (high - low);
+
+  return {
+    points: series.map((p) => ({
+      ...p,
+      // All readings on one day (or one day's worth apart) fall back to even spacing, which is
+      // what `spanFor` would have given them anyway.
+      span: days > 0 ? daysBetweenISO(first.day, p.day) / days : 0.5,
+      fraction: fraction(p.value),
+    })),
+    targetFraction: fraction(target),
+    low,
+    high,
+  };
 }

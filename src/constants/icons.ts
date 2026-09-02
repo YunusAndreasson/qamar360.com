@@ -47,6 +47,11 @@ export const Icons = {
   // A habit that belongs to no stack: the thing that recurs, with nothing it hangs off. A cycle is
   // right here where it would be wrong for an exchange — this one genuinely comes round again.
   repeat: { sf: 'repeat', material: 'repeat' },
+  // A check-in: a goal asking where you are. A gauge, because what it wants is a *reading* — where
+  // a number currently sits, not whether something was done. Deliberately not `checklist` (that is
+  // the to-do's, and this is not a list), not a checkmark (the app's "done" everywhere) and not a
+  // chart (the graph a goal draws FROM these, which is a different thing from the asking).
+  checkIn: { sf: 'gauge.with.dots.needle.bottom.50percent', material: 'speed' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────

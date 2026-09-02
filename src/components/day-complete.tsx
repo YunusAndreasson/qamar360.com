@@ -19,14 +19,15 @@ import { ThemedText } from '@/components/themed-text';
 import { Duration, Scale, Tick } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { loadProgress, type MonthProgress } from '@/hooks/use-progress';
 import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
 import { celebrationCopy } from '@/lib/celebration';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { deviceLocation } from '@/lib/geo';
+import { loadProgress } from '@/lib/load-progress';
 import { moonIllumination } from '@/lib/moon';
 import { getPreference } from '@/lib/preferences';
+import type { MonthProgress } from '@/lib/progress';
 import { displayDateISO } from '@/lib/sun';
 
 /**
