@@ -52,7 +52,6 @@
           "color": "#89C2E3"
         }
       ],
-      "@react-native-community/datetimepicker",
       [
         "expo-build-properties",
         {

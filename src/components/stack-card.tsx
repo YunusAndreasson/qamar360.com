@@ -119,6 +119,9 @@ function StackCardBase({
   // Any non-empty stack folds. The empty "Add your first act" card has nothing to hide.
   const collapsible = members.length > 0;
 
+  const completionSummary = settling ? 'Loading' : members.length === 0 ? 'Add your first habit'
+    : openActs.length === 0 ? 'All habits skipped today'
+    : `${openActs.filter((member) => completed.has(member.id)).length} of ${openActs.length} complete`;
   const header = stackHeaderContract({
     name: stack.name,
     memberCount: members.length,
@@ -193,7 +196,7 @@ function StackCardBase({
             underlayColor={header.enabled ? theme.backgroundSelected : undefined}
             activeUnderlayOpacity={1}
             accessibilityRole={header.role}
-            accessibilityLabel={header.label}
+            accessibilityLabel={`${header.label}, ${completionSummary}`}
             accessibilityHint={header.hint}
             accessibilityState={
               header.checked === undefined ? undefined : { checked: header.checked, disabled: !header.enabled }
@@ -227,27 +230,18 @@ function StackCardBase({
                 <CompletionRing complete={stackComplete} size={24} strokeWidth={2} settling={settling} />
               )}
             </View>
-            <ThemedText
-              type="rowTitle"
-              style={[styles.title, stackComplete && { color: theme.textDisabled }]}
-              numberOfLines={1}>
-              {stack.name}
-            </ThemedText>
-            {/* Why this card is the one to look at: the clock its moment closes at. Tabular so it
-                doesn't dance as the minute turns. flexShrink 0 — Android clips trailing flex-row
-                text otherwise (the "Undo"→"Und" gotcha). */}
-            {clock ? (
-              <View style={styles.status}>
-                <ThemedText type="smallCompact" themeColor="textSecondary">
-                  {`until ${clock}`}
-                </ThemedText>
-              </View>
-            ) : null}
+            <View style={styles.titleBlock}>
+              <ThemedText type="rowTitle" style={[styles.title, stackComplete && { color: theme.textSecondary }]}>
+                {stack.name}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {completionSummary}
+                {clock ? ` · Until ${clock}` : ''}
+              </ThemedText>
+            </View>
           </Touchable>
 
-          {/* The disclosure — the bar's only other verb. No count beside it: how many lines a fold
-              hides is bookkeeping, and a number on the bar invites reading it as progress — the
-              mental model the stacks-only rewrite dropped. */}
+          {/* Disclosure is independent of the completion action. */}
           {collapsible ? (
             <FoldToggle
               expanded={expanded}
@@ -364,10 +358,10 @@ const styles = StyleSheet.create({
   // flex 1 — with three siblings competing for the row, the title is the one that gives way.
   // Spacing.three (not two) so the leading mark → title gap matches the act rows' numeral →
   // name gap, and the title lands in the same column as the act names below.
-  title: { flex: 1, marginLeft: Spacing.three, fontFamily: Face.bodySemiBold },
+  titleBlock: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },
+  title: { fontFamily: Face.bodySemiBold },
   // The clock reads as part of the name ("Morning, until 09:41"), so it sits one proximity step
   // closer than the fold button beyond it.
-  status: { marginLeft: Spacing.two, flexShrink: 0 },
   // Radius.card curves through the last 14dp of the card, so a flush final row would put its
   // descenders and its trailing "· 8 cups" meta inside the corner arc, and its press highlight
   // would end on the card's own curve rather than reading as a row. Inside the measured node, so

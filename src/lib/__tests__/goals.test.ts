@@ -353,17 +353,17 @@ describe('goalMeta', () => {
   // The month's ask leads, because it is the only line here that is about today. The arrival
   // month and the pace live on the goal's own screen.
   it('names what this month is still asking for', () => {
-    expect(goalMeta(read([row('h1', TODAY, 'done', 30)]), TODAY)).toBe('Rabīʿ al-Awwal asks 70 lines');
+    expect(goalMeta(read([row('h1', TODAY, 'done', 30)]), TODAY)).toBe('70 lines left in Rabīʿ al-Awwal');
   });
 
   it('says the month is settled rather than asking for nothing', () => {
     const horizon = horizonFromLunarMonths(TODAY, 5)!;
     // 17 is the month's ask over six months; 20 done settles it.
-    expect(goalMeta(read([row('h1', TODAY, 'done', 20)], { horizon_on: horizon }), TODAY)).toBe('Rabīʿ al-Awwal settled');
+    expect(goalMeta(read([row('h1', TODAY, 'done', 20)], { horizon_on: horizon }), TODAY)).toBe('Rabīʿ al-Awwal target reached');
   });
 
   it('states a passed horizon as a fact, with what is left', () => {
-    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('The horizon has passed · 100 lines to go');
+    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('Target date passed · 100 lines to go');
   });
 
   it('reads a met goal as reached', () => {
@@ -479,7 +479,7 @@ describe('a measured goal', () => {
   it('leads its row with where it stands', () => {
     const horizon = horizonFromLunarMonths(TODAY, 5)!;
     const meta = goalMeta(read([], { ...WEIGHT, horizon_on: horizon }, noActs, [], [checkIn('2026-08-30', 82.4)]), TODAY);
-    expect(meta).toMatch(/^82\.4 kg · Rabīʿ al-Awwal asks /);
+    expect(meta).toMatch(/^82\.4 kg · [\d.]+ left in Rabīʿ al-Awwal$/);
   });
 
   // Steps are marks on the road travelled, so they are counted from where the goal started and

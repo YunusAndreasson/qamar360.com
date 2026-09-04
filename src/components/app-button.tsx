@@ -13,10 +13,11 @@ type Props = Omit<PressableProps, 'children' | 'style'> & {
   children: ReactNode;
   variant?: Variant;
   busy?: boolean;
+  busyLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
-export function AppButton({ children, variant = 'primary', busy, disabled, style, ...props }: Props) {
+export function AppButton({ children, variant = 'primary', busy, busyLabel, disabled, style, ...props }: Props) {
   const theme = useTheme();
   const isDisabled = !!disabled || !!busy;
 
@@ -43,19 +44,18 @@ export function AppButton({ children, variant = 'primary', busy, disabled, style
       android_ripple={{ color: variant === 'primary' ? theme.rippleOnFill : theme.backgroundSelected }}
       style={[styles.button, variant === 'secondary' && styles.secondary, { backgroundColor }, style]}
       {...props}>
-      {busy ? (
-        <ActivityIndicator color={color} />
-      ) : (
-        <ThemedText type={variant === 'secondary' ? 'default' : 'defaultSemiBold'} style={{ color }}>
-          {children}
+      {busy ? <ActivityIndicator color={color} accessible={false} /> : null}
+        <ThemedText type={variant === 'secondary' ? 'default' : 'defaultSemiBold'} style={{ color, flexShrink: 1, textAlign: 'center' }}>
+          {busy && busyLabel ? busyLabel : children}
         </ThemedText>
-      )}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
+    flexDirection: 'row',
+    gap: Spacing.two,
     borderRadius: Radius.button,
     // minHeight drives the height to a sleek 48 (text line-height 24 + Spacing.two top/bottom
     // = 40, so minHeight wins); the padding only takes over if Dynamic Type grows the label.
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondary: {
-    minHeight: 44,
+    minHeight: 48,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
   },

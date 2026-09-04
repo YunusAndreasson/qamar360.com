@@ -22,6 +22,7 @@ export type IconGlyph =
 /** The app's full icon set, by semantic name. Add new icons here, never inline a raw glyph name. */
 export const Icons = {
   // ── Navigation / chrome ────────────────────────────────────────────────
+  close: { sf: 'xmark', material: 'close' },
   add: { sf: 'plus', material: 'add' },
   note: { sf: 'note.text', material: 'notes' },
   check: { sf: 'checkmark', material: 'check' },

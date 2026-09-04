@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { ActRow } from '@/components/act-row';
@@ -8,6 +8,7 @@ import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInSection } from '@/components/check-in-section';
+import { DateNavigation } from '@/components/date-navigation';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
@@ -23,7 +24,7 @@ import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
-import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
+import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useGoals } from '@/hooks/use-goals';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
@@ -200,6 +201,7 @@ export default function HabitsScreen() {
     error,
     today,
     viewDate,
+    setViewDate,
     minViewDate,
     isToday,
     stepViewDate: stepDay,
@@ -448,8 +450,6 @@ export default function HabitsScreen() {
   // one more clause each time — which is how the fourth section would have got it wrong.
   const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
 
-  const canGoBack = viewDate > minViewDate;
-  const canGoForward = viewDate < today;
 
   // A discrete step through the day series — the same `selection` semantic as tapping a day cell
   // on Progress, so moving through time feels identical on both screens. The provider owns the
@@ -685,17 +685,8 @@ export default function HabitsScreen() {
         options={{
           title: viewDateTitle(viewDate, today),
           headerLargeTitle: true,
-          headerLeft: () =>
-            Platform.OS === 'ios' ? (
-              <HeaderActions>
-                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
-              </HeaderActions>
-            ) : null,
           headerRight: () => (
             <HeaderActions>
-              {Platform.OS !== 'ios' ? (
-                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
-              ) : null}
               {isToday ? (
                 <HeaderIconButton
                   icon={Icons.note}
@@ -746,6 +737,7 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
+          <DateNavigation date={viewDate} today={today} minimum={minViewDate} onSelect={setViewDate} onStep={stepViewDate} />
           {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
@@ -944,42 +936,6 @@ function HabitsDragGhost({
 
 const noop = () => {};
 
-/** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
-function DateStepperButtons({
-  canGoBack,
-  canGoForward,
-  onStep,
-}: {
-  canGoBack: boolean;
-  canGoForward: boolean;
-  onStep: (delta: number) => void;
-}) {
-  const theme = useTheme();
-  return (
-    <>
-      <HeaderIconButton
-        icon={Icons.chevronLeft}
-        // Disabled speaks the disabled vocabulary (textDisabled, like a maxed stepper "+") —
-        // textSecondary is a reading tone, and a dead control must not outrank live metadata.
-        color={canGoBack ? theme.accent : theme.textDisabled}
-        accessibilityLabel="Previous day"
-        disabled={!canGoBack}
-        onPress={() => onStep(-1)}
-        style={styles.dateStepButton}
-      />
-      {canGoForward ? (
-        <HeaderIconButton
-          icon={Icons.chevronRight}
-          color={theme.accent}
-          accessibilityLabel="Next day"
-          onPress={() => onStep(1)}
-          style={styles.dateStepButton}
-        />
-      ) : null}
-    </>
-  );
-}
-
 /**
  * A quiet "the night before" line: the Hijri acts that begin tomorrow, and any to-do put there
  * from a plan. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
@@ -1042,15 +998,6 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   // The list is transparent so the fixed sky (rendered behind the stack) shows through it.
   transparent: { backgroundColor: 'transparent' },
-  dateStepButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.full, // a circular tap target
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
   // A read-only almanac whisper under the title — the tone and left edge the section captions
   // share, so the strip and the list read on one meridian.

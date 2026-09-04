@@ -19,7 +19,7 @@ import type { TrendPoint } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
 import { buildPaths, columnBounds, pointAt, polylineLength, spanFor, type PlotBox } from '@/lib/chart';
 import { haptics } from '@/lib/haptics';
-import { toDegrees } from '@/lib/progress';
+import { formatPercent } from '@/lib/progress-format';
 
 const BOX: PlotBox = { height: 120, padY: 12, padX: 12 };
 const H = BOX.height;
@@ -41,7 +41,7 @@ function weekLabel(index: number, count: number): string {
 const pointReadout = (index: number, p: TrendPoint, count: number) =>
   p.scheduledCount === 0
     ? `${weekLabel(index, count)} · not scheduled`
-    : `${weekLabel(index, count)} · ${toDegrees(p.rate)}°`;
+    : `${weekLabel(index, count)} · ${formatPercent(p.rate)}`;
 
 /**
  * "Over time" — this habit's completion rate as a rolling line across the last twelve weeks,
@@ -96,7 +96,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
       : null;
 
   const a11y = `Completion over the last ${count} weeks: ${trend
-    .map((p, i) => `${weekLabel(i, count)} ${p.scheduledCount === 0 ? 'not scheduled' : `${toDegrees(p.rate)} degrees`}`)
+    .map((p, i) => `${weekLabel(i, count)} ${p.scheduledCount === 0 ? 'not scheduled' : `${formatPercent(p.rate)}`}`)
     .join(', ')}.`;
 
   return (
@@ -164,7 +164,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
                     setFocused(i);
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={pointReadout(i, trend[i]!, count).replace('°', ' degrees')}
+                  accessibilityLabel={pointReadout(i, trend[i]!, count).replace('%', ' percent')}
                 />
               );
             })

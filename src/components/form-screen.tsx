@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
+import { StyleSheet, type ScrollViewProps } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { BottomTabInset, Spacing } from '@/constants/theme';
@@ -31,7 +32,9 @@ export const formContentStyle = {
 export function FormScreen({ children, style, contentContainerStyle, ...props }: ScrollViewProps) {
   const theme = useTheme();
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
+      bottomOffset={24}
+      keyboardDismissMode="on-drag"
       style={[styles.container, { backgroundColor: theme.background }, style]}
       contentContainerStyle={[styles.content, contentContainerStyle]}
       keyboardShouldPersistTaps="handled"
@@ -40,7 +43,7 @@ export function FormScreen({ children, style, contentContainerStyle, ...props }:
           ones out. Absolutely fills the surface and is non-interactive, so it renders first. */}
       <GeometricBackdrop variant="screen" />
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

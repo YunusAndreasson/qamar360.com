@@ -28,12 +28,13 @@ import { loadProgress } from '@/lib/load-progress';
 import { moonIllumination } from '@/lib/moon';
 import { getPreference } from '@/lib/preferences';
 import type { MonthProgress } from '@/lib/progress';
+import { formatPercent } from '@/lib/progress-format';
 import { displayDateISO } from '@/lib/sun';
 
 /**
  * The day-complete celebration — a subtle, self-dismissing moonlit moment shown when the last
  * scheduled habit of the (live) day is ticked. Reframes the moment as gratitude ("Alḥamdulillāh")
- * over self-congratulation, grounds it in the Hijri date, and gives calm progress feedback (degrees
+ * over self-congratulation, grounds it in the Hijri date, and gives calm progress feedback (percentages
  * this month, days left, pace vs last month). The visual rides the same `Tick` clock the celebrate
  * haptic already fires on (the haptic itself lives in `use-habits`, so we never double-buzz here).
  *
@@ -41,7 +42,7 @@ import { displayDateISO } from '@/lib/sun';
  * can fetch progress. `HabitsProvider` (a descendant) calls `useDayComplete().celebrate(day)`.
  */
 /** `doneToday` are the ids the completion seam already proved done for `day` (the overlay only fires
- *  once the day is complete) — passed so the overlay's degrees count the just-made ticks even before
+ *  once the day is complete) — passed so the overlay's progress count the just-made ticks even before
  *  they reach the server, keeping it in step with the Progress tab. */
 type DayCompleteContextValue = { celebrate: (day: string, doneToday: string[]) => void };
 const NOOP: DayCompleteContextValue = { celebrate: () => {} };
@@ -237,9 +238,9 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
           </ThemedText>
         ) : null}
 
-        {statsReady && copy.degrees != null ? (
+        {statsReady && copy.rate != null ? (
           <FadeInView delay={Duration.base} style={styles.stats}>
-            <DegreesReadout target={copy.degrees} />
+            <PercentReadout target={copy.rate} />
             {copy.daysLeftLabel ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.paceText}>
                 {copy.daysLeftLabel}
@@ -254,18 +255,18 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 }
 
 /**
- * The big "247°" readout, isolated so its count-up re-renders only this text — the moon/backdrop SVG
+ * The percentage readout, isolated so its count-up re-renders only this text — the moon/backdrop SVG
  * siblings stay still. The stats block only appears once the fetch resolves — already after the
  * beat — so the {@link useTallyUp} ramp starts on mount (the fade-in reveals it) rather than
  * sitting at 0; Reduce Motion shows the final number at once (the hook gates itself).
  */
-function DegreesReadout({ target }: { target: number }) {
-  const shown = useTallyUp(target, Duration.tally);
+function PercentReadout({ target }: { target: number }) {
+  const shown = useTallyUp(Math.floor(target * 100), Duration.tally);
 
   return (
     <View style={styles.center}>
-      <ThemedText type="display" themeColor="complete" style={styles.degrees}>
-        {shown}°
+      <ThemedText type="display" themeColor="complete" style={styles.percent}>
+        {shown === Math.floor(target * 100) ? formatPercent(target) : `${shown}%`}
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         this month
@@ -294,6 +295,6 @@ const styles = StyleSheet.create({
   moon: { width: MOON_SIZE, height: MOON_SIZE, alignItems: 'center', justifyContent: 'center' },
   headline: { textAlign: 'center' },
   stats: { alignItems: 'center', gap: Spacing.one },
-  degrees: { textAlign: 'center' },
+  percent: { textAlign: 'center' },
   paceText: { textAlign: 'center' },
 });

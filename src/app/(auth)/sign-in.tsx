@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/app-button';
@@ -113,6 +114,19 @@ export default function SignInScreen() {
     if (busy || socialBusy) return; // one auth flow at a time (see handleSocial)
     setError(null);
     setNotice(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (mode !== 'forgot' && !password) {
+      setError('Enter your password.');
+      passwordRef.current?.focus();
+      return;
+    }
+    if (mode === 'reset' && !/^\d{6}$/.test(code.trim())) {
+      setError('Enter the 6-digit code from your email.');
+      return;
+    }
     setBusy(true);
     try {
       if (mode === 'sign-in') {
@@ -121,7 +135,7 @@ export default function SignInScreen() {
       } else if (mode === 'sign-up') {
         await signUp(email.trim(), password);
         // With email confirmation on, no session is returned yet.
-        setNotice('Account created. If a session does not start, confirm your email, then sign in.');
+        setNotice('Check your email to confirm your account, then sign in.');
         setPassword('');
         setMode('sign-in');
       } else if (mode === 'forgot') {
@@ -193,8 +207,9 @@ export default function SignInScreen() {
         </ThemedText>
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+      <View style={styles.flex}>
+        <KeyboardAwareScrollView
+          bottomOffset={24}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -271,7 +286,7 @@ export default function SignInScreen() {
                     autoCapitalize="none"
                     ref={passwordRef}
                     secureTextEntry
-                    textContentType="password"
+                    textContentType={mode === 'sign-up' ? 'newPassword' : 'password'}
                     autoComplete={mode === 'sign-up' ? 'new-password' : 'password'}
                     returnKeyType="go"
                     onSubmitEditing={() => void onSubmit()}
@@ -328,8 +343,8 @@ export default function SignInScreen() {
               {showForm && anySocial ? <TextLink onPress={closeEmail}>Other ways to sign in</TextLink> : null}
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </View>
   );
 }
@@ -382,6 +397,6 @@ const styles = StyleSheet.create({
   // No gap at all — tighter than the block gap above, because the small print is one group and
   // not more sections. (Each `TextLink` carries its own 44pt box, so the rows still don't touch.)
   links: { alignItems: 'center' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.two },
+  linkRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: Spacing.two },
+  link: { minHeight: 48, justifyContent: 'center', paddingHorizontal: Spacing.two },
 });

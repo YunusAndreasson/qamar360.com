@@ -8,9 +8,9 @@ import { Spacing, Tracking } from '@/constants/theme';
  * unlike {@link SectionLabel} (which is indented 16px for grouped-list cards), so the two
  * form editors don't each re-declare an ad-hoc `ThemedText` caption. Pass an uppercase string.
  */
-export function FieldLabel({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
+export function FieldLabel({ children, style, nativeID }: { children: string; style?: StyleProp<TextStyle>; nativeID?: string }) {
   return (
-    <ThemedText type="small" themeColor="textSecondary" style={[styles.label, style]}>
+    <ThemedText nativeID={nativeID} type="small" themeColor="textSecondary" style={[styles.label, style]}>
       {children}
     </ThemedText>
   );

@@ -68,6 +68,7 @@ function Tabs() {
 
   return (
     <NativeTabs
+      labelVisibilityMode="labeled"
       // Keep the tab bar always visible — don't let iOS 26 minimize/hide it on scroll
       // (its default is `automatic`, which does minimize). Android ignores this.
       minimizeBehavior="never"

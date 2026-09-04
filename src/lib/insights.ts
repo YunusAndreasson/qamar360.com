@@ -414,12 +414,11 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
       if (!best || share.possible > best.share.possible) best = { id, share };
     }
     if (!best) return null;
-    const rate = best.share.earned / best.share.possible;
     // Appositive, not a predicate: act names in this app are past-tense verbs ("Chose water"),
     // so "X has begun" reads as nonsense where "X, new this quarter" reads as a label.
     return {
       kind: 'newcomer',
-      headline: rate >= 0.6 ? `${ctx.nameOf(best.id)}, new this quarter and kept.` : `${ctx.nameOf(best.id)}, new this quarter.`,
+      headline: `New habit: ${ctx.nameOf(best.id)}`,
       body: `${dueDays(best.share)} kept since you added it.`,
       salience: 0.75,
       notifiable: true,
@@ -552,8 +551,8 @@ const DETECTORS: ((ctx: Context) => Noticing | null)[] = [
     if (!previous || toDegrees(previous.rate) !== 0) return null;
     return {
       kind: 'quiet',
-      headline: 'A quiet quarter.',
-      body: `${scheduledActs(quarter)} kept from ${spanLabel(quarter.span)}. The next quarter opens tonight.`,
+      headline: quarter.earned === 0 ? 'No completions recorded.' : 'Little progress recorded.',
+      body: `${scheduledActs(quarter)} kept from ${spanLabel(quarter.span)}.`,
       salience: 0.3,
       // The zero-guard in `computeReadings` would hold this back anyway; saying so here as well
       // means the rule survives anyone loosening that guard.

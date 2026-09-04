@@ -10,13 +10,14 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { TallyDegrees } from '@/components/tally-degrees';
+import { TallyPercent } from '@/components/tally-percent';
 import { ThemedText } from '@/components/themed-text';
 import { Duration } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { TrendPoint } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
-import { clamp01, toDegrees } from '@/lib/progress';
+import { clamp01 } from '@/lib/progress';
+import { formatPercent } from '@/lib/progress-format';
 
 const RING_SIZE = 176;
 const RING_STROKE = 12;
@@ -61,7 +62,6 @@ export function HabitStatsHero({
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const rate = clamp01(consistency);
-  const degrees = toDegrees(rate);
   const arcColor = rate >= 1 ? theme.complete : theme.accent;
   const descriptor = trendDescriptor(trend);
 
@@ -79,7 +79,7 @@ export function HabitStatsHero({
     scheduledDays > 0
       ? `${descriptor ? `${descriptor} · ` : ''}${scheduledDays} scheduled ${scheduledDays === 1 ? 'day' : 'days'}`
       : 'No scheduled days yet';
-  const a11y = `Consistency ${degrees} degrees, over ${scheduledDays} scheduled ${scheduledDays === 1 ? 'day' : 'days'}.${descriptor ? ' Rising.' : ''}`;
+  const a11y = `Consistency ${formatPercent(scheduledDays > 0 ? rate : null)}, over ${scheduledDays} scheduled ${scheduledDays === 1 ? 'day' : 'days'}.${descriptor ? ' Rising.' : ''}`;
 
   return (
     <StatCard accessible accessibilityLabel={a11y}>
@@ -119,7 +119,7 @@ export function HabitStatsHero({
           </Svg>
           {/* The degrees figure sits centred in the ring's interior. */}
           <View style={styles.center} pointerEvents="none">
-            <TallyDegrees degrees={degrees} />
+            <TallyPercent rate={scheduledDays > 0 ? rate : null} />
           </View>
         </View>
 
