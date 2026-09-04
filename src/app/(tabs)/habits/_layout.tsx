@@ -89,6 +89,12 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
       {/* The exchange guide — the sibling of `stacking-info`, opened from the "New exchange" form. */}
       <Stack.Screen name="exchange-info" />
+      {/* Answering a check-in: one number, an optional note. A modal sheet with Cancel/Save in its
+          nav bar, like the editors — a reading is typed and committed, not picked. */}
+      <Stack.Screen name="check-in" options={modalHeaderOptions(theme)} />
+      {/* Setting one up: which goal asks, how often, and where it stands today. Presented the same
+          way, since it ends in a Save too. */}
+      <Stack.Screen name="check-in-new" options={modalHeaderOptions(theme)} />
     </TabStack>
   );
 }

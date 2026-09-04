@@ -175,7 +175,7 @@ export default function SettingsScreen() {
 
   // State only — the chevron already says it's tappable; a denied tap surfaces the
   // "open settings" path in an alert. `undefined` while the mount check resolves.
-  const notifSublabel = notifGranted === true ? 'On' : notifGranted === false ? 'Off' : undefined;
+  const notifSublabel = notifGranted === true ? 'Allowed' : notifGranted === false ? 'Blocked in system settings' : undefined;
 
   // Turning the feature on is where the OS prompt is earned, so the first time it goes through
   // the sheet that explains what the four nights are; that sheet flips the preference itself,
@@ -282,7 +282,7 @@ export default function SettingsScreen() {
             // still what they want); the sublabel just stops describing a schedule that cannot run.
             sublabel={
               lunarUpdatesOn && notifGranted === false
-                ? 'Nothing will arrive until notifications are on'
+                ? 'Enable system notifications to receive these'
                 : 'Four nights a lunar month'
             }
             switchValue={lunarUpdatesOn}
@@ -294,7 +294,7 @@ export default function SettingsScreen() {
         {notificationsAvailable && lunarUpdatesOn ? (
           <SettingsRow
             icon={notifGranted === false ? 'notificationsOff' : 'notifications'}
-            label="Allow notifications"
+            label="System notifications"
             sublabel={notifSublabel}
             onPress={() => void enableNotifications()}
             showChevron

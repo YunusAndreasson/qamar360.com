@@ -6,7 +6,7 @@ import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
-import { GoalsProvider } from '@/hooks/use-goals';
+import { GoalsProvider, useGoalCheckInsSummary } from '@/hooks/use-goals';
 import {
   HabitsProvider,
   useHabitsNavigation,
@@ -38,10 +38,11 @@ export default function TabsLayout() {
   // no day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan
   // writes through `useTasks`, so it has to be able to see both.
   //
-  // `GoalsProvider` nests innermost, and only has to be inside the tab group at all because
-  // `useProgress` reads it: a goal's figures are derived from the same habits and completions the
-  // month and the quarterly readings are, so they are computed in one place rather than fetched
-  // twice. It owns no day and no habits of its own.
+  // `GoalsProvider` nests innermost, for two reasons now. `useProgress` reads it — a goal's figures
+  // are derived from the same habits and completions the month and the quarterly readings are, so
+  // they are computed in one place rather than fetched twice. And a goal may put a check-in on the
+  // day, which means it needs the day and the habits state a closing day is judged against, the
+  // same things `TasksProvider` came inside for.
   return (
     <HabitsProvider>
       <TasksProvider>
@@ -67,6 +68,7 @@ function Tabs() {
 
   return (
     <NativeTabs
+      labelVisibilityMode="labeled"
       // Keep the tab bar always visible — don't let iOS 26 minimize/hide it on scroll
       // (its default is `automatic`, which does minimize). Android ignores this.
       minimizeBehavior="never"
@@ -151,11 +153,13 @@ function Tabs() {
 /** The completion-sensitive part of the tab tree. A tick updates this leaf, not NativeTabs. */
 function TodayBadge() {
   // What the day still asks of you, counted in **units**: one per unsealed stack, one per open
-  // exchange, and one per open task. This is the one leaf where both providers are in view.
+  // exchange, one per open task, and one per goal still waiting to be told where it stands. This
+  // is the one leaf where all three providers are in view.
   const { remainingToday } = useHabitsSummary();
   const { openToday } = useTasksSummary();
+  const { openToday: openCheckIns } = useGoalCheckInsSummary();
   const { user } = useAuth();
-  const remaining = remainingToday + openToday;
+  const remaining = remainingToday + openToday + openCheckIns;
 
   // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
   // it. Zeroed on unmount so sign-out cannot leave the previous user's count on the icon.

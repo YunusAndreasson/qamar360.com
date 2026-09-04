@@ -18,7 +18,7 @@ import { HeroGlow } from '@/components/ornament/hero-glow';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { TallyDegrees } from '@/components/tally-degrees';
+import { TallyPercent } from '@/components/tally-percent';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
@@ -27,6 +27,7 @@ import type { MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
 import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
+import { formatPercent } from '@/lib/progress-format';
 
 // Exported for the reading sheet's legend, which redraws these marks at glyph scale. The legend
 // quotes the instrument rather than approximating it — the last time a legend carried its own
@@ -124,12 +125,12 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = [
     `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
-    `This month is at ${thisDegrees} degrees of the orbit; the month itself has reached ${paceDegrees} degrees.`,
+    `Monthly progress ${formatPercent(thisRate)}. ${formatPercent(paceRate)} of the month has elapsed.`,
     // The figure and the count are said here and nowhere on screen. The card gives the verdict,
     // which is what was asked for; this gives the measurement behind it, for anyone who wants to
     // know what "usual" was counted from.
     monthsAveraged > 0
-      ? `Usually ${toDegrees(averageRate)} degrees by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
+      ? `Usually ${formatPercent(averageRate)} by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
       : '',
     reading,
   ]
@@ -146,6 +147,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         monthName,
         year: String(year),
         current: String(thisDegrees),
+        currentRate: String(thisRate),
+        paceRate: String(paceRate),
         pace: String(paceDegrees),
       },
     });
@@ -219,7 +222,11 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
             the question a benchmark is FOR ("am I doing better than I usually do?"), which the
             ring used to pose as a triangle and leave you to work out. */}
         <View style={styles.reading}>
-          <TallyDegrees degrees={thisDegrees} />
+          <TallyPercent rate={thisRate} />
+          <ThemedText type="smallBold">Monthly progress</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+            Daily habit completion across all {monthLength} days
+          </ThemedText>
           <ThemedText type="smallCompact" themeColor="textSecondary">
             {reading}
           </ThemedText>

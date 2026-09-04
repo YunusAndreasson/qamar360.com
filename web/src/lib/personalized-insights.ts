@@ -1,5 +1,5 @@
 export const INSIGHT_MODEL = '@cf/google/gemma-4-26b-a4b-it' as const
-export const INSIGHT_PROMPT_VERSION = 1
+export const INSIGHT_PROMPT_VERSION = 2
 
 export type QuarterHabitMetric = {
   id: string

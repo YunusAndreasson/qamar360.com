@@ -37,7 +37,6 @@ export function HeaderIconButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
-      hitSlop={10}
       style={[styles.button, style]}>
       {/* Header glyphs run a step larger on Android (Material's 24dp toolbar convention vs the
           22pt SF Symbol) — the only thing this button adds over the shared fork. */}
@@ -50,5 +49,5 @@ const styles = StyleSheet.create({
   // `gap` spaces the glyphs from each other; a minimal right inset keeps the
   // cluster off the screen edge without pushing the trailing icon inward.
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingRight: Spacing.half },
-  button: { paddingVertical: Spacing.half, paddingHorizontal: Spacing.two },
+  button: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });

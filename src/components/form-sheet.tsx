@@ -1,4 +1,5 @@
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/app-icon';
@@ -27,21 +28,26 @@ import type { ReactNode } from 'react';
  */
 export function FormSheet({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const theme = useTheme();
+  const { height } = useWindowDimensions();
   const paddingBottom = Platform.OS === 'android' ? Spacing.two : insets.bottom + Spacing.two;
   return (
-    <View style={[styles.sheet, { paddingBottom }]}>
-      <View style={styles.header}>
-        <ThemedText type="heading" numberOfLines={1}>
-          {title}
-        </ThemedText>
-        {subtitle ? (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {subtitle}
-          </ThemedText>
-        ) : null}
+    <ScrollView
+      style={{ maxHeight: height - insets.top - insets.bottom - 96, flexGrow: 0 }}
+      contentContainerStyle={[styles.sheet, { paddingBottom }]}
+      keyboardShouldPersistTaps="handled">
+      <View style={styles.headingRow}>
+        <View style={styles.header}>
+          <ThemedText type="heading" accessibilityRole="header">{title}</ThemedText>
+          {subtitle ? <ThemedText type="small" themeColor="textSecondary">{subtitle}</ThemedText> : null}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={() => router.back()} style={styles.close}>
+          <AppIcon name="close" size={22} color={theme.textSecondary} />
+        </Pressable>
       </View>
       {children}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -74,11 +80,11 @@ export function SheetRow({
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }]}>
       <AppIcon name={icon} color={danger ? theme.danger : theme.textSecondary} />
       <View style={styles.rowText}>
-        <ThemedText type="rowTitle" numberOfLines={1} style={danger ? { color: theme.danger } : null}>
+        <ThemedText type="rowTitle" style={danger ? { color: theme.danger } : null}>
           {label}
         </ThemedText>
         {sublabel ? (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+          <ThemedText type="small" themeColor="textSecondary">
             {sublabel}
           </ThemedText>
         ) : null}
@@ -122,7 +128,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     gap: Spacing.three,
   },
+  headingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   header: {
+    flex: 1,
     gap: Spacing.half,
     paddingHorizontal: Spacing.one,
   },

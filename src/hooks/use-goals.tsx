@@ -1,10 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
-import type { Habit } from '@/hooks/use-habits';
+import { useHabitsTaskBridge } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
-import { computeGoals, type Goal, type GoalAct, type GoalReading } from '@/lib/goals';
+import { openCountOn, type GoalCheckIn } from '@/lib/check-ins';
+import type { Tables } from '@/lib/database.types';
+import { dayCloseAfter, moonLitFor, openTasksOn, setOpenCheckInsProbe } from '@/lib/day-close';
+import type { Goal, GoalAct } from '@/lib/goals';
+import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
+
+/**
+ * The generated row type carries the cadence's Hijri schedule as `Json`; `Goal` narrows it, and
+ * this is the one place the narrowing happens — the same treatment `Habit` gives
+ * `hijri_schedule`. Every screen downstream then reads a {@link HijriSchedule} without a cast.
+ */
+const asGoals = (rows: Tables<'goals'>[]): Goal[] => rows as Goal[];
 
 /**
  * The goals — a horizon over acts you already keep.
@@ -35,27 +47,59 @@ export type GoalCreate = {
   if_then: string;
   /** The engine, as habit ids already created: which acts drive it, and which move the number. */
   acts: { habitId: string; contributes: boolean }[];
+  /** The cadence it asks on, when it asks at all. */
+  cadence?: Pick<Goal, 'check_in_days' | 'check_in_hijri' | 'check_in_from'>;
+  /**
+   * Where the goal stands today, written as its first reading. It is also what settles
+   * `direction`: a starting value above the target means the measure has to come down.
+   */
+  startValue?: number;
 };
 
 /** What the goal screen may change. The engine is fixed at creation: an act can be edited or
  *  deleted like any other habit, but re-attaching one to a goal has no surface yet, so a goal
  *  that loses every act is set again rather than repaired (its screen says so). */
-export type GoalPatch = Partial<Pick<Goal, 'title' | 'unit' | 'target_value' | 'milestone_step' | 'horizon_on' | 'obstacle' | 'if_then' | 'status'>>;
+export type GoalPatch = Partial<
+  Pick<
+    Goal,
+    | 'title'
+    | 'unit'
+    | 'target_value'
+    | 'milestone_step'
+    | 'horizon_on'
+    | 'obstacle'
+    | 'if_then'
+    | 'status'
+    | 'check_in_days'
+    | 'check_in_hijri'
+    | 'check_in_from'
+    | 'direction'
+  >
+>;
+
+/** What one check-in records. The day is the identity — a second answer on it is a correction. */
+export type CheckInInput = { takenOn: string; value: number; note: string };
 
 type GoalsContextValue = {
   goals: Goal[];
   /** Every goal's engine, flat — `computeGoals` filters by goal id. */
   goalActs: GoalAct[];
+  /** Every reading this user has given, oldest first — unwindowed, see {@link fetchGoals}. */
+  checkIns: GoalCheckIn[];
   loading: boolean;
   error: string | null;
   dismissError: () => void;
   createGoal: (input: GoalCreate) => Promise<Goal | null>;
   updateGoal: (goalId: string, patch: GoalPatch) => Promise<boolean>;
   deleteGoal: (goalId: string) => Promise<boolean>;
+  /** Answer a goal's check-in. Upserts on the day, so answering twice corrects rather than doubles. */
+  saveCheckIn: (goalId: string, input: CheckInInput) => Promise<boolean>;
+  deleteCheckIn: (checkInId: string) => Promise<boolean>;
   refresh: () => Promise<boolean>;
 };
 
 const GoalsContext = createContext<GoalsContextValue | null>(null);
+const GoalCheckInsSummaryContext = createContext<{ openToday: number } | null>(null);
 
 export function useGoals(): GoalsContextValue {
   const value = useContext(GoalsContext);
@@ -63,16 +107,32 @@ export function useGoals(): GoalsContextValue {
   return value;
 }
 
+/** The one goals value tab chrome needs, without subscribing it to the goal collection. */
+export function useGoalCheckInsSummary(): { openToday: number } {
+  const value = useContext(GoalCheckInsSummaryContext);
+  if (!value) throw new Error('useGoalCheckInsSummary must be used within a GoalsProvider');
+  return value;
+}
+
 export function GoalsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  // The day and the habits state a closing day is judged against. `GoalsProvider` is a descendant
+  // of `HabitsProvider`, so answering a check-in can decide the day's close for itself; the
+  // reverse direction — a seal asking whether a goal is still waiting — goes through the probe in
+  // `lib/day-close.ts`. Open to-dos are read through their probe for the same reason.
+  const { today, getDayCloseSnapshot } = useHabitsTaskBridge();
+  const { celebrate: showDayComplete } = useDayComplete();
 
   const [rows, setRows] = useState<Goal[]>([]);
   const [acts, setActs] = useState<GoalAct[]>([]);
+  const [checkIns, setCheckIns] = useState<GoalCheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const rowsRef = useLatestRef(rows);
+  const checkInsRef = useLatestRef(checkIns);
+  const todayRef = useLatestRef(today);
   const deletedIds = useRef<Set<string>>(new Set());
   /** The user this provider currently serves. A fetch that lands after a sign-out or an account
    *  switch must neither be kept nor written — the same guard `use-progress` keeps, and without
@@ -84,25 +144,32 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       // Signed out: the rows belong to whoever just left, so they go with them.
       setRows([]);
       setActs([]);
+      setCheckIns([]);
       setError(null);
       return true;
     }
-    const [goalsRes, actsRes] = await Promise.all([
+    // The readings are fetched whole rather than windowed, and that is not an oversight: the first
+    // one a goal ever took is its baseline, and a goal's measure is a lifetime series. It is the
+    // same call `use-progress` already makes for every completion ever written, over a table with
+    // far fewer rows in it.
+    const [goalsRes, actsRes, checkInsRes] = await Promise.all([
       supabase.from('goals').select('*').eq('user_id', userId).order('position', { ascending: true }),
       supabase.from('goal_acts').select('*').eq('user_id', userId),
+      supabase.from('goal_check_ins').select('*').eq('user_id', userId).order('taken_on', { ascending: true }),
     ]);
     if (userRef.current !== userId) return true; // superseded mid-flight — discard, don't write
-    if (goalsRes.error || actsRes.error) {
+    if (goalsRes.error || actsRes.error || checkInsRes.error) {
       setError(LOAD_ERROR);
       return false;
     }
-    const kept = (goalsRes.data ?? []).filter((goal) => !deletedIds.current.has(goal.id));
+    const kept = asGoals(goalsRes.data ?? []).filter((goal) => !deletedIds.current.has(goal.id));
     setRows(kept);
-    // A goal deleted this session takes its engine rows with it by cascade, but the same race
-    // applies to the second query — so they are filtered against the surviving goals rather than
-    // against the deleted set, which is the same rule stated once.
+    // A goal deleted this session takes its engine rows and its readings with it by cascade, but
+    // the same race applies to the other two queries — so they are filtered against the surviving
+    // goals rather than against the deleted set, which is the same rule stated once.
     const live = new Set(kept.map((goal) => goal.id));
     setActs((actsRes.data ?? []).filter((act) => live.has(act.goal_id)));
+    setCheckIns((checkInsRes.data ?? []).filter((row) => live.has(row.goal_id)));
     setError(null);
     return true;
   }, [userId, userRef]);
@@ -131,6 +198,11 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       if (!title || !unit || !(input.target_value > 0)) return null;
       const position = rowsRef.current.reduce((max, goal) => Math.max(max, goal.position), -1) + 1;
 
+      // Which way the measure travels, settled here and never asked. A starting value above the
+      // target means the number has to come down; with no starting value there is nothing to
+      // travel from, so it defaults to climbing exactly as every goal did before this existed.
+      const direction = input.startValue !== undefined && input.startValue > input.target_value ? 'down' : 'up';
+
       const { data, error: insError } = await supabase
         .from('goals')
         .insert({
@@ -143,12 +215,29 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
           obstacle: input.obstacle.trim(),
           if_then: input.if_then.trim(),
           position,
+          direction,
+          ...(input.cadence ?? {}),
         })
         .select()
         .single();
       if (insError || !data) {
         setError('Could not add that goal. Check your connection.');
         return null;
+      }
+      const goal = asGoals([data])[0]!;
+
+      // The starting reading, written the same way and for the same reason as the engine below:
+      // separately, and after the row it belongs to exists. A goal that failed to record where it
+      // started is a goal waiting for its first check-in, which is a state its screen already
+      // knows how to say.
+      let firstReading: GoalCheckIn | null = null;
+      if (input.startValue !== undefined) {
+        const { data: readingRow } = await supabase
+          .from('goal_check_ins')
+          .insert({ goal_id: goal.id, user_id: userId, taken_on: todayRef.current, value: input.startValue, note: '' })
+          .select()
+          .single();
+        firstReading = readingRow ?? null;
       }
 
       // The engine second. A goal with no acts is a legible state — its screen says nothing is
@@ -159,18 +248,19 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       if (input.acts.length > 0) {
         const { data: actRows, error: actError } = await supabase
           .from('goal_acts')
-          .insert(input.acts.map((a) => ({ goal_id: data.id, habit_id: a.habitId, user_id: userId, contributes: a.contributes })))
+          .insert(input.acts.map((a) => ({ goal_id: goal.id, habit_id: a.habitId, user_id: userId, contributes: a.contributes })))
           .select();
         if (actError) setError('The goal was saved, but its acts were not attached. Open it to add them.');
         engine = actRows ?? [];
       }
 
-      setRows((prev) => [...prev, data]);
-      rowsRef.current = [...rowsRef.current, data];
+      setRows((prev) => [...prev, goal]);
+      rowsRef.current = [...rowsRef.current, goal];
       setActs((prev) => [...prev, ...engine]);
-      return data;
+      if (firstReading) setCheckIns((prev) => [...prev, firstReading]);
+      return goal;
     },
-    [userId, rowsRef],
+    [userId, rowsRef, todayRef],
   );
 
   const updateGoal = useCallback(
@@ -180,8 +270,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         setError(SAVE_ERROR);
         return false;
       }
-      setRows((prev) => prev.map((goal) => (goal.id === goalId ? data : goal)));
-      rowsRef.current = rowsRef.current.map((goal) => (goal.id === goalId ? data : goal));
+      const next = asGoals([data])[0]!;
+      setRows((prev) => prev.map((goal) => (goal.id === goalId ? next : goal)));
+      rowsRef.current = rowsRef.current.map((goal) => (goal.id === goalId ? next : goal));
       return true;
     },
     [rowsRef],
@@ -198,52 +289,136 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       }
       setRows((prev) => prev.filter((goal) => goal.id !== goalId));
       rowsRef.current = rowsRef.current.filter((goal) => goal.id !== goalId);
-      // `goal_acts` cascades in the database; this keeps the client from carrying the orphans
-      // until the next fetch.
+      // `goal_acts` and `goal_check_ins` cascade in the database; this keeps the client from
+      // carrying the orphans until the next fetch.
       setActs((prev) => prev.filter((act) => act.goal_id !== goalId));
+      setCheckIns((prev) => prev.filter((row) => row.goal_id !== goalId));
       return true;
     },
     [rowsRef],
   );
 
-  const value = useMemo(
-    () => ({ goals: rows, goalActs: acts, loading, error, dismissError, createGoal, updateGoal, deleteGoal, refresh: fetchGoals }),
-    [rows, acts, loading, error, dismissError, createGoal, updateGoal, deleteGoal, fetchGoals],
+  /**
+   * Answer a goal's check-in.
+   *
+   * Upserted on `(goal_id, taken_on)`: the day is the reading's identity, so answering twice on
+   * one day corrects the first rather than laying a second point on top of it. Awaited rather
+   * than painted optimistically, like every other write here — it is made from a form with a Save.
+   *
+   * The last thing it does is ask whether the day just closed, which is the seam a to-do's tick
+   * has and for the same reason: a check-in can hold the day open, so answering the last one
+   * has to be able to let it go.
+   */
+  const saveCheckIn = useCallback(
+    async (goalId: string, input: CheckInInput): Promise<boolean> => {
+      if (!userId) return false;
+      if (!Number.isFinite(input.value)) return false;
+      const { data, error: saveError } = await supabase
+        .from('goal_check_ins')
+        .upsert(
+          { goal_id: goalId, user_id: userId, taken_on: input.takenOn, value: input.value, note: input.note.trim() },
+          { onConflict: 'goal_id,taken_on' },
+        )
+        .select()
+        .single();
+      if (saveError || !data) {
+        setError(SAVE_ERROR);
+        return false;
+      }
+
+      const applied = [...checkInsRef.current.filter((row) => row.id !== data.id && !sameDay(row, data)), data];
+      setCheckIns(applied);
+      checkInsRef.current = applied;
+
+      const day = input.takenOn;
+      const snapshot = getDayCloseSnapshot();
+      const close = dayCloseAfter(
+        snapshot.habits,
+        snapshot.skipped,
+        snapshot.completed,
+        new Set<string>(),
+        day,
+        openTasksOn(day),
+        openCountOn(rowsRef.current, applied, day, todayRef.current),
+      );
+      if (close.dayComplete) {
+        haptics.celebrate(moonLitFor(day));
+        if (day === todayRef.current) showDayComplete(day, close.doneIds);
+      } else {
+        // One crisp confirm, never the seal's rounder tail beat — that one means "a group settled
+        // together", and a reading is one claim standing on its own.
+        haptics.completed();
+      }
+      return true;
+    },
+    [userId, checkInsRef, rowsRef, todayRef, getDayCloseSnapshot, showDayComplete],
   );
 
-  return <GoalsContext value={value}>{children}</GoalsContext>;
+  const deleteCheckIn = useCallback(
+    async (checkInId: string): Promise<boolean> => {
+      const { error: delError } = await supabase.from('goal_check_ins').delete().eq('id', checkInId);
+      if (delError) {
+        setError('Could not remove that reading. Check your connection.');
+        return false;
+      }
+      const applied = checkInsRef.current.filter((row) => row.id !== checkInId);
+      setCheckIns(applied);
+      checkInsRef.current = applied;
+      return true;
+    },
+    [checkInsRef],
+  );
+
+  // Publish "how many goals are still waiting to be told where they stand" for the day-close rule
+  // in `lib/day-close.ts`. Registered once and reading refs, so it always answers from current
+  // state without re-arming.
+  useEffect(
+    () => setOpenCheckInsProbe((day) => openCountOn(rowsRef.current, checkInsRef.current, day, todayRef.current)),
+    [rowsRef, checkInsRef, todayRef],
+  );
+
+  const openToday = useMemo(() => openCountOn(rows, checkIns, today, today), [rows, checkIns, today]);
+
+  const value = useMemo(
+    () => ({
+      goals: rows,
+      goalActs: acts,
+      checkIns,
+      loading,
+      error,
+      dismissError,
+      createGoal,
+      updateGoal,
+      deleteGoal,
+      saveCheckIn,
+      deleteCheckIn,
+      refresh: fetchGoals,
+    }),
+    [
+      rows,
+      acts,
+      checkIns,
+      loading,
+      error,
+      dismissError,
+      createGoal,
+      updateGoal,
+      deleteGoal,
+      saveCheckIn,
+      deleteCheckIn,
+      fetchGoals,
+    ],
+  );
+  const summaryValue = useMemo(() => ({ openToday }), [openToday]);
+
+  return (
+    <GoalCheckInsSummaryContext value={summaryValue}>
+      <GoalsContext value={value}>{children}</GoalsContext>
+    </GoalCheckInsSummaryContext>
+  );
 }
 
-/**
- * A one-shot read of the goals, for callers outside the navigator — the lunar-update arming, which
- * runs as the app goes to the background and has no provider above it. The sibling of
- * {@link import('./use-progress').loadProgress}, and it exists for the same reason.
- *
- * It fetches the whole record for the engine acts rather than a window, and that is not optional:
- * a goal's measure is a lifetime sum, so a 370-day window would report a twenty-year ḥifẓ as
- * barely begun and quote a monthly quota several times too large on a lock screen. The query is
- * narrowed to the habits some goal actually drives instead, which is a handful of rows a day at
- * worst — the cost of the window, without its error.
- *
- * Returns an empty list on any failure. A notification that has lost its figure still has its
- * landmark, and the copy already knows how to drop one.
- */
-export async function loadGoalReadings(userId: string, today: string): Promise<GoalReading[]> {
-  const [goalsRes, actsRes] = await Promise.all([
-    supabase.from('goals').select('*').eq('user_id', userId).eq('status', 'open'),
-    supabase.from('goal_acts').select('*').eq('user_id', userId),
-  ]);
-  const goals = goalsRes.data ?? [];
-  const acts = (actsRes.data ?? []).filter((act) => goals.some((goal) => goal.id === act.goal_id));
-  if (goals.length === 0 || acts.length === 0) return [];
-
-  const habitIds = [...new Set(acts.map((act) => act.habit_id))];
-  const [habitsRes, completionsRes] = await Promise.all([
-    supabase.from('habits').select('*').in('id', habitIds),
-    supabase.from('habit_completions').select('habit_id, completed_at, status, count').in('habit_id', habitIds),
-  ]);
-  if (habitsRes.error || completionsRes.error) return [];
-  // The same narrowing `use-progress` applies on its own fetch: the generated row type carries
-  // `hijri_schedule` as `Json`, and every consumer in the app reads it as a `HijriSchedule`.
-  return computeGoals(goals, acts, (habitsRes.data ?? []) as Habit[], completionsRes.data ?? [], today);
+/** Two readings for the same goal on the same day are the same reading — see the unique index. */
+function sameDay(a: GoalCheckIn, b: GoalCheckIn): boolean {
+  return a.goal_id === b.goal_id && a.taken_on === b.taken_on;
 }

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useHabitsTaskBridge } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { todayLocalISO } from '@/lib/dates';
-import { dayCloseAfter, moonLitFor, setOpenTasksProbe } from '@/lib/day-close';
+import { dayCloseAfter, moonLitFor, openCheckInsOn, setOpenTasksProbe } from '@/lib/day-close';
 import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { isOpen, openCountOn, visibleTasks, type Task } from '@/lib/tasks';
@@ -298,6 +298,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           new Set<string>(),
           day,
           openCountOn(applied, day, todayRef.current),
+          openCheckInsOn(day),
         );
         if (close.dayComplete) {
           haptics.celebrate(moonLitFor(day));

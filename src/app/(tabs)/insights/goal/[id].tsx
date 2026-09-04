@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { ErrorBanner } from '@/components/error-banner';
+import { GoalTrendChart } from '@/components/goal-trend-chart';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { Surface } from '@/components/surface';
@@ -10,11 +11,13 @@ import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
-import { useHabits } from '@/hooks/use-habits';
+import { useHabits, useHabitsNavigation } from '@/hooks/use-habits';
 import { useProgress } from '@/hooks/use-progress';
 import { confirmDestructive } from '@/lib/alerts';
-import { formatMeasure, type GoalReading } from '@/lib/goals';
+import { describeCadence, hasCadence, latestBefore, readingLine } from '@/lib/check-ins';
+import { formatMeasure, goalSeries, type GoalReading } from '@/lib/goals';
 import { haptics } from '@/lib/haptics';
+import { usePreference } from '@/lib/preferences';
 
 /**
  * One goal, in full.
@@ -35,8 +38,10 @@ export default function GoalScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { goals: readings, refresh } = useProgress();
-  const { updateGoal, deleteGoal, error, dismissError, loading } = useGoals();
+  const { checkIns, updateGoal, deleteGoal, error, dismissError, loading } = useGoals();
   const { updateHabit } = useHabits();
+  const { today } = useHabitsNavigation();
+  const weekStart = usePreference('weekStart');
 
   const reading = readings.find((r) => r.goal.id === id) ?? null;
 
@@ -52,7 +57,11 @@ export default function GoalScreen() {
     );
   }
 
-  const { goal, acts, earned, dailyTarget, pace, arrival, horizon, milestones, met, overdue, reachable } = reading;
+  const { goal, acts, earned, remaining, measured, awaiting, dailyTarget, pace, arrival, horizon, milestones, met, overdue, reachable } =
+    reading;
+  const series = goalSeries(goal.id, checkIns);
+  const asking = hasCadence(goal);
+  const lastReading = latestBefore(checkIns, goal.id, '9999-12-31');
   const contributor = acts.find((a) => a.contributes) ?? null;
   // Only worth offering when it would actually change something: an act already sitting at the
   // right target needs no button, and a button that does nothing teaches you to stop reading them.
@@ -145,8 +154,27 @@ export default function GoalScreen() {
         </SettingsSection>
       ) : null}
 
+      {/* The line the check-ins draw. Above THE MEASURE because a picture of where the number has
+          been answers "am I moving?" faster than any row of figures under it can. */}
+      {asking ? (
+        <GoalTrendChart series={series} target={goal.target_value} unit={goal.unit} today={today} />
+      ) : null}
+
       <SettingsSection title="THE MEASURE">
-        <SettingsRow label="Done so far" value={`${formatMeasure(earned)} of ${formatMeasure(goal.target_value)} ${goal.unit}`} />
+        {/* A goal that reports its own position says where it *is*; one summed from acts says how
+            much of the target has been covered. The same row, two different sentences, because
+            "82.4 of 75 kg" is not a thing anyone would say out loud. */}
+        {awaiting ? (
+          <SettingsRow label="Where you are" value="Not measured yet" sublabel="Its first check-in sets the baseline" />
+        ) : measured ? (
+          <SettingsRow
+            label="Where you are"
+            value={`${formatMeasure(earned)} ${goal.unit}`}
+            sublabel={met ? 'At the target' : `${formatMeasure(remaining)} ${goal.unit} to go`}
+          />
+        ) : (
+          <SettingsRow label="Done so far" value={`${formatMeasure(earned)} of ${formatMeasure(goal.target_value)} ${goal.unit}`} />
+        )}
         {milestones ? (
           <SettingsRow
             label="Steps done"
@@ -180,6 +208,38 @@ export default function GoalScreen() {
             value={act.targetCount !== null ? `${act.targetCount} a day` : undefined}
           />
         ))}
+      </SettingsSection>
+
+      {/* What the goal asks of the day, and the way to answer it now rather than waiting to be
+          asked. A goal that asks nothing gets the row that starts it asking — the same door the
+          "+" sheet opens, reached from the thing it will hang on. */}
+      <SettingsSection
+        title="CHECK-IN"
+        footer={
+          asking
+            ? 'It appears on your day when it is due, and stays there until you answer it.'
+            : undefined
+        }>
+        <SettingsRow
+          icon="checkIn"
+          label={asking ? describeCadence(goal, weekStart) : 'Ask me where I am'}
+          sublabel={asking ? 'Change how often it asks' : 'On a cadence you choose'}
+          showChevron
+          onPress={() => router.push({ pathname: '/habits/check-in-new', params: { goalId: goal.id } })}
+        />
+        {asking ? (
+          <SettingsRow
+            icon="edit"
+            label="Check in now"
+            sublabel={
+              lastReading
+                ? `Last ${readingLine(lastReading.value, goal.unit, lastReading.taken_on, today)}`
+                : 'Nothing recorded yet'
+            }
+            showChevron
+            onPress={() => router.push({ pathname: '/habits/check-in', params: { goalId: goal.id } })}
+          />
+        ) : null}
       </SettingsSection>
 
       {/* Not a slogan on the wall: this is also shown at the one moment it is for, when an engine

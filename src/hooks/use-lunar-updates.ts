@@ -19,10 +19,10 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { AppState } from 'react-native';
 
-import { loadGoalReadings } from '@/hooks/use-goals';
-import { loadProgress } from '@/hooks/use-progress';
 import { deviceLocation } from '@/lib/geo';
+import { loadGoalReadings } from '@/lib/goal-readings';
 import type { Reading } from '@/lib/insights';
+import { loadProgress } from '@/lib/load-progress';
 import { planLunarFires } from '@/lib/lunar-schedule';
 import { lunarUpdateCopy, type GoalAsk } from '@/lib/lunar-update';
 import { notificationsAvailable, scheduleLunarUpdates } from '@/lib/notifications';

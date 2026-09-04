@@ -27,9 +27,13 @@ export type DayClose = { dayComplete: boolean; doneIds: string[] };
  * optimistic state has propagated (the stale-read guard every completion path needs).
  *
  * `openTasks` is how many one-off tasks are still open on that day *after* the tick being
- * considered. An open task holds the day back — a day with something left on its list isn't
- * finished — but it can never close one on its own: the `openIds.length > 0` guard means the
- * celebration still belongs to the practice, and a day with no practice at all raises nothing.
+ * considered, and `openCheckIns` how many goals are still waiting to be told where they stand.
+ * Both hold the day back — a day with something left on its list isn't finished — and neither can
+ * close one on its own: the `openIds.length > 0` guard means the celebration still belongs to the
+ * practice, and a day with no practice at all raises nothing.
+ *
+ * They are two parameters rather than one sum because they are two different things, and a single
+ * `openOther` would leave every call site deciding for itself what belonged in it.
  */
 export function dayCloseAfter(
   habits: ClosableHabit[],
@@ -38,13 +42,17 @@ export function dayCloseAfter(
   justDoneIds: Set<string>,
   day: string,
   openTasks: number,
+  openCheckIns = 0,
 ): DayClose {
   const openIds = habits.filter((h) => scheduledOn(h, day) && !skipped.has(h.id)).map((h) => h.id);
   const dayComplete =
-    openIds.length > 0 && openTasks === 0 && openIds.every((id) => justDoneIds.has(id) || completed.has(id));
+    openIds.length > 0 &&
+    openTasks === 0 &&
+    openCheckIns === 0 &&
+    openIds.every((id) => justDoneIds.has(id) || completed.has(id));
   // When complete, `openIds` are exactly the day's done (non-skipped, all ticked) ids — handed to
   // the overlay so its degrees count the just-made ticks before they reach the server (matches
-  // Progress). Tasks are absent by design: they earn no degrees.
+  // Progress). Tasks and check-ins are absent by design: they earn no degrees.
   return { dayComplete, doneIds: dayComplete ? openIds : [] };
 }
 
@@ -73,21 +81,42 @@ export function moonLitFor(iso: string): number | undefined {
  * Defaults to "no open tasks", so a tree without a tasks provider — a test, an early render —
  * behaves exactly as the app did before tasks existed.
  */
-type OpenTasksProbe = (day: string) => number;
-const NO_TASKS: OpenTasksProbe = () => 0;
-let probe: OpenTasksProbe = NO_TASKS;
+type OpenProbe = (day: string) => number;
+const NONE: OpenProbe = () => 0;
+let tasksProbe: OpenProbe = NONE;
+let checkInsProbe: OpenProbe = NONE;
 
-/** Register the probe; returns the unregister to run on unmount. */
-export function setOpenTasksProbe(next: OpenTasksProbe): () => void {
-  probe = next;
+/** Register the tasks probe; returns the unregister to run on unmount. */
+export function setOpenTasksProbe(next: OpenProbe): () => void {
+  tasksProbe = next;
   return () => {
     // Only clear if we're still the registered one — a remount can register before the old
     // provider's cleanup runs, and clearing then would leave the app blind to open tasks.
-    if (probe === next) probe = NO_TASKS;
+    if (tasksProbe === next) tasksProbe = NONE;
   };
 }
 
 /** Open tasks on `day`, per the registered probe. */
 export function openTasksOn(day: string): number {
-  return probe(day);
+  return tasksProbe(day);
+}
+
+/**
+ * The same arrangement again for check-ins, and it is needed for the same reason: `GoalsProvider`
+ * is another descendant of `HabitsProvider`, and a seal happening in the parent has to know
+ * whether a goal is still waiting to be told where it stands.
+ *
+ * Its own slot rather than a shared one, so unmounting either provider cannot silently blind the
+ * app to the other.
+ */
+export function setOpenCheckInsProbe(next: OpenProbe): () => void {
+  checkInsProbe = next;
+  return () => {
+    if (checkInsProbe === next) checkInsProbe = NONE;
+  };
+}
+
+/** Check-ins still waiting on `day`, per the registered probe. */
+export function openCheckInsOn(day: string): number {
+  return checkInsProbe(day);
 }

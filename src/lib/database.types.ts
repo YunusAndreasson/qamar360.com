@@ -192,9 +192,61 @@ export type Database = {
           },
         ]
       }
-      goals: {
+      goal_check_ins: {
         Row: {
           created_at: string | null
+          goal_id: string
+          id: string
+          note: string
+          taken_on: string
+          updated_at: string | null
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          goal_id: string
+          id?: string
+          note?: string
+          taken_on: string
+          updated_at?: string | null
+          user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          goal_id?: string
+          id?: string
+          note?: string
+          taken_on?: string
+          updated_at?: string | null
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_check_ins_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_check_ins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals: {
+        Row: {
+          check_in_days: number[]
+          check_in_from: string | null
+          check_in_hijri: Json | null
+          created_at: string | null
+          direction: string
           horizon_on: string
           id: string
           if_then: string
@@ -209,7 +261,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          check_in_days?: number[]
+          check_in_from?: string | null
+          check_in_hijri?: Json | null
           created_at?: string | null
+          direction?: string
           horizon_on: string
           id?: string
           if_then?: string
@@ -224,7 +280,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          check_in_days?: number[]
+          check_in_from?: string | null
+          check_in_hijri?: Json | null
           created_at?: string | null
+          direction?: string
           horizon_on?: string
           id?: string
           if_then?: string

@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { DayCompleteProvider } from '@/components/day-complete';
@@ -31,20 +32,22 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <CatalogProvider>
-              <DayCompleteProvider>
-                {/* One gravity sensor and one set of twinkle clocks for every sky in the app —
-                    see the note in `use-sky.tsx` on what each screen owning its own used to cost. */}
-                <SkyProvider>
-                  <RootNavigator />
-                  <ThemedChrome />
-                </SkyProvider>
-              </DayCompleteProvider>
-            </CatalogProvider>
-          </AuthProvider>
-        </ToastProvider>
+        <KeyboardProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <CatalogProvider>
+                <DayCompleteProvider>
+                  {/* One gravity sensor and one set of twinkle clocks for every sky in the app —
+                      see the note in `use-sky.tsx` on what each screen owning its own used to cost. */}
+                  <SkyProvider>
+                    <RootNavigator />
+                    <ThemedChrome />
+                  </SkyProvider>
+                </DayCompleteProvider>
+              </CatalogProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

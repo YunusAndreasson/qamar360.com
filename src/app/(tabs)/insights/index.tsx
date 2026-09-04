@@ -142,7 +142,7 @@ function SetAGoalRow() {
     <SettingsRow
       icon="add"
       label="Set a goal"
-      sublabel="A horizon over acts you keep — ḥifẓ, a language, a weight"
+      sublabel="Track memorization, language learning, or another goal"
       showChevron
       onPress={() => router.push('/(tabs)/insights/goal/new')}
     />

@@ -16,7 +16,7 @@ import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
-import { dayCloseAfter, moonLitFor, openTasksOn, type DayClose } from '@/lib/day-close';
+import { dayCloseAfter, moonLitFor, openCheckInsOn, openTasksOn, type DayClose } from '@/lib/day-close';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
@@ -387,7 +387,7 @@ function celebrateSeal(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day), openCheckInsOn(day));
   if (close.dayComplete) {
     haptics.celebrate(moonLitFor(day));
   } else {
@@ -412,7 +412,7 @@ function celebrateHold(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day), openCheckInsOn(day));
   if (close.dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
   return close;

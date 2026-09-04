@@ -1,9 +1,14 @@
 import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { AppIcon } from '@/components/app-icon';
 import { CardSection } from '@/components/card-section';
 import { PlanPicks } from '@/components/plan-picks';
 import { TaskComposer } from '@/components/task-composer';
 import { TaskRow } from '@/components/task-row';
+import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import type { Plan } from '@/lib/plans';
 import type { Task } from '@/lib/tasks';
@@ -59,6 +64,8 @@ export function TaskSection({
   onDelete,
 }: Props) {
   // The task being rewritten (the long press), or null while the composer is capturing new ones.
+  const theme = useTheme();
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [composing, setComposing] = useState(false);
   const [text, setText] = useState('');
@@ -95,6 +102,8 @@ export function TaskSection({
   // The outside request opens the field directly rather than being copied into state — one source
   // of truth, and no effect chasing a prop. It is spent when the field closes.
   const composerOpen = isToday && (composing || editing !== null || composeRequested);
+  const showTasks = expanded || composerOpen;
+  const done = tasks.filter((task) => task.done_on !== null).length;
   if (tasks.length === 0 && !composerOpen) return null;
 
   const closeComposer = () => {
@@ -130,7 +139,7 @@ export function TaskSection({
       // last Tuesday" is not a thing anyone means to do — and while an edit is open, since the
       // field for that is up in the list and two live fields would fight for the keyboard.
       trailing={
-        isToday && !editing ? (
+        isToday && !editing && showTasks ? (
           <>
             <TaskComposer
               open={composerOpen}
@@ -151,7 +160,22 @@ export function TaskSection({
           </>
         ) : null
       }>
-      {tasks.map((task) =>
+      {tasks.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`To-dos, ${done} of ${tasks.length} complete`}
+          accessibilityState={{ expanded: showTasks, disabled: composerOpen }}
+          disabled={composerOpen}
+          onPress={() => setExpanded((value) => !value)}
+          style={({ pressed }) => [styles.summary, pressed && { backgroundColor: theme.backgroundSelected }]}>
+          <View style={styles.summaryText}>
+            <ThemedText type="rowTitle">{tasks.length - done} remaining</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">{done} of {tasks.length} complete</ThemedText>
+          </View>
+          <AppIcon name={showTasks ? 'expandLess' : 'expandMore'} color={theme.textSecondary} size={18} />
+        </Pressable>
+      ) : null}
+      {showTasks ? tasks.map((task) =>
         // Rewriting one happens **in its own row** — the row you tapped becomes the field, which is
         // the whole promise of the composer. It used to render only at the foot of the card, so an
         // edit put the task on screen twice: the untouched row where it has always been, and a
@@ -168,9 +192,14 @@ export function TaskSection({
             onDelete={() => confirmDelete(task)}
           />
         ) : (
-          <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onEdit={startEditing} />
+          <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onEdit={startEditing} onDelete={confirmDelete} />
         ),
-      )}
+      ) : null}
     </CardSection>
   );
 }
+
+const styles = StyleSheet.create({
+  summary: { flexDirection: 'row', alignItems: 'center', padding: Spacing.three, minHeight: 56 },
+  summaryText: { flex: 1, gap: Spacing.half },
+});

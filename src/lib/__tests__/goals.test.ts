@@ -1,7 +1,17 @@
 import { describe, expect, it } from '@jest/globals';
 
+import type { GoalCheckIn } from '@/lib/check-ins';
 import { hijriMonthAfter, hijriMonthsBetween, hijriParts } from '@/lib/dates';
-import { computeGoals, formatMeasure, goalMeta, horizonFromLunarMonths, type Goal, type GoalAct } from '@/lib/goals';
+import {
+  computeGoals,
+  formatMeasure,
+  goalMeta,
+  goalPlot,
+  goalSeries,
+  horizonFromLunarMonths,
+  type Goal,
+  type GoalAct,
+} from '@/lib/goals';
 import type { CompletionRow, ProgressHabit } from '@/lib/progress';
 
 /**
@@ -47,9 +57,38 @@ function goal(overrides: Partial<Goal> = {}): Goal {
     if_then: '',
     status: 'open',
     position: 0,
+    // Asks nothing by default: the goals that existed before check-ins did, so every test below
+    // this line still measures the act sum unless it opts into a cadence.
+    check_in_days: [],
+    check_in_hijri: null,
+    check_in_from: null,
+    direction: 'up',
     // Well before the earliest month any test tallies, so the goal never gates its own pace
     // unless a test sets out to check that it does.
     created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: null,
+    ...overrides,
+  };
+}
+
+/** A daily cadence running from long before any date here. */
+const DAILY_CADENCE: Partial<Goal> = {
+  check_in_days: [0, 1, 2, 3, 4, 5, 6],
+  check_in_hijri: null,
+  check_in_from: '2026-01-01',
+};
+
+let readingSeq = 0;
+function checkIn(taken_on: string, value: number, overrides: Partial<GoalCheckIn> = {}): GoalCheckIn {
+  readingSeq += 1;
+  return {
+    id: `c${readingSeq}`,
+    goal_id: 'g1',
+    user_id: 'u1',
+    taken_on,
+    value,
+    note: '',
+    created_at: null,
     updated_at: null,
     ...overrides,
   };
@@ -69,8 +108,9 @@ function read(
   overrides: Partial<Goal> = {},
   acts: GoalAct[] = [act('h1')],
   habits: EngineHabit[] = [habit()],
+  checkIns: GoalCheckIn[] = [],
 ) {
-  const [reading] = computeGoals([goal(overrides)], acts, habits, completions, TODAY);
+  const [reading] = computeGoals([goal(overrides)], acts, habits, completions, checkIns, TODAY);
   if (!reading) throw new Error('computeGoals returned nothing');
   return reading;
 }
@@ -313,17 +353,17 @@ describe('goalMeta', () => {
   // The month's ask leads, because it is the only line here that is about today. The arrival
   // month and the pace live on the goal's own screen.
   it('names what this month is still asking for', () => {
-    expect(goalMeta(read([row('h1', TODAY, 'done', 30)]), TODAY)).toBe('Rabīʿ al-Awwal asks 70 lines');
+    expect(goalMeta(read([row('h1', TODAY, 'done', 30)]), TODAY)).toBe('70 lines left in Rabīʿ al-Awwal');
   });
 
   it('says the month is settled rather than asking for nothing', () => {
     const horizon = horizonFromLunarMonths(TODAY, 5)!;
     // 17 is the month's ask over six months; 20 done settles it.
-    expect(goalMeta(read([row('h1', TODAY, 'done', 20)], { horizon_on: horizon }), TODAY)).toBe('Rabīʿ al-Awwal settled');
+    expect(goalMeta(read([row('h1', TODAY, 'done', 20)], { horizon_on: horizon }), TODAY)).toBe('Rabīʿ al-Awwal target reached');
   });
 
   it('states a passed horizon as a fact, with what is left', () => {
-    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('The horizon has passed · 100 lines to go');
+    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('Target date passed · 100 lines to go');
   });
 
   it('reads a met goal as reached', () => {
@@ -340,5 +380,254 @@ describe('formatMeasure', () => {
     expect(formatMeasure(9060)).toBe('9,060');
     expect(formatMeasure(0.5)).toBe('0.5');
     expect(formatMeasure(17.04)).toBe('17');
+  });
+});
+
+/**
+ * A goal that reports where it stands.
+ *
+ * Two shapes: one that climbs (page 340 of 604) and one that falls (85 kg down to 75). The falling
+ * one is the whole reason the column exists — before it, `remaining = max(0, target - earned)`
+ * over a sum of non-negative credits made a shrinking measure literally inexpressible.
+ */
+describe('a measured goal', () => {
+  const WEIGHT: Partial<Goal> = {
+    ...DAILY_CADENCE,
+    direction: 'down',
+    unit: 'kg',
+    target_value: 75,
+    milestone_step: null,
+  };
+  /** A weight goal has no engine: nothing you tick subtracts. */
+  const noActs: GoalAct[] = [];
+
+  it('takes its measure from the latest reading', () => {
+    const r = read([], WEIGHT, noActs, [], [checkIn('2026-08-20', 85), checkIn('2026-08-30', 82.4)]);
+    expect(r.measured).toBe(true);
+    expect(r.earned).toBe(82.4);
+  });
+
+  it('counts what is left as the distance still to fall', () => {
+    const r = read([], WEIGHT, noActs, [], [checkIn('2026-08-30', 82.4)]);
+    expect(r.remaining).toBeCloseTo(7.4, 6);
+    expect(r.met).toBe(false);
+  });
+
+  it('is met when the measure reaches the target from above', () => {
+    expect(read([], WEIGHT, noActs, [], [checkIn(TODAY, 75)]).met).toBe(true);
+    expect(read([], WEIGHT, noActs, [], [checkIn(TODAY, 74.2)]).met).toBe(true);
+  });
+
+  // The trap an inferred direction would fall into: below target once, then back above it.
+  it('is not met again once the measure rises back above the target', () => {
+    const r = read([], WEIGHT, noActs, [], [checkIn('2026-08-20', 74), checkIn(TODAY, 78)]);
+    expect(r.met).toBe(false);
+    expect(r.remaining).toBe(3);
+  });
+
+  // It asks where you are and has not been told. Every figure would be a guess, so none is given.
+  it('waits rather than reporting a confident zero before its first reading', () => {
+    const r = read([], WEIGHT, noActs, [], []);
+    expect(r.awaiting).toBe(true);
+    expect(r.met).toBe(false);
+    expect(r.quota).toBeNull();
+    expect(goalMeta(r, TODAY)).toBe('Not measured yet');
+  });
+
+  // A goal with acts is measured by them until it is told otherwise, cadence or no cadence.
+  it('does not wait when acts are already measuring it', () => {
+    expect(read([], { ...DAILY_CADENCE }).awaiting).toBe(false);
+  });
+
+  it('never offers a per-day target for a falling measure', () => {
+    expect(read([], WEIGHT, noActs, [], [checkIn(TODAY, 82)]).dailyTarget).toBeNull();
+  });
+
+  // `Math.ceil` is right for 151 lines and wrong for 1.7 kg.
+  it('rounds the month’s ask to a tenth when the numbers are not whole', () => {
+    const horizon = horizonFromLunarMonths(TODAY, 5)!;
+    const r = read([], { ...WEIGHT, horizon_on: horizon }, noActs, [], [checkIn('2026-08-30', 82.4)]);
+    // 7.4 kg to lose over this month and five more.
+    expect(r.quota).toBeCloseTo(1.3, 6);
+  });
+
+  it('keeps whole numbers whole', () => {
+    const horizon = horizonFromLunarMonths(TODAY, 5)!;
+    const r = read([], { ...DAILY_CADENCE, horizon_on: horizon }, [], [], [checkIn('2026-08-30', 40)]);
+    expect(Number.isInteger(r.quota)).toBe(true);
+  });
+
+  // Pace over a series is a difference between month ends, not a sum of buckets.
+  it('paces on how far the measure moved in each closed month', () => {
+    const r = read(
+      [],
+      WEIGHT,
+      noActs,
+      [],
+      // Ṣafar ends 2026-08-13, Muḥarram ends 2026-07-15, Dhū al-Ḥijjah ends 2026-06-15.
+      [checkIn('2026-06-10', 91), checkIn('2026-07-10', 89), checkIn('2026-08-10', 87)],
+    );
+    // Two closed months moved 2 kg each; the third has nothing before it to measure from.
+    expect(r.pace).toBe(2);
+    expect(r.arrival).not.toBeNull();
+  });
+
+  it('has no opinion about its pace before a month has closed on it', () => {
+    expect(read([], WEIGHT, noActs, [], [checkIn(TODAY, 82)]).pace).toBeNull();
+  });
+
+  it('leads its row with where it stands', () => {
+    const horizon = horizonFromLunarMonths(TODAY, 5)!;
+    const meta = goalMeta(read([], { ...WEIGHT, horizon_on: horizon }, noActs, [], [checkIn('2026-08-30', 82.4)]), TODAY);
+    expect(meta).toMatch(/^82\.4 kg · [\d.]+ left in Rabīʿ al-Awwal$/);
+  });
+
+  // Steps are marks on the road travelled, so they are counted from where the goal started and
+  // printed as a measure — 81 kg, not "step 2".
+  it('counts milestones from the first reading and names the next as a measure', () => {
+    const r = read(
+      [],
+      { ...WEIGHT, milestone_step: 2 },
+      noActs,
+      [],
+      [checkIn('2026-08-01', 85), checkIn(TODAY, 82)],
+    );
+    expect(r.milestones).toEqual({ step: 2, reached: 1, next: 81 });
+  });
+});
+
+describe('a reading on a goal that also has acts', () => {
+  const RISING: Partial<Goal> = { ...DAILY_CADENCE, target_value: 604, unit: 'pages' };
+
+  // The point of the whole arrangement: a reading is a position, not a gain. It replaces what the
+  // acts had summed to, which is what makes it a repair of the drift `contributedCredit`'s
+  // `?? target_count` fallback already admits to rather than a second, competing ledger.
+  it('re-bases the sum rather than adding to it', () => {
+    const r = read(
+      [row('h1', '2026-08-01', 'done', 50), row('h1', '2026-08-02', 'done', 50)],
+      RISING,
+      [act('h1')],
+      [habit()],
+      [checkIn('2026-08-20', 340)],
+    );
+    expect(r.earned).toBe(340);
+  });
+
+  it('adds only what the acts have earned since the reading', () => {
+    const r = read(
+      [row('h1', '2026-08-01', 'done', 50), row('h1', '2026-08-30', 'done', 6)],
+      RISING,
+      [act('h1')],
+      [habit()],
+      [checkIn('2026-08-20', 340)],
+    );
+    expect(r.earned).toBe(346);
+  });
+
+  it('counts nothing from an act on the reading’s own day, which the reading already saw', () => {
+    const r = read(
+      [row('h1', '2026-08-20', 'done', 6)],
+      RISING,
+      [act('h1')],
+      [habit()],
+      [checkIn('2026-08-20', 340)],
+    );
+    expect(r.earned).toBe(340);
+  });
+
+  it('ignores revision, here as everywhere', () => {
+    const r = read(
+      [row('h2', '2026-08-30', 'done', 6)],
+      RISING,
+      [act('h1'), act('h2', false)],
+      [habit(), habit({ id: 'h2', name: 'Revised an older juzʾ' })],
+      [checkIn('2026-08-20', 340)],
+    );
+    expect(r.earned).toBe(340);
+  });
+
+  // The quota is fixed at the month's start, and a reading must not shake that loose: a target
+  // that retreats as you approach it can never be attained, and attainment is the mechanism.
+  it('leaves the month’s ask where it was when a reading lands', () => {
+    const horizon = horizonFromLunarMonths(TODAY, 5)!;
+    const before = read([], { ...RISING, horizon_on: horizon }, [act('h1')], [habit()], [checkIn('2026-08-13', 300)]);
+    const after = read([], { ...RISING, horizon_on: horizon }, [act('h1')], [habit()], [
+      checkIn('2026-08-13', 300),
+      checkIn(TODAY, 340),
+    ]);
+    expect(after.quota).toBe(before.quota);
+    expect(after.quotaRemaining).toBeLessThan(before.quotaRemaining);
+  });
+});
+
+describe('goals that existed before check-ins did', () => {
+  // Everything already stored has no cadence, no readings and `direction: 'up'` by default. Not
+  // one of its figures may move.
+  it('measures by its acts exactly as it always did', () => {
+    const r = read([row('h1', TODAY, 'done', 8)]);
+    expect(r.measured).toBe(false);
+    expect(r.awaiting).toBe(false);
+    expect(r.earned).toBe(8);
+    expect(r.remaining).toBe(92);
+  });
+});
+
+describe('goalSeries', () => {
+  it('is the readings themselves, oldest first, and nothing between them', () => {
+    const rows = [checkIn(TODAY, 82), checkIn('2026-08-20', 85), checkIn('2026-08-30', 83, { goal_id: 'g2' })];
+    expect(goalSeries('g1', rows)).toEqual([
+      { day: '2026-08-20', value: 85 },
+      { day: TODAY, value: 82 },
+    ]);
+  });
+});
+
+describe('goalPlot', () => {
+  const series = [
+    { day: '2026-08-01', value: 85 },
+    { day: '2026-08-15', value: 83 },
+    { day: '2026-08-29', value: 82 },
+  ];
+
+  it('draws nothing from a single reading', () => {
+    expect(goalPlot([{ day: TODAY, value: 85 }], 75)).toBeNull();
+    expect(goalPlot([], 75)).toBeNull();
+  });
+
+  // Check-ins are irregular by nature. Spacing them evenly would draw a steady descent through
+  // readings that were two months apart, and the line has to be readable as a rate.
+  it('spaces the points by date rather than by turn', () => {
+    const plot = goalPlot(
+      [
+        { day: '2026-08-01', value: 85 },
+        { day: '2026-08-08', value: 84 },
+        { day: '2026-08-29', value: 82 },
+      ],
+      75,
+    )!;
+    expect(plot.points.map((p) => p.span)).toEqual([0, 0.25, 1]);
+  });
+
+  // The distance still to go is the whole reason for the picture.
+  it('keeps the target inside the range whatever the readings do', () => {
+    const plot = goalPlot(series, 75)!;
+    expect(plot.low).toBeLessThan(75);
+    expect(plot.targetFraction).toBeGreaterThan(0);
+    expect(plot.targetFraction).toBeLessThan(1);
+    for (const p of plot.points) {
+      expect(p.fraction).toBeGreaterThan(0);
+      expect(p.fraction).toBeLessThan(1);
+    }
+  });
+
+  it('gives a goal sitting exactly on its target a scale to sit in', () => {
+    const plot = goalPlot([{ day: '2026-08-01', value: 75 }, { day: TODAY, value: 75 }], 75)!;
+    expect(Number.isFinite(plot.targetFraction)).toBe(true);
+    expect(plot.high).toBeGreaterThan(plot.low);
+  });
+
+  it('places every reading on the same day without dividing by zero', () => {
+    const plot = goalPlot([{ day: TODAY, value: 85 }, { day: TODAY, value: 84 }], 75)!;
+    expect(plot.points.every((p) => p.span === 0.5)).toBe(true);
   });
 });

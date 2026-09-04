@@ -2,7 +2,8 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CompletionRing } from '@/components/completion-ring';
-import { RowOptionsButton, TRAILING_BOX } from '@/components/row-trailing-button';
+import { RowMenu } from '@/components/native-menu';
+import { TRAILING_BOX } from '@/components/row-trailing-button';
 import { ThemedText } from '@/components/themed-text';
 import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -17,6 +18,7 @@ type Props = {
   onToggle: (task: Task) => void;
   /** Open it for rewriting — where deleting it lives too (the long press). */
   onEdit: (task: Task) => void;
+  onDelete: (task: Task) => void;
 };
 
 /**
@@ -40,7 +42,7 @@ type Props = {
  * scrolling card, the same construction where `Touchable`'s press has failed to register before
  * (the exchange library's disclosure row).
  */
-function TaskRowBase({ task, today, onToggle, onEdit }: Props) {
+function TaskRowBase({ task, today, onToggle, onEdit, onDelete }: Props) {
   const theme = useTheme();
   const done = task.done_on !== null;
   const row = taskRowContract({ title: task.title, dueOn: task.due_on, today, done });
@@ -70,24 +72,23 @@ function TaskRowBase({ task, today, onToggle, onEdit }: Props) {
           <CompletionRing complete={done} size={24} strokeWidth={2} />
         </View>
         <View style={styles.text}>
-          <ThemedText type="rowTitle" style={{ color: done ? theme.textDisabled : theme.text }} numberOfLines={2}>
+          <ThemedText type="rowTitle" style={{ color: done ? theme.textSecondary : theme.text }}>
             {task.title}
           </ThemedText>
           {/* Only when it has come forward from an earlier day. A note of where it came from —
               never "overdue", never a count of the days it has waited. */}
           {row.meta ? (
-            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+            <ThemedText type="small" themeColor="textSecondary">
               {row.meta}
             </ThemedText>
           ) : null}
         </View>
       </Pressable>
 
-      <RowOptionsButton
-        label={`Edit ${task.title}`}
-        hint="Rewrite the to-do, or delete it."
-        onPress={() => onEdit(task)}
-      />
+      <RowMenu label={`Options for ${task.title}`} actions={[
+        { id: 'edit', title: 'Edit', onSelect: () => onEdit(task) },
+        { id: 'delete', title: 'Delete', destructive: true, onSelect: () => onDelete(task) },
+      ]} />
     </View>
   );
 }
@@ -121,7 +122,8 @@ function taskPropsEqual(a: Props, b: Props): boolean {
     a.task.done_on === b.task.done_on &&
     a.today === b.today &&
     a.onToggle === b.onToggle &&
-    a.onEdit === b.onEdit
+    a.onEdit === b.onEdit &&
+    a.onDelete === b.onDelete
   );
 }
 

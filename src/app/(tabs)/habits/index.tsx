@@ -1,12 +1,14 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { ActRow } from '@/components/act-row';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { CheckInSection } from '@/components/check-in-section';
+import { DateNavigation } from '@/components/date-navigation';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
@@ -22,8 +24,9 @@ import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { Icons } from '@/constants/icons';
-import { MaxContentWidth, Radius, ScrollBottomInset, Spacing } from '@/constants/theme';
+import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
+import { useGoals } from '@/hooks/use-goals';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePlans } from '@/hooks/use-plans';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -32,6 +35,7 @@ import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
+import { visibleCheckIns } from '@/lib/check-ins';
 import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -197,6 +201,7 @@ export default function HabitsScreen() {
     error,
     today,
     viewDate,
+    setViewDate,
     minViewDate,
     isToday,
     stepViewDate: stepDay,
@@ -227,6 +232,10 @@ export default function HabitsScreen() {
   // What you meant to do before it had a day. Read here only for the shortcut inside the to-do
   // field; the list itself is a place you go, behind the "+".
   const { plans } = usePlans();
+  // The goals, only for what they are asking today. Deliberately the raw rows and not
+  // `useProgress`: whether a check-in is due needs a cadence and a list of readings, and pulling
+  // in the whole completion record to answer that would make the day pay for the goals screen.
+  const { goals, checkIns, refresh: refreshGoals } = useGoals();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -244,7 +253,11 @@ export default function HabitsScreen() {
       }
       void refresh();
       void refreshTasks();
-    }, [refresh, refreshTasks]),
+      // A cadence set from the "+" sheet lands while this screen is behind a modal, so the day has
+      // to re-read on the way back — the same rule the Insights screen follows, and for the same
+      // reason: `useGoals` is a provider, but the modal's write does not pass through this render.
+      void refreshGoals();
+    }, [refresh, refreshTasks, refreshGoals]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -413,18 +426,30 @@ export default function HabitsScreen() {
   // to-dos there is nothing to edit and nothing to type into until this param opens the field, and
   // `onComposeHandled` returns it to undefined the moment the field closes.
   const taskCardShowing = tasks.length > 0 || (isToday && compose === 'task');
+  // What the day's goals are asking. Read straight from `useGoals` rather than through
+  // `useProgress`: the visibility rule needs only the cadence and the readings, and Today has no
+  // business fetching every completion ever written to find out whether to draw one row.
+  const checkInEntries = useMemo(
+    () => visibleCheckIns(goals, checkIns, viewDate, today),
+    [goals, checkIns, viewDate, today],
+  );
   // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks
   // alone, so a day with to-dos but no stacks got 8pt of top padding that a day with stacks
   // didn't, while the empty state below correctly stayed away. One predicate, both readers.
   const showEmptyState =
-    entries.length === 0 && !taskCardShowing && looseHabits.length === 0 && exchanges.length === 0;
+    entries.length === 0 &&
+    !taskCardShowing &&
+    checkInEntries.length === 0 &&
+    looseHabits.length === 0 &&
+    exchanges.length === 0;
+  // Everything the check-in section has to step down from, and everything below it has to step
+  // down from in turn.
+  const checkInCardShowing = checkInEntries.length > 0;
   // Whether anything at all precedes a given section, so each one takes the same step from what
   // is above it. Spelled once and threaded down the list rather than restated per section with
   // one more clause each time — which is how the fourth section would have got it wrong.
   const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
 
-  const canGoBack = viewDate > minViewDate;
-  const canGoForward = viewDate < today;
 
   // A discrete step through the day series — the same `selection` semantic as tapping a day cell
   // on Progress, so moving through time feels identical on both screens. The provider owns the
@@ -443,6 +468,14 @@ export default function HabitsScreen() {
   const openAct = useCallback(
     (habit: Habit) => router.push({ pathname: '/habits/act-actions', params: { habitId: habit.id } }),
     [router],
+  );
+
+  // A check-in is answered with a number, so the row opens a field rather than ticking. The viewed
+  // day rides along: stepping back to a day and correcting what was recorded then has to write to
+  // that day, not to today.
+  const openCheckIn = useCallback(
+    (goalId: string) => router.push({ pathname: '/habits/check-in', params: { goalId, day: viewDate } }),
+    [router, viewDate],
   );
 
   // One tick for both stackless sections — a habit with no stack and an exchange are the same
@@ -652,17 +685,8 @@ export default function HabitsScreen() {
         options={{
           title: viewDateTitle(viewDate, today),
           headerLargeTitle: true,
-          headerLeft: () =>
-            Platform.OS === 'ios' ? (
-              <HeaderActions>
-                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
-              </HeaderActions>
-            ) : null,
           headerRight: () => (
             <HeaderActions>
-              {Platform.OS !== 'ios' ? (
-                <DateStepperButtons canGoBack={canGoBack} canGoForward={canGoForward} onStep={stepViewDate} />
-              ) : null}
               {isToday ? (
                 <HeaderIconButton
                   icon={Icons.note}
@@ -713,6 +737,7 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
+          <DateNavigation date={viewDate} today={today} minimum={minViewDate} onSelect={setViewDate} onStep={stepViewDate} />
           {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
@@ -733,6 +758,15 @@ export default function HabitsScreen() {
             onRename={rewriteTask}
             onDelete={removeTask}
           />
+          {/* What the goals are asking. Under the errands that expire and above the practice that
+              comes round again: a check-in is an ask like a to-do, but it reports on the acts
+              rather than competing with them. */}
+          <CheckInSection
+            entries={checkInEntries}
+            topGap={gapAfter(taskCardShowing)}
+            today={today}
+            onPress={openCheckIn}
+          />
           {entries.length === 0 ? (
             // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
             // something: a user who tracks only those has a day, and inviting them to anchor their
@@ -751,7 +785,7 @@ export default function HabitsScreen() {
                   was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
-                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing) }]}>
+                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing || checkInCardShowing) }]}>
                 STACKS
               </SectionLabel>
               <HabitDragProvider
@@ -808,7 +842,7 @@ export default function HabitsScreen() {
               the two because it is the ordinary case — an exchange is the special one. */}
           <HabitSection
             habits={looseHabits}
-            topGap={gapAfter(entries.length > 0 || taskCardShowing)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -820,7 +854,7 @@ export default function HabitsScreen() {
           <ExchangeSection
             exchanges={exchanges}
             // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={gapAfter(entries.length > 0 || taskCardShowing || looseHabits.length > 0)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing || looseHabits.length > 0)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -902,42 +936,6 @@ function HabitsDragGhost({
 
 const noop = () => {};
 
-/** The day-stepper glyphs shared by the iOS `headerLeft` and the Android `headerRight`. */
-function DateStepperButtons({
-  canGoBack,
-  canGoForward,
-  onStep,
-}: {
-  canGoBack: boolean;
-  canGoForward: boolean;
-  onStep: (delta: number) => void;
-}) {
-  const theme = useTheme();
-  return (
-    <>
-      <HeaderIconButton
-        icon={Icons.chevronLeft}
-        // Disabled speaks the disabled vocabulary (textDisabled, like a maxed stepper "+") —
-        // textSecondary is a reading tone, and a dead control must not outrank live metadata.
-        color={canGoBack ? theme.accent : theme.textDisabled}
-        accessibilityLabel="Previous day"
-        disabled={!canGoBack}
-        onPress={() => onStep(-1)}
-        style={styles.dateStepButton}
-      />
-      {canGoForward ? (
-        <HeaderIconButton
-          icon={Icons.chevronRight}
-          color={theme.accent}
-          accessibilityLabel="Next day"
-          onPress={() => onStep(1)}
-          style={styles.dateStepButton}
-        />
-      ) : null}
-    </>
-  );
-}
-
 /**
  * A quiet "the night before" line: the Hijri acts that begin tomorrow, and any to-do put there
  * from a plan. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
@@ -1000,15 +998,6 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   // The list is transparent so the fixed sky (rendered behind the stack) shows through it.
   transparent: { backgroundColor: 'transparent' },
-  dateStepButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.full, // a circular tap target
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
   // A read-only almanac whisper under the title — the tone and left edge the section captions
   // share, so the strip and the list read on one meridian.
