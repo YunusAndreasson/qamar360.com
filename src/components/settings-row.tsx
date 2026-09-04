@@ -60,7 +60,7 @@ export function SettingsRow({
     <>
       {icon ? <AppIcon name={icon} color={iconColor} /> : null}
       <View style={styles.labels}>
-        <ThemedText type="rowTitle" style={{ color: labelColor }} numberOfLines={1}>
+        <ThemedText type="rowTitle" style={{ color: labelColor }} numberOfLines={switchValue !== undefined ? 2 : 1}>
           {label}
         </ThemedText>
         {sublabel ? (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutAnimation, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
@@ -14,12 +14,30 @@ export function DateNavigation({ date, today, minimum, onSelect, onStep }: {
 }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
+  const [pickerReady, setPickerReady] = useState(false);
   const value = new Date(`${date}T12:00:00`);
   const label = value.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const togglePicker = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setPickerReady(false);
     setOpen((current) => !current);
   };
+  const closePicker = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setPickerReady(false);
+    setOpen(false);
+  };
+  useEffect(() => {
+    if (!open) return;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => setPickerReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
+  }, [open]);
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -37,12 +55,14 @@ export function DateNavigation({ date, today, minimum, onSelect, onStep }: {
           <AppIcon name="chevronRight" color={date >= today ? theme.textDisabled : theme.accent} />
         </Pressable>
       </View>
-      {date !== today ? <Pressable accessibilityRole="button" onPress={() => { onSelect(today); setOpen(false); }} style={styles.today}>
+      {date !== today ? <Pressable accessibilityRole="button" onPress={() => { onSelect(today); closePicker(); }} style={styles.today}>
         <ThemedText type="smallBold" themeColor="accent">Back to today</ThemedText>
       </Pressable> : null}
-      {open ? <NativeDatePicker value={value} minimumDate={new Date(`${minimum}T00:00:00`)} maximumDate={new Date(`${today}T23:59:59`)}
-        display={Platform.OS === 'ios' ? 'inline' : 'default'}
-        onValueChange={(_event, next) => { onSelect(todayLocalISO(next)); setOpen(false); }} onDismiss={() => setOpen(false)} /> : null}
+      {open ? <View style={[styles.picker, { opacity: pickerReady ? 1 : 0 }]}>
+        <NativeDatePicker value={value} minimumDate={new Date(`${minimum}T00:00:00`)} maximumDate={new Date(`${today}T23:59:59`)}
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          onValueChange={(_event, next) => { onSelect(todayLocalISO(next)); closePicker(); }} onDismiss={closePicker} />
+      </View> : null}
     </View>
   );
 }
@@ -53,4 +73,5 @@ const styles = StyleSheet.create({
   step: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   date: { flex: 1, minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', gap: Spacing.two, alignItems: 'center', justifyContent: 'center' },
   today: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  picker: { overflow: 'hidden' },
 });
