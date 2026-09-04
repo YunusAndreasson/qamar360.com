@@ -33,7 +33,8 @@ export function FormScreen({ children, style, contentContainerStyle, ...props }:
   const theme = useTheme();
   return (
     <KeyboardAwareScrollView
-      bottomOffset={24}
+      bottomOffset={Spacing.four}
+      extraKeyboardSpace={BottomTabInset + Spacing.two}
       keyboardDismissMode="on-drag"
       style={[styles.container, { backgroundColor: theme.background }, style]}
       contentContainerStyle={[styles.content, contentContainerStyle]}

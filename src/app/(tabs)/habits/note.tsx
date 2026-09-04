@@ -130,7 +130,6 @@ export default function DailyNoteScreen() {
             : `${note.length}/${MAX_NOTE_LENGTH} · Private to your account`
         }
         accessibilityLabel="Today’s reflection"
-        autoFocus
         multiline
         maxLength={MAX_NOTE_LENGTH}
         textAlignVertical="top"

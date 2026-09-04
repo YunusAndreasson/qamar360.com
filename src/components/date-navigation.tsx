@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { LayoutAnimation, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
 import { NativeDatePicker } from '@/components/native-date-picker';
@@ -16,6 +16,10 @@ export function DateNavigation({ date, today, minimum, onSelect, onStep }: {
   const [open, setOpen] = useState(false);
   const value = new Date(`${date}T12:00:00`);
   const label = value.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const togglePicker = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((current) => !current);
+  };
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -24,7 +28,7 @@ export function DateNavigation({ date, today, minimum, onSelect, onStep }: {
           <AppIcon name="chevronLeft" color={date <= minimum ? theme.textDisabled : theme.accent} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Choose date, ${label}`} accessibilityState={{ expanded: open }}
-          onPress={() => setOpen((value) => !value)} style={styles.date}>
+          onPress={togglePicker} style={styles.date}>
           <ThemedText type="smallBold">{label}</ThemedText>
           <AppIcon name="expandMore" size={16} color={theme.textSecondary} />
         </Pressable>
