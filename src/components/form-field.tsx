@@ -12,10 +12,20 @@ type Props = TextInputProps & {
   label?: string;
   hint?: string;
   error?: string | null;
+  /**
+   * Take the remaining height of a flexed parent instead of sizing to the text — for a screen
+   * whose one field IS the screen (the daily reflection). The input's own wrapper has to carry
+   * the flex too, which is why this is a prop and not something `style` can express: `style`
+   * lands on the `TextInput`, and a `TextInput` cannot stretch a parent that doesn't flex.
+   *
+   * The parent must actually offer height — a `FormScreen` needs `contentContainerStyle`
+   * `flexGrow: 1` — or this reduces to the field's own `minHeight`.
+   */
+  fill?: boolean;
   ref?: Ref<TextInput>;
 };
 
-export function FormField({ label, hint, error, style, ref, secureTextEntry, onFocus, onBlur, ...props }: Props) {
+export function FormField({ label, hint, error, fill, style, ref, secureTextEntry, onFocus, onBlur, ...props }: Props) {
   const theme = useTheme();
   const id = useId();
   const [focused, setFocused] = useState(false);
@@ -25,7 +35,7 @@ export function FormField({ label, hint, error, style, ref, secureTextEntry, onF
   return (
     <>
       {fieldLabel ? <FieldLabel nativeID={id}>{fieldLabel}</FieldLabel> : null}
-      <View style={styles.field}>
+      <View style={[styles.field, fill && styles.fill]}>
         <TextInput
           {...props}
           ref={ref}
@@ -40,6 +50,7 @@ export function FormField({ label, hint, error, style, ref, secureTextEntry, onF
             styles.input,
             { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: error ? theme.danger : focused ? theme.accent : theme.border },
             secureTextEntry && styles.password,
+            fill && styles.fill,
             style,
           ]}
         />
@@ -65,6 +76,7 @@ export function FormField({ label, hint, error, style, ref, secureTextEntry, onF
 
 const styles = StyleSheet.create({
   field: { position: 'relative' },
+  fill: { flex: 1 },
   password: { paddingRight: 80 },
   visibility: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: 72, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   input: {

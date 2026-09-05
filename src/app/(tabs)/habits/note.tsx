@@ -6,11 +6,8 @@ import { ErrorBanner } from '@/components/error-banner';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
-import { SettingsRow } from '@/components/settings-row';
-import { SettingsSection } from '@/components/settings-section';
 import { useToast } from '@/components/toast';
 import { Spacing } from '@/constants/theme';
-import { useAiNoteConsent } from '@/hooks/use-ai-note-consent';
 import { useAuth } from '@/hooks/use-auth';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { dailyNoteRefresh } from '@/lib/daily-note';
@@ -19,18 +16,18 @@ import { supabase } from '@/lib/supabase';
 
 const MAX_NOTE_LENGTH = 4000;
 
-/** Today's private reflection. Older notes are retained for future insights but not browsable yet. */
+/**
+ * Today's private reflection. Older notes are retained for future insights but not browsable yet.
+ *
+ * One field, and it takes the whole screen. The AI-consent switch used to sit under it — the same
+ * switch Settings already carries under "Personal insights" — so a setting you touch once was in
+ * the way every single time you wrote a note, and the composer got 240pt while a permanent
+ * duplicate got the rest. The consent lives in Settings alone now.
+ */
 export default function DailyNoteScreen() {
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
-  const {
-    enabled,
-    loading: consentLoading,
-    error: consentError,
-    dismissError: dismissConsentError,
-    setEnabled,
-  } = useAiNoteConsent();
   const [note, setNote] = useState('');
   const [savedNote, setSavedNote] = useState('');
   const [loading, setLoading] = useState(true);
@@ -96,7 +93,7 @@ export default function DailyNoteScreen() {
   };
 
   return (
-    <FormScreen keyboardDismissMode="interactive">
+    <FormScreen keyboardDismissMode="interactive" contentContainerStyle={styles.screen}>
       <Stack.Screen
         options={{
           title: 'Daily reflection',
@@ -104,13 +101,7 @@ export default function DailyNoteScreen() {
           ...formHeaderActions({ onCancel: () => router.back(), onSave: () => void save(), canSave }),
         }}
       />
-      <ErrorBanner
-        message={error ?? consentError}
-        onDismiss={() => {
-          setError(null);
-          dismissConsentError();
-        }}
-      />
+      <ErrorBanner message={error} onDismiss={() => setError(null)} />
       <FormField
         label={dayChanged ? `STARTED ${noteDate}` : 'TODAY'}
         value={note}
@@ -133,21 +124,18 @@ export default function DailyNoteScreen() {
         multiline
         maxLength={MAX_NOTE_LENGTH}
         textAlignVertical="top"
+        fill
         style={styles.note}
       />
-      <SettingsSection footer="When on, only notes written inside a closed lunar quarter may shape that quarter’s deeper insight. Your words are not quoted, logged, or shown in notifications. Turning this off removes insights that used notes.">
-        <SettingsRow
-          icon="privacy"
-          label="Use notes in deeper insights"
-          sublabel={consentLoading ? 'Loading privacy setting…' : enabled ? 'Allowed' : 'Not allowed'}
-          switchValue={enabled}
-          onSwitchChange={(next) => void setEnabled(next)}
-        />
-      </SettingsSection>
     </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  // The content is at least a screenful, so the field below can take what the label, the hint and
+  // the gutters leave — without it `flex: 1` has nothing to divide.
+  screen: { flexGrow: 1 },
+  // `minHeight` survives as a floor, for a viewport too short to give the field a screenful
+  // (landscape, a large accessibility text size): there the content scrolls, as it did before.
   note: { minHeight: 240, paddingTop: Spacing.three },
 });
