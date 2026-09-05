@@ -31,6 +31,15 @@ export type StackHeaderContract = {
   checked?: boolean;
   label: string;
   hint: string;
+  /**
+   * The card's visible sub-line — what the folded bar hides, not how much of it is done.
+   *
+   * There is deliberately no done-count here. An act inside a stack is not tickable (the header
+   * seals the whole group in one tap), so a "0 of 3 complete" line only ever held two values —
+   * "0 of 3" and "3 of 3" — and both of them are the ring beside it, said again in words. What
+   * the reader can't see on a folded card is how long the sequence is, so that is what it says.
+   */
+  summary: string;
 };
 
 function acts(n: number): string {
@@ -65,6 +74,9 @@ export function stackHeaderContract({
       // (`draggable={members.length > 0}`), so offering the gesture would be a lie.
       label: `${name} stack, empty`,
       hint: 'Activates to add its first act.',
+      // The body row below already offers "Add your first act"; the sub-line only has to
+      // say what the fold would hide, which on this card is nothing.
+      summary: 'No acts yet',
     };
   }
 
@@ -81,6 +93,7 @@ export function stackHeaderContract({
       checked: false,
       label: `${name} stack${moment}, ${acts(memberCount)}, every act excused today`,
       hint: 'Hold and drag to reorder it.',
+      summary: 'Every act excused today',
     };
   }
 
@@ -96,5 +109,8 @@ export function stackHeaderContract({
     hint: sealed
       ? 'Re-opens the stack for today. Hold and drag to reorder it.'
       : `Marks all ${acts(openCount)} done for today. Hold and drag to reorder it.`,
+    // The acts a seal would assert — the excused ones are out of the sequence, so they are out
+    // of this count too, exactly as they are out of the label above it.
+    summary: acts(openCount),
   };
 }

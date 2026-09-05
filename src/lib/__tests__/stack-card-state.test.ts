@@ -75,6 +75,33 @@ describe('stackHeaderContract', () => {
     });
   });
 
+  describe('summary', () => {
+    // The point of the field: an act inside a stack has no tick of its own, so a done-count
+    // could only ever read "0 of 3" or "3 of 3" — the ring's state, restated.
+    it('never counts how much is done', () => {
+      for (const input of [base, { ...base, sealed: true }]) {
+        expect(stackHeaderContract(input).summary).toBe('3 acts');
+      }
+    });
+
+    it('counts only the acts a seal would assert', () => {
+      expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3 }).summary).toBe('3 acts');
+    });
+
+    it('says "1 act", not "1 acts"', () => {
+      expect(stackHeaderContract({ ...base, memberCount: 1, openCount: 1 }).summary).toBe('1 act');
+    });
+
+    it('says the day excused the whole stack', () => {
+      expect(stackHeaderContract({ ...base, openCount: 0 }).summary).toBe('Every act excused today');
+    });
+
+    // The empty card's own body row already invites; the sub-line must not offer it twice.
+    it('does not repeat the empty card\'s invitation', () => {
+      expect(stackHeaderContract({ ...base, memberCount: 0, openCount: 0 }).summary).toBe('No acts yet');
+    });
+  });
+
   describe('label', () => {
     it('names the stack and how much a seal would commit', () => {
       expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3 }).label).toBe(

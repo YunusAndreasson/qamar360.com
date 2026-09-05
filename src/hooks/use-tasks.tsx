@@ -2,11 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
+import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useHabitsTaskBridge } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { todayLocalISO } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, openCheckInsOn, setOpenTasksProbe } from '@/lib/day-close';
 import { haptics } from '@/lib/haptics';
+import { createRefreshGuard } from '@/lib/refresh-guard';
 import { supabase } from '@/lib/supabase';
 import { isOpen, openCountOn, visibleTasks, type Task } from '@/lib/tasks';
 import { readTasksSnapshot, writeTasksSnapshot } from '@/lib/tasks-cache';
@@ -108,6 +110,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   // Refs mirror state so async handlers and the day-close probe read the latest values.
   const rowsRef = useLatestRef(rows);
+  const userRef = useLatestRef(userId);
+  const [refreshGuard] = useState(createRefreshGuard);
   const viewDateRef = useLatestRef(viewDate);
   const todayRef = useLatestRef(today);
   const pending = useRef<Set<string>>(new Set()); // task ids with an in-flight write
@@ -127,23 +131,34 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const fetchTasks = useCallback(
     async (day: string) => {
       if (!userId) return true;
-      const { data, error: fetchError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', userId)
-        .or(`done_on.eq.${day},done_on.is.null`)
-        .order('position', { ascending: true });
-      // The view may have stepped to another day while this was in flight; the later fetch owns
-      // the screen now (the same guard every completion path here uses).
-      if (viewDateRef.current !== day) return true;
-      if (fetchError) {
+      try {
+        return (await refreshGuard.read(
+          () => supabase
+            .from('tasks')
+            .select('*')
+            .eq('user_id', userId)
+            .or(`done_on.eq.${day},done_on.is.null`)
+            .order('position', { ascending: true }),
+          ({ data, error: fetchError }) => {
+            // The view may have stepped to another day while this was in flight; the later fetch owns
+            // the screen now (the same guard every completion path here uses).
+            if (viewDateRef.current !== day) return true;
+            if (fetchError) {
+              setError(LOAD_ERROR);
+              return false;
+            }
+            setRows((data ?? []).filter((t) => !deletedIds.current.has(t.id)));
+            return true;
+          },
+          () => viewDateRef.current === day && userRef.current === userId,
+        )) ?? true;
+      } catch {
+        if (viewDateRef.current !== day || userRef.current !== userId) return true;
         setError(LOAD_ERROR);
         return false;
       }
-      setRows((data ?? []).filter((t) => !deletedIds.current.has(t.id)));
-      return true;
     },
-    [userId, viewDateRef],
+    [userId, viewDateRef, userRef, refreshGuard],
   );
 
   const refresh = useCallback(() => fetchTasks(viewDateRef.current), [fetchTasks, viewDateRef]);
@@ -194,7 +209,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const dismissError = useCallback(() => setError(null), []);
 
-  const createTask = useCallback(
+  const runCreateTask = useCallback(
     async (title: string, options?: { day?: string; planId?: string }) => {
       if (!userId) return false;
       const clean = title.trim();
@@ -241,7 +256,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         // Deleted while the insert was in flight: honour the removal by taking the fresh server
         // row back down, rather than letting the swap resurrect it.
         if (cancelledTempIds.current.delete(tempId)) {
-          void supabase.from('tasks').delete().eq('id', data.id);
+          const { error: deleteError } = await supabase.from('tasks').delete().eq('id', data.id);
+          if (deleteError) throw deleteError;
           return true;
         }
         setRows((prev) => prev.map((t) => (t.id === tempId ? data : t)));
@@ -268,7 +284,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
    * uses: ticking the last open thing raises the celebration, and — because an open task holds
    * the day back — sealing every stack while one is still on the list deliberately does not.
    */
-  const toggleTask = useCallback(
+  const runToggleTask = useCallback(
     async (taskId: string) => {
       if (!userId) return;
       if (taskId.startsWith('temp-')) return; // its insert is still in flight
@@ -325,7 +341,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     [userId, showDayComplete, getDayCloseSnapshot, rowsRef, viewDateRef, todayRef],
   );
 
-  const renameTask = useCallback(async (taskId: string, title: string) => {
+  const runRenameTask = useCallback(async (taskId: string, title: string) => {
     const clean = title.trim();
     const previous = rowsRef.current.find((t) => t.id === taskId);
     if (!clean || !previous || previous.title === clean) return;
@@ -343,7 +359,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   }, [rowsRef]);
 
-  const deleteTask = useCallback(async (taskId: string) => {
+  const runDeleteTask = useCallback(async (taskId: string) => {
     const removed = rowsRef.current.find((t) => t.id === taskId);
     if (!removed) return;
     deletedIds.current.add(taskId);
@@ -366,6 +382,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       setError('Could not delete that. Check your connection.');
     }
   }, [rowsRef]);
+
+  const createTask = useGuardedMutation(refreshGuard.begin, refreshGuard.end, runCreateTask);
+  const toggleTask = useGuardedMutation(refreshGuard.begin, refreshGuard.end, runToggleTask);
+  const renameTask = useGuardedMutation(refreshGuard.begin, refreshGuard.end, runRenameTask);
+  const deleteTask = useGuardedMutation(refreshGuard.begin, refreshGuard.end, runDeleteTask);
 
   const value = useMemo(
     () => ({

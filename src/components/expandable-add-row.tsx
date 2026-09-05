@@ -26,6 +26,8 @@ type Props = {
   onRemove: () => void;
   /** Accessible name for the row body (item name + schedule/summary). */
   rowAccessibilityLabel: string;
+  addHint: string;
+  addedHint: string;
   expandHint: string;
   /** The revealed detail — evidence text, a habit sequence, etc. Read-only: adding is the row's job. */
   children: ReactNode;
@@ -44,6 +46,8 @@ export function ExpandableAddRow({
   onAdd,
   onRemove,
   rowAccessibilityLabel,
+  addHint,
+  addedHint,
   expandHint,
   children,
 }: Props) {
@@ -89,7 +93,7 @@ export function ExpandableAddRow({
           accessibilityRole="button"
           accessibilityState={{ selected: added }}
           accessibilityLabel={rowAccessibilityLabel}
-          accessibilityHint={added ? 'Removes it from your habits' : 'Adds it to your habits'}
+          accessibilityHint={added ? addedHint : addHint}
           style={styles.add}>
           <Animated.View style={[styles.badge, { backgroundColor: badgeColor }, badgePop]}>
             <AppIcon name={added ? 'check' : 'add'} size={20} color={iconColor} />

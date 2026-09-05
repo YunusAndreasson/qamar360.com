@@ -5,6 +5,7 @@ import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-nat
 
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { Avatar } from '@/components/avatar';
 import { SectionLabel } from '@/components/section-label';
 import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
@@ -15,9 +16,10 @@ import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
-import { Pressed, Radius, Spacing } from '@/constants/theme';
+import { Pressed, Spacing } from '@/constants/theme';
 import { useAiNoteConsent } from '@/hooks/use-ai-note-consent';
 import { useAuth } from '@/hooks/use-auth';
+import { useAvatar } from '@/hooks/use-avatar';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
@@ -47,6 +49,7 @@ export default function SettingsScreen() {
   const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
   const noteConsent = useAiNoteConsent();
+  const avatar = useAvatar();
 
   // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
   // user who never opens this screen has made no choices, and one who does can undo any of them.
@@ -204,13 +207,18 @@ export default function SettingsScreen() {
 
   return (
     <AppScreen transparent contentStyle={styles.content}>
-      {/* Identity */}
+      {/* Identity. The mark is the one thing on this screen the user owns rather than configures,
+          so it is the thing that opens the photo sheet — not a row further down naming it. The
+          text beside it stays inert: a whole-block target would put "sign in as someone else" and
+          "change your picture" on the same tap. */}
       <View style={styles.identity}>
-        <View style={[styles.monogram, { backgroundColor: theme.accentSubtle }]}>
-          <ThemedText type="subtitle" themeColor="accent">
-            {monogram}
-          </ThemedText>
-        </View>
+        <Pressable
+          onPress={() => router.push({ pathname: '/settings/photo', params: { path: avatar.path ?? '' } })}
+          accessibilityRole="button"
+          accessibilityLabel={avatar.path ? 'Change your photo' : 'Add a photo'}
+          style={({ pressed }) => pressed && styles.pressed}>
+          <Avatar url={avatar.url} cacheKey={avatar.path} monogram={monogram} />
+        </Pressable>
         <View style={styles.identityText}>
           <ThemedText type="defaultSemiBold" numberOfLines={1}>
             {displayName}
@@ -405,7 +413,7 @@ export default function SettingsScreen() {
           onPress={() => openBrowser(Links.maker)}
           accessibilityRole="link"
           accessibilityLabel="Made by Edenmind, opens andreassonphoto.com"
-          style={({ pressed }) => [styles.makerLink, pressed && styles.footerPressed]}>
+          style={({ pressed }) => [styles.makerLink, pressed && styles.pressed]}>
           <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
             Made by Edenmind
           </ThemedText>
@@ -426,13 +434,14 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  monogram: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1, gap: Spacing.half },
   controlGroup: { gap: Spacing.two },
   footer: { alignItems: 'center', gap: Spacing.half, paddingTop: Spacing.two },
   // A little air below the social row so it doesn't crowd the version line beneath it.
   footerSocial: { marginBottom: Spacing.two },
   footerText: { textAlign: 'center' },
-  footerPressed: { opacity: Pressed.dim },
+  // The screen's one press feedback, shared by the two things here that are neither a row nor a
+  // button: the avatar and the maker credit.
+  pressed: { opacity: Pressed.dim },
   makerLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
 });

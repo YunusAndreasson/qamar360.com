@@ -119,9 +119,6 @@ function StackCardBase({
   // Any non-empty stack folds. The empty "Add your first act" card has nothing to hide.
   const collapsible = members.length > 0;
 
-  const completionSummary = settling ? 'Loading' : members.length === 0 ? 'Add your first habit'
-    : openActs.length === 0 ? 'All habits skipped today'
-    : `${openActs.filter((member) => completed.has(member.id)).length} of ${openActs.length} complete`;
   const header = stackHeaderContract({
     name: stack.name,
     memberCount: members.length,
@@ -130,6 +127,10 @@ function StackCardBase({
     lit: momentNow,
     until: currentChapterUntil,
   });
+  // The sub-line, with the settling window's own answer in front of it — see `CompletionRing`'s
+  // `settling` doc: during a day-step the card's inputs are blanked, so the contract's count is
+  // briefly a confident number for the wrong day.
+  const summary = settling ? 'Loading' : header.summary;
 
   // Fold shut on the SEAL edge only, and only into a rested flash: a genuine seal holds a beat
   // (Collapse.lead) so StackCompleteFlash plays out, THEN the card folds — the recede is part of
@@ -196,7 +197,9 @@ function StackCardBase({
             underlayColor={header.enabled ? theme.backgroundSelected : undefined}
             activeUnderlayOpacity={1}
             accessibilityRole={header.role}
-            accessibilityLabel={`${header.label}, ${completionSummary}`}
+            // `header.label` already carries the act count the sub-line shows, so the two are not
+            // read one after the other — only the settling window adds anything it doesn't say.
+            accessibilityLabel={settling ? `${header.label}, loading` : header.label}
             accessibilityHint={header.hint}
             accessibilityState={
               header.checked === undefined ? undefined : { checked: header.checked, disabled: !header.enabled }
@@ -235,7 +238,7 @@ function StackCardBase({
                 {stack.name}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {completionSummary}
+                {summary}
                 {clock ? ` · Until ${clock}` : ''}
               </ThemedText>
             </View>

@@ -12,6 +12,7 @@ import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
+import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
@@ -25,6 +26,7 @@ import { newId } from '@/lib/id';
 import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
 import { usePreference } from '@/lib/preferences';
 import { openUnitsOn, sealableActs } from '@/lib/progress';
+import { createRefreshGuard } from '@/lib/refresh-guard';
 import type { DayPart } from '@/lib/sun';
 import { supabase } from '@/lib/supabase';
 
@@ -262,46 +264,6 @@ const HabitsNavigationContext = createContext<HabitsNavigationContextValue | nul
 const HabitsSummaryContext = createContext<HabitsSummaryContextValue | null>(null);
 
 /**
- * Brackets a mutation's whole round-trip, so the fetches can tell whether one overlapped them.
- *
- * The optimistic-write generation alone only catches a SELECT that was ALREADY in flight when a
- * mutation landed. The opposite order is at least as common, and was unguarded: a sheet mutates,
- * closes on its own optimistic state, Today regains focus and fires its refresh — and only then do
- * the mutation's writes reach the server. That SELECT stamps the already-bumped generation, sees
- * no change, and applies rows the mutation had not been written into yet, undoing it on screen with
- * nothing left to correct it. Moves are hit hardest: renumbering positions sends one UPDATE per
- * displaced row against the refresh's single SELECT, so the refresh usually gets there first.
- *
- * So count the mutations whose writes are still open, and bump the generation again when one
- * settles. A fetch may apply its rows only if nothing was open when it started and nothing started
- * or settled while it ran — which together mean no mutation overlapped its SELECT at all.
- *
- * Nesting is fine (`createHabitInStack` is two of these in a row, `updateStack` can call
- * `deleteStack`): it is a count, not a flag.
- *
- * `begin`/`end` are supplied by the provider rather than the refs themselves: the React Compiler
- * only recognises a ref it can see come from `useRef`, and treats one passed in as a parameter as
- * an ordinary local that a callback must not write to.
- */
-function useGuardedMutation<A extends unknown[], R>(
-  begin: () => void,
-  end: () => void,
-  run: (...args: A) => Promise<R>,
-): (...args: A) => Promise<R> {
-  return useCallback(
-    async (...args: A) => {
-      begin();
-      try {
-        return await run(...args);
-      } finally {
-        end();
-      }
-    },
-    [begin, end, run],
-  );
-}
-
-/**
  * Persist a batch of position/stack_id changes as ONE write.
  *
  * A reorder or a move renumbers `position` across everything after it, so this is routinely dozens
@@ -463,15 +425,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // generation cannot see on its own: a mutation that was already running when the SELECT began
   // and is still running when it ends, so the generation never moves while the fetch is in flight.
   const mutationsOpen = useRef(0);
+  const [completionGuard] = useState(createRefreshGuard);
+  const completionUserRef = useLatestRef(userId);
   // The two halves {@link useGuardedMutation} brackets a mutation with. They live here, not in the
   // hook, so the refs they move are ones the React Compiler can see come from `useRef`.
   const beginMutation = useCallback(() => {
     mutationsOpen.current += 1;
-  }, []);
+    completionGuard.begin();
+  }, [completionGuard]);
   const endMutation = useCallback(() => {
     mutationsOpen.current -= 1;
     mutationGen.current += 1;
-  }, []);
+    completionGuard.end();
+  }, [completionGuard]);
   // Rows this session has deleted, kept until the provider goes away.
   //
   // `mutationGen` only catches a SELECT that was ALREADY in flight when the optimistic write
@@ -534,41 +500,51 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return true;
       completionsInFlight.current += 1;
       try {
-        const { data, error: completionsError } = await supabase
-          .from('habit_completions')
-          .select('habit_id, status, count')
-          .eq('user_id', userId)
-          .eq('completed_at', day);
-        // The view may have stepped to another day while this was in flight; applying a stale
-        // day's rows would show (and then snapshot) the wrong ticks under the new day. The
-        // fetch the day-switch issued owns the view now — discard this one. (The mutation
-        // paths all guard on `viewDateRef` the same way.)
-        if (viewDateRef.current !== day) return true;
-        // This day's real truth has landed (or failed to) — either way, `completed`/`skipped`
-        // stop being the blanked pre-fetch placeholder from here.
+        return (await completionGuard.read(
+          () => supabase
+            .from('habit_completions')
+            .select('habit_id, status, count')
+            .eq('user_id', userId)
+            .eq('completed_at', day),
+          ({ data, error: completionsError }) => {
+            // The view may have stepped to another day while this was in flight; applying a stale
+            // day's rows would show (and then snapshot) the wrong ticks under the new day. The
+            // fetch the day-switch issued owns the view now — discard this one. (The mutation
+            // paths all guard on `viewDateRef` the same way.)
+            if (viewDateRef.current !== day) return true;
+            // This day's real truth has landed (or failed to) — either way, `completed`/`skipped`
+            // stop being the blanked pre-fetch placeholder from here.
+            setCompletionsLoading(false);
+            if (completionsError) {
+              setError(LOAD_ERROR);
+              return false;
+            }
+            const rows = data ?? [];
+            // 'done' = fully complete (binary tick, or a count goal that reached its target);
+            // 'partial' rows are in-progress count goals and stay OPEN (not in `completed`).
+            setCompleted(new Set(rows.filter((row) => row.status === 'done').map((row) => row.habit_id)));
+            setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
+            setCounts(
+              new Map(
+                rows
+                  .filter((row): row is typeof row & { count: number } => row.count != null)
+                  .map((row) => [row.habit_id, row.count]),
+              ),
+            );
+            return true;
+          },
+          () => viewDateRef.current === day && completionUserRef.current === userId,
+        )) ?? true;
+      } catch {
+        if (viewDateRef.current !== day || completionUserRef.current !== userId) return true;
         setCompletionsLoading(false);
-        if (completionsError) {
-          setError(LOAD_ERROR);
-          return false;
-        }
-        const rows = data ?? [];
-        // 'done' = fully complete (binary tick, or a count goal that reached its target);
-        // 'partial' rows are in-progress count goals and stay OPEN (not in `completed`).
-        setCompleted(new Set(rows.filter((row) => row.status === 'done').map((row) => row.habit_id)));
-        setSkipped(new Set(rows.filter((row) => row.status === 'skipped').map((row) => row.habit_id)));
-        setCounts(
-          new Map(
-            rows
-              .filter((row): row is typeof row & { count: number } => row.count != null)
-              .map((row) => [row.habit_id, row.count]),
-          ),
-        );
-        return true;
+        setError(LOAD_ERROR);
+        return false;
       } finally {
         completionsInFlight.current -= 1;
       }
     },
-    [userId, viewDateRef],
+    [userId, viewDateRef, completionGuard, completionUserRef],
   );
 
   // Re-pull habits, stacks, and the viewed day's completions. Called on Habits-tab focus so
@@ -590,12 +566,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       (ok) => ok,
       () => false,
     );
-    const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), LOAD_TIMEOUT_MS));
-    if ((await Promise.race([work, timeout])) === 'timeout') {
-      setError(LOAD_ERROR);
-      void work.then((ok) => {
-        if (ok) setError((e) => (e === LOAD_ERROR ? null : e));
-      });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), LOAD_TIMEOUT_MS);
+    });
+    try {
+      if ((await Promise.race([work, timeout])) === 'timeout') {
+        setError(LOAD_ERROR);
+        void work.then((ok) => {
+          if (ok) setError((e) => (e === LOAD_ERROR ? null : e));
+        });
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }, [refresh]);
 
@@ -780,7 +763,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    * restores precisely what this seal wrote. A count goal has no partial state to reach any
    * more — sealing logs its full target, because the seal asserts the whole act.
    */
-  const sealStack = useCallback(
+  const runSealStack = useCallback(
     async (stackId: string) => {
       if (!userId) return;
       if (pending.current.has(stackId)) return; // ignore double-taps
@@ -844,12 +827,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
   );
+  const sealStack = useGuardedMutation(completionGuard.begin, completionGuard.end, runSealStack);
 
   /**
    * Re-open a sealed stack — deletes the viewed day's rows for exactly the acts a seal writes.
    * Excused acts keep their skip (their row says 'skipped', not 'done', and isn't the seal's).
    */
-  const unsealStack = useCallback(
+  const runUnsealStack = useCallback(
     async (stackId: string) => {
       if (!userId) return;
       if (pending.current.has(stackId)) return;
@@ -898,6 +882,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
   );
+  const unsealStack = useGuardedMutation(completionGuard.begin, completionGuard.end, runUnsealStack);
 
   /**
    * Tick a stackless habit for the viewed day, or take it back — an exchange, or a plain habit
@@ -918,7 +903,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    * degrees, streaks and Stats need to know nothing about any of this. Nothing anywhere records
    * a day that didn't happen — a miss is simply the absence of a row.
    */
-  const toggleLoose = useCallback(
+  const runToggleLoose = useCallback(
     async (habitId: string) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
@@ -975,13 +960,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef],
   );
+  const toggleLoose = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleLoose);
 
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
   // (travel, menstruation, …) that shouldn't count against the rate. Mirrors
   // `toggleHabit`: optimistic, single in-flight per habit, rolls back on failure.
   // A skip and a completion are mutually exclusive on the same habit-day (one row),
   // so skipping also clears a prior "done".
-  const skipHabit = useCallback(
+  const runSkipHabit = useCallback(
     async (habitId: string) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
@@ -1060,6 +1046,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     },
     [userId, completedRef, countsRef, skippedRef, viewDateRef],
   );
+  const skipHabit = useGuardedMutation(completionGuard.begin, completionGuard.end, runSkipHabit);
 
   // Temp-id rows the user removed while their insert was still in flight. Without this,
   // the insert's success path would swap the (now-deleted) temp row for the server row and

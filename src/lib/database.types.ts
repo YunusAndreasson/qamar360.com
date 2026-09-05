@@ -679,6 +679,7 @@ export type Database = {
         Row: {
           ai_notes_consent_at: string | null
           ai_notes_consent_version: number | null
+          avatar_path: string | null
           created_at: string | null
           email: string
           id: string
@@ -687,6 +688,7 @@ export type Database = {
         Insert: {
           ai_notes_consent_at?: string | null
           ai_notes_consent_version?: number | null
+          avatar_path?: string | null
           created_at?: string | null
           email: string
           id: string
@@ -695,6 +697,7 @@ export type Database = {
         Update: {
           ai_notes_consent_at?: string | null
           ai_notes_consent_version?: number | null
+          avatar_path?: string | null
           created_at?: string | null
           email?: string
           id?: string

@@ -217,6 +217,27 @@ export default function DiscoverScreen() {
     });
   };
 
+  // Search and category cards share the same actions and accessibility contract.
+  const renderPreset = (preset: SunnahPreset) => {
+    const habit = habitByName.get(normalizeName(preset.name));
+    const addedHint = stack
+      ? 'Removes it from this stack and keeps it in your habits'
+      : habit?.stack_id
+        ? 'Shows which stack already contains this habit'
+        : 'Removes this habit; asks before deleting saved history';
+    return (
+      <SunnahPresetRow
+        key={preset.id}
+        preset={preset}
+        added={addedFor(preset)}
+        onAdd={() => addPreset(preset)}
+        onRemove={() => removePreset(preset)}
+        addHint={stack ? 'Adds it to this stack' : 'Adds it to your habits'}
+        addedHint={addedHint}
+      />
+    );
+  };
+
   // Presets grouped by category, each gated by the chip then the search term. Empty
   // categories drop out so a filtered view shows no bare headers.
   const categorySections = useMemo(
@@ -311,15 +332,7 @@ export default function DiscoverScreen() {
         return (
           <View style={wrap}>
             <SettingsSection title={`${resultCount} result${resultCount === 1 ? '' : 's'}`}>
-              {flatPresets.map((preset) => (
-                <SunnahPresetRow
-                  key={preset.id}
-                  preset={preset}
-                  added={addedFor(preset)}
-                  onAdd={() => addPreset(preset)}
-                  onRemove={() => removePreset(preset)}
-                />
-              ))}
+              {flatPresets.map(renderPreset)}
             </SettingsSection>
           </View>
         );
@@ -358,15 +371,7 @@ export default function DiscoverScreen() {
             <View style={styles.section}>
               <SectionLabel>{item.category.title.toUpperCase()}</SectionLabel>
               <SettingsSection>
-                {item.presets.map((preset) => (
-                  <SunnahPresetRow
-                    key={preset.id}
-                    preset={preset}
-                    added={addedFor(preset)}
-                    onAdd={() => addPreset(preset)}
-                    onRemove={() => removePreset(preset)}
-                  />
-                ))}
+                {item.presets.map(renderPreset)}
               </SettingsSection>
             </View>
           </View>
@@ -433,6 +438,11 @@ export default function DiscoverScreen() {
         data={rows}
         renderItem={renderRow}
         keyExtractor={rowKey}
+        // A cell is a whole category card. The default ten-cell batch mounts the entire
+        // catalog; render one card at a time and keep only nearby screens mounted.
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
+        windowSize={3}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         contentInsetAdjustmentBehavior="automatic"

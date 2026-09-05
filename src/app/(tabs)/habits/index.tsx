@@ -14,7 +14,7 @@ import { ExchangeSection } from '@/components/exchange-section';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
 import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
-import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
+import { HeaderActions, HeaderIconButton, HeaderMoonButton } from '@/components/header-icon-button';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
@@ -35,7 +35,7 @@ import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
 import { visibleCheckIns } from '@/lib/check-ins';
-import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
+import { addDaysISO, dayTitle, hijriMonthRange, hijriParts, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -47,6 +47,7 @@ import {
 } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
+import { phaseOf } from '@/lib/lunar-phase';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { type Plan, planPicks } from '@/lib/plans';
 import { usePreference } from '@/lib/preferences';
@@ -231,7 +232,7 @@ export default function HabitsScreen() {
   // The goals, only for what they are asking today. Deliberately the raw rows and not
   // `useProgress`: whether a check-in is due needs a cadence and a list of readings, and pulling
   // in the whole completion record to answer that would make the day pay for the goals screen.
-  const { goals, checkIns, refresh: refreshGoals } = useGoals();
+  const { goals, checkIns, refresh: refreshGoals, error: goalsError, dismissError: dismissGoalsError } = useGoals();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -277,10 +278,22 @@ export default function HabitsScreen() {
   // launch, so a pull on Today is the one in-session way to retry it (e.g. after a network
   // blip at launch silently left Discover on a stale snapshot).
   const { refresh: refreshCatalog } = useCatalog();
-  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshTasks(), refreshCatalog()]));
+  const { refreshControl } = usePullToRefresh(() => Promise.all([
+    refresh(), refreshTasks(), refreshGoals(), refreshCatalog(),
+  ]));
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
+
+  // The viewed day's moon, for the header button that opens the day picker. Read off the Hijri
+  // date rather than the ephemeris — the same rule `lunar-phase.ts` states and Progress's month
+  // grid keeps, so this moon and the thirty in the ring are the same moon. The offset is passed
+  // in rather than left to the module default so the memo has an honest dependency on the
+  // preference: moving the Hijri date moves which day of the month this is, and so the phase.
+  const moon = useMemo(() => {
+    const parts = hijriParts(viewDate, hijriOffset);
+    return phaseOf(parts?.day ?? 15, hijriMonthRange(viewDate)?.length ?? 30);
+  }, [viewDate, hijriOffset]);
   // Only the habits scheduled for the viewed day appear in the day's checklist.
   const visibleHabits = useMemo(
     () => habits.filter((h) => scheduledOn(h, viewDate, hijriOffset)),
@@ -671,12 +684,16 @@ export default function HabitsScreen() {
           headerLargeTitle: true,
           // Which day you are looking at, one tap above the title. It used to be a permanent
           // strip at the top of the list — two chevrons, the date and a "Back to today" line,
-          // charging every ordinary day for a backfill that happens occasionally.
+          // charging every ordinary day for a backfill that happens occasionally. The mark is
+          // the viewed day's own moon: on today (which is nearly always) that is tonight's
+          // phase, and stepping back a fortnight visibly winds the moon back with it.
           headerLeft: () => (
-            <HeaderIconButton
-              icon={Icons.calendar}
-              color={theme.accent}
-              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}`}
+            <HeaderMoonButton
+              illumination={moon.illumination}
+              waxing={moon.waxing}
+              // The phase is the whole point of the mark and a screen reader can't see it, so it
+              // is named — the glyph it replaced could only ever have said "calendar".
+              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}, ${moon.label.toLowerCase()}`}
               onPress={() => router.push('/habits/day-picker')}
             />
           ),
@@ -735,6 +752,7 @@ export default function HabitsScreen() {
           {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
+          <ErrorBanner message={goalsError} onDismiss={dismissGoalsError} style={styles.banner} />
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
               until there is a list — the way in is the header "+". */}

@@ -151,8 +151,8 @@ function SetAGoalRow() {
 
 export default function InsightsScreen() {
   const { loading, error, dismissError, refresh, habitsCount, month, readings, goals, today } = useProgress();
-  const { refreshControl } = usePullToRefresh(refresh);
-  const { refresh: refreshGoals } = useGoals();
+  const { refresh: refreshGoals, error: goalsError, dismissError: dismissGoalsError } = useGoals();
+  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshGoals()]));
 
   // Re-read the goals whenever this tab comes forward — the same rule the plans list follows.
   // A goal set from the composer lands in the provider, but this screen is one of several holding
@@ -234,6 +234,7 @@ export default function InsightsScreen() {
   return (
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
+      <ErrorBanner message={goalsError} onDismiss={dismissGoalsError} />
 
       <Goals goals={goals} today={today} />
 

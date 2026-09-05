@@ -45,20 +45,23 @@ type Args = {
   progressKey: string;
 };
 
-async function arm(userId: string, today: string, doneToday: string[]): Promise<void> {
+async function arm(userId: string, today: string, doneToday: string[], signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return;
   const { lat, lon } = deviceLocation();
   const fires = planLunarFires(today, lat, lon);
   if (fires.length === 0) {
     await scheduleLunarUpdates([]); // no Islamic calendar on this runtime — nothing to say
     return;
   }
-  let month: MonthProgress | null = null;
-  let readings: Reading[] = [];
-  try {
-    ({ month, readings } = await loadProgress(userId, today, doneToday));
-  } catch {
-    // The landmark is still true without a figure, and the copy knows how to drop it.
-  }
+  // These reads are independent; let a missing figure fall back without delaying the other.
+  const [progress, goalReadings] = await Promise.allSettled([
+    loadProgress(userId, today, doneToday),
+    loadGoalReadings(userId, today),
+  ]);
+  // Cancellation must cover the reads too: the scheduler's own epoch only starts when called.
+  if (signal.aborted) return;
+  const month: MonthProgress | null = progress.status === 'fulfilled' ? progress.value.month : null;
+  const readings: Reading[] = progress.status === 'fulfilled' ? progress.value.readings : [];
 
   // The goal a new moon speaks for: the nearest horizon among those still asking for something.
   // Read separately from the progress window on purpose — a goal's measure is a lifetime sum, and
@@ -71,8 +74,8 @@ async function arm(userId: string, today: string, doneToday: string[]): Promise<
   // this one's was, and a month you did not raises it. Understating what is asked is the side to
   // be wrong on.
   let goalAsk: GoalAsk | null = null;
-  try {
-    const goals = await loadGoalReadings(userId, today);
+  if (goalReadings.status === 'fulfilled') {
+    const goals = goalReadings.value;
     // `overdue` is excluded, and it has to be: `computeGoals` pins a passed horizon's `monthsLeft`
     // to 0 and makes its quota the WHOLE outstanding remainder, so a lapsed goal would both sort
     // ahead of every live one and put its entire nine thousand lines on the lock screen as the
@@ -81,8 +84,6 @@ async function arm(userId: string, today: string, doneToday: string[]): Promise<
       .filter((reading) => !reading.met && !reading.overdue && reading.quota !== null && reading.quota > 0)
       .sort((a, b) => a.monthsLeft - b.monthsLeft)[0];
     if (nearest?.quota != null) goalAsk = { title: nearest.goal.title, quota: nearest.quota, unit: nearest.goal.unit };
-  } catch {
-    // Same rule as the figure above: the landmark stands on its own.
   }
 
   await scheduleLunarUpdates(
@@ -101,15 +102,20 @@ export function useLunarUpdates({ userId, today, doneToday, loading, progressKey
 
   /** The `progressKey` the armed schedule was built from — `null` while nothing is armed. */
   const armedKey = useRef<string | null>(null);
+  const pendingArm = useRef<AbortController | null>(null);
 
-  // Effect Event (stable, non-reactive): reads the latest ids and key without making the
+  // Effect Event (non-reactive): reads the latest ids and key without making the
   // effects below depend on values that change on every tick — and without a ref written
   // during render, which is exactly what this hook exists to avoid.
   const rearm = useEffectEvent((onlyIfChanged: boolean) => {
-    if (!userId) return;
+    if (!notificationsAvailable || !enabled || loading || !userId) return;
     if (onlyIfChanged && armedKey.current === progressKey) return; // nothing moved since the last arm
+    pendingArm.current?.abort();
+    const controller = new AbortController();
+    pendingArm.current = controller;
     armedKey.current = progressKey;
-    void arm(userId, today, doneToday).catch(() => {
+    void arm(userId, today, doneToday, controller.signal).catch(() => {
+      if (controller.signal.aborted) return;
       armedKey.current = null; // failed — let the next background attempt try again
     });
   });
@@ -118,15 +124,17 @@ export function useLunarUpdates({ userId, today, doneToday, loading, progressKey
   // rejected (every new-day launch), and arming from THAT would bake a zero into a month that
   // isn't empty. The `loading` flip re-runs this once the real habits are in.
   useEffect(() => {
-    // In a build without the native module there is nothing to arm, and `arm` would spend a
-    // 370-day progress fetch discovering that.
-    if (!notificationsAvailable || loading || !userId) return;
-    if (!enabled) {
+    if (!notificationsAvailable) return;
+    if (enabled && !loading && userId) rearm(false);
+    else void scheduleLunarUpdates([]);
+    // Invalidate reads on every lifecycle change, including sign-out/unmount. Clearing the OS
+    // schedule also supersedes a rebuild that had already started before this cleanup.
+    return () => {
+      pendingArm.current?.abort();
+      pendingArm.current = null;
       armedKey.current = null;
-      void scheduleLunarUpdates([]); // silenced without touching the OS permission
-      return;
-    }
-    rearm(false);
+      void scheduleLunarUpdates([]);
+    };
   }, [loading, userId, enabled, today, hijriOffset]);
 
   // Backgrounding is the last honest moment to bake the figure — the user is done ticking, and
@@ -138,14 +146,4 @@ export function useLunarUpdates({ userId, today, doneToday, loading, progressKey
     });
     return () => sub.remove();
   }, [userId, enabled]);
-
-  // Unmount = leaving the authed tree (sign-out). Clear the schedule: the armed updates quote
-  // the previous user's degrees, and they must not surface on the sign-in screen or after
-  // someone else signs in. The next provider arms its own once its load lands.
-  useEffect(
-    () => () => {
-      void scheduleLunarUpdates([]);
-    },
-    [],
-  );
 }

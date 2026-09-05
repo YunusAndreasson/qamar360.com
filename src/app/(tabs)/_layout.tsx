@@ -69,9 +69,15 @@ function Tabs() {
   return (
     <NativeTabs
       labelVisibilityMode="labeled"
-      // Keep the tab bar always visible — don't let iOS 26 minimize/hide it on scroll
-      // (its default is `automatic`, which does minimize). Android ignores this.
-      minimizeBehavior="never"
+      // iOS 26+ shrinks the tab bar to a pill while you read down a list, and restores it the
+      // moment you scroll back up — UIKit finds the screen's primary scroll view itself, which
+      // every tab root here is (`AppScreen` returns its `ScrollView` as the screen's direct
+      // child). **This reverses `dbdb319`'s `"never"`**, which pinned the bar open: on a screen
+      // whose whole point is a long column the bar was permanent chrome over the practice.
+      // `onScrollDown` rather than `automatic` so the trigger is stated rather than inherited.
+      // Android has no equivalent and ignores this; there is a JS direction-reader in
+      // ../open-arabic (`useTabBarAutoHide`) if the two platforms should ever match.
+      minimizeBehavior="onScrollDown"
       // iOS gets a translucent system material (content blurs through it) instead of a solid
       // fill — the native tab-bar look. We pick the light/dark variant from the *effective*
       // scheme so it tracks the in-app appearance override, not just the OS. Android has no

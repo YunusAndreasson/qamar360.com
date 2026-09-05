@@ -26,6 +26,9 @@ export default function SettingsStackLayout() {
       {/* Explains the four lunar updates before the OS prompt — see the screen's own note on
           why the ask is primed rather than fired straight from the switch. */}
       <Stack.Screen name="lunar-updates" options={formSheetOptions(theme)} />
+      {/* The account photo's two verbs, behind the avatar at the head of the list — a sheet for
+          the same reason the pickers above are one: it is a short menu over one thing. */}
+      <Stack.Screen name="photo" options={formSheetOptions(theme)} />
     </TabStack>
   );
 }

@@ -2,7 +2,7 @@
   "expo": {
     "name": "qamar360",
     "slug": "qamar360",
-    "version": "1448.3.20",
+    "version": "1448.3.23",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "qamar360",
@@ -70,7 +70,13 @@
       ],
       "expo-status-bar",
       "expo-web-browser",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Qamar360 opens your photos only when you pick one for your profile."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

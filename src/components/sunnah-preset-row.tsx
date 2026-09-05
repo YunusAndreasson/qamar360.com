@@ -11,6 +11,8 @@ type Props = {
   onAdd: () => void;
   /** Remove the already-added habit — wires the row as a tap-to-undo. */
   onRemove: () => void;
+  addHint: string;
+  addedHint: string;
 };
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * {@link ExpandableAddRow}: tap the row to add (or remove) it; a trailing chevron expands to
  * reveal the "what counts as done" detail and the Sunnah evidence.
  */
-export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
+export function SunnahPresetRow({ preset, added, onAdd, onRemove, addHint, addedHint }: Props) {
   const summary = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
 
   return (
@@ -28,6 +30,8 @@ export function SunnahPresetRow({ preset, added, onAdd, onRemove }: Props) {
       added={added}
       onAdd={onAdd}
       onRemove={onRemove}
+      addHint={addHint}
+      addedHint={addedHint}
       rowAccessibilityLabel={`${preset.name}. ${summary}.`}
       expandHint="Show details">
       <ThemedText type="small">{preset.detail}</ThemedText>

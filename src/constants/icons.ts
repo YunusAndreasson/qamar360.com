@@ -25,9 +25,9 @@ export const Icons = {
   close: { sf: 'xmark', material: 'close' },
   add: { sf: 'plus', material: 'add' },
   // Today's reflection — the journal entry you write (or dictate) for the day. A page ruled with
-  // lines, which is what this was, is the same silhouette as `calendar` at header size, and the
-  // two now sit at opposite ends of the same bar; the pencil breaking the frame is what tells
-  // them apart, and it says "write" rather than "read" besides.
+  // lines, which is what this was, reads as something to be READ; the pencil breaking the frame
+  // says "write" instead. (It was also the same silhouette as `calendar` at header size, back
+  // when a calendar glyph held the other end of Today's bar — that end is now the moon.)
   note: { sf: 'square.and.pencil', material: 'edit-square' },
   check: { sf: 'checkmark', material: 'check' },
   chevronLeft: { sf: 'chevron.left', material: 'chevron-left' },
@@ -108,6 +108,8 @@ export const Icons = {
   info: { sf: 'info.circle', material: 'info-outline' },
   reset: { sf: 'arrow.counterclockwise', material: 'restart-alt' },
   calendar: { sf: 'calendar', material: 'calendar-today' },
+  // The account photo — a picture, not a camera: the app opens the library, it never takes a shot.
+  photo: { sf: 'photo', material: 'photo' },
   // The device itself buzzing — the only mechanical glyph in the set, and rightly so: haptics
   // are the one setting about the hardware rather than the sky.
   vibration: { sf: 'iphone.radiowaves.left.and.right', material: 'vibration' },
