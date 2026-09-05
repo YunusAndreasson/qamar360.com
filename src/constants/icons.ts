@@ -24,7 +24,11 @@ export const Icons = {
   // ── Navigation / chrome ────────────────────────────────────────────────
   close: { sf: 'xmark', material: 'close' },
   add: { sf: 'plus', material: 'add' },
-  note: { sf: 'note.text', material: 'notes' },
+  // Today's reflection — the journal entry you write (or dictate) for the day. A page ruled with
+  // lines, which is what this was, is the same silhouette as `calendar` at header size, and the
+  // two now sit at opposite ends of the same bar; the pencil breaking the frame is what tells
+  // them apart, and it says "write" rather than "read" besides.
+  note: { sf: 'square.and.pencil', material: 'edit-square' },
   check: { sf: 'checkmark', material: 'check' },
   chevronLeft: { sf: 'chevron.left', material: 'chevron-left' },
   chevronRight: { sf: 'chevron.right', material: 'chevron-right' },

@@ -8,7 +8,6 @@ import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInSection } from '@/components/check-in-section';
-import { DateNavigation } from '@/components/date-navigation';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
@@ -201,10 +200,7 @@ export default function HabitsScreen() {
     error,
     today,
     viewDate,
-    setViewDate,
-    minViewDate,
     isToday,
-    stepViewDate: stepDay,
     sealStack,
     unsealStack,
     toggleLoose,
@@ -451,18 +447,6 @@ export default function HabitsScreen() {
   const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
 
 
-  // A discrete step through the day series — the same `selection` semantic as tapping a day cell
-  // on Progress, so moving through time feels identical on both screens. The provider owns the
-  // arithmetic (it steps off the live day, so a burst of taps can't collapse into one) and reports
-  // whether the day actually moved, which is what the haptic answers to: at either end of the
-  // range the buzz would otherwise promise a step the clamp had already refused.
-  const stepViewDate = useCallback(
-    (delta: number) => {
-      if (stepDay(delta)) haptics.selection();
-    },
-    [stepDay],
-  );
-
   // Tapping an act opens its sheet: acts are read rather than ticked, so a tap means *inspect*
   // (skip today, insights, edit, move) and the card's seal is what completes.
   const openAct = useCallback(
@@ -521,7 +505,7 @@ export default function HabitsScreen() {
   // measured from the original at lift).
   //
   // Scoped to `viewDate` and *derived* rather than reset: the day can advance without going
-  // through the stepper — the midnight rollover in use-habits calls `setViewDateState` itself —
+  // through the picker — the midnight rollover in use-habits calls `setViewDateState` itself —
   // and an imperative reset would miss that. Deliberately not persisted: born folded is the design.
   const [expandedState, setExpandedState] = useState<{ day: string; ids: ReadonlySet<string> }>(() => ({
     day: viewDate,
@@ -685,6 +669,17 @@ export default function HabitsScreen() {
         options={{
           title: viewDateTitle(viewDate, today),
           headerLargeTitle: true,
+          // Which day you are looking at, one tap above the title. It used to be a permanent
+          // strip at the top of the list — two chevrons, the date and a "Back to today" line,
+          // charging every ordinary day for a backfill that happens occasionally.
+          headerLeft: () => (
+            <HeaderIconButton
+              icon={Icons.calendar}
+              color={theme.accent}
+              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}`}
+              onPress={() => router.push('/habits/day-picker')}
+            />
+          ),
           headerRight: () => (
             <HeaderActions>
               {isToday ? (
@@ -737,7 +732,6 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
-          <DateNavigation date={viewDate} today={today} minimum={minViewDate} onSelect={setViewDate} onStep={stepViewDate} />
           {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
@@ -1012,7 +1006,10 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginLeft: Spacing.five,
     marginRight: Spacing.three,
-    marginTop: Spacing.one,
+    // 16 above, not 4: the line used to hang under the day strip and only needed clearing from
+    // it. With the strip gone it is the first thing under the large title, so it takes the same
+    // lead a section's caption does.
+    marginTop: SECTION_LEAD,
     marginBottom: Spacing.one,
   },
   hintText: { flex: 1 },

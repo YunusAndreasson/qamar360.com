@@ -80,7 +80,7 @@ export type HabitCreate = {
   cue?: string | null;
 };
 
-/** How far back the day-stepper lets you backfill a missed completion. */
+/** How far back the day picker lets you backfill a missed completion. */
 const BACKFILL_DAYS = 30;
 
 // Plain-language messages for the failed actions, spelled once so the copy stays consistent
@@ -103,7 +103,7 @@ const NO_COUNTS: Map<string, number> = new Map();
 const LOAD_TIMEOUT_MS = 12000;
 
 /** Trailing delay before persisting the cold-start snapshot — long enough to sit out a burst
- *  of stepper taps, short enough that a quick tick-and-background still gets cached. */
+ *  of day switches, short enough that a quick tick-and-background still gets cached. */
 const SNAPSHOT_DEBOUNCE_MS = 400;
 
 /**
@@ -150,11 +150,11 @@ type HabitsContextValue = {
   completionsLoading: boolean;
   /** Plain-language message for the last failed action, or null. */
   error: string | null;
-  /** The real local `YYYY-MM-DD` today (upper bound of the stepper). */
+  /** The real local `YYYY-MM-DD` today (upper bound of the day picker). */
   today: string;
   /** The day currently shown/edited — `today`, or up to `BACKFILL_DAYS` earlier. */
   viewDate: string;
-  /** The earliest day the picker/stepper may reach (`today − BACKFILL_DAYS`). */
+  /** The earliest day the picker may reach (`today − BACKFILL_DAYS`). */
   minViewDate: string;
   /** Whether `viewDate` is today. */
   isToday: boolean;
@@ -175,9 +175,6 @@ type HabitsContextValue = {
   reload: () => Promise<void>;
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
-  /** Step the viewed day by whole days from the live one (clamped). Returns whether it moved —
-   *  use this, not `setViewDate(viewDate + n)`, so a burst of stepper taps can't collapse. */
-  stepViewDate: (delta: number) => boolean;
   /** Create several habits at once (a ready-made stack's acts); returns the new rows. Callers
    *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`). */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
@@ -656,7 +653,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [loading, userId, error, viewDate, habits, stacks, completed, skipped, counts]);
 
   /**
-   * Move the view to another day — the ONE way `viewDate` changes (the stepper and the midnight
+   * Move the view to another day — the ONE way `viewDate` changes (the day picker and the midnight
    * rollover both come through here).
    *
    * The day's ticks/skips/counts are blanked in this same commit, not in an effect keyed on
@@ -771,43 +768,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const min = addDaysISO(max, -BACKFILL_DAYS);
     goToDay(iso > max ? max : iso < min ? min : iso);
   }, [goToDay, todayRef]);
-
-  /**
-   * The day a burst of steps is walking toward, or null at rest.
-   *
-   * Advanced **synchronously inside `stepViewDate`**, which a ref written during render (like
-   * `viewDateRef`) cannot be. Switching days is heavy enough to block the JS thread for a beat,
-   * and taps that land during that beat don't queue up as separate frames: they are delivered
-   * together, in one synchronous batch, once the thread frees. Every one of them then read the same
-   * not-yet-re-rendered day and resolved to the same target, so a burst of ten taps moved the
-   * day exactly twice (once for the tap that got through, once for all the rest). Cleared when
-   * the render finally lands, so the next burst starts from the day actually on screen.
-   */
-  const steppingToRef = useRef<string | null>(null);
-  useEffect(() => {
-    steppingToRef.current = null;
-  }, [viewDate]);
-
-  /**
-   * Step the viewed day by whole days from wherever the day series has already been walked to.
-   *
-   * Returns whether the day actually moved, so the caller can keep its haptic honest at the ends
-   * of the range instead of buzzing at a wall.
-   */
-  const stepViewDate = useCallback(
-    (delta: number) => {
-      const from = steppingToRef.current ?? viewDateRef.current;
-      const max = todayRef.current;
-      const min = addDaysISO(max, -BACKFILL_DAYS);
-      const next = addDaysISO(from, delta);
-      const clamped = next > max ? max : next < min ? min : next;
-      if (clamped === from) return false;
-      steppingToRef.current = clamped;
-      goToDay(clamped);
-      return true;
-    },
-    [goToDay, todayRef, viewDateRef],
-  );
 
   /**
    * Seal a stack: mark every act it has due on the viewed day done, in one write.
@@ -1225,7 +1185,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // the clamp) — and raising it left a 'done' row below its new target. Mirrors
       // adjustHabitCount's write; silent (an edit, not a tick — no haptics, no celebration).
       if (patch.target_count === undefined) return;
-      // The reconcile below rewrites the VIEWED day, which the day-stepper can have parked up to
+      // The reconcile below rewrites the VIEWED day, which the day picker can have parked up to
       // a month back. That is what you want from the habit editor on the day you are looking at,
       // and data loss anywhere else: a goal accepting its monthly target from the Insights tab
       // has no view of the day at all, and would silently turn a closed day's 'done' row into a
@@ -1865,7 +1825,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       refresh,
       reload,
       setViewDate,
-      stepViewDate,
       createHabits,
       sealStack,
       unsealStack,
@@ -1897,7 +1856,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     refresh,
     reload,
     setViewDate,
-    stepViewDate,
     createHabits,
     sealStack,
     unsealStack,
