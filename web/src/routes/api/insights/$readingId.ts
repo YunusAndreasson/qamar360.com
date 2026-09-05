@@ -22,6 +22,18 @@ type EvidenceRow = Pick<Database['public']['Tables']['presets']['Row'], 'id' | '
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: NO_STORE })
 
+/**
+ * Which step failed, and (for an HTTP step) with what status — the only two things about a failure
+ * that are safe to log. This endpoint's catch-all used to record just `name: 'Error'`, which is how
+ * a 100%-reproducible write rejection went unattributed: every cause looked identical from outside.
+ */
+class InsightStageError extends Error {
+  constructor(readonly stage: string, readonly status: number | null = null) {
+    super(`insight ${stage} failed`)
+    this.name = 'InsightStageError'
+  }
+}
+
 function requiredBinding(name: string) {
   const value = Reflect.get(env, name) as unknown
   if (typeof value !== 'string' || value.length === 0) throw new Error(`Missing Worker binding: ${name}`)
@@ -106,7 +118,7 @@ async function generateInsight(prompt: string, evidenceIds: ReadonlySet<string>,
     const parsed = parseGeneratedInsight(responseJson(result), evidenceIds)
     if (parsed) return parsed
   }
-  throw new Error('Workers AI returned an invalid structured insight')
+  throw new InsightStageError('generate')
 }
 
 async function insertInsight(
@@ -115,18 +127,27 @@ async function insertInsight(
   row: Database['public']['Tables']['generated_insights']['Insert'],
   signal: AbortSignal,
 ) {
-  // New Supabase secret keys belong in `apikey`, never in an Authorization bearer header.
+  // BOTH headers, exactly as supabase-js sends them for an unauthenticated (key-only) call: the
+  // key in `apikey`, and the same value copied into `Authorization`. PostgREST takes the ROLE from
+  // `Authorization` — with `apikey` alone the request still reached Postgres, but as `anon`, and
+  // `generated_insights` grants INSERT to `service_role` only. Every write since this shipped came
+  // back 401 with `permission denied for table generated_insights` in the Postgres log, so no
+  // insight was ever stored and the app showed "unavailable right now" for all of them.
+  //
+  // Correct for either key format: the gateway swaps a `Bearer sb_secret_…` for the internal
+  // service_role JWT, and verifies a legacy service_role JWT directly.
   const response = await fetch(`${supabaseUrl}/rest/v1/generated_insights?on_conflict=user_id,reading_id`, {
     method: 'POST',
     headers: {
       apikey: secretKey,
+      Authorization: `Bearer ${secretKey}`,
       'Content-Type': 'application/json',
       Prefer: 'resolution=ignore-duplicates,return=representation',
     },
     body: JSON.stringify([row]),
     signal,
   })
-  if (!response.ok) throw new Error(`Insight insert failed (${response.status})`)
+  if (!response.ok) throw new InsightStageError('insert', response.status)
   const body = (await response.json()) as unknown
   return Array.isArray(body) && body.length > 0 ? (body[0] as StoredInsight) : null
 }
@@ -233,6 +254,8 @@ async function postInsight(request: Request, readingId: string) {
   } catch (error) {
     // Diary text, prompts, user ids, and model output are intentionally never logged.
     console.error('personalized_insight_failed', {
+      stage: error instanceof InsightStageError ? error.stage : 'unknown',
+      status: error instanceof InsightStageError ? error.status : null,
       name: error instanceof Error ? error.name : 'UnknownError',
       timedOut: error instanceof DOMException && error.name === 'TimeoutError',
     })
