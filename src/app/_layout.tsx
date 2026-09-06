@@ -3,13 +3,14 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-r
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { reloadAsync, useUpdates } from 'expo-updates';
+import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { DayCompleteProvider } from '@/components/day-complete';
-import { ToastProvider } from '@/components/toast';
+import { ToastProvider, useToast } from '@/components/toast';
 import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
@@ -42,6 +43,7 @@ export default function RootLayout() {
                   <SkyProvider>
                     <RootNavigator />
                     <ThemedChrome />
+                    <UpdateReady />
                   </SkyProvider>
                 </DayCompleteProvider>
               </CatalogProvider>
@@ -51,6 +53,47 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+/**
+ * Says so when a downloaded update is waiting, and offers the restart that applies it.
+ *
+ * `expo-updates` checks on launch and, with `fallbackToCacheTimeout: 10000`, applies what arrives
+ * inside ten seconds before the app ever renders — the invisible, correct case. What is left is
+ * the slow download: it lands in the background, the running JS is now the old one, and nothing
+ * said so. The only way through was to quit the app twice, which is not something a user can be
+ * expected to guess.
+ *
+ * `isUpdatePending`, not `isUpdateAvailable` — pending means the bundle is already on the device,
+ * so the restart is instant and works with the network gone. Available only means one exists.
+ *
+ * Offered rather than applied. Reloading is a cold start: it would take a half-typed to-do or an
+ * unsaved reflection with it, and an app that restarts itself under the user's hands to install
+ * something they never asked about is the behaviour people turn updates off over. The toast
+ * carries the app's own action affordance and self-dismisses; declining costs nothing, because the
+ * update applies on the next launch anyway.
+ *
+ * Fires once per app run: `isUpdatePending` stays true once set, and a repeating toast would be
+ * nagging. Silent in development, where nothing is ever pending — `reloadAsync` throws outright
+ * there, which is why it is caught rather than fired into the void: the app's rule is that a
+ * failed action says so instead of disappearing into an unhandled rejection.
+ */
+function UpdateReady() {
+  const { isUpdatePending } = useUpdates();
+  const { show } = useToast();
+  const announced = useRef(false);
+
+  useEffect(() => {
+    if (!isUpdatePending || announced.current) return;
+    announced.current = true;
+    show('An update is ready.', 'success', {
+      label: 'Restart',
+      onPress: () =>
+        void reloadAsync().catch(() => show('Could not restart. Close and reopen the app.', 'danger')),
+    });
+  }, [isUpdatePending, show]);
+
+  return null;
 }
 
 function ThemedChrome() {

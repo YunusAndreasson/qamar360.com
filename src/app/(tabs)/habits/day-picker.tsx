@@ -7,7 +7,7 @@ import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Pressed } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
-import { hijriParts, todayLocalISO } from '@/lib/dates';
+import { DATE_LOCALE, hijriParts, todayLocalISO } from '@/lib/dates';
 
 /**
  * Which day the list is showing — a sheet, not a strip.
@@ -32,7 +32,7 @@ export default function DayPickerScreen() {
   const router = useRouter();
   const { viewDate, today, minViewDate, setViewDate } = useHabits();
   const value = new Date(`${viewDate}T12:00:00`);
-  const fullDate = value.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const fullDate = value.toLocaleDateString(DATE_LOCALE, { weekday: 'long', month: 'long', day: 'numeric' });
   const hijri = hijriParts(viewDate);
   const subtitle = hijri ? `${hijri.day} ${hijri.monthName} ${hijri.year}` : fullDate;
   // A pick is a CHANGE of day. The guard is not defensive tidiness: Android's in-place Material

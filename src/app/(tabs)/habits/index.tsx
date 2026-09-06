@@ -15,6 +15,7 @@ import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/compon
 import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton, HeaderMoonButton } from '@/components/header-icon-button';
+import { ManageRow } from '@/components/manage-row';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
@@ -451,6 +452,16 @@ export default function HabitsScreen() {
     checkInEntries.length === 0 &&
     looseHabits.length === 0 &&
     exchanges.length === 0;
+  // An account that has never made a practice, on a day that is nonetheless not empty.
+  //
+  // `showEmptyState` above asks whether the day *looks* empty, and treats a single to-do as
+  // evidence that the user has begun. It is not: "To-do" is the most familiar noun in the Add
+  // sheet to anyone arriving from a reminders app, and choosing it first used to retire the
+  // "Anchor your first stack" invitation for good — so the account never met a stack, and never
+  // met the guide the stack library opens with, which is where the one rule that makes this app
+  // legible ("one tap seals the whole stack") is taught. Since there are no habits and no stacks,
+  // the only things the day can be holding here are to-dos and check-ins.
+  const neverStarted = !showEmptyState && habits.length === 0 && stacks.length === 0;
   // Everything the check-in section has to step down from, and everything below it has to step
   // down from in turn.
   const checkInCardShowing = checkInEntries.length > 0;
@@ -873,6 +884,9 @@ export default function HabitsScreen() {
             onToggle={tickLoose}
             onOptions={openAct}
           />
+          {/* Last of all, under whatever the day is holding — an offer, not a section of the day,
+              so it carries no caption. */}
+          {neverStarted ? <AnchorOffer topGap={SECTION_BREAK} /> : null}
         </Animated.ScrollView>
       )}
     </>
@@ -966,6 +980,32 @@ function UpcomingHint({ label }: { label: string }) {
   );
 }
 
+/**
+ * The first-run invitation in the footer voice, for a day that already has something on it.
+ *
+ * {@link HabitsEmptyState} below says the same thing full-screen, and can only appear when the day
+ * is completely bare. This is the version that can sit under a to-do list — the `ManageRow` idiom,
+ * "a footer row that offers rather than demands", in the reading tone rather than the accent one.
+ * It points at the ready-made stacks rather than at both doors: a second button would make it a
+ * decision, and the whole reason it exists is that the library is where anchoring is explained.
+ */
+function AnchorOffer({ topGap }: { topGap: number }) {
+  const router = useRouter();
+  return (
+    <View style={[styles.offer, { paddingTop: topGap }]}>
+      <Surface>
+        <ManageRow
+          icon="stack"
+          label="Anchor your first stack"
+          accessibilityLabel="Anchor your first stack"
+          accessibilityHint="Opens the ready-made stacks to choose an anchor."
+          onPress={() => router.push('/habits/stack-library')}
+        />
+      </Surface>
+    </View>
+  );
+}
+
 function HabitsEmptyState({
   hasHabits,
   isToday,
@@ -1055,4 +1095,7 @@ const styles = StyleSheet.create({
   // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
   // instead of jumping a notch when you switch between them. The populated list keeps its flush top.
   emptyTop: { paddingTop: Spacing.two },
+  // The same 16pt gutter `CardSection` reproduces for the sections that sit outside the drag
+  // layer, so the offer's card edge lines up with the to-do card it follows.
+  offer: { paddingHorizontal: Spacing.three },
 });

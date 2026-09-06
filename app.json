@@ -2,7 +2,7 @@
   "expo": {
     "name": "qamar360",
     "slug": "qamar360",
-    "version": "1448.3.23",
+    "version": "1448.3.24",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "qamar360",
@@ -16,7 +16,13 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {
@@ -30,7 +36,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": true
     },
     "plugins": [
       "./plugins/strip-aps-environment.js",

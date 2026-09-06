@@ -1,3 +1,4 @@
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import {
   createContext,
   useCallback,
@@ -15,7 +16,7 @@ import { FadeInView } from '@/components/fade-in-view';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
 import { BottomTabInset, Elevation, MaxContentWidth, Pressed, Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 
 type Variant = 'success' | 'danger';
@@ -41,6 +42,41 @@ export function useToast(): ToastContextValue {
 const VISIBLE_MS = 3200;
 /** A toast carrying an action stays longer — the user needs time to decide, not just to read. */
 const VISIBLE_ACTION_MS = 6000;
+
+/**
+ * Whether this build is running the Liquid Glass design — iOS 26 and up, `false` everywhere else
+ * (Android's `GlassView` is a plain `View`, so the fallback has to be chosen here rather than left
+ * to the component). A native constant, so it is read once rather than per toast.
+ */
+const LIQUID_GLASS = isLiquidGlassAvailable();
+
+/**
+ * Whether the user has asked iOS to reduce transparency.
+ *
+ * `isLiquidGlassAvailable()` deliberately does NOT answer this — it reports that the *components*
+ * exist, and stays `true` for a user who has turned the effect down. Reduce Transparency is the
+ * accessibility setting behind blur exactly as Reduce Motion is the one behind animation, and this
+ * app already honours the second one everywhere; honouring only half of that pair would put the
+ * one surface that floats over moving content behind a blur the user asked not to have.
+ *
+ * iOS-only. The listener carries the answer if it is changed while the app is open.
+ */
+function useReduceTransparency(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    let live = true;
+    void AccessibilityInfo.isReduceTransparencyEnabled().then((on) => {
+      if (live) setReduced(on);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceTransparencyChanged', setReduced);
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, []);
+  return reduced;
+}
 
 const ICONS: Record<Variant, IconName> = {
   success: 'success',
@@ -79,7 +115,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
   const theme = useTheme();
+  const scheme = useEffectiveScheme();
   const insets = useSafeAreaInsets();
+  // iOS 26 draws the toast in the system's own Liquid Glass, the material every transient
+  // surface on the OS is made of — the same reasoning that put `blurEffect` on the tab bar
+  // rather than a themed fill. Everywhere else (and for a user who has turned transparency
+  // down) it stays the opaque plate.
+  const reduceTransparency = useReduceTransparency();
+  const onGlass = LIQUID_GLASS && !reduceTransparency;
 
   // `accessibilityLiveRegion` below is Android-only — without an explicit announcement iOS
   // VoiceOver never reads a toast at all (it appears unfocused and vanishes). Announce on iOS
@@ -104,7 +147,11 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
             received VoiceOver focus and the only way back from a commit was sighted-only.
             The plate is now an inert `View` and the two verbs sit side by side in it, the same
             construction the day's rows use for their floated `⋯`. */}
-        <View style={[styles.toast, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}>
+        {/* Glass carries its own edge and its own sense of depth, so the hairline border and the
+            card shadow come off with it — kept together in `styles.plate` so the two paths can
+            never end up wearing half of each other. The glass follows the app's *effective*
+            scheme, not the OS's, so an in-app appearance override moves it too. */}
+        <Plate onGlass={onGlass} scheme={scheme} theme={theme}>
           {/* The message, and the dismiss. They are the same target on purpose — tapping the
               toast has always been how you wave it away — so this carries the words AND the
               action, and a screen reader gets one element that reads the message and dismisses
@@ -143,8 +190,37 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
               </ThemedText>
             </Pressable>
           ) : null}
-        </View>
+        </Plate>
       </FadeInView>
+    </View>
+  );
+}
+
+/** The toast's surface: system glass where the OS has it, the app's own opaque card elsewhere. */
+function Plate({
+  onGlass,
+  scheme,
+  theme,
+  children,
+}: {
+  onGlass: boolean;
+  scheme: 'light' | 'dark';
+  theme: ReturnType<typeof useTheme>;
+  children: ReactNode;
+}) {
+  if (onGlass) {
+    // `regular`, not `clear`: this floats over a starfield and over lists, and a message that
+    // can't be read is not a message. Not `isInteractive` — that is for a control, and this is a
+    // container holding two of them, each of which already answers a press on its own.
+    return (
+      <GlassView glassEffectStyle="regular" colorScheme={scheme} style={styles.toast}>
+        {children}
+      </GlassView>
+    );
+  }
+  return (
+    <View style={[styles.toast, styles.plate, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}>
+      {children}
     </View>
   );
 }
@@ -161,6 +237,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.card,
+    // `overflow: hidden` so the glass path clips its children to the same corner the opaque one
+    // does — a press highlight square at the corner is the giveaway that it doesn't.
+    overflow: 'hidden',
+  },
+  // The opaque path only. Glass draws its own edge and its own depth, so a hairline border on top
+  // of it reads as a sticker and a drop shadow under it contradicts the material.
+  plate: {
     borderWidth: StyleSheet.hairlineWidth,
     // The shared card lift — the toast floats over content on the same recipe as raised cards.
     ...Elevation.card,

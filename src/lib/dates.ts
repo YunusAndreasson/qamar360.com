@@ -54,6 +54,21 @@ export function daysBetweenISO(from: string, to: string): number {
 const BARE_WEEKDAY_DAYS = 7;
 
 /**
+ * The one locale every date in the app is formatted in.
+ *
+ * Not the device's. The app's copy is written, not translated — `dayTitle` below returns the
+ * literal "Today" and "Yesterday", and every caption around a date is an English sentence — so
+ * formatting the date itself in the device locale puts a German weekday inside an English line.
+ * One locale until the app itself is translated, named here so the two places that format a date
+ * cannot drift apart again: the day picker's subtitle used to pass `undefined` and render in the
+ * device's locale while every other date in the app rendered in this one.
+ *
+ * Times and numbers deliberately do NOT use it. A 12-vs-24-hour clock and a decimal separator are
+ * device settings rather than a language, so those keep `toLocaleTimeString(undefined, …)`.
+ */
+export const DATE_LOCALE = 'en-US';
+
+/**
  * Name a day the way the app says it out loud: `Today`, `Yesterday`, then a weekday while that is
  * still unambiguous, then the date.
  *
@@ -74,9 +89,9 @@ export function dayTitle(
   if (iso === today) return 'Today';
   if (iso === addDaysISO(today, -1)) return 'Yesterday';
   if (weekday === 'long' && iso > addDaysISO(today, -BARE_WEEKDAY_DAYS)) {
-    return localDate(iso).toLocaleDateString('en-US', { weekday: 'long' });
+    return localDate(iso).toLocaleDateString(DATE_LOCALE, { weekday: 'long' });
   }
-  return localDate(iso).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  return localDate(iso).toLocaleDateString(DATE_LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */
