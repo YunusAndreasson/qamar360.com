@@ -13,14 +13,29 @@ import { SettingsSection } from '@/components/settings-section';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
-import { GOAL_TEMPLATES, HORIZON_SPANS, type GoalTemplate } from '@/constants/goal-templates';
+import { WeekdayPicker } from '@/components/weekday-picker';
+import { GOAL_TEMPLATES, HORIZON_SPANS, defaultCadenceFor, type GoalTemplate } from '@/constants/goal-templates';
 import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
 import { useHabits } from '@/hooks/use-habits';
+import { confirmProceed } from '@/lib/alerts';
+import { CADENCES, cadenceOf, cadenceFields, hasCadence, type Cadenced, type CadenceKey } from '@/lib/check-ins';
 import { hijriParts, todayLocalISO } from '@/lib/dates';
 import { horizonFromLunarMonths } from '@/lib/goals';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
+
+/** A cadence choice, plus the one the pills add: asking nothing at all. */
+type CadenceChoice = CadenceKey | 'none';
+
+/** The cadence fields that store "this goal asks nothing" — all three columns empty together,
+ *  which is the only other shape `goals_check_in_cadence` permits. A function rather than a
+ *  constant so each save gets its own array: the columns are mutable on the way to Supabase. */
+const noCadence = (): Pick<Cadenced, 'check_in_days' | 'check_in_hijri' | 'check_in_from'> => ({
+  check_in_days: [],
+  check_in_hijri: null,
+  check_in_from: null,
+});
 
 /**
  * Setting a goal — and, with an `id`, editing one.
@@ -31,6 +46,13 @@ import { MOMENTS, type MomentKey } from '@/lib/moments';
  * lines, and — the half that decides whether it happens — does not know the new material is the
  * easy part. A template carries both, and says the second one out loud before you save.
  *
+ * **It also sets the goal's check-in, in the same form.** That used to be a second screen behind a
+ * second entry in the "+" sheet, which meant a goal saved here appeared precisely nowhere until
+ * you found the other door and picked the goal back out of a list. A horizon nothing ever asks
+ * about is the one shape of goal the evidence is unanimous against: Harkin (2016) puts the whole
+ * effect through how often you monitor. So the ask is part of setting the goal, and the goal lands
+ * on Today the moment it is saved.
+ *
  * The two fields at the foot are the ones with the strongest evidence behind them and the least
  * obvious payoff: naming the obstacle, and pre-deciding the response. They are optional, because
  * a goal you refused to finish a form for is worse than a goal with two blank fields — but the
@@ -38,7 +60,7 @@ import { MOMENTS, type MomentKey } from '@/lib/moments';
  * acts is about to be skipped.
  *
  * In edit mode the acts are left alone: they are ordinary habits on your day by then, edited where
- * every other habit is. This screen only ever owns the horizon and the numbers.
+ * every other habit is. This screen owns the horizon, the numbers, and how often it asks.
  */
 export default function GoalComposerScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -47,7 +69,7 @@ export default function GoalComposerScreen() {
   // Deliberately NOT `useProgress`: that hook pulls the user's entire completion history on
   // mount (it has to — "this life" is measured in Hijri years), and this screen needs one stored
   // row and today's date. `useGoals` already holds the row, and the date is a pure function.
-  const { createGoal, updateGoal, goals: storedGoals, loading: goalsLoading } = useGoals();
+  const { createGoal, updateGoal, saveCheckIn, goals: storedGoals, checkIns, loading: goalsLoading } = useGoals();
   const today = todayLocalISO();
   const { habits, stacks, createHabits, createStack, updateStack, deleteHabit } = useHabits();
 
@@ -80,6 +102,49 @@ export default function GoalComposerScreen() {
   const [obstacle, setObstacle] = useState(editing?.obstacle ?? '');
   const [ifThen, setIfThen] = useState(editing?.if_then ?? '');
 
+  // ── The ask ──────────────────────────────────────────────────────────────────────────────────
+  //
+  // Derived from the template or the stored row, never seeded into state: `null` means untouched,
+  // so picking a different template moves the default with it and opening a goal that already asks
+  // weekly shows "Once a week". (`react-hooks/set-state-in-effect` rejects the copy-into-state
+  // shape a seed-once version would need, and this is the rule `plan.tsx` follows.)
+  const [chosenCadence, setChosenCadence] = useState<CadenceChoice | null>(null);
+  const [weekday, setWeekday] = useState<number | null>(null);
+  const [startText, setStartText] = useState('');
+
+  const storedCadence: CadenceChoice = editing
+    ? hasCadence(editing)
+      ? (cadenceOf(editing) ?? 'weekly')
+      : 'none'
+    : template
+      ? defaultCadenceFor(template)
+      : 'weekly';
+  const cadence = chosenCadence ?? storedCadence;
+  const pickedWeekday = weekday ?? editing?.check_in_days[0] ?? 1;
+
+  /**
+   * A goal that comes down cannot stop asking, and the database says so
+   * (`goals_down_needs_check_in`): nothing you tick subtracts, so its check-ins are the only thing
+   * that measures it at all. Offering "Not for now" there would be offering a save that the server
+   * rejects — so the option is withheld and the section says why.
+   */
+  const mustAsk = editing?.direction === 'down';
+  const measured = editing ? checkIns.some((c) => c.goal_id === editing.id) : false;
+  const needsStart = cadence !== 'none' && !measured;
+
+  // An untouched edit keeps the date exactly as stored; only a deliberate span choice recomputes.
+  const horizon = useMemo(
+    () => (editing && !spanTouched ? editing.horizon_on : horizonFromLunarMonths(today, spanMonths)),
+    [editing, spanTouched, today, spanMonths],
+  );
+  const target = Number(targetText.replace(/[^0-9.]/g, ''));
+  // Accepts a comma as well as a point, like the check-in field: half this app's users type a
+  // decimal one way and half the other.
+  const start = Number(startText.trim().replace(',', '.'));
+  const startGiven = startText.trim().length > 0 && Number.isFinite(start);
+  const canSave =
+    title.trim().length > 0 && unit.trim().length > 0 && target > 0 && horizon !== null && (!needsStart || startGiven);
+
   /** Applying a template fills every field it knows — and leaves anything already typed alone. */
   const pickTemplate = (next: GoalTemplate) => {
     setTemplateId(next.id);
@@ -90,29 +155,56 @@ export default function GoalComposerScreen() {
     setMoment(next.moment);
   };
 
-  // An untouched edit keeps the date exactly as stored; only a deliberate span choice recomputes.
-  const horizon = useMemo(
-    () => (editing && !spanTouched ? editing.horizon_on : horizonFromLunarMonths(today, spanMonths)),
-    [editing, spanTouched, today, spanMonths],
-  );
-  const target = Number(targetText.replace(/[^0-9.]/g, ''));
-  const canSave = title.trim().length > 0 && unit.trim().length > 0 && target > 0 && horizon !== null;
-
   const save = () => {
     if (!canSave || !horizon) return;
+    // A first reading past the target settles `direction` as falling, permanently: nothing in the
+    // app can turn it back, and a typo'd digit makes an ordinary climbing goal read "Reached" with
+    // milestones marching below zero. This is the one moment that decision is made, and now the
+    // only screen where the target and the reading are visible together — so it is asked.
+    if (needsStart && start > target) {
+      confirmProceed({
+        title: 'A goal that comes down?',
+        message: `You are at ${start} ${unit.trim()}, past the ${target} you are aiming for. That makes this a measure you bring down, and it cannot be changed afterwards.`,
+        confirmLabel: 'Yes, bring it down',
+        onConfirm: commit,
+      });
+      return;
+    }
+    commit();
+  };
+
+  const commit = () => {
+    if (!horizon) return;
+    // An ask already running keeps the day it started from; only a goal that has never asked
+    // begins today. Rewriting `check_in_from` on every edit would move the window the lookback
+    // walks back through, for no reason the user asked for.
+    const from = editing?.check_in_from ?? today;
+    const fields = cadence === 'none' ? noCadence() : cadenceFields(cadence, pickedWeekday, from);
 
     if (editing) {
       haptics.added();
-      router.back();
       void (async () => {
-        await updateGoal(editing.id, {
+        // A starting value above the target means the measure has to fall. Settled once, stored,
+        // and never asked again: inferred live, a weight goal would read as reached the first time
+        // it dipped under target and stay wrong when it rose back.
+        const direction = needsStart && start > editing.target_value ? 'down' : editing.direction;
+        const saved = await updateGoal(editing.id, {
           title: title.trim(),
           unit: unit.trim(),
           target_value: target,
           horizon_on: horizon,
           obstacle: obstacle.trim(),
           if_then: ifThen.trim(),
+          ...fields,
+          direction,
         });
+        // The baseline second, and after the cadence — a goal that asks but has no baseline yet is
+        // a state its screen already knows how to say, where a baseline on a goal that asks
+        // nothing would be a reading nobody will ever be prompted to follow.
+        if (saved && needsStart) await saveCheckIn(editing.id, { takenOn: today, value: start, note: '' });
+        // Awaited before leaving: Today refetches its goals on focus the instant this pops, and
+        // `fetchGoals` sets the rows wholesale — a write that loses that race is dropped.
+        router.back();
       })();
       return;
     }
@@ -167,6 +259,11 @@ export default function GoalComposerScreen() {
         horizon_on: horizon,
         obstacle: obstacle.trim(),
         if_then: ifThen.trim(),
+        // The horizon, its engine and its first reading in one write. `createGoal` has taken both
+        // of these since the day it was written; nothing had ever handed them to it, because the
+        // cadence lived on a different screen.
+        cadence: cadence === 'none' ? undefined : fields,
+        startValue: needsStart && startGiven ? start : undefined,
         // Matched by name, never by index. `createHabits` can return fewer rows than it was
         // given (it drops any cancelled mid-flight), and a positional pairing would then slide
         // the flags one act along — quietly marking a revision act as the one that counts, which
@@ -179,7 +276,7 @@ export default function GoalComposerScreen() {
       if (!goal) return;
       haptics.added();
       router.back();
-      show(created.length > 0 ? `${title.trim()} — its acts are on Today` : `${title.trim()} set`, 'success');
+      show(created.length > 0 ? `${title.trim()} set. Its acts are on Today.` : `${title.trim()} set`, 'success');
     })();
   };
 
@@ -278,6 +375,78 @@ export default function GoalComposerScreen() {
         {horizonLabel(horizon)}
       </ThemedText>
 
+      {/* How often it asks. A check-in is the goal's own row on Today, in the same ring column as
+          everything else you tick — so this control is what decides whether the goal is a thing
+          you meet or a page you have to remember to visit. */}
+      <FieldLabel style={styles.label}>HOW OFTEN IT ASKS</FieldLabel>
+      <View style={styles.cadences}>
+        {CADENCES.map((option) => (
+          <SelectablePill
+            key={option.key}
+            label={option.label}
+            selected={cadence === option.key}
+            onPress={() => {
+              haptics.selection();
+              setChosenCadence(option.key);
+            }}
+          />
+        ))}
+        {mustAsk ? null : (
+          <SelectablePill
+            label="Not for now"
+            selected={cadence === 'none'}
+            onPress={() => {
+              haptics.selection();
+              setChosenCadence('none');
+            }}
+          />
+        )}
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+        {cadenceHint(cadence, mustAsk)}
+      </ThemedText>
+
+      {cadence === 'weekly' ? (
+        <WeekdayPicker
+          days={new Set([pickedWeekday])}
+          // One day, not a set: a weekly check-in asks once. Tapping another day moves it
+          // rather than adding a second, which is what the shared picker would otherwise do.
+          onChange={(days) => {
+            const next = [...days].find((d) => d !== pickedWeekday);
+            if (next !== undefined) setWeekday(next);
+          }}
+        />
+      ) : null}
+
+      {needsStart ? (
+        <>
+          <FieldLabel style={styles.label}>WHERE IT STANDS NOW</FieldLabel>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+            {`This is the goal's first reading, and it is what tells the app which way it has to travel to reach ${target > 0 ? target : 'the target'} ${unit.trim()}.`}
+          </ThemedText>
+          <View style={styles.measure}>
+            <View style={styles.half}>
+              {/* No `placeholder`: `FormField` falls back to it as the field's LABEL when no label
+                  is given (`label ?? props.placeholder`), so a placeholder of "0" printed a stray
+                  "0" caption above the box — under a section heading that had already named the
+                  field. The heading and the sentence above it say what to type; the decimal pad
+                  says it is a number. */}
+              <FormField
+                value={startText}
+                onChangeText={setStartText}
+                keyboardType="decimal-pad"
+                accessibilityLabel={`Starting reading in ${unit.trim()}`}
+              />
+            </View>
+            <View style={styles.unit}>
+              <ThemedText type="rowTitle" themeColor="textSecondary">
+                {unit.trim()}
+              </ThemedText>
+            </View>
+          </View>
+        </>
+      ) : null}
+
       {!editing && template.acts.length > 0 ? (
         <>
           <FieldLabel style={styles.label}>ANCHORED AFTER</FieldLabel>
@@ -311,11 +480,32 @@ function horizonLabel(horizon: string | null): string {
   return parts ? `Through ${parts.monthName} ${parts.year}` : '';
 }
 
+/**
+ * What the chosen cadence means for the day — said once, under the pills.
+ *
+ * The `mustAsk` line is not optional politeness. A goal that comes down has no "Not for now" pill
+ * at all, and an option that silently is not there owes the reader a reason exactly as much as a
+ * control that declines a tap does (`expandable-add-row.tsx` learned that the hard way). Its case
+ * comes first because the missing pill is what needs explaining, whichever cadence is selected.
+ */
+function cadenceHint(cadence: CadenceChoice, mustAsk: boolean): string {
+  if (mustAsk) {
+    return 'It appears on your day when it is due. A measure that comes down is only ever moved by a check-in, so this one always asks.';
+  }
+  return cadence === 'none'
+    ? 'It will sit in Progress and ask nothing. You can start it asking later.'
+    : 'It appears on your day when it is due, and stays there until you answer it.';
+}
+
 const styles = StyleSheet.create({
   lede: { marginBottom: Spacing.two },
   label: { marginTop: Spacing.three },
   pair: { flexDirection: 'row', gap: Spacing.three },
   half: { flex: 1 },
   spans: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
+  cadences: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
   hint: { marginTop: Spacing.two },
+  // `FormField` spreads `style` onto its `TextInput`, so the flex belongs on a `View` around it.
+  measure: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, marginTop: Spacing.two },
+  unit: { paddingTop: Spacing.one },
 });

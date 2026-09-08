@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { GOAL_TEMPLATES, HORIZON_SPANS } from '@/constants/goal-templates';
+import { GOAL_TEMPLATES, HORIZON_SPANS, defaultCadenceFor } from '@/constants/goal-templates';
 
 describe('HORIZON_SPANS', () => {
   /**
@@ -65,5 +65,19 @@ describe('GOAL_TEMPLATES', () => {
       const names = template.acts.map((a) => a.name);
       expect(new Set(names).size).toBe(names.length);
     }
+  });
+
+  /**
+   * The composer opens on this, and it is the difference between a goal that lands on Today and
+   * one that lands nowhere. An act-driven goal already reports every day, so its check-in is there
+   * to RE-BASE the sum rather than to collect the number again — four times a month, on the same
+   * grid the readings publish on. A goal no act produces has nothing else reporting it at all.
+   */
+  it('starts an act-driven goal on the moon quarters and a bare measure weekly', () => {
+    for (const template of GOAL_TEMPLATES) {
+      expect(defaultCadenceFor(template)).toBe(template.acts.some((a) => a.contributes) ? 'quarter' : 'weekly');
+    }
+    expect(defaultCadenceFor(GOAL_TEMPLATES.find((t) => t.id === 'hifz')!)).toBe('quarter');
+    expect(defaultCadenceFor(GOAL_TEMPLATES.find((t) => t.id === 'blank')!)).toBe('weekly');
   });
 });

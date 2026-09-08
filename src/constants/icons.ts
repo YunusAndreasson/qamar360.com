@@ -57,6 +57,11 @@ export const Icons = {
   // the to-do's, and this is not a list), not a checkmark (the app's "done" everywhere) and not a
   // chart (the graph a goal draws FROM these, which is a different thing from the asking).
   checkIn: { sf: 'gauge.with.dots.needle.bottom.50percent', material: 'speed' },
+  // A goal: a horizon over acts you already keep. A flag — a marker planted where you mean to
+  // arrive — rather than a target or a bullseye, which would make a twenty-year practice sound
+  // like something you aim at and hit. Distinct from `checkIn`'s gauge: that one is the goal
+  // ASKING, this one is the goal itself.
+  goal: { sf: 'flag', material: 'flag' },
   openInNew: { sf: 'arrow.up.right', material: 'open-in-new' },
   globe: { sf: 'globe', material: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────

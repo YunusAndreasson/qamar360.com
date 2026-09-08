@@ -44,9 +44,17 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DeeperReflection({ reading, habits }: { reading: Reading; habits: ReturnType<typeof useProgress>['habits'] }) {
+function DeeperReflection({
+  reading,
+  habits,
+  goals,
+}: {
+  reading: Reading;
+  habits: ReturnType<typeof useProgress>['habits'];
+  goals: ReturnType<typeof useProgress>['goals'];
+}) {
   const theme = useTheme();
-  const { insight, loading, error, retry } = usePersonalizedInsight(reading, habits);
+  const { insight, loading, error, retry } = usePersonalizedInsight(reading, habits, goals);
 
   return (
     <StatCard>
@@ -106,7 +114,7 @@ function DeeperReflection({ reading, habits }: { reading: Reading; habits: Retur
  */
 export default function ReadingScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { loading, error, dismissError, refresh, readings, habits } = useProgress();
+  const { loading, error, dismissError, refresh, readings, habits, goals } = useProgress();
   const { refreshControl } = usePullToRefresh(refresh);
 
   const reading = readings.find((r) => r.id === id) ?? null;
@@ -137,7 +145,7 @@ export default function ReadingScreen() {
       <ErrorBanner message={error} onDismiss={dismissError} />
 
       <ReadingCard reading={reading} />
-      <DeeperReflection reading={reading} habits={habits} />
+      <DeeperReflection reading={reading} habits={habits} goals={goals} />
       <QuarterComparison reading={reading} />
     </AppScreen>
   );

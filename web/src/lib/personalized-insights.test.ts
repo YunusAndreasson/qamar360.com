@@ -71,6 +71,46 @@ describe('parseInsightRequest', () => {
   })
 })
 
+describe('the goals block', () => {
+  const at = new Date('2026-09-20T00:00:00Z')
+  const goal = {
+    id: 'goal-1',
+    target: 9060,
+    direction: 'up' as const,
+    earned: 1240,
+    remaining: 7820,
+    quota: 151,
+    quotaRemaining: 96,
+    monthsLeft: 59,
+    pace: null,
+    measured: false,
+    met: false,
+    overdue: false,
+  }
+  const withGoals = (goals: unknown) => parseInsightRequest({ ...request, goals }, request.reading.id, at)
+
+  // `null` is a value here, not a gap: `pace` says "no month has closed yet" and `quota` says "not
+  // being asked for anything". A validator that only took numbers would reject an ordinary new goal.
+  it('accepts the nullable measures a new goal really has', () => {
+    expect(withGoals([{ ...goal, quota: null, quotaRemaining: null, pace: null }])?.goals).toHaveLength(1)
+  })
+
+  // An app built before this field existed sends no key at all, and must keep getting insights.
+  it('treats an absent block as no goals', () => {
+    expect(parseInsightRequest(request, request.reading.id, at)?.goals).toEqual([])
+  })
+
+  it('rejects a malformed, duplicated, unbounded or over-long block', () => {
+    expect(withGoals([{ ...goal, direction: 'sideways' }])).toBeNull()
+    expect(withGoals([{ ...goal, remaining: -1 }])).toBeNull()
+    expect(withGoals([{ ...goal, target: 1e12 }])).toBeNull()
+    expect(withGoals([{ ...goal, met: 'yes' }])).toBeNull()
+    expect(withGoals([goal, goal])).toBeNull()
+    expect(withGoals(Array.from({ length: 51 }, (_, i) => ({ ...goal, id: `goal-${i}` })))).toBeNull()
+    expect(withGoals('none')).toBeNull()
+  })
+})
+
 describe('Workers AI response validation', () => {
   it('extracts an OpenAI-style JSON response and restricts evidence to the allowlist', () => {
     const parsed = responseJson({

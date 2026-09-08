@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  askingGoals,
   CADENCES,
   cadenceFields,
   cadenceOf,
@@ -308,5 +309,25 @@ describe('readingLine', () => {
 
   it('keeps it, and the capitals, for a date', () => {
     expect(readingLine(3260, 'lines', '2026-08-20', TODAY)).toBe('3,260 lines on Thu, Aug 20');
+  });
+});
+
+describe('askingGoals', () => {
+  const live = { id: 'g1', status: 'open' };
+
+  /**
+   * The filter every caller owed `showsOn` and `openCountOn` and none of them paid. A goal you had
+   * set aside went on putting an open row on Today — under a screen promising "stops the monthly
+   * ask" — while the goals list had already dropped it, so the ask was unanswerable from anywhere
+   * and still held the day's close back.
+   */
+  it('keeps only the goals that are still open', () => {
+    expect(
+      askingGoals([live, { id: 'g2', status: 'released' }, { id: 'g3', status: 'reached' }]).map((g) => g.id),
+    ).toEqual(['g1']);
+  });
+
+  it('is a no-op on a list that is entirely live', () => {
+    expect(askingGoals([live])).toEqual([live]);
   });
 });

@@ -1,4 +1,5 @@
 import type { Habit } from '@/hooks/use-habits';
+import type { GoalReading } from '@/lib/goals';
 import type { Reading } from '@/lib/insights';
 
 export type PersonalizedInsight = {
@@ -10,10 +11,22 @@ export type PersonalizedInsight = {
   generated_at: string;
 };
 
-/** Metric-only mobile envelope. The Worker resolves names, evidence, consent, and notes itself. */
+/**
+ * Metric-only mobile envelope. The Worker resolves names, evidence, consent, and notes itself.
+ *
+ * The goals ride along for the same reason the habits do: the reflection is written about a
+ * quarter, and a quarter in which someone moved 300 lines toward a muṣḥaf is a different quarter
+ * from one in which they kept the same acts with nothing behind them. Only the OPEN ones — a goal
+ * set aside asks nothing of the month, and one already reached is not news.
+ *
+ * What is deliberately NOT sent: how many times the goal asked and was not answered. It is
+ * derivable here and it is the one figure in this whole payload that a model would inevitably
+ * turn into a reprimand, which every other line of this app's copy refuses to make.
+ */
 export function personalizedInsightRequest(
   reading: Reading,
   habits: Habit[],
+  goals: GoalReading[],
   hijriOffset: -2 | -1 | 0 | 1 | 2,
 ) {
   const liveHabitIds = new Set(habits.map((habit) => habit.id));
@@ -45,6 +58,22 @@ export function personalizedInsightRequest(
         .filter(([id]) => liveHabitIds.has(id))
         .map(([id, metric]) => ({ id, earned: metric.earned, possible: metric.possible })),
     },
+    goals: goals
+      .filter((goal) => goal.goal.status === 'open')
+      .map((goal) => ({
+        id: goal.goal.id,
+        target: goal.goal.target_value,
+        direction: goal.goal.direction,
+        earned: goal.earned,
+        remaining: goal.remaining,
+        quota: goal.quota,
+        quotaRemaining: goal.quotaRemaining,
+        monthsLeft: goal.monthsLeft,
+        pace: goal.pace,
+        measured: goal.measured,
+        met: goal.met,
+        overdue: goal.overdue,
+      })),
   };
 }
 

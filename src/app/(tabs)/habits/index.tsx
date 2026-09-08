@@ -35,7 +35,7 @@ import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
-import { visibleCheckIns } from '@/lib/check-ins';
+import { askingGoals, visibleCheckIns } from '@/lib/check-ins';
 import { addDaysISO, dayTitle, hijriMonthRange, hijriParts, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -439,8 +439,10 @@ export default function HabitsScreen() {
   // What the day's goals are asking. Read straight from `useGoals` rather than through
   // `useProgress`: the visibility rule needs only the cadence and the readings, and Today has no
   // business fetching every completion ever written to find out whether to draw one row.
+  // `askingGoals` is not optional here: a goal that has been set aside or reached asks nothing,
+  // and `showsOn` cannot know that — its `Cadenced` shape has no status in it.
   const checkInEntries = useMemo(
-    () => visibleCheckIns(goals, checkIns, viewDate, today),
+    () => visibleCheckIns(askingGoals(goals), checkIns, viewDate, today),
     [goals, checkIns, viewDate, today],
   );
   // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks

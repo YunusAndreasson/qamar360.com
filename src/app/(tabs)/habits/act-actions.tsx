@@ -124,17 +124,25 @@ export default function ActActionsScreen() {
           // has no daily surface of its own and does not need one.
           goal
             ? {
-                icon: 'moon',
+                icon: 'goal',
                 label: goal.title,
-                sublabel: goalAct?.contributes ? 'This act counts toward it' : 'This act holds it in place',
+                // A falling measure takes no act credit at all — nothing you tick subtracts — so
+                // "counts toward it" would be a claim the engine provably does not honour. Such a
+                // goal is moved by its check-ins, and this act is the practice behind it.
+                sublabel:
+                  goal.direction === 'down'
+                    ? 'The practice behind it'
+                    : goalAct?.contributes
+                      ? 'This act counts toward it'
+                      : 'This act holds it in place',
                 // Close the sheet, then navigate — not `replace`. Every other action here swaps
                 // one screen of the *habits* stack for another, while this one leaves for the
-                // Insights tab, whose stack declares the goal route's options. Replacing across
+                // Progress tab, whose stack declares the goal route's options. Replacing across
                 // the two would leave this sheet's slot holding a route its own navigator does
                 // not know about.
                 onPress: () => {
                   router.back();
-                  router.push({ pathname: '/(tabs)/insights/goal/[id]', params: { id: goal.id } });
+                  router.push({ pathname: '/(tabs)/progress/goal/[id]', params: { id: goal.id } });
                 },
               }
             : null,

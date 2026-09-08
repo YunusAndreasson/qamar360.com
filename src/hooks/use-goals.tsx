@@ -4,7 +4,7 @@ import { useDayComplete } from '@/components/day-complete';
 import { useAuth } from '@/hooks/use-auth';
 import { useHabitsTaskBridge } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
-import { openCountOn, type GoalCheckIn } from '@/lib/check-ins';
+import { askingGoals, openCountOn, type GoalCheckIn } from '@/lib/check-ins';
 import type { Tables } from '@/lib/database.types';
 import { dayCloseAfter, moonLitFor, openTasksOn, setOpenCheckInsProbe } from '@/lib/day-close';
 import type { Goal, GoalAct } from '@/lib/goals';
@@ -339,7 +339,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         new Set<string>(),
         day,
         openTasksOn(day),
-        openCountOn(rowsRef.current, applied, day, todayRef.current),
+        openCountOn(askingGoals(rowsRef.current), applied, day, todayRef.current),
       );
       if (close.dayComplete) {
         haptics.celebrate(moonLitFor(day));
@@ -373,11 +373,11 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   // in `lib/day-close.ts`. Registered once and reading refs, so it always answers from current
   // state without re-arming.
   useEffect(
-    () => setOpenCheckInsProbe((day) => openCountOn(rowsRef.current, checkInsRef.current, day, todayRef.current)),
+    () => setOpenCheckInsProbe((day) => openCountOn(askingGoals(rowsRef.current), checkInsRef.current, day, todayRef.current)),
     [rowsRef, checkInsRef, todayRef],
   );
 
-  const openToday = useMemo(() => openCountOn(rows, checkIns, today, today), [rows, checkIns, today]);
+  const openToday = useMemo(() => openCountOn(askingGoals(rows), checkIns, today, today), [rows, checkIns, today]);
 
   const value = useMemo(
     () => ({

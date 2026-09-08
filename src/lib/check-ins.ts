@@ -110,6 +110,24 @@ export function cadenceOf(goal: Cadenced): CadenceKey | null {
   return goal.check_in_days.length === 7 ? 'daily' : 'weekly';
 }
 
+/**
+ * The goals that are allowed to ask — the live ones.
+ *
+ * A cadence says *when* a goal asks; the status says *whether* it still does. Both `showsOn` and
+ * `openCountOn` work off {@link Cadenced}, which has no status column in it, so every caller owes
+ * them this filter — and every caller was skipping it. A goal you had set aside went on putting an
+ * open row on Today under a screen that promised "stops the monthly ask", while the goals list
+ * (which DID filter) had already dropped it — so the ask was unanswerable from anywhere, and it
+ * held the day's close back through `openCountOn`.
+ *
+ * Stated once, here, rather than re-spelled at four call sites: a fifth would have got it wrong.
+ * `reached` is excluded with `released` for the same reason — a goal you have finished is not
+ * waiting to hear where it stands.
+ */
+export function askingGoals<G extends { status: string }>(goals: readonly G[]): G[] {
+  return goals.filter((goal) => goal.status === 'open');
+}
+
 /** Does this goal ask at all? */
 export function hasCadence(goal: Cadenced): boolean {
   return goal.check_in_from !== null && (goal.check_in_days.length > 0 || goal.check_in_hijri !== null);

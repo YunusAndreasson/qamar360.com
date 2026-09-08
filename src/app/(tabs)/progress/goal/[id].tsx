@@ -63,6 +63,7 @@ export default function GoalScreen() {
   const asking = hasCadence(goal);
   const lastReading = latestBefore(checkIns, goal.id, '9999-12-31');
   const contributor = acts.find((a) => a.contributes) ?? null;
+  const down = goal.direction === 'down';
   // Only worth offering when it would actually change something: an act already sitting at the
   // right target needs no button, and a button that does nothing teaches you to stop reading them.
   const offerTarget = dailyTarget !== null && contributor !== null && contributor.targetCount !== dailyTarget;
@@ -149,7 +150,7 @@ export default function GoalScreen() {
             label="This asks for more than your best month"
             sublabel={`Move the horizon to ${arrival.monthName} ${arrival.year}`}
             showChevron
-            onPress={() => router.push({ pathname: '/(tabs)/insights/goal/new', params: { id: goal.id } })}
+            onPress={() => router.push({ pathname: '/(tabs)/progress/goal/edit', params: { id: goal.id } })}
           />
         </SettingsSection>
       ) : null}
@@ -193,53 +194,62 @@ export default function GoalScreen() {
         ) : null}
       </SettingsSection>
 
+      {/* A falling measure takes NO act credit — `computeGoals` reads the latest reading and stops
+          (`goals.ts`), because nothing you tick subtracts. So the `contributes` flag, which is the
+          whole vocabulary of this section, means nothing here and the section has to say what is
+          true instead: these acts are your practice, and the number moves when you report it. */}
       <SettingsSection
         title="THE ACTS"
         footer={
           acts.length === 0
-            ? 'Nothing is driving this goal — its acts were deleted, and their history went with them. Set the goal again to give it new ones.'
-            : 'Revision does not add to the count. It is what keeps what you have already done from draining away.'
+            ? // "Its acts were deleted" was the only story this said, and it is now the rarer one:
+              // a goal set from the blank template never had acts, and does not want any — its
+              // check-in IS the measurement. Telling that user something was destroyed is both
+              // false and alarming, so the two states are separated by what can actually still
+              // move the number.
+              asking
+              ? 'Nothing you tick moves this one. Its measure is whatever you report at the check-in.'
+              : 'Nothing is driving this goal, and nothing is asking about it, so its measure cannot move. Edit it to start it asking, or set the goal again to give it acts.'
+            : down
+              ? 'A measure that comes down is moved by your check-ins, never by what you tick. These are the practice behind it.'
+              : 'Revision does not add to the count. It is what keeps what you have already done from draining away.'
         }>
         {acts.map((act) => (
           <SettingsRow
             key={act.habitId}
             label={act.name}
-            sublabel={act.contributes ? `Counts toward the ${goal.unit}` : 'Revision — holds what is already there'}
+            sublabel={
+              down
+                ? 'On your day, and not counted here'
+                : act.contributes
+                  ? `Counts toward the ${goal.unit}`
+                  : 'Revision — holds what is already there'
+            }
             value={act.targetCount !== null ? `${act.targetCount} a day` : undefined}
           />
         ))}
       </SettingsSection>
 
-      {/* What the goal asks of the day, and the way to answer it now rather than waiting to be
-          asked. A goal that asks nothing gets the row that starts it asking — the same door the
-          "+" sheet opens, reached from the thing it will hang on. */}
+      {/* What the goal asks of the day. It states the cadence and does not navigate: a reading is
+          given on Today, in the row this cadence puts there, and the cadence itself is changed
+          where the rest of the goal is. Both doors used to be here, and both crossed into another
+          tab to open — which is how checking in from a goal lost your place entirely. */}
       <SettingsSection
         title="CHECK-IN"
         footer={
           asking
             ? 'It appears on your day when it is due, and stays there until you answer it.'
-            : undefined
+            : 'Nothing is asking about this one. Edit the goal to start it asking.'
         }>
         <SettingsRow
           icon="checkIn"
-          label={asking ? describeCadence(goal, weekStart) : 'Ask me where I am'}
-          sublabel={asking ? 'Change how often it asks' : 'On a cadence you choose'}
-          showChevron
-          onPress={() => router.push({ pathname: '/habits/check-in-new', params: { goalId: goal.id } })}
+          label={asking ? describeCadence(goal, weekStart) : 'Not asking'}
+          sublabel={
+            lastReading
+              ? `Last ${readingLine(lastReading.value, goal.unit, lastReading.taken_on, today)}`
+              : 'Nothing recorded yet'
+          }
         />
-        {asking ? (
-          <SettingsRow
-            icon="edit"
-            label="Check in now"
-            sublabel={
-              lastReading
-                ? `Last ${readingLine(lastReading.value, goal.unit, lastReading.taken_on, today)}`
-                : 'Nothing recorded yet'
-            }
-            showChevron
-            onPress={() => router.push({ pathname: '/habits/check-in', params: { goalId: goal.id } })}
-          />
-        ) : null}
       </SettingsSection>
 
       {/* Not a slogan on the wall: this is also shown at the one moment it is for, when an engine
@@ -251,7 +261,7 @@ export default function GoalScreen() {
       ) : null}
 
       <SettingsSection>
-        <SettingsRow icon="edit" label="Edit" showChevron onPress={() => router.push({ pathname: '/(tabs)/insights/goal/new', params: { id: goal.id } })} />
+        <SettingsRow icon="edit" label="Edit" showChevron onPress={() => router.push({ pathname: '/(tabs)/progress/goal/edit', params: { id: goal.id } })} />
         {goal.status === 'open' ? (
           <>
             {met ? <SettingsRow icon="check" label="Mark as reached" onPress={markReached} /> : null}

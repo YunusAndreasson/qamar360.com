@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Links } from '@/constants/links';
 import { useAuth } from '@/hooks/use-auth';
 import type { Habit } from '@/hooks/use-habits';
+import type { GoalReading } from '@/lib/goals';
 import type { Reading } from '@/lib/insights';
 import {
   parsePersonalizedInsight,
@@ -13,7 +14,7 @@ import { usePreference } from '@/lib/preferences';
 
 const API_ORIGIN = (process.env.EXPO_PUBLIC_API_URL ?? Links.website).replace(/\/$/, '');
 
-export function usePersonalizedInsight(reading: Reading, habits: Habit[]) {
+export function usePersonalizedInsight(reading: Reading, habits: Habit[], goals: GoalReading[]) {
   const { session } = useAuth();
   const hijriOffset = usePreference('hijriOffset');
   const [insight, setInsight] = useState<PersonalizedInsight | null>(null);
@@ -38,7 +39,7 @@ export function usePersonalizedInsight(reading: Reading, habits: Habit[]) {
             Authorization: `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(personalizedInsightRequest(reading, habits, hijriOffset)),
+          body: JSON.stringify(personalizedInsightRequest(reading, habits, goals, hijriOffset)),
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`Insight request failed (${response.status})`);
@@ -53,7 +54,7 @@ export function usePersonalizedInsight(reading: Reading, habits: Habit[]) {
       }
     })();
     return () => controller.abort();
-  }, [attempt, habits, hijriOffset, reading, session?.access_token]);
+  }, [attempt, goals, habits, hijriOffset, reading, session?.access_token]);
 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
   return {

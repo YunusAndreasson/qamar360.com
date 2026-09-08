@@ -93,12 +93,14 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
       {/* The exchange guide — the sibling of `stacking-info`, opened from the "New exchange" form. */}
       <Stack.Screen name="exchange-info" />
-      {/* Answering a check-in: one number, an optional note. A modal sheet with Cancel/Save in its
-          nav bar, like the editors — a reading is typed and committed, not picked. */}
-      <Stack.Screen name="check-in" options={modalHeaderOptions(theme)} />
-      {/* Setting one up: which goal asks, how often, and where it stands today. Presented the same
-          way, since it ends in a Save too. */}
-      <Stack.Screen name="check-in-new" options={modalHeaderOptions(theme)} />
+      {/* Answering a check-in: one number, an optional note. A `fitToContents` sheet rather than a
+          modal — it is one field, and a whole screen for one number reads as a form to be filled
+          in rather than as a question to be answered in passing. */}
+      <Stack.Screen name="check-in" options={formSheetOptions(theme)} />
+      {/* Setting a goal. It lives in this stack because the "+" sheet is its one door: a goal is
+          made where the day is, and it arrives on the day asking. Editing one is the same
+          component, mounted in the Progress stack where the goal is read. */}
+      <Stack.Screen name="goal-new" options={modalHeaderOptions(theme)} />
     </TabStack>
   );
 }

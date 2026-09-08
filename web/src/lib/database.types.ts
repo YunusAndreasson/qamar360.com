@@ -72,6 +72,74 @@ export type Database = {
           { foreignKeyName: "generated_insights_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] },
         ]
       }
+      goals: {
+        Row: {
+          check_in_days: number[]
+          check_in_from: string | null
+          check_in_hijri: Json | null
+          created_at: string | null
+          direction: string
+          horizon_on: string
+          id: string
+          if_then: string
+          milestone_step: number | null
+          obstacle: string
+          position: number
+          status: string
+          target_value: number
+          title: string
+          unit: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          check_in_days?: number[]
+          check_in_from?: string | null
+          check_in_hijri?: Json | null
+          created_at?: string | null
+          direction?: string
+          horizon_on: string
+          id?: string
+          if_then?: string
+          milestone_step?: number | null
+          obstacle?: string
+          position?: number
+          status?: string
+          target_value: number
+          title: string
+          unit: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          check_in_days?: number[]
+          check_in_from?: string | null
+          check_in_hijri?: Json | null
+          created_at?: string | null
+          direction?: string
+          horizon_on?: string
+          id?: string
+          if_then?: string
+          milestone_step?: number | null
+          obstacle?: string
+          position?: number
+          status?: string
+          target_value?: number
+          title?: string
+          unit?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_completions: {
         Row: {
           completed_at: string

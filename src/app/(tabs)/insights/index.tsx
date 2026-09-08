@@ -7,7 +7,6 @@ import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
-import { CompletionRing } from '@/components/completion-ring';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { MoonPhase } from '@/components/moon-phase';
@@ -17,11 +16,9 @@ import { ReadingCard, readingDaysLabel, readingMoonBrightness, readingSpanLabel 
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useGoals } from '@/hooks/use-goals';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
-import { goalMeta, type GoalReading } from '@/lib/goals';
 import { latestReadingId, type Reading } from '@/lib/insights';
 import { setPreference } from '@/lib/preferences';
 
@@ -103,91 +100,9 @@ function byMonth(readings: Reading[]): { key: string; label: string; readings: R
  * to Progress; putting it here made the clock visually outrank the thing this tab is for.
  */
 
-/**
- * One goal, as a line — deliberately the same line a reading is.
- *
- * This was a `SettingsRow`: the component the Settings screen is built from, with no leading mark
- * at all. Structurally it was already a reading row minus its mark — title, quiet meta, chevron —
- * so on the one tab where every other row leads with a moon, the goals read as a settings card
- * that had wandered in. Same skeleton, borrowed from the wrong screen.
- *
- * So it is built here instead, off the same `styles.row` {@link ReadingRow} uses, and it leads
- * with the mark this app spends on a unit of practice: the completion ring from the stack cards,
- * at the moons' 26pt. Binary, like the moons' own brightness beside it — a reading's moon is not a
- * gauge either; it is lit or at rest. There is no honest fractional fill to draw here anyway: a
- * `down` goal's `earned` is a POSITION, not a sum (82.4 kg), so `earned / target` would picture a
- * goal as nearly finished the moment it started. The distance stays in the meta line, which
- * {@link goalMeta} already words correctly for both directions.
- */
-function GoalRow({ reading, today }: { reading: GoalReading; today: string }) {
-  const theme = useTheme();
-  const met = reading.goal.status === 'reached' || reading.met;
-  return (
-    <Touchable
-      onPress={() => router.push({ pathname: '/(tabs)/insights/goal/[id]', params: { id: reading.goal.id } })}
-      androidRipple={{ color: theme.backgroundSelected }}
-      underlayColor={theme.backgroundSelected}
-      activeUnderlayOpacity={1}
-      accessibilityRole="button"
-      accessibilityLabel={`${reading.goal.title}. ${goalMeta(reading, today)}`}
-      accessibilityHint="Opens the goal"
-      style={styles.row}>
-      <CompletionRing complete={met} size={26} strokeWidth={2} />
-      <View style={styles.rowText}>
-        <ThemedText type="rowTitle" numberOfLines={2}>
-          {reading.goal.title}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {goalMeta(reading, today)}
-        </ThemedText>
-      </View>
-      <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
-    </Touchable>
-  );
-}
-
-/**
- * The goals, above the record.
- *
- * They sit on this tab because a goal is the same question the readings answer, asked forward:
- * this is where the record is read for what it means, and a horizon is a meaning the record is
- * being held to. It sits ABOVE the feed because it is the only thing on the screen that is about
- * a month still being lived — everything below it is closed and finished.
- *
- * Hidden entirely when there are none. A goal is not chrome the app owes you; it is something you
- * set, and until you have, the tab is exactly what it was — which is now literally true: the way
- * to set one is a glyph in the header, so an empty goals list costs the screen nothing at all.
- *
- * It carries no "Set a goal" row of its own any more. With a `+` fixed in the header, a second
- * door inches below it was the last Settings-shaped thing in the card — and without it this
- * section is exactly what a month of the archive below is: a titled card of rows.
- */
-function Goals({ live, today }: { live: GoalReading[]; today: string }) {
-  if (live.length === 0) return null;
-  return (
-    <SettingsSection title="GOALS">
-      {live.map((reading) => (
-        <GoalRow key={reading.goal.id} reading={reading} today={today} />
-      ))}
-    </SettingsSection>
-  );
-}
-
 export default function InsightsScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, readings, goals, today } = useProgress();
-  const { refresh: refreshGoals, error: goalsError, dismissError: dismissGoalsError } = useGoals();
-  const { refreshControl } = usePullToRefresh(() => Promise.all([refresh(), refreshGoals()]));
-
-  // Re-read the goals whenever this tab comes forward — the same rule the plans list follows.
-  // A goal set from the composer lands in the provider, but this screen is one of several holding
-  // its own `useProgress` instance, and a goal is also the one row here that another surface can
-  // change while the tab sits mounted behind a modal. Re-reading on focus makes the list correct
-  // by construction rather than by trusting a propagation path.
-  useFocusEffect(
-    useCallback(() => {
-      void refreshGoals();
-    }, [refreshGoals]),
-  );
+  const { loading, error, dismissError, refresh, habitsCount, month, readings, today } = useProgress();
+  const { refreshControl } = usePullToRefresh(refresh);
 
   // Looking at the tab IS reading it — stamp the quarter that has closed, and the tab bar's dot
   // goes out. Stamped from the calendar rather than from `readings[0]`, so the "no quarter has
@@ -254,27 +169,14 @@ export default function InsightsScreen() {
   // dressed as a finding.
   const closed = readings.filter((r) => r.closed);
   const [newest, ...earlier] = closed;
-  // A goal you have put down keeps its record but leaves the list: it is asking nothing of this
-  // month, and a list of live goals is only useful if everything on it is live. Resolved here
-  // rather than inside `Goals` because the record below also needs to know whether there is
-  // anything above it to be set off from.
-  const liveGoals = goals.filter((reading) => reading.goal.status !== 'released');
-
   return (
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
-      <ErrorBanner message={goalsError} onDismiss={dismissGoalsError} />
-
-      <Goals live={liveGoals} today={today} />
 
       {/* The record, as one region: the newest finding and the archive behind it are both about
-          months that are closed, and the goals above are the one thing here that is not. The gaps
-          used to say the opposite — the SMALLEST break on the screen fell between the goals card
-          and the newest reading, the two most unlike things on it, while the archive got a double
-          one. The break moves up here so the screen reads goals | record, and the archive keeps
-          its own break inside that so it still reads as a back-catalogue and not as a peer of the
-          newest finding. Only when there are goals to be set off from. */}
-      <View style={[styles.region, liveGoals.length > 0 && styles.afterGoals]}>
+          months that are closed, and the archive keeps its own break inside that so it still reads
+          as a back-catalogue rather than as a peer of the newest finding. */}
+      <View style={styles.region}>
         {newest ? (
           <>
             <ReadingCard reading={newest} onPress={() => router.push({ pathname: '/(tabs)/insights/[id]', params: { id: newest.id } })} />
@@ -318,10 +220,8 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, gap: Spacing.half },
   // The closed record — the newest reading and the archive under it — spaced like AppScreen's own
-  // children, since it now stands between them and the screen.
+  // children, since it is the whole of the screen below the banner.
   region: { gap: Spacing.three },
-  // Set off from the goals card above. Rides on top of AppScreen's own 16pt child gap.
-  afterGoals: { marginTop: Spacing.three },
   // The back-catalogue, as one region. `marginTop` rides on top of `region`'s 16pt gap.
   record: { gap: Spacing.three, marginTop: Spacing.three },
 });

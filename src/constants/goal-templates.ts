@@ -1,3 +1,4 @@
+import type { CadenceKey } from '@/lib/check-ins';
 import type { MomentKey } from '@/lib/moments';
 
 /**
@@ -125,3 +126,19 @@ export const HORIZON_SPANS: { months: number; label: string }[] = [
   { months: 119, label: '10 years' },
   { months: 239, label: '20 years' },
 ];
+
+/**
+ * The cadence a template's goal starts asking on.
+ *
+ * A template that brings contributing acts already reports every day — the tick on "Memorised the
+ * new lines" is the measurement. Its check-in is not there to collect the number a second time but
+ * to **re-base** the sum against where the muṣḥaf actually stands, which is a thing worth doing
+ * four times a month and absurd to do four times a week. So it lands on the moon quarters, the
+ * same grid the readings publish on.
+ *
+ * A goal no act produces has nothing else reporting it: the check-in IS the measurement, and a
+ * week is the shortest span over which a weight or a page count says anything that is not noise.
+ */
+export function defaultCadenceFor(template: GoalTemplate): CadenceKey {
+  return template.acts.some((act) => act.contributes) ? 'quarter' : 'weekly';
+}

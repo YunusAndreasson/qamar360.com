@@ -1,10 +1,32 @@
 export const INSIGHT_MODEL = '@cf/google/gemma-4-26b-a4b-it' as const
-export const INSIGHT_PROMPT_VERSION = 2
+export const INSIGHT_PROMPT_VERSION = 3
 
 export type QuarterHabitMetric = {
   id: string
   earned: number
   possible: number
+}
+
+/**
+ * One open goal, as numbers only — the title and the unit are read from the database here, exactly
+ * as habit names are. `earned` is a position for a falling goal and a sum for a climbing one, which
+ * is why `direction` travels with it: without that flag "82.4 of 75" is unreadable.
+ */
+export type GoalMetric = {
+  id: string
+  target: number
+  direction: 'up' | 'down'
+  earned: number
+  remaining: number
+  /** What this lunar month asks for, fixed at its start. `null` once the goal is met or unmeasured. */
+  quota: number | null
+  quotaRemaining: number | null
+  monthsLeft: number
+  /** The mean of the last closed months. `null` means no closed month yet — not zero. */
+  pace: number | null
+  measured: boolean
+  met: boolean
+  overdue: boolean
 }
 
 export type InsightRequest = {
@@ -21,6 +43,9 @@ export type InsightRequest = {
     previous: { earned: number; possible: number; rate: number } | null
     habits: QuarterHabitMetric[]
   }
+  /** Absent on app builds older than this endpoint, which is why it is not optional here: it is
+   *  normalised to an empty list rather than rejected, so an old client keeps getting insights. */
+  goals: GoalMetric[]
 }
 
 export type GeneratedInsight = {
@@ -43,6 +68,50 @@ function metric(value: unknown) {
   if (!item || !finite(item.earned, 0, 100_000) || !finite(item.possible, 0, 100_000)) return null
   if (!finite(item.rate, 0, 1)) return null
   return { earned: item.earned as number, possible: item.possible as number, rate: item.rate as number }
+}
+
+/** A measure, a count of months, a pace — all of them bounded, none of them free text. */
+const MEASURE_LIMIT = 10_000_000
+
+const measure = (value: unknown) => finite(value, -MEASURE_LIMIT, MEASURE_LIMIT)
+const nullableMeasure = (value: unknown) => value === null || measure(value)
+
+/**
+ * The open goals, validated the way `reading.habits` is: bounded numbers, unique ids, a hard cap
+ * on how many. Absent is empty — an app built before this field existed must keep working — but
+ * anything PRESENT and malformed is a rejection, because a half-read goal in the prompt is worse
+ * than no goal at all.
+ */
+function goalMetrics(value: unknown): GoalMetric[] | null {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value) || value.length > 50) return null
+  const goals: GoalMetric[] = []
+  const ids = new Set<string>()
+  for (const raw of value) {
+    const item = record(raw)
+    if (!item || typeof item.id !== 'string' || item.id.length > 80 || ids.has(item.id)) return null
+    if (item.direction !== 'up' && item.direction !== 'down') return null
+    if (!finite(item.target, 0, MEASURE_LIMIT) || !measure(item.earned) || !finite(item.remaining, 0, MEASURE_LIMIT)) return null
+    if (!nullableMeasure(item.quota) || !nullableMeasure(item.quotaRemaining) || !nullableMeasure(item.pace)) return null
+    if (!finite(item.monthsLeft, 0, 1000)) return null
+    if (typeof item.measured !== 'boolean' || typeof item.met !== 'boolean' || typeof item.overdue !== 'boolean') return null
+    ids.add(item.id)
+    goals.push({
+      id: item.id,
+      target: item.target as number,
+      direction: item.direction,
+      earned: item.earned as number,
+      remaining: item.remaining as number,
+      quota: item.quota as number | null,
+      quotaRemaining: item.quotaRemaining as number | null,
+      monthsLeft: item.monthsLeft as number,
+      pace: item.pace as number | null,
+      measured: item.measured,
+      met: item.met,
+      overdue: item.overdue,
+    })
+  }
+  return goals
 }
 
 function isoDay(iso: string) {
@@ -116,6 +185,8 @@ export function parseInsightRequest(value: unknown, routeReadingId: string, now 
   if (Math.abs(earned - quarter.earned) > 1e-6 || Math.abs(possible - quarter.possible) > 1e-6) return null
   const expectedRate = possible > 0 ? earned / possible : 0
   if (Math.abs(expectedRate - quarter.rate) > 1e-6) return null
+  const goals = goalMetrics(root?.goals)
+  if (goals === null) return null
   return {
     calendar: {
       hijriOffset: calendar.hijriOffset as -2 | -1 | 0 | 1 | 2,
@@ -138,6 +209,7 @@ export function parseInsightRequest(value: unknown, routeReadingId: string, now 
       previous,
       habits,
     },
+    goals,
   }
 }
 

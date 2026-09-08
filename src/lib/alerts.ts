@@ -74,3 +74,30 @@ export function confirmAgainstPlan({ plan, onSkip }: { plan: string; onSkip: () 
     { text: 'I’ll do that', style: 'cancel' },
   ]);
 }
+
+/**
+ * A plain two-button confirm for a choice that is consequential but not destructive — nothing is
+ * deleted, and the second button therefore wears no destructive tint.
+ *
+ * It exists for the one decision in the app that cannot be taken back by any other screen: the
+ * first reading on a goal settles which way its measure travels, and a typo'd digit turns a
+ * climbing goal into a falling one that reads "Reached" with its milestones marching below zero.
+ * Nothing about that is damage, so `confirmDestructive` would be the wrong dialog; it is simply
+ * a door that only opens one way, and doors like that are worth naming before you walk through.
+ */
+export function confirmProceed({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+}) {
+  Alert.alert(title, message, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: confirmLabel, onPress: onConfirm },
+  ]);
+}
