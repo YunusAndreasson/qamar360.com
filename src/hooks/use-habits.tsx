@@ -185,10 +185,14 @@ type HabitsContextValue = {
   sealStack: (stackId: string) => Promise<void>;
   /** Re-open a sealed stack: delete `viewDate`'s rows for exactly the acts a seal writes. */
   unsealStack: (stackId: string) => Promise<void>;
-  /** Tick a **stackless** habit for `viewDate`, or take it back — the app's second completion
-   *  gesture, and the only per-habit one. Serves both things that stand on their own: an exchange
-   *  (see `lib/exchange.ts`) and a plain habit with no stack. A no-op on one that is excused today.
-   *  Acts inside a stack are completed by its seal instead, never by this. */
+  /** Tick one act **inside a stack** for `viewDate`, or take it back. The per-act half of the
+   *  stack's completion: ticking the last open act seals the stack exactly as {@link sealStack}
+   *  would, and the header ring fills to the share done meanwhile. A no-op on an excused act. */
+  toggleAct: (habitId: string) => Promise<void>;
+  /** Tick a **stackless** habit for `viewDate`, or take it back. Serves both things that stand on
+   *  their own: an exchange (see `lib/exchange.ts`) and a plain habit with no stack. A no-op on one
+   *  that is excused today. Acts inside a stack go through {@link toggleAct} instead — same write,
+   *  but the group above them has a seal to reach and a beat of its own to fire. */
   toggleLoose: (habitId: string) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
@@ -755,9 +759,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   /**
    * Seal a stack: mark every act it has due on the viewed day done, in one write.
    *
-   * This is the app's only completion gesture. Acts are read, not ticked — so what the user
-   * asserts is that the *group* happened, and the per-act rows underneath are simply how it's
-   * recorded (which is why Progress, streaks and Stats need to know nothing about stacks).
+   * The fast path through a stack, for the morning you simply did the lot: what the user asserts is
+   * that the *group* happened, and the per-act rows underneath are simply how it's recorded (which
+   * is why Progress, streaks and Stats need to know nothing about stacks). Working through the acts
+   * one at a time ({@link runToggleAct}) writes the identical rows and reaches the identical sealed
+   * state — this only gets there in one tap.
    *
    * Excused acts are left out entirely; acts already done are left untouched, so an unseal
    * restores precisely what this seal wrote. A count goal has no partial state to reach any
@@ -885,14 +891,115 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   const unsealStack = useGuardedMutation(completionGuard.begin, completionGuard.end, runUnsealStack);
 
   /**
+   * Tick one act inside a stack for the viewed day, or take it back.
+   *
+   * Acts were once read-only — the stack was the unit, and its seal the only way to complete
+   * anything in it. `ActRow`'s doc has the argument for why that had to change; what matters here
+   * is that the *write* is unchanged by it. This lands the same ordinary `done` row the seal writes,
+   * one at a time instead of all at once, so Progress, streaks and Stats still know nothing about
+   * stacks — and a count goal is logged at its full target, because ticking the act asserts the
+   * whole deed exactly as sealing the group does.
+   *
+   * **The last open act seals the stack**, with no separate write: `isStackComplete` reads the very
+   * rows this puts down, so the card's ring closes, its border flashes and it folds itself away the
+   * moment the final tick lands. The only thing that needs saying out loud is what it should *feel*
+   * like — a tick that closes the group borrows the seal's rounder tail beat, one that leaves acts
+   * standing gets the single crisp confirm.
+   */
+  const runToggleAct = useCallback(
+    async (habitId: string) => {
+      if (!userId) return;
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      if (pending.current.has(habitId)) return; // ignore double-taps
+      // Excused today: there is nothing to assert. The row renders inert, but a mid-flight skip
+      // could still land a tap here, and writing a 'done' over a 'skipped' would silently undo it.
+      if (skippedRef.current.has(habitId)) return;
+
+      const act = habitsRef.current.find((h) => h.id === habitId);
+      if (!act) return;
+
+      const day = viewDateRef.current;
+      const wasDone = completedRef.current.has(habitId);
+      const prevCount = countsRef.current.get(habitId);
+      pending.current.add(habitId);
+
+      setCompleted((prev) => {
+        const next = new Set(prev);
+        if (wasDone) next.delete(habitId);
+        else next.add(habitId);
+        return next;
+      });
+      // The seal's own rule for a count goal, applied to one act: there is no partial state to
+      // reach any more, so a tick logs the whole target and taking it back clears it again.
+      setCounts((prev) => {
+        const next = new Map(prev);
+        if (wasDone || act.target_count == null) next.delete(habitId);
+        else next.set(habitId, act.target_count);
+        return next;
+      });
+
+      if (wasDone) {
+        haptics.uncompleted();
+      } else {
+        // Whether this tick is the one that finishes the group. Membership resolved through
+        // `sealableActs`, the same way the seal resolves it, so the beat that fires and the sealed
+        // look the card computes can never disagree about what just happened. `completedRef` is
+        // mirrored in an effect and so does not yet hold this tick — hence the explicit id.
+        const sealsStack =
+          !!act.stack_id &&
+          sealableActs(habitsRef.current, skippedRef.current, act.stack_id, day).every(
+            (h) => h.id === habitId || completedRef.current.has(h.id),
+          );
+        const res = sealsStack
+          ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day)
+          : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+      }
+
+      try {
+        if (wasDone) await deleteCompletion(habitId, day);
+        else
+          await upsertCompletion({
+            habit_id: habitId,
+            user_id: userId,
+            completed_at: day,
+            status: 'done',
+            count: act.target_count ?? null,
+          });
+      } catch {
+        // The day may have changed mid-flight; only roll back if we're still on it.
+        if (viewDateRef.current === day) {
+          setCompleted((prev) => {
+            const next = new Set(prev);
+            if (wasDone) next.add(habitId);
+            else next.delete(habitId);
+            return next;
+          });
+          setCounts((prev) => {
+            const next = new Map(prev);
+            if (prevCount == null) next.delete(habitId);
+            else next.set(habitId, prevCount);
+            return next;
+          });
+        }
+        setError(UPDATE_ERROR);
+      } finally {
+        pending.current.delete(habitId);
+      }
+    },
+    [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
+  );
+  const toggleAct = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleAct);
+
+  /**
    * Tick a stackless habit for the viewed day, or take it back — an exchange, or a plain habit
    * that belongs to no stack.
    *
-   * The app's other completion gesture is the stack seal, and deliberately so: a stack is one
-   * performance, and ticking its parts separately is busywork. Neither of these is part of a
-   * sequence — each is a separate claim about the day — so each gets its own tick, and doing two of
-   * three still counts for two. All-or-nothing here would turn one slip into a lost day, which is
-   * precisely the dynamic (Marlatt's abstinence-violation effect) an exchange exists to avoid.
+   * Neither of these belongs to a sequence — each is a separate claim about the day — so each gets
+   * its own tick, and doing two of three still counts for two. All-or-nothing would turn one slip
+   * into a lost day, which is precisely the dynamic (Marlatt's abstinence-violation effect) an
+   * exchange exists to avoid. The same argument now runs inside a stack too, one level down: see
+   * {@link runToggleAct}, which is this write with a group above it to seal.
    *
    * An unanchored habit was not always tickable, and that was a bug rather than a rule:
    * `dayCloseAfter` counts every scheduled, unexcused habit, so one with no way to complete it held
@@ -1815,6 +1922,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       createHabits,
       sealStack,
       unsealStack,
+      toggleAct,
       toggleLoose,
       skipHabit,
       updateHabit,
@@ -1846,6 +1954,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     createHabits,
     sealStack,
     unsealStack,
+    toggleAct,
     toggleLoose,
     skipHabit,
     updateHabit,

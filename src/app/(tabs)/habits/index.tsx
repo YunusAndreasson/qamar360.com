@@ -93,6 +93,7 @@ type StackEntryProps = {
   settling: boolean;
   onSeal: (stackId: string) => void;
   onUnseal: (stackId: string) => void;
+  onToggleAct: (habit: Habit) => void;
   onAct: (habit: Habit) => void;
   onEditStack: (stackId: string) => void;
   onMove: (stackId: string, delta: -1 | 1) => void;
@@ -112,6 +113,7 @@ function StackEntryBase({
   settling,
   onSeal,
   onUnseal,
+  onToggleAct,
   onAct,
   onEditStack,
   onMove,
@@ -138,6 +140,7 @@ function StackEntryBase({
         settling={settling}
         onSeal={onSeal}
         onUnseal={onUnseal}
+        onToggleAct={onToggleAct}
         onAct={onAct}
         onEditStack={onEditStack}
         onMove={onMove}
@@ -165,6 +168,7 @@ const StackEntry = memo(StackEntryBase, (prev, next) => {
     prev.settling !== next.settling ||
     prev.onSeal !== next.onSeal ||
     prev.onUnseal !== next.onUnseal ||
+    prev.onToggleAct !== next.onToggleAct ||
     prev.onAct !== next.onAct ||
     prev.onEditStack !== next.onEditStack ||
     prev.onMove !== next.onMove ||
@@ -205,6 +209,7 @@ export default function HabitsScreen() {
     isToday,
     sealStack,
     unsealStack,
+    toggleAct,
     toggleLoose,
     moveHabit,
     createStack,
@@ -473,12 +478,17 @@ export default function HabitsScreen() {
   const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
 
 
-  // Tapping an act opens its sheet: acts are read rather than ticked, so a tap means *inspect*
-  // (skip today, insights, edit, move) and the card's seal is what completes.
+  // An act's `⋯` opens its sheet — skip today, insights, edit, move. Its *tap* ticks it (below):
+  // the row is a checkbox, so the things you can do TO an act live behind the trailing door the
+  // rest of the day already uses for exactly that.
   const openAct = useCallback(
     (habit: Habit) => router.push({ pathname: '/habits/act-actions', params: { habitId: habit.id } }),
     [router],
   );
+
+  // Ticking one act of a stack. Stable across renders like `tickLoose` below, or every act row's
+  // memo comparator would fail on each of the screen's many re-renders.
+  const tickAct = useCallback((habit: Habit) => void toggleAct(habit.id), [toggleAct]);
 
   // A check-in is answered with a number, so the row opens a field rather than ticking. The viewed
   // day rides along: stepping back to a day and correcting what was recorded then has to write to
@@ -838,6 +848,7 @@ export default function HabitsScreen() {
                       settling={completionsLoading}
                       onSeal={sealStack}
                       onUnseal={unsealStack}
+                      onToggleAct={tickAct}
                       onAct={openAct}
                       onEditStack={openStackActions}
                       onMove={moveStackForA11y}
@@ -934,7 +945,8 @@ function HabitsDragGhost({
             ordinal={stack.members.filter((m) => !skipped.has(m.id)).findIndex((m) => m.id === habitId) + 1}
             done={completed.has(member.id)}
             skipped={skipped.has(member.id)}
-            onPress={noop}
+            onToggle={noop}
+            onOptions={noop}
           />
         </Surface>
       </DragGhost>
@@ -951,6 +963,7 @@ function HabitsDragGhost({
         skipped={skipped}
         onSeal={noop}
         onUnseal={noop}
+        onToggleAct={noop}
         onAct={noop}
         onEditStack={noop}
         expanded={expandedIds.has(entry.stack.id)}

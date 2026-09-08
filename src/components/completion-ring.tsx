@@ -11,7 +11,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Duration, Tick } from '@/constants/motion';
 import { useTheme } from '@/hooks/use-theme';
-import { ringMetrics } from '@/lib/progress';
+import { clamp01, ringMetrics } from '@/lib/progress';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -30,9 +30,16 @@ const checkLengthFor = (size: number) =>
  * lunar-phase (calendar) idea; "done" is a different idea, so the two are kept apart: the Progress
  * grid carries the moons, the day carries this ring.
  *
- * Worn by the two things the app actually tracks — a stack card's header (sealing the sequence)
- * and an exchange row (holding the deed) — so both commits read as the same gesture in the same
- * column, whatever their unit.
+ * Worn by everything the app tracks — a stack card's header, an act inside it, an exchange row, a
+ * to-do — so every commit reads as the same gesture in the same column, whatever its unit. Inside a
+ * stack the mark is drawn smaller for the acts than for the header above them, and that size
+ * difference is the whole hierarchy: the parts are smaller than the sum.
+ *
+ * **It also fills.** A ring given a `fraction` rests part-drawn, the accent arc showing exactly how
+ * much of the group is done — a stack of ten with five ticked is a half-filled ring. Progress you
+ * can see is the point (Norman's visibility of system status): the mark answers "how far in am I"
+ * before you have unfolded anything, and each act you tick advances it on the seal's own sweep
+ * clock, so a tick and a seal are visibly the same motion at different lengths.
  *
  * Open is a hollow ring in `text` — the same tone as the title it sits beside, so an unfinished unit
  * reads as one bright thing (the row's press highlight shows through it). At rest, done does NOT
@@ -57,12 +64,19 @@ const checkLengthFor = (size: number) =>
  */
 export function CompletionRing({
   complete,
+  fraction,
   size,
   strokeWidth,
   settling = false,
 }: {
-  /** Done for the viewed day — a stack sealed, or an exchange held. */
+  /** Done for the viewed day — a stack sealed, an act ticked, or an exchange held. */
   complete: boolean;
+  /**
+   * How much of the ring stands filled while it is NOT complete (0–1) — a group's parts done over
+   * its parts in play. Omitted on a binary mark, which is only ever empty or shut; `complete`
+   * always wins, so a sealed ring is full whatever this says.
+   */
+  fraction?: number;
   size: number;
   strokeWidth: number;
   /**
@@ -75,7 +89,10 @@ export function CompletionRing({
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  const { radius, ringRadius, circumference } = ringMetrics(size, strokeWidth, complete ? 1 : 0);
+  // Where the arc rests. A complete mark is full by definition, so `fraction` only ever speaks
+  // for the in-between.
+  const target = complete ? 1 : clamp01(fraction ?? 0);
+  const { radius, ringRadius, circumference } = ringMetrics(size, strokeWidth, target);
   const checkPath = checkPathFor(size);
   const checkLength = checkLengthFor(size);
 
@@ -84,7 +101,7 @@ export function CompletionRing({
   //   checkDraw — how much of the check is drawn (0 hidden → 1 full)
   //   flash     — the lit accent layer's opacity (arc + drawing check)
   //   quiet     — the muted done layer's opacity (closed ring + check at rest)
-  const progress = useSharedValue(complete ? 1 : 0);
+  const progress = useSharedValue(target);
   const checkDraw = useSharedValue(complete ? 1 : 0);
   const flash = useSharedValue(complete ? 0 : 1);
   const quiet = useSharedValue(complete ? 1 : 0);
@@ -93,6 +110,9 @@ export function CompletionRing({
   // at that state's rest, so the effect's early return is reached before anything animates —
   // cards that load already-sealed render settled.
   const wasComplete = useRef(complete);
+  // The arc's own last resting place, tracked beside `complete` so a partial move (one act of five
+  // ticked) is recognised as a change at all — `complete` does not budge for it.
+  const wasTarget = useRef(target);
   // A day-step blanks `complete` to `false` and re-fetches; `settling` covers that window. Reading
   // the PRIOR render's `settling` (not this one's) matters because the fetch's own commit can flip
   // `settling` back to `false` in the very same render that `complete` catches up — so a plain
@@ -100,10 +120,12 @@ export function CompletionRing({
   const wasSettling = useRef(settling);
   useEffect(() => {
     const was = wasComplete.current;
+    const from = wasTarget.current;
     const wasSettlingBefore = wasSettling.current;
     wasComplete.current = complete;
+    wasTarget.current = target;
     wasSettling.current = settling;
-    if (was === complete) return;
+    if (was === complete && from === target) return;
     // Two changes that must not be *performed*, only *landed*: Reduce Motion (the shape change
     // alone conveys completion) and a day-step's data catching up (`settling` — not a fresh
     // commit, so it gets no ceremony).
@@ -116,7 +138,7 @@ export function CompletionRing({
     // check, or a sealed one wearing an empty ring, with the greyed title beside it telling the
     // truth. Snap to the resting state instead, and the mark is right whichever day you land on.
     if (reduceMotion || settling || wasSettlingBefore) {
-      progress.set(complete ? 1 : 0);
+      progress.set(target);
       checkDraw.set(complete ? 1 : 0);
       flash.set(complete ? 0 : 1);
       quiet.set(complete ? 1 : 0);
@@ -135,13 +157,22 @@ export function CompletionRing({
       flash.set(withDelay(Tick.settleDelay, withTiming(0, { duration: Tick.settle })));
       return;
     }
-    // Un-done: no ceremony. The done mark dissolves fast and the empty ring is simply there again —
-    // an accent unwind from full would be a bright reverse-ceremony saying nothing.
-    checkDraw.set(0);
-    flash.set(1);
-    quiet.set(withTiming(0, { duration: Duration.fast }));
-    progress.set(0);
-  }, [complete, settling, reduceMotion, progress, checkDraw, flash, quiet]);
+    if (was) {
+      // Un-done: no ceremony. The done mark dissolves fast and what is still standing — nothing on
+      // a binary mark, the remaining acts on a group's — is simply there again. An accent unwind
+      // from full would be a bright reverse-ceremony saying nothing.
+      checkDraw.set(0);
+      flash.set(1);
+      quiet.set(withTiming(0, { duration: Duration.fast }));
+      progress.set(withTiming(target, { duration: Duration.fast }));
+      return;
+    }
+    // A part of the group moved and the group itself did not: the arc walks to its new length on
+    // the seal's own sweep clock, so ticking one act reads as the same motion as sealing all of
+    // them — just a shorter piece of it. No check, no flash, no haptic: nothing has been asserted
+    // about the group yet.
+    progress.set(withTiming(target, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }));
+  }, [complete, target, settling, reduceMotion, progress, checkDraw, flash, quiet]);
 
   // Zero-length dashes with round caps can render as a stray dot, so each stroke hides
   // itself entirely until it has any length to show.
@@ -149,7 +180,13 @@ export function CompletionRing({
     const p = progress.get();
     return {
       strokeDashoffset: circumference * (1 - p),
-      opacity: p < 0.004 ? 0 : flash.get(),
+      // `flash` alone would fade the arc out after every seal and leave a part-filled ring blank at
+      // rest — the arc is the only channel that says *how far in*, so it also has to survive on its
+      // own. `1 - quiet` is exactly that resting visibility: full while the ring is open or partly
+      // filled, gone once the muted done layer has taken over. The two are the same curve through
+      // the seal's cross-fade, so taking the larger changes nothing there and keeps the arc solid
+      // through an undo, where `quiet` is still on its way down.
+      opacity: p < 0.004 ? 0 : Math.max(flash.get(), 1 - quiet.get()),
     };
   });
   const flashCheckProps = useAnimatedProps(() => {

@@ -35,7 +35,9 @@ type Props = {
   onSeal: (stackId: string) => void;
   /** Re-open a sealed stack — fired by a tap on the header of a sealed one. */
   onUnseal: (stackId: string) => void;
-  /** Open one act's sheet (skip today / insights / edit / move). */
+  /** Tick one act for the viewed day, or take it back — fired by a tap on an act row. */
+  onToggleAct: (habit: Habit) => void;
+  /** Open one act's sheet (skip today / insights / edit / move) — the act row's `⋯`. */
   onAct: (habit: Habit) => void;
   /** Open the stack's sheet (add acts / insights / edit / delete) — the sibling of {@link onAct}. */
   onEditStack: (stackId: string) => void;
@@ -66,27 +68,35 @@ type Props = {
 };
 
 /**
- * A stack rendered as the thing the app actually tracks: an anchored, ordered sequence you read
- * until you know it, and seal in one tap once you've done the whole of it.
+ * A stack rendered as the thing the app tracks: an anchored, ordered sequence you can tick your way
+ * through, or seal in one tap once you've done the whole of it.
  *
- * **The header is the commit.** Tapping the card seals the stack; tapping a sealed one re-opens
- * it — one meaning in either state, so the tap never changes under the user. There is no button
- * at the foot: the stack is the only unit the app tracks, so the card *is* the checkbox — and the
+ * **The header is the whole group's commit.** Tapping the card seals the stack; tapping a sealed
+ * one re-opens it — one meaning in either state, so the tap never changes under the user. The
  * leading {@link CompletionRing} is where that reads, the ring sweeping shut around a check on the
  * seal. Underneath, sealing writes an ordinary done row per act (which is why Progress and
  * Stats need to know nothing about any of this).
  *
+ * **And that ring is now a gauge.** Each act inside the card ticks on its own (see {@link ActRow},
+ * which explains why it had to), and the header's mark fills to the share of them that are done:
+ * ten acts with five ticked is a half-filled ring, and the tenth tick seals the stack without
+ * anybody having to press the header at all. The sub-line says the same thing in figures ("5 of 10
+ * acts done"), because a proportion answers *roughly how far* at a glance and a number answers
+ * *exactly where* — and a folded card should be able to answer both. The seal survives as the fast
+ * path, for the morning you simply did the lot.
+ *
  * **Every stack is born folded**, and the trailing chevron unfolds it. Folded, the card is a
- * single bar carrying its mark, its name and — while its moment is the current one — the clock
- * that moment closes at, so a day reads as a short column of identical bars with one deadline in
- * it. Unfolding is for *reading* the sequence, which is the thing you do while you're still
- * learning it; it is not how you operate the card, and everything that *manages* the stack (the
- * "⋯") lives inside the fold, out of the way of the commit.
+ * single bar carrying its mark, its name, how far through it you are and — while its moment is the
+ * current one — the clock that moment closes at, so a day reads as a short column of identical bars
+ * with one deadline in it. Unfolding is for working through the sequence act by act, and for
+ * reading it while you are still learning it; everything that *manages* the stack (the "⋯") lives
+ * inside the fold, out of the way of the commit.
  *
  * In the Today grid the card takes part in the drag vocabulary: hold anywhere on it to lift and
  * reorder the whole stack, hold an act to move it within the sequence or into another stack.
- * On sealing, the border flashes ({@link StackCompleteFlash}) with a synced haptic, and the card
- * folds itself away a beat later — a finished stack recedes so the day's remaining work rises.
+ * On sealing — by the header, or by the last act being ticked — the border flashes
+ * ({@link StackCompleteFlash}) with a synced haptic, and the card folds itself away a beat later:
+ * a finished stack recedes so the day's remaining work rises.
  */
 function StackCardBase({
   stack,
@@ -96,6 +106,7 @@ function StackCardBase({
   settling = false,
   onSeal,
   onUnseal,
+  onToggleAct,
   onAct,
   onEditStack,
   onMove,
@@ -110,6 +121,12 @@ function StackCardBase({
   // The acts actually in play today — the excused drop out of the sequence the seal asserts
   // (the same rule `sealableActs` applies to the write, so the card and the row can't disagree).
   const openActs = members.filter((m) => !skipped.has(m.id));
+  // How much of the sequence stands done — the header ring's fill and the sub-line's count, which
+  // are the same fact told twice (a proportion you can see at a glance, a number you can read).
+  // Derived here rather than in a helper of its own: `isStackComplete` owns the *rule* for sealed
+  // and this is only the count behind it, over the very `openActs` that rule resolves.
+  const doneCount = openActs.reduce((n, m) => n + (completed.has(m.id) ? 1 : 0), 0);
+  const doneFraction = openActs.length === 0 ? 0 : doneCount / openActs.length;
   // The whole group sealed. Drives the one-shot border flash, the greyed header tone, the status
   // check and the auto-fold; the synced completion haptic is fired from the seal seam in use-habits.
   const stackComplete = isStackComplete(members, completed, skipped);
@@ -123,6 +140,7 @@ function StackCardBase({
     name: stack.name,
     memberCount: members.length,
     openCount: openActs.length,
+    doneCount,
     sealed: stackComplete,
     lit: momentNow,
     until: currentChapterUntil,
@@ -230,7 +248,16 @@ function StackCardBase({
               {header.mode === 'excused' ? (
                 <AppIcon name="skip" size={20} color={theme.textSecondary} />
               ) : (
-                <CompletionRing complete={stackComplete} size={24} strokeWidth={2} settling={settling} />
+                <CompletionRing
+                  complete={stackComplete}
+                  // The group's mark is the running total of the marks below it: two acts of five
+                  // ticked rests this arc at two fifths, and the fifth tick closes it. A stack
+                  // whose acts are still untouched is an empty ring exactly as before.
+                  fraction={doneFraction}
+                  size={24}
+                  strokeWidth={2}
+                  settling={settling}
+                />
               )}
             </View>
             <View style={styles.titleBlock}>
@@ -271,11 +298,13 @@ function StackCardBase({
                   <ActRow
                     habit={habit}
                     // Numbered over the acts actually in play, so an excused act doesn't
-                    // leave a hole in the sequence you're learning.
+                    // leave a hole in the sequence a screen reader is given.
                     ordinal={openActs.findIndex((m) => m.id === habit.id) + 1}
                     done={completed.has(habit.id)}
                     skipped={skipped.has(habit.id)}
-                    onPress={onAct}
+                    settling={settling}
+                    onToggle={onToggleAct}
+                    onOptions={onAct}
                     onMove={onMoveHabit}
                   />
                 </DraggableMemberRow>
@@ -411,6 +440,7 @@ function stackPropsEqual(a: Props, b: Props): boolean {
     a.settling !== b.settling ||
     a.onSeal !== b.onSeal ||
     a.onUnseal !== b.onUnseal ||
+    a.onToggleAct !== b.onToggleAct ||
     a.onAct !== b.onAct ||
     a.onEditStack !== b.onEditStack ||
     a.onMove !== b.onMove ||

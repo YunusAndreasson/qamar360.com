@@ -32,12 +32,15 @@ export type StackHeaderContract = {
   label: string;
   hint: string;
   /**
-   * The card's visible sub-line — what the folded bar hides, not how much of it is done.
+   * The card's visible sub-line: how long the sequence is, and — once any of it is done — how far
+   * through it you are.
    *
-   * There is deliberately no done-count here. An act inside a stack is not tickable (the header
-   * seals the whole group in one tap), so a "0 of 3 complete" line only ever held two values —
-   * "0 of 3" and "3 of 3" — and both of them are the ring beside it, said again in words. What
-   * the reader can't see on a folded card is how long the sequence is, so that is what it says.
+   * The count used to be deliberately absent, and rightly so while an act had no tick of its own:
+   * a done-count could then only ever read "0 of 3" or "3 of 3", which is the ring beside it said
+   * again in words. Now that each act ticks, every value in between is reachable, the number is the
+   * one thing the ring can only approximate, and a part-done stack that says nothing about it is
+   * hiding the reader's own progress from them. It stays silent at zero — "0 of 3" is the empty
+   * ring restated, and a day of untouched stacks should read as names, not as zeroes.
    */
   summary: string;
 };
@@ -50,6 +53,7 @@ export function stackHeaderContract({
   name,
   memberCount,
   openCount,
+  doneCount = 0,
   sealed,
   lit,
   until,
@@ -59,6 +63,9 @@ export function stackHeaderContract({
   memberCount: number;
   /** The acts actually in play today (excused ones dropped) — what a seal would assert. */
   openCount: number;
+  /** How many of those are already ticked. Defaults to none, so a caller that only cares about
+   *  the sealed/excused/empty split reads exactly as it did before acts became tickable. */
+  doneCount?: number;
   sealed: boolean;
   /** This stack's moment is the current one — the header carries its clock. */
   lit: boolean;
@@ -84,6 +91,12 @@ export function stackHeaderContract({
   // the deadline), so in practice this clause and a `checked` header don't co-occur — but the
   // contract simply reports what it's given.
   const moment = lit ? `, current time of day${until ? ` until ${until}` : ''}` : '';
+  // What the sub-line says, and — since it is exactly the same fact — what the label announces.
+  // Silent at zero: see `summary`'s doc.
+  const progress = doneCount > 0 ? `${doneCount} of ${acts(openCount)} done` : acts(openCount);
+  // What a tap on the header would still commit. On a part-done stack the seal finishes it, so
+  // promising "all 5" would name work already behind the reader.
+  const remaining = openCount - doneCount;
 
   if (openCount === 0) {
     return {
@@ -105,12 +118,14 @@ export function stackHeaderContract({
     // Neither ", sealed" nor ", collapsed" belongs here any more: sealed-ness is carried by
     // `checked` on this element and folded-ness by `expanded` on the chevron beside it. Saying
     // either in the label too would have a screen reader announce the state twice.
-    label: `${name} stack${moment}, ${acts(openCount)}`,
+    label: `${name} stack${moment}, ${progress}`,
     hint: sealed
       ? 'Re-opens the stack for today. Hold and drag to reorder it.'
-      : `Marks all ${acts(openCount)} done for today. Hold and drag to reorder it.`,
+      : doneCount > 0
+        ? `Marks the remaining ${acts(remaining)} done for today. Hold and drag to reorder it.`
+        : `Marks all ${acts(openCount)} done for today. Hold and drag to reorder it.`,
     // The acts a seal would assert — the excused ones are out of the sequence, so they are out
     // of this count too, exactly as they are out of the label above it.
-    summary: acts(openCount),
+    summary: progress,
   };
 }
