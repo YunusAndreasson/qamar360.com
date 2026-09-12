@@ -18,7 +18,13 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { scheduledActs, type Reading } from '@/lib/insights';
 import { PHASE_LABEL } from '@/lib/local-insight-job';
-import { insightModelState, refreshInsightModel, subscribeInsightModel } from '@/lib/local-insight-model';
+import {
+  cancelInsightDownload,
+  downloadInsightModel,
+  insightModelState,
+  refreshInsightModel,
+  subscribeInsightModel,
+} from '@/lib/local-insight-model';
 
 /** The only arithmetic left on a reading: two recognizable counts, compared directly. */
 function QuarterComparison({ reading }: { reading: Reading }) {
@@ -90,8 +96,7 @@ function DeeperReflection({
       />
       {!shown && !job ? (
         <ThemedText type="small" themeColor="textSecondary">
-          A model on this device reads this quarter’s records and generates a short reflection. Nothing is sent to a
-          server.
+          A model reads this quarter’s records and generates a short reflection. Nothing is sent to a server.
         </ThemedText>
       ) : null}
       {!snapshot ? (
@@ -175,15 +180,21 @@ function DeeperReflection({
           Cancel
         </AppButton>
       ) : model.busy ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Downloading the model: {Math.round(model.progress * 100)}%.
-        </ThemedText>
+        <>
+          <ThemedText type="small" themeColor="textSecondary">
+            Downloading the model: {Math.round(model.progress * 100)}%.
+          </ThemedText>
+          <AppButton variant="secondary" onPress={cancelInsightDownload}>
+            Cancel download
+          </AppButton>
+        </>
       ) : model.known && !model.ready ? (
         <>
           <ThemedText type="small" themeColor="textSecondary">
-            Generating needs a one-time 2.7 GB download of the model.
+            {model.error ?? 'Generating needs a one-time 2.7 GB download of the model.'}
           </ThemedText>
-          <AppButton onPress={() => router.push('/settings')}>Download in Settings</AppButton>
+          {/* Downloaded right here: a trip to Settings lands at the top of a long page. */}
+          <AppButton onPress={() => void downloadInsightModel()}>Download the model (2.7 GB)</AppButton>
         </>
       ) : (
         <AppButton onPress={generate} disabled={elsewhere || !snapshot || !model.ready}>
