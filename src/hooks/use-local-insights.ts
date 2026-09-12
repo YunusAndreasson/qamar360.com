@@ -125,9 +125,9 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
           };
         });
         if (notes.error)
-          setError('Journal entries could not be refreshed. This saved snapshot uses recorded metrics only.');
+          setError('Journal notes could not be refreshed, so a new version will use recorded habits only.');
       } catch {
-        if (!controller.signal.aborted) setError('Could not save this quarter for offline use.');
+        if (!controller.signal.aborted) setError('This quarter’s records could not be saved to this device.');
       }
     })();
     return () => controller.abort();

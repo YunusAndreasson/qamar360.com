@@ -46,8 +46,9 @@ const FILES = [
 const TOTAL = FILES.reduce((sum, f) => sum + f.size, 0);
 // Model files are replaceable and excluded from cloud backup by using the cache directory.
 const directory = `${FileSystem.cacheDirectory}insight-gemma-e20831dd/`;
-type ModelState = { ready: boolean; busy: boolean; progress: number; error: string | null };
-let state: ModelState = { ready: false, busy: false, progress: 0, error: null };
+// `known` turns true once the files have been checked, so a screen never shows "download" for a model that is there.
+type ModelState = { known: boolean; ready: boolean; busy: boolean; progress: number; error: string | null };
+let state: ModelState = { known: false, ready: false, busy: false, progress: 0, error: null };
 const listeners = new Set<() => void>();
 let downloadController: AbortController | null = null;
 let generating = false;
@@ -65,7 +66,7 @@ export function subscribeInsightModel(fn: () => void) {
 
 async function runtime() {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android')
-    throw new Error('Local generation is available in the iOS and Android apps.');
+    throw new Error('Reflections can only be generated in the iOS and Android apps.');
   try {
     // Lazy require keeps saved insights usable in an older development binary.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -74,7 +75,7 @@ async function runtime() {
     if (!api.getRegisteredBackends().includes('XnnpackBackend')) throw new Error('Missing backend');
     return api;
   } catch {
-    throw new Error('Local generation needs a new native app build with the inference runtime.');
+    throw new Error('This version of the app cannot generate reflections. Update the app to use it.');
   }
 }
 export async function refreshInsightModel() {
@@ -85,9 +86,9 @@ export async function refreshInsightModel() {
         return info.exists && info.size === f.size;
       }),
     );
-    publish({ ready: checks.every(Boolean) });
+    publish({ known: true, ready: checks.every(Boolean) });
   } catch {
-    publish({ ready: false });
+    publish({ known: true, ready: false });
   }
 }
 export function cancelInsightDownload() {
@@ -106,7 +107,7 @@ export async function downloadInsightModel() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const device = (require('react-native-device-info') as typeof DeviceInfo).default;
     if ((await device.getTotalMemory()) < 6 * 1024 ** 3)
-      throw new Error('This model requires a device with at least 6 GB of memory. Saved reflections remain available.');
+      throw new Error('Generating on this device needs at least 6 GB of memory. Saved reflections stay available.');
     if ((await FileSystem.getFreeDiskStorageAsync()) < TOTAL + 512 * 1024 ** 2)
       throw new Error('Free at least 3.2 GB of storage before downloading.');
     await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
@@ -185,7 +186,7 @@ export async function generateLocalInsight(
   try {
     checkInsightAbort(signal);
     await refreshInsightModel();
-    if (!state.ready) throw new Error('Download the local model in Settings first.');
+    if (!state.ready) throw new Error('Download the model in Settings first.');
     const api = await runtime();
     const paths = Object.fromEntries(FILES.map((f) => [f.key, (directory + f.name).replace('file://', '')])) as {
       modelPath: string;
@@ -199,7 +200,7 @@ export async function generateLocalInsight(
       prompt = insightPrompt(snapshot, history, true);
     if ((await tokenizer.encode(LOCAL_INSIGHT_SYSTEM + prompt)).length > 2800)
       throw new Error(
-        'These records exceed the local model’s context limit. Shorten long habit names or notes and retry.',
+        'This quarter has more records than the model can read at once. Shorten long habit names or notes and try again.',
       );
     tokenizer.dispose();
     tokenizer = undefined;
@@ -245,7 +246,7 @@ export async function generateLocalInsight(
       session = undefined;
       if (parsed) return parsed;
     }
-    throw new Error('The model could not produce a valid reflection. Your saved versions are unchanged.');
+    throw new Error('The model’s reply could not be used. Saved versions are unchanged.');
   } finally {
     signal.removeEventListener('abort', stop);
     session?.dispose();

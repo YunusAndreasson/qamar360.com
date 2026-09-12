@@ -77,7 +77,7 @@ it('streams a draft, saves the finished reflection and ends continued work as a 
   expect(seen.some((job) => job?.draft[0] === 'One sent' && job.background)).toBe(true);
   const fractions = seen.flatMap((job) => (job ? [job.fraction] : []));
   expect(fractions).toEqual([...fractions].sort((a, b) => a - b));
-  expect(mockWork.update).toHaveBeenLastCalledWith('Writing', fractions.at(-1));
+  expect(mockWork.update).toHaveBeenLastCalledWith('Generating', fractions.at(-1));
   expect(mockWork.end).toHaveBeenCalledWith(true);
   expect(reflectionJobState()).toEqual({ job: null, error: null });
 });
@@ -101,7 +101,7 @@ it('stops without saving, and says so, when the work is ended outside the app', 
   expect(reflectionJobState().error).toEqual({
     userId: 'user',
     readingId: READING,
-    message: 'Writing was stopped outside the app. Saved versions are unchanged.',
+    message: 'Generation was stopped outside the app. Saved versions are unchanged.',
   });
   expect(mockWork.end).toHaveBeenCalledWith(false);
 });
@@ -124,7 +124,7 @@ it('cancels on backgrounding only when the system would not keep the work runnin
   mockBegin = async () => null;
   await startReflection('user', READING);
   expect(mockArchive.versions).toHaveLength(0);
-  expect(reflectionJobState().error?.message).toBe('Writing stopped when you left the app. Saved versions are unchanged.');
+  expect(reflectionJobState().error?.message).toBe('Generation stopped when you left the app. Saved versions are unchanged.');
 
   mockBegin = async () => mockWork;
   await startReflection('user', READING);
@@ -178,7 +178,7 @@ it('fits a retry into the rest of the bar instead of rewinding it', async () => 
   expect(after[3]).toBeLessThanOrEqual(0.95);
 });
 
-it('names why it stopped when the app was cancelled from the screen or another account signed in', async () => {
+it('names why it stopped: the Cancel button, or another account signing in', async () => {
   mockGenerate.mockImplementation(async (_snapshot, _history, signal) => {
     await tick();
     if (signal.aborted) throw new Error('Generation cancelled.');
@@ -188,7 +188,7 @@ it('names why it stopped when the app was cancelled from the screen or another a
   cancelReflection('account');
   cancelReflection();
   await running;
-  expect(reflectionJobState().error?.message).toBe('Writing stopped because the account changed. Saved versions are unchanged.');
+  expect(reflectionJobState().error?.message).toBe('Generation stopped because the account changed. Saved versions are unchanged.');
 
   const again = startReflection('user', READING);
   cancelReflection();
@@ -219,7 +219,7 @@ it('reports a quarter that was never saved for offline use', async () => {
   mockArchive.snapshots = {};
   await startReflection('user', READING);
   expect(mockGenerate).not.toHaveBeenCalled();
-  expect(reflectionJobState().error?.message).toBe('Open this quarter online once to save its records.');
+  expect(reflectionJobState().error?.message).toBe('Go online once so this quarter’s records can be saved to this device.');
 });
 
 it('ends continued work that starts only after the reflection already finished', async () => {

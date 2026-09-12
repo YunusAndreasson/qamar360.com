@@ -312,12 +312,12 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection
-        title="Cloud insight privacy"
-        footer="When on, notes from a closed lunar quarter may shape that quarter’s deeper insight. Turning it off removes insights that used notes.">
+        title="Earlier cloud insights"
+        footer="Older versions of the app generated insights on a server. This version generates reflections on this device, so this setting only affects those older versions. Turning it off deletes the cloud insights that used your notes.">
         <SettingsRow
           icon="privacy"
-          label="Use daily notes in cloud insights"
-          sublabel={noteConsent.error ?? (noteConsent.loading ? 'Loading…' : 'Never quoted or used in notifications')}
+          label="Allow notes in cloud insights"
+          sublabel={noteConsent.error ?? (noteConsent.loading ? 'Loading…' : 'Used only by older versions of the app')}
           switchValue={noteConsent.enabled}
           onSwitchChange={(value) => void noteConsent.setEnabled(value)}
         />

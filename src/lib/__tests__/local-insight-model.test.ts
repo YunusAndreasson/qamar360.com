@@ -101,7 +101,7 @@ it('keeps the prompt out of the reply', async () => {
 });
 it('retries malformed output once in a fresh session and then fails', async () => {
   mockReply.mockResolvedValue({ messages: [{ role: 'assistant', content: 'invalid' }] });
-  await expect(generateLocalInsight(snapshot, [], new AbortController().signal)).rejects.toThrow('valid reflection');
+  await expect(generateLocalInsight(snapshot, [], new AbortController().signal)).rejects.toThrow('could not be used');
   expect(mockCreate).toHaveBeenCalledTimes(2);
   expect(mockDispose).toHaveBeenCalledTimes(2);
 });
@@ -129,7 +129,7 @@ it('supports React Native abort signals without throwIfAborted', async () => {
 });
 it('rejects oversized input before loading model weights', async () => {
   mockEncode.mockResolvedValue(new Array(2900).fill(1));
-  await expect(generateLocalInsight(snapshot, [], new AbortController().signal)).rejects.toThrow('context limit');
+  await expect(generateLocalInsight(snapshot, [], new AbortController().signal)).rejects.toThrow('read at once');
   expect(mockCreate).not.toHaveBeenCalled();
 });
 it('blocks a download on low-memory devices before requesting model files', async () => {

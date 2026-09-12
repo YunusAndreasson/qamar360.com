@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -18,6 +18,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { scheduledActs, type Reading } from '@/lib/insights';
 import { PHASE_LABEL } from '@/lib/local-insight-job';
+import { insightModelState, refreshInsightModel, subscribeInsightModel } from '@/lib/local-insight-model';
 
 /** The only arithmetic left on a reading: two recognizable counts, compared directly. */
 function QuarterComparison({ reading }: { reading: Reading }) {
@@ -44,6 +45,15 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
+const when = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+/**
+ * The reflection a model on this device generates from the quarter's saved records. The header
+ * names where the shown version was generated, because imported versions came from the cloud.
+ * "Generate" is the model's verb on every string here: Today's "Write today's reflection" is the
+ * person's own journal entry, and the two must not read as the same act.
+ */
 function DeeperReflection({
   reading,
   habits,
@@ -56,25 +66,41 @@ function DeeperReflection({
   live: boolean;
 }) {
   const theme = useTheme();
-  const { insight, versions, selected, select, generate, cancel, job, elsewhere, error, snapshot, history } = useLocalInsights(
+  const { insight, versions, selected, select, generate, cancel, job, elsewhere, error, snapshot } = useLocalInsights(
     reading,
     habits,
     goals,
     live,
   );
+  const model = useSyncExternalStore(subscribeInsightModel, insightModelState, insightModelState);
+  useEffect(() => {
+    void refreshInsightModel();
+  }, []);
   const [showVersions, setShowVersions] = useState(false);
   const percent = job ? Math.round(job.fraction * 100) : 0;
+  // While a new version is being generated, its draft takes the place of the saved one.
+  const shown = job ? null : insight;
+  const earlier = shown?.sourceIds.length ?? 0;
 
   return (
     <StatCard>
-      <StatCardHeader title="A deeper reflection" trailing={insight?.used_notes ? 'With your notes' : undefined} />
-      <ThemedText type="small" themeColor="textSecondary">
-        Generated on this device. Each new version can build on your earlier reflections.
-      </ThemedText>
-      {snapshot ? (
+      <StatCardHeader
+        title="Reflection"
+        trailing={shown?.origin === 'legacy' ? 'Generated in the cloud' : 'Generated on this device'}
+      />
+      {!shown && !job ? (
         <ThemedText type="small" themeColor="textSecondary">
-          Records saved {new Date(snapshot.capturedAt).toLocaleString()}
-          {live ? '' : ' · Using saved records'}
+          A model on this device reads this quarter’s records and generates a short reflection. Nothing is sent to a
+          server.
+        </ThemedText>
+      ) : null}
+      {!snapshot ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Go online once so this quarter’s records can be saved to this device.
+        </ThemedText>
+      ) : !live ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Offline. Using the records saved {when(snapshot.capturedAt)}.
         </ThemedText>
       ) : null}
       {error ? (
@@ -87,7 +113,7 @@ function DeeperReflection({
           style={styles.writing}
           accessible
           accessibilityRole="progressbar"
-          accessibilityLabel={PHASE_LABEL[job.phase]}
+          accessibilityLabel={`${PHASE_LABEL[job.phase]} on this device`}
           accessibilityValue={{ min: 0, max: 100, now: percent }}
         >
           <View style={styles.line}>
@@ -100,7 +126,7 @@ function DeeperReflection({
             <View style={[styles.fill, { width: `${percent}%`, backgroundColor: theme.accent }]} />
           </View>
           <ThemedText type="small" themeColor="textSecondary">
-            {job.background ? 'You can leave the app while it writes.' : 'Keep the app open until it finishes.'}
+            {job.background ? 'You can leave the app.' : 'Keep the app open until it finishes.'}
           </ThemedText>
         </View>
       ) : null}
@@ -113,10 +139,10 @@ function DeeperReflection({
           ))}
         </View>
       ) : null}
-      {insight && !job ? (
+      {shown ? (
         <>
           <View style={styles.paragraphs}>
-            {insight.paragraphs.map((paragraph, index) => (
+            {shown.paragraphs.map((paragraph, index) => (
               <ThemedText key={index}>{paragraph}</ThemedText>
             ))}
           </View>
@@ -124,74 +150,80 @@ function DeeperReflection({
             <ThemedText type="smallBold" themeColor="accent">
               NEXT QUARTER
             </ThemedText>
-            <ThemedText type="defaultSemiBold">{insight.next_step}</ThemedText>
+            <ThemedText type="defaultSemiBold">{shown.next_step}</ThemedText>
           </View>
-          {insight.evidence ? (
+          {shown.evidence ? (
             <View style={styles.evidence}>
               <ThemedText type="smallBold" themeColor="textSecondary">
-                FROM YOUR HABIT’S SOURCE
+                QUOTED FROM THE HABIT’S SOURCE
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {insight.evidence}
+                {shown.evidence}
               </ThemedText>
             </View>
           ) : null}
+          <ThemedText type="small" themeColor="textSecondary">
+            {shown.origin === 'legacy'
+              ? `Generated ${when(shown.generated_at)} by an earlier version of the app.`
+              : `Generated ${when(shown.generated_at)}${shown.used_notes ? ', using your journal notes' : ''}.`}
+            {earlier > 0 ? ` Builds on ${earlier} earlier ${earlier === 1 ? 'reflection' : 'reflections'}.` : ''}
+          </ThemedText>
         </>
-      ) : null}
-      {insight && !job ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          {new Date(insight.generated_at).toLocaleString()} ·{' '}
-          {insight.origin === 'legacy' ? 'Earlier cloud reflection' : 'On this device'}
-        </ThemedText>
-      ) : null}
-      {insight && !job && insight.sourceIds.length > 0 ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Builds on:{' '}
-          {insight.sourceIds
-            .map((id) => history.find((v) => v.id === id))
-            .filter((v) => v !== undefined)
-            .map((v) => `${v.reading_id} (${new Date(v.generated_at).toLocaleDateString()})`)
-            .join(', ')}
-        </ThemedText>
       ) : null}
       {job ? (
         <AppButton variant="secondary" onPress={cancel}>
           Cancel
         </AppButton>
+      ) : model.busy ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Downloading the model: {Math.round(model.progress * 100)}%.
+        </ThemedText>
+      ) : model.known && !model.ready ? (
+        <>
+          <ThemedText type="small" themeColor="textSecondary">
+            Generating needs a one-time 2.7 GB download of the model.
+          </ThemedText>
+          <AppButton onPress={() => router.push('/settings')}>Download in Settings</AppButton>
+        </>
       ) : (
-        <AppButton onPress={generate} disabled={elsewhere || !snapshot}>
+        <AppButton onPress={generate} disabled={elsewhere || !snapshot || !model.ready}>
           {insight ? 'Generate another version' : 'Generate reflection'}
         </AppButton>
       )}
       {elsewhere ? (
         <ThemedText type="small" themeColor="textSecondary">
-          Another quarter’s reflection is being written. This one can start when it finishes.
+          Another quarter’s reflection is being generated. This one can start when it finishes.
         </ThemedText>
       ) : null}
-      <AppButton variant="secondary" onPress={() => router.push('/settings')}>
-        Manage local model
-      </AppButton>
-      {versions.length > 1 ? (
+      {versions.length > 1 && !job ? (
         <AppButton variant="secondary" onPress={() => setShowVersions(!showVersions)}>
-          Previous versions ({versions.length})
+          Versions ({versions.length})
         </AppButton>
       ) : null}
-      {showVersions
-        ? versions.map((version, index) => (
-            <AppButton
-              key={version.id}
-              variant="secondary"
-              onPress={() => {
-                select(version.id);
-                setShowVersions(false);
-              }}
-              accessibilityLabel={`Version ${versions.length - index}, ${new Date(version.generated_at).toLocaleString()}${version.id === selected ? ', selected' : ''}`}
-            >
-              Version {versions.length - index} · {new Date(version.generated_at).toLocaleString()}
-              {version.id === selected ? ' · Selected' : ''}
-            </AppButton>
-          ))
+      {showVersions && !job
+        ? versions.map((version, index) => {
+            const label = `Version ${versions.length - index} · ${when(version.generated_at)}${version.origin === 'legacy' ? ' · cloud' : ''}`;
+            return (
+              <AppButton
+                key={version.id}
+                variant="secondary"
+                onPress={() => {
+                  select(version.id);
+                  setShowVersions(false);
+                }}
+                accessibilityLabel={`${label}${version.id === selected ? ', selected' : ''}`}
+              >
+                {label}
+                {version.id === selected ? ' · Selected' : ''}
+              </AppButton>
+            );
+          })
         : null}
+      {model.ready && !job ? (
+        <AppButton variant="secondary" onPress={() => router.push('/settings')}>
+          On-device settings
+        </AppButton>
+      ) : null}
     </StatCard>
   );
 }

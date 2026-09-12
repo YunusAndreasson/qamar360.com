@@ -18,11 +18,11 @@ import { readLocalInsights, subscribeLocalInsights, updateLocalInsights } from '
 // About how many tokens a finished reflection takes; a replay of the real model wrote 288. It only
 // scales the progress bar, and generation is never cut off at it.
 const EXPECTED_TOKENS = 320;
-const TITLE = 'Writing your reflection';
+const TITLE = 'Generating a reflection';
 export const PHASE_LABEL: Record<InsightProgress['phase'], string> = {
   loading: 'Loading the model',
   reading: 'Reading this quarter',
-  writing: 'Writing',
+  writing: 'Generating',
 };
 
 // Each phase owns a stretch of one attempt. Loading and reading report nothing while they run, so
@@ -41,10 +41,10 @@ const CEILING = 0.95;
 type StopReason = 'you' | 'outside' | 'left' | 'account' | 'settings';
 const STOPPED: Record<StopReason, string> = {
   you: 'Generation cancelled. Saved versions are unchanged.',
-  outside: 'Writing was stopped outside the app. Saved versions are unchanged.',
-  left: 'Writing stopped when you left the app. Saved versions are unchanged.',
-  account: 'Writing stopped because the account changed. Saved versions are unchanged.',
-  settings: 'Writing stopped because on-device insight settings changed.',
+  outside: 'Generation was stopped outside the app. Saved versions are unchanged.',
+  left: 'Generation stopped when you left the app. Saved versions are unchanged.',
+  account: 'Generation stopped because the account changed. Saved versions are unchanged.',
+  settings: 'Generation stopped because on-device settings changed.',
 };
 
 export type ReflectionJob = {
@@ -129,7 +129,7 @@ export async function startReflection(userId: string, readingId: string) {
   try {
     const archive = readLocalInsights(userId);
     const snapshot = archive.snapshots[readingId];
-    if (!snapshot) throw new Error('Open this quarter online once to save its records.');
+    if (!snapshot) throw new Error('Go online once so this quarter’s records can be saved to this device.');
     unsubscribe = subscribeLocalInsights(() => {
       if (readLocalInsights(userId).epoch !== archive.epoch) stop('settings');
     });
