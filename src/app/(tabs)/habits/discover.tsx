@@ -6,6 +6,7 @@ import { AppButton } from '@/components/app-button';
 import { DiscoverFilterChips, type Filter } from '@/components/discover-filter-chips';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
+import { headerNewAction } from '@/components/form-header-actions';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
@@ -48,11 +49,14 @@ const SectionGap = () => <View style={styles.gap} />;
 /**
  * Discover — a curated, evidence-backed library of SMART Sunnah habits. Search or filter to find
  * one fast, then add it with a single tap from the row (no need to expand first); expand a row to
- * read how it's tracked and its Sunnah source. The library leads with the categories, and "Create
- * your own" closes the list as a quiet row for the rarer from-scratch path. A native modal sheet of
- * the Habits Stack (from the bottom, like the editor), so it shares `HabitsProvider`; a
- * left-aligned Close dismisses it (set in the layout). The body is a virtualized FlatList of
- * section cards, so only visible sections mount.
+ * read how it's tracked and its Sunnah source. The library leads with the categories, and the
+ * from-scratch path sits twice: "Custom" in the nav bar, and the same door as a quiet closing row
+ * that says what it asks of you — the row being what still carries it on Android, where the search
+ * view expands into the toolbar and takes the whole bar with it.
+ *
+ * A native modal sheet of the Habits Stack (from the bottom, like the editor), so it shares
+ * `HabitsProvider`; a left-aligned Close dismisses it (set in the layout). The body is a
+ * virtualized FlatList of section cards, so only visible sections mount.
  *
  * **It works two ways, and `stackId` is what picks between them.**
  *
@@ -281,6 +285,12 @@ export default function DiscoverScreen() {
   if (searching) {
     if (resultCount > 0) rows.push({ type: 'results' });
     else if (loneHabits.length === 0) rows.push({ type: 'empty' });
+    // …and the from-scratch row closes a search too. A fruitless search is the single likeliest
+    // moment to want it, and it used to be the one state with no door at all: the nav-bar "Custom"
+    // covers every other, but Android's SearchView expands INTO the toolbar, so while you are
+    // typing the bar holds the field and nothing else — no Close, no title, no action. Skipped only
+    // where the zero-results empty state is up, which offers the same thing as its own button.
+    if (resultCount > 0 || loneHabits.length > 0) rows.push({ type: 'create' });
   } else {
     // Library-first: the curated Sunnah habits are why this screen exists, so they lead —
     // the starter set for a fresh account, then the categories. Create-your-own closes the
@@ -399,11 +409,19 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      {/* Standard header — the centered title (set on the route, overridden per-stack here) is
-          enough. No header +: this screen IS the add screen, and a second + one tap after the
-          one that opened it read as the same glyph meaning something new. The library leads the
-          body; the empty-search state and the closing row both offer create-your-own. */}
-      <Stack.Screen options={{ title: stack ? `Add to ${stack.name}` : 'Add a habit' }} />
+      {/* The centered title (set on the route, overridden per-stack here), plus "Custom" opposite
+          the route's Close. Still no header **+**: this screen IS the add screen, and a second +
+          one tap after the one that opened it read as the same glyph meaning something new — but
+          a WORD naming the other path can't be misread, and "Custom" is the exact opposite of a
+          curated library. It is here because the closing row is the last cell of a ~60-row list
+          and disappears entirely while you are searching, so the from-scratch door was reachable
+          only from the states where you had not yet looked for anything. */}
+      <Stack.Screen
+        options={{
+          title: stack ? `Add to ${stack.name}` : 'Add a habit',
+          headerRight: headerNewAction('Custom', `Create your own ${noun}`, goCreateHabit),
+        }}
+      />
 
       {/* The search field is the native nav-bar search (UISearchController on iOS / the
           SearchView on Android), not an in-body input — a true platform search experience.

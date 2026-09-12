@@ -16,6 +16,7 @@ import type { CompletionRow, MonthProgress, RecordSeries, SeriesPeriod, TrendSum
 export type { MonthProgress, RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/lib/progress';
 
 type ProgressData = {
+  insightInputsReady: boolean;
   /** True only during the first load. */
   loading: boolean;
   error: string | null;
@@ -57,7 +58,8 @@ type ProgressData = {
 export function useProgress(): ProgressData {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const { goals: goalRows, goalActs, checkIns } = useGoals();
+  const { goals: goalRows, goalActs, checkIns, loading: goalsLoading, error: goalsError } = useGoals();
+  const [dataUserId, setDataUserId] = useState<string | null>(null);
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [completions, setCompletions] = useState<CompletionRow[]>([]);
@@ -84,6 +86,7 @@ export function useProgress(): ProgressData {
       try {
         const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
         if (userRef.current !== userId) return; // superseded mid-flight — discard
+        setDataUserId(userId);
         setToday(day);
         setHabits(rows);
         setCompletions(comps);
@@ -112,5 +115,5 @@ export function useProgress(): ProgressData {
     [goalRows, goalActs, habits, completions, checkIns, today],
   );
 
-  return { loading, error, dismissError, refresh: fetchData, today, habits, goals, ...derived };
+  return { insightInputsReady: !loading && !error && !goalsLoading && !goalsError && dataUserId === userId, loading, error, dismissError, refresh: fetchData, today, habits, goals, ...derived };
 }

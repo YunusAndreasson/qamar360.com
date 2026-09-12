@@ -1,4 +1,5 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -11,7 +12,7 @@ import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
-import { usePersonalizedInsight } from '@/hooks/use-personalized-insight';
+import { useLocalInsights, useLocalInsightArchive } from '@/hooks/use-local-insights';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -37,9 +38,7 @@ function Line({ label, value }: { label: string; value: string }) {
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="smallCompactBold">
-        {value}
-      </ThemedText>
+      <ThemedText type="smallCompactBold">{value}</ThemedText>
     </View>
   );
 }
@@ -48,34 +47,49 @@ function DeeperReflection({
   reading,
   habits,
   goals,
+  live,
 }: {
   reading: Reading;
   habits: ReturnType<typeof useProgress>['habits'];
   goals: ReturnType<typeof useProgress>['goals'];
+  live: boolean;
 }) {
   const theme = useTheme();
-  const { insight, loading, error, retry } = usePersonalizedInsight(reading, habits, goals);
+  const { insight, versions, selected, select, generate, cancel, busy, error, snapshot, history } = useLocalInsights(
+    reading,
+    habits,
+    goals,
+    live,
+  );
+  const [showVersions, setShowVersions] = useState(false);
 
   return (
     <StatCard>
       <StatCardHeader title="A deeper reflection" trailing={insight?.used_notes ? 'With your notes' : undefined} />
-      {loading ? (
-        <View style={styles.loading} accessible accessibilityLabel="Writing your deeper reflection">
+      <ThemedText type="small" themeColor="textSecondary">
+        Generated on this device. Each new version can build on your earlier reflections.
+      </ThemedText>
+      {snapshot ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Records saved {new Date(snapshot.capturedAt).toLocaleString()}
+          {live ? '' : ' · Using saved records'}
+        </ThemedText>
+      ) : null}
+      {error ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          {error}
+        </ThemedText>
+      ) : null}
+      {busy ? (
+        <View style={styles.loading}>
           <ActivityIndicator />
-          <ThemedText type="small" themeColor="textSecondary">
-            Reflecting on this quarter…
-          </ThemedText>
-        </View>
-      ) : error || !insight ? (
-        <View style={styles.reflectionError}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {error ?? 'The deeper reflection is unavailable right now.'}
-          </ThemedText>
-          <AppButton variant="secondary" onPress={retry} style={styles.retry}>
-            Try again
+          <ThemedText type="small">Writing your reflection…</ThemedText>
+          <AppButton variant="secondary" onPress={cancel}>
+            Cancel
           </AppButton>
         </View>
-      ) : (
+      ) : null}
+      {insight ? (
         <>
           <View style={styles.paragraphs}>
             {insight.paragraphs.map((paragraph, index) => (
@@ -99,7 +113,50 @@ function DeeperReflection({
             </View>
           ) : null}
         </>
-      )}
+      ) : null}
+      {insight ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          {new Date(insight.generated_at).toLocaleString()} ·{' '}
+          {insight.origin === 'legacy' ? 'Earlier cloud reflection' : 'On this device'}
+        </ThemedText>
+      ) : null}
+      {insight && insight.sourceIds.length > 0 ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Builds on:{' '}
+          {insight.sourceIds
+            .map((id) => history.find((v) => v.id === id))
+            .filter((v) => v !== undefined)
+            .map((v) => `${v.reading_id} (${new Date(v.generated_at).toLocaleDateString()})`)
+            .join(', ')}
+        </ThemedText>
+      ) : null}
+      <AppButton onPress={() => void generate()} disabled={busy || !snapshot}>
+        {insight ? 'Generate another version' : 'Generate reflection'}
+      </AppButton>
+      <AppButton variant="secondary" onPress={() => router.push('/settings')}>
+        Manage local model
+      </AppButton>
+      {versions.length > 1 ? (
+        <AppButton variant="secondary" onPress={() => setShowVersions(!showVersions)}>
+          Previous versions ({versions.length})
+        </AppButton>
+      ) : null}
+      {showVersions
+        ? versions.map((version, index) => (
+            <AppButton
+              key={version.id}
+              variant="secondary"
+              onPress={() => {
+                select(version.id);
+                setShowVersions(false);
+              }}
+              accessibilityLabel={`Version ${versions.length - index}, ${new Date(version.generated_at).toLocaleString()}${version.id === selected ? ', selected' : ''}`}
+            >
+              Version {versions.length - index} · {new Date(version.generated_at).toLocaleString()}
+              {version.id === selected ? ' · Selected' : ''}
+            </AppButton>
+          ))
+        : null}
     </StatCard>
   );
 }
@@ -114,16 +171,18 @@ function DeeperReflection({
  */
 export default function ReadingScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { loading, error, dismissError, refresh, readings, habits, goals } = useProgress();
+  const archive = useLocalInsightArchive();
+  const { loading, error, dismissError, refresh, readings, habits, goals, insightInputsReady } = useProgress();
   const { refreshControl } = usePullToRefresh(refresh);
 
-  const reading = readings.find((r) => r.id === id) ?? null;
+  const freshReading = readings.find((r) => r.id === id);
+  const reading = freshReading ?? (id ? archive?.snapshots[id]?.reading : undefined) ?? null;
   // The id can go stale under you — a habit deleted from another tab can take a quarter's whole
   // record with it. Leave rather than sit on a screen about nothing (the same guard the per-act
   // stats screen uses).
   useBackIfStale(!loading && reading === null);
 
-  if (loading) {
+  if (loading && !reading) {
     return (
       <AppScreen transparent>
         <StatsSkeleton />
@@ -145,7 +204,13 @@ export default function ReadingScreen() {
       <ErrorBanner message={error} onDismiss={dismissError} />
 
       <ReadingCard reading={reading} />
-      <DeeperReflection reading={reading} habits={habits} goals={goals} />
+      <DeeperReflection
+        key={reading.id}
+        reading={reading}
+        habits={habits}
+        goals={goals}
+        live={insightInputsReady && Boolean(freshReading)}
+      />
       <QuarterComparison reading={reading} />
     </AppScreen>
   );

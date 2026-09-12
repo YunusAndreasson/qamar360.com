@@ -54,7 +54,7 @@ const EPSILON = 1e-9;
  * The span a milestone opens: days 1–7, 8–14, 15–21, and 22 to the month's end (8 or 9 days,
  * since Umm al-Qura months run 29 or 30). The four partition the month exactly.
  */
-type QuarterSpan = {
+export type QuarterSpan = {
   startISO: string;
   /** Inclusive. */
   endISO: string;
@@ -715,4 +715,69 @@ export function latestReadingId(today: string): string | null {
   const range = hijriMonthRange(today);
   const before = range && hijriParts(addDaysISO(range.start, -1));
   return before ? `${before.year}-${before.month}-22` : null;
+}
+
+/**
+ * How long until a reading, as a phrase that finishes "Next reading ___".
+ *
+ * A wait is said in the unit a person waits in — "tomorrow" is a word, not a quantity, and
+ * rendering it as "in 1 day" is the tell that a number was formatted rather than a sentence
+ * written. Everything past that is a plain count: a quarter is 7 to 9 days long, so this never
+ * has to reach for weeks.
+ */
+export function waitLabel(days: number): string {
+  if (days <= 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return `in ${days} days`;
+}
+
+/**
+ * When the next reading arrives, and what it will be about — the wait, with a date on it.
+ *
+ * The sibling of {@link latestReadingId} pointed the other way, and calendrical for the same
+ * reason: which quarter closes next is a fact about the Hijri date alone, so this needs no
+ * completions and no habits. A reading is published on the milestone that CLOSES its quarter, so
+ * the next publication is the end of the quarter now being lived, plus one — and the moon it will
+ * go out under is the moon of that day, read through the same {@link phaseOf} the readings
+ * themselves use, so the glyph the feed promises is the glyph that turns up.
+ *
+ * `days` is at least 1: a reading published today is already in the feed, and the quarter it
+ * closed is behind us — so what this names is always the one still to come.
+ *
+ * `null` where the Umm al-Qura calendar is missing, which is the one case the caller already has
+ * a screen for.
+ */
+export function nextReadingDue(today: string): {
+  /** The quarter the reading will be about — the one now being lived. */
+  span: QuarterSpan;
+  /** The day it is published: that quarter's last day, plus one. */
+  publishedISO: string;
+  /** Whole days from `today` until then. At least 1. */
+  days: number;
+  phase: LunarPhase;
+  phaseLabel: string;
+  illumination: number;
+  waxing: boolean;
+} | null {
+  const range = hijriMonthRange(today);
+  if (!range) return null;
+  // The quarter containing today. The four partition the month exactly, so exactly one matches —
+  // but the calendar is consulted rather than assumed, since `find` returning nothing is a wrong
+  // card, not a crash.
+  const open = quarterSpansOf(range).find((span) => span.startISO <= today && today <= span.endISO);
+  if (!open) return null;
+  const publishedISO = addDaysISO(open.endISO, 1);
+  const published = hijriParts(publishedISO);
+  const publishedMonth = hijriMonthRange(publishedISO);
+  if (!published || !publishedMonth) return null;
+  const shape = phaseOf(published.day, publishedMonth.length);
+  return {
+    span: open,
+    publishedISO,
+    days: daysBetweenISO(today, publishedISO),
+    phase: shape.phase,
+    phaseLabel: shape.label,
+    illumination: shape.illumination,
+    waxing: shape.waxing,
+  };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { addDaysISO, hijriMonthRange, hijriParts } from '@/lib/dates';
-import { computeReadings, latestReadingId, NOTICING_KINDS, type Reading } from '@/lib/insights';
+import { addDaysISO, daysBetweenISO, hijriMonthRange, hijriParts } from '@/lib/dates';
+import { computeReadings, latestReadingId, nextReadingDue, NOTICING_KINDS, waitLabel, type Reading } from '@/lib/insights';
 import { MILESTONE_DAYS } from '@/lib/lunar-phase';
 import { creditOnDay, toDegrees, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
@@ -456,6 +456,90 @@ describe('latestReadingId', () => {
     const previous = hijriParts(addDaysISO(start, -1))!;
     for (const day of [1, 2, 7]) {
       expect(latestReadingId(dayOfMonth(start, day))).toBe(`${previous.year}-${previous.month}-22`);
+    }
+  });
+});
+
+// ── The wait ────────────────────────────────────────────────────────────────
+// The other half of the calendar question the tab bar asks: not "has one closed?" but "when does
+// the next one close?". Also completions-free, and for the same reason.
+
+describe('nextReadingDue', () => {
+  it('names the quarter now being lived, and publishes it the day after that quarter ends', () => {
+    for (const anchor of SWEEP) {
+      const { length, end } = monthShape(anchor);
+      for (let day = 1; day <= length; day += 1) {
+        const iso = dayOfMonth(anchor, day);
+        const due = nextReadingDue(iso);
+        expect(due).not.toBeNull();
+
+        // The span contains today, and is the quarter its milestone opens.
+        expect(due!.span.startISO <= iso && iso <= due!.span.endISO).toBe(true);
+        expect(due!.span.milestone).toBe(day >= 22 ? 22 : day >= 15 ? 15 : day >= 8 ? 8 : 1);
+
+        // Published on the milestone that CLOSES it — the day after its last. The month's final
+        // quarter runs to the month's own end, so its publication is the next month's day 1.
+        expect(due!.publishedISO).toBe(addDaysISO(due!.span.endISO, 1));
+        const published = hijriParts(due!.publishedISO)!;
+        expect(published.day).toBe(day >= 22 ? 1 : due!.span.milestone + 7);
+        if (day >= 22) expect(due!.span.endISO).toBe(end);
+
+        // A wait is always ahead of you: a reading published today is already in the feed.
+        expect(due!.days).toBeGreaterThanOrEqual(1);
+        expect(due!.days).toBe(daysBetweenISO(iso, due!.publishedISO));
+      }
+    }
+  });
+
+  it('hands off from the reading that just arrived — never names one already in the feed', () => {
+    for (const anchor of SWEEP) {
+      const { length } = monthShape(anchor);
+      for (let day = 1; day <= length; day += 1) {
+        const iso = dayOfMonth(anchor, day);
+        const due = nextReadingDue(iso)!;
+        // `latestReadingId` names what has already been published; the two must never agree, or
+        // the screen would count down to a reading printed on the card below it.
+        const nextId = `${due.span.year}-${due.span.monthNumber}-${due.span.milestone}`;
+        expect(nextId).not.toBe(latestReadingId(iso));
+      }
+    }
+  });
+
+  it('describes the same quarter the feed will write about, under the same moon', () => {
+    const start = monthShape('2026-06-15').start;
+    const today = dayOfMonth(start, 17); // mid-quarter, so 15–21 is still open
+    const due = nextReadingDue(today)!;
+    // Run the feed forward to the day the reading lands and compare the one it publishes.
+    const publishedDay = due.publishedISO;
+    const feed = readings([daily('a')], doneAcross(['a'], addDaysISO(start, -90), publishedDay), publishedDay);
+    const arrived = feed.find((r) => r.span.startISO === due.span.startISO)!;
+
+    expect(arrived.closed).toBe(true);
+    expect(arrived.publishedISO).toBe(due.publishedISO);
+    expect(arrived.phase).toBe(due.phase);
+    expect(arrived.phaseLabel).toBe(due.phaseLabel);
+    expect(arrived.illumination).toBeCloseTo(due.illumination);
+    expect(arrived.waxing).toBe(due.waxing);
+  });
+});
+
+describe('waitLabel', () => {
+  it('says a day in words and everything else as a count', () => {
+    expect(waitLabel(1)).toBe('tomorrow');
+    expect(waitLabel(2)).toBe('in 2 days');
+    expect(waitLabel(9)).toBe('in 9 days');
+  });
+
+  it('never renders a wait that has already ended as a future one', () => {
+    expect(waitLabel(0)).toBe('today');
+    expect(waitLabel(-1)).toBe('today');
+  });
+
+  it('finishes the sentence the card builds out of it', () => {
+    // The card reads "Next reading ___" — so the phrase must be lowercase and need no punctuation.
+    for (const days of [0, 1, 2, 9]) {
+      const phrase = waitLabel(days);
+      expect(`Next reading ${phrase}`).toMatch(/^Next reading [a-z0-9 ]+$/);
     }
   });
 });

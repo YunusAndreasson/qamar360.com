@@ -1,10 +1,11 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { DisclosureRow } from '@/components/disclosure-row';
+import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
@@ -40,6 +41,11 @@ export default function ExchangeLibraryScreen() {
   // memoizes derived values.)
   const owned = new Set(habits.map((h) => normalizeName(h.name)));
 
+  // The from-scratch door, named once and offered twice — from the nav bar and from the closing
+  // row. `replace` for the same reason the stack library's does: the library and the blank form
+  // answer one question, so back belongs to the "+" sheet, not to the library again.
+  const goCreateExchange = () => router.replace({ pathname: '/habits/exchange', params: { id: 'new' } });
+
   const add = async (entry: CuratedExchange) => {
     const created = await createHabits([
       {
@@ -63,6 +69,11 @@ export default function ExchangeLibraryScreen() {
 
   return (
     <AppScreen>
+      {/* "Custom" opposite the route's Close — the sibling of the stack library's, same reasoning. */}
+      <Stack.Screen
+        options={{ headerRight: headerNewAction('Custom', 'Build your own exchange', goCreateExchange) }}
+      />
+
       {/* The case for replacing rather than resisting, at the head of the screen where the
           replacement is chosen. Its disclosure is labelled "Why replacing works", not "Why this
           works" — the cards below each carry that phrase for their own evidence. */}
@@ -92,7 +103,7 @@ export default function ExchangeLibraryScreen() {
             icon="exchange"
             label="Your own exchange"
             sublabel="The moment, the routine you turn from, and the deed instead"
-            onPress={() => router.replace({ pathname: '/habits/exchange', params: { id: 'new' } })}
+            onPress={goCreateExchange}
           />
         </Surface>
       </View>

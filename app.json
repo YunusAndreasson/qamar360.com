@@ -40,6 +40,7 @@
     },
     "plugins": [
       "./plugins/strip-aps-environment.js",
+      "./plugins/local-insights-backup.js",
       "expo-router",
       [
         "expo-splash-screen",
@@ -89,7 +90,7 @@
       "reactCompiler": true
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "extra": {
       "router": {},

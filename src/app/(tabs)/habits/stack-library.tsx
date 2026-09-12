@@ -1,10 +1,11 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
@@ -38,6 +39,11 @@ export default function StackLibraryScreen() {
   const { show } = useToast();
   const { presets } = useCatalog();
   const { habits, stacks, createHabits, createStack, updateStack, deleteStack, deleteHabit, moveHabit } = useHabits();
+
+  // The from-scratch door, named once and offered twice — from the nav bar and from the closing
+  // row. `replace`, not `push`: the library and the blank form are two answers to one question, so
+  // going back from the form should land where the "+" sheet left you, not on the library again.
+  const goCreateStack = () => router.replace('/habits/stack-new');
 
   const addStack = async (curated: CuratedStack) => {
     const plan = buildCuratedPlan(curated, presets, habits, stacks);
@@ -105,6 +111,10 @@ export default function StackLibraryScreen() {
 
   return (
     <AppScreen>
+      {/* "Custom" opposite the route's Close: the same door the closing row opens, out of a scroll
+          that is ~10 cards deep. See {@link headerNewAction} for why it is a word and not a "+". */}
+      <Stack.Screen options={{ headerRight: headerNewAction('Custom', 'Build your own stack', goCreateStack) }} />
+
       {/* The case for anchoring, at the head of the screen where the anchoring is chosen — the
           photograph and the thesis always, the argument behind one tap. It used to be a row in the
           footer, below every card: an explanation offered after the decision it informs. */}
@@ -134,7 +144,7 @@ export default function StackLibraryScreen() {
             icon="stack"
             label="Your own stack"
             sublabel="Name it, anchor it to a moment, then add your acts"
-            onPress={() => router.replace('/habits/stack-new')}
+            onPress={goCreateStack}
           />
         </Surface>
       </View>

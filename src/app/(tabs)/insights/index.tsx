@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
@@ -10,16 +10,18 @@ import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { MoonPhase } from '@/components/moon-phase';
+import { NextReadingCard } from '@/components/next-reading-card';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { InsightsSkeleton } from '@/components/progress-skeleton';
 import { ReadingCard, readingDaysLabel, readingMoonBrightness, readingSpanLabel } from '@/components/reading-card';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useLocalInsightArchive } from '@/hooks/use-local-insights';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
-import { latestReadingId, type Reading } from '@/lib/insights';
+import { latestReadingId, nextReadingDue, type Reading } from '@/lib/insights';
 import { setPreference } from '@/lib/preferences';
 
 
@@ -96,13 +98,27 @@ function byMonth(readings: Reading[]): { key: string; label: string; readings: R
  * Deliberately not a story carousel — a reading is something you re-read, not something that
  * plays.
  *
- * The newest concrete finding is the first object on the screen. The live monthly orbit belongs
- * to Progress; putting it here made the clock visually outrank the thing this tab is for.
+ * The newest concrete finding is the first object on the screen with any weight. Above it sits one
+ * caption-weight row saying when the next reading lands — a schedule of four moons a month is
+ * knowable, and a feature that speaks only four times a month has to say when it will speak next.
+ * The live monthly orbit still belongs to Progress; putting a GAUGE here made the clock visually
+ * outrank the thing this tab is for, which is why the answer is a line and not a dial.
  */
 
 export default function InsightsScreen() {
   const { loading, error, dismissError, refresh, habitsCount, month, readings, today } = useProgress();
+  const archive = useLocalInsightArchive();
+  const availableReadings = useMemo(() => {
+    const byId = new Map(Object.values(archive?.snapshots ?? {}).map((s) => [s.reading.id, s.reading]));
+    readings.forEach((reading) => byId.set(reading.id, reading));
+    return [...byId.values()].sort((a, b) => b.span.startISO.localeCompare(a.span.startISO));
+  }, [archive, readings]);
+  const hasSaved = Object.keys(archive?.snapshots ?? {}).length > 0;
   const { refreshControl } = usePullToRefresh(refresh);
+  // Purely calendrical, like the tab bar's dot: no completions, no habits, nothing to await. Null
+  // only where the Umm al-Qura calendar is missing, which the branch below already has a screen
+  // for — but a saved archive can reach the feed on such a device, so the card stays conditional.
+  const due = nextReadingDue(today);
 
   // Looking at the tab IS reading it — stamp the quarter that has closed, and the tab bar's dot
   // goes out. Stamped from the calendar rather than from `readings[0]`, so the "no quarter has
@@ -114,7 +130,7 @@ export default function InsightsScreen() {
     }, [today]),
   );
 
-  if (loading) {
+  if (loading && !hasSaved) {
     return (
       <AppScreen transparent>
         <InsightsSkeleton />
@@ -122,7 +138,7 @@ export default function InsightsScreen() {
     );
   }
 
-  if (habitsCount === 0) {
+  if (habitsCount === 0 && !hasSaved) {
     // A FAILED first load also lands here with zero habits — that's a network problem, not a
     // fresh account, and the moons copy would misread it. This branch mounts no refreshControl,
     // so "pull down to try again" would be impossible; offer an explicit retry instead.
@@ -152,7 +168,7 @@ export default function InsightsScreen() {
   // A reading is a Hijri span, so a runtime whose `Intl` lacks the Umm al-Qura calendar has no
   // quarters to write about and no month to draw. Name what is missing rather than show a screen
   // that is silently empty for a reason nobody could guess.
-  if (month === null) {
+  if (month === null && !hasSaved) {
     return (
       <AppScreen transparent centered>
         <EmptyState
@@ -167,11 +183,19 @@ export default function InsightsScreen() {
   // Only closed quarters are read. The one being lived has a reading too — the notifications arm
   // from it days ahead — but showing a verdict on a week that is still happening would be a guess
   // dressed as a finding.
-  const closed = readings.filter((r) => r.closed);
+  const closed = availableReadings.filter((r) => r.closed);
   const [newest, ...earlier] = closed;
   return (
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
+
+      {/* When the next one lands. First in reading order because it is the one thing on this screen
+          about the future, and a sibling of the record rather than part of it: the region below is
+          quarters that have CLOSED, and a countdown filed among them would be the one row in the
+          archive that is not history. It takes AppScreen's own 16pt child rhythm, which is the same
+          step `region` uses internally — so the break that actually marks something is still the
+          archive's doubled one, and this stays a masthead rather than a section of its own. */}
+      {due ? <NextReadingCard due={due} /> : null}
 
       {/* The record, as one region: the newest finding and the archive behind it are both about
           months that are closed, and the archive keeps its own break inside that so it still reads
@@ -195,12 +219,13 @@ export default function InsightsScreen() {
             ) : null}
           </>
         ) : (
-          // Habits exist, but no quarter has closed yet. Say when the first one will — a wait with
-          // a date on it is a different thing from an empty screen.
+          // Habits exist, but no quarter has closed yet. WHEN the first one lands is said by the
+          // card above, in days rather than in prose, so this only has to say what will arrive —
+          // the wait already has a date on it, which is what separates it from an empty screen.
           <EmptyState
             icon="stats"
             title="No quarter has closed yet"
-            body={`Your first reading arrives when this quarter of ${month.monthName} closes.`}
+            body="Each quarter of the moon gets one reading of what changed over it."
           />
         )}
       </View>

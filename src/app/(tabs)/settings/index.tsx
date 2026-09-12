@@ -6,6 +6,7 @@ import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-nat
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { Avatar } from '@/components/avatar';
+import { LocalInsightSettings } from '@/components/local-insight-settings';
 import { SectionLabel } from '@/components/section-label';
 import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
@@ -311,16 +312,18 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection
-        title="Personal insights"
+        title="Cloud insight privacy"
         footer="When on, notes from a closed lunar quarter may shape that quarter’s deeper insight. Turning it off removes insights that used notes.">
         <SettingsRow
           icon="privacy"
-          label="Use daily notes"
+          label="Use daily notes in cloud insights"
           sublabel={noteConsent.error ?? (noteConsent.loading ? 'Loading…' : 'Never quoted or used in notifications')}
           switchValue={noteConsent.enabled}
           onSwitchChange={(value) => void noteConsent.setEnabled(value)}
         />
       </SettingsSection>
+
+      <LocalInsightSettings />
 
       {/* Feel — the app's own texture. Every one defaults on; turning one off is a preference
           for quiet, never a loss of function. */}

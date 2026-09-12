@@ -16,8 +16,14 @@ export const readingSpanLabel = (reading: Reading): string => spanLabel(reading.
  *  archive rows, filed under a section titled with their own Hijri month. */
 export const readingDaysLabel = (reading: Reading): string => spanLabel(reading.span, { withMonth: false });
 
-/** A moon at rest. The hero's own resting level, so the two read as one object at two scales. */
-const QUIET_MOON = 0.8;
+/**
+ * A moon at rest. The hero's own resting level, so the two read as one object at two scales.
+ *
+ * Exported because the record's other moons need the same rest: {@link NextReadingCard} draws a
+ * quarter that has not happened yet, and there is no state BELOW resting — a reading still being
+ * lived is lit exactly like a quiet one, never dimmer.
+ */
+export const QUIET_MOON = 0.8;
 
 /**
  * How brightly a reading's moon is lit — the app's two-temperature rule, applied to the record.
