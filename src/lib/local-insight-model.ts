@@ -199,7 +199,9 @@ export async function generateLocalInsight(snapshot: InsightSnapshot, history: I
       checkInsightAbort(signal);
       session = await api.createLLMChatSession(paths, {
         initialMessages: [{ role: 'system', content: LOCAL_INSIGHT_SYSTEM }],
-        generationConfig: { maxNewTokens: 900, temperature: 0.35 },
+        // ExecuTorch echoes the prompt into the reply by default, which here is the
+        // "<|turn>model" header, so every reply would start with it and fail to parse.
+        generationConfig: { echo: false, maxNewTokens: 900, temperature: 0.35 },
       });
       checkInsightAbort(signal);
       const result = await session.sendMessage(

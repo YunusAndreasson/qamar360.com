@@ -65,6 +65,10 @@ it('uses local paths, disables telemetry and performs no model downloads during 
   expect(mockDownload).not.toHaveBeenCalled();
   expect(mockDispose).toHaveBeenCalledTimes(1);
 });
+it('keeps the prompt out of the reply', async () => {
+  await generateLocalInsight(snapshot, [], new AbortController().signal);
+  expect(mockCreate.mock.calls[0]![1]).toMatchObject({ generationConfig: { echo: false } });
+});
 it('retries malformed output once in a fresh session and then fails', async () => {
   mockReply.mockResolvedValue({ messages: [{ role: 'assistant', content: 'invalid' }] });
   await expect(generateLocalInsight(snapshot, [], new AbortController().signal)).rejects.toThrow('valid reflection');
