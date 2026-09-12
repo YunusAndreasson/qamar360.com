@@ -32,6 +32,34 @@ precedence over earlier model text.
   archive. Signing out keeps the account-scoped archive for the next sign-in.
 - Model inference telemetry is disabled. Normal app synchronization remains unchanged.
 
+## Generation in the background
+
+- A reflection runs in `src/lib/local-insight-job.ts`, outside any screen, so leaving the reading
+  keeps it going and coming back shows its progress. One runs at a time.
+- `modules/continued-work` is a local Expo module that asks the system to keep the work running
+  when the app is backgrounded. On iOS 26 and newer it submits a `BGContinuedProcessingTask`,
+  which the system shows as a Live Activity with progress and a cancel control. On Android it
+  starts a `dataSync` foreground service with a progress notification and a Cancel action.
+- The iOS request uses the `fail` strategy, so it starts immediately or not at all. Identifiers
+  live under `com.qamar360.app.reflection.*` in `BGTaskSchedulerPermittedIdentifiers`, and every
+  task registers its own identifier because registering one twice kills the app.
+- Where continued work is unavailable (iOS 17 to 25, the Simulator, a refused request, or a binary
+  built before the module), backgrounding the app cancels the generation.
+- Progress: loading and reading the prompt are fixed steps, and writing scales the token count
+  against about 320 tokens. The progress shown by the system never moves backwards across the
+  retry. iOS expires tasks that report no progress. Model loading reports none while it runs, and
+  its duration has not been measured on a phone.
+- The draft paragraphs are read out of the partial JSON and shown unvalidated. Only
+  `parseLocalInsight` decides what is saved.
+- ExecuTorch echoes the prompt into the reply unless the generation config sets `echo: false`.
+  In a chat session that prompt is the `<|turn>model` header, and it made every reply fail to
+  parse until it was turned off.
+- Before an Android release, Google Play needs the `dataSync` foreground service type declared
+  in Play Console, with a description and a video of the feature.
+
+Not yet verified on a device: whether iOS keeps the 2.6 GB model alive in the background, whether
+the silent model load trips iOS stall expiry, and any Android hardware.
+
 ## Native release
 
 A new native build is required; this cannot be delivered to the previous binary as

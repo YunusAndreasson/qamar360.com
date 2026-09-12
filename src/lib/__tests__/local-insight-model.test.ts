@@ -3,7 +3,7 @@ import { beforeEach, expect, it, jest } from '@jest/globals';
 import type { InsightSnapshot } from '@/lib/local-insight-context';
 import { downloadInsightModel, generateLocalInsight, insightModelState } from '@/lib/local-insight-model';
 
-const mockReply = jest.fn<() => Promise<{ messages: { role: string; content?: string }[] }>>();
+const mockReply = jest.fn<(...args: unknown[]) => Promise<{ messages: { role: string; content?: string }[] }>>();
 const mockStop = jest.fn();
 const mockDispose = jest.fn();
 const mockCreate =
@@ -64,6 +64,22 @@ it('uses local paths, disables telemetry and performs no model downloads during 
   expect(mockTelemetry).toHaveBeenCalledWith(false);
   expect(mockDownload).not.toHaveBeenCalled();
   expect(mockDispose).toHaveBeenCalledTimes(1);
+});
+it('reports each phase and every written token', async () => {
+  const reply = JSON.stringify(good);
+  mockReply.mockImplementation(async (_message, onToken) => {
+    (onToken as (token: string) => void)(reply.slice(0, 12));
+    (onToken as (token: string) => void)(reply.slice(12));
+    return { messages: [{ role: 'assistant', content: reply }] };
+  });
+  const seen: { phase: string; tokens: number; text: string }[] = [];
+  await generateLocalInsight(snapshot, [], new AbortController().signal, (progress) => seen.push(progress));
+  expect(seen).toEqual([
+    { phase: 'loading', tokens: 0, text: '' },
+    { phase: 'reading', tokens: 0, text: '' },
+    { phase: 'writing', tokens: 1, text: reply.slice(0, 12) },
+    { phase: 'writing', tokens: 2, text: reply },
+  ]);
 });
 it('keeps the prompt out of the reply', async () => {
   await generateLocalInsight(snapshot, [], new AbortController().signal);

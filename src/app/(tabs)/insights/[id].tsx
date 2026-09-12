@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
@@ -17,6 +17,7 @@ import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { scheduledActs, type Reading } from '@/lib/insights';
+import { PHASE_LABEL } from '@/lib/local-insight-job';
 
 /** The only arithmetic left on a reading: two recognizable counts, compared directly. */
 function QuarterComparison({ reading }: { reading: Reading }) {
@@ -55,13 +56,14 @@ function DeeperReflection({
   live: boolean;
 }) {
   const theme = useTheme();
-  const { insight, versions, selected, select, generate, cancel, busy, error, snapshot, history } = useLocalInsights(
+  const { insight, versions, selected, select, generate, cancel, job, elsewhere, error, snapshot, history } = useLocalInsights(
     reading,
     habits,
     goals,
     live,
   );
   const [showVersions, setShowVersions] = useState(false);
+  const percent = job ? Math.round(job.fraction * 100) : 0;
 
   return (
     <StatCard>
@@ -80,16 +82,38 @@ function DeeperReflection({
           {error}
         </ThemedText>
       ) : null}
-      {busy ? (
-        <View style={styles.loading}>
-          <ActivityIndicator />
-          <ThemedText type="small">Writing your reflection…</ThemedText>
-          <AppButton variant="secondary" onPress={cancel}>
-            Cancel
-          </AppButton>
+      {job ? (
+        <View
+          style={styles.writing}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={PHASE_LABEL[job.phase]}
+          accessibilityValue={{ min: 0, max: 100, now: percent }}
+        >
+          <View style={styles.line}>
+            <ThemedText type="smallBold">{PHASE_LABEL[job.phase]}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {percent}%
+            </ThemedText>
+          </View>
+          <View style={[styles.track, { backgroundColor: theme.accentTrack }]}>
+            <View style={[styles.fill, { width: `${percent}%`, backgroundColor: theme.accent }]} />
+          </View>
+          <ThemedText type="small" themeColor="textSecondary">
+            {job.background ? 'You can leave the app while it writes.' : 'Keep the app open until it finishes.'}
+          </ThemedText>
         </View>
       ) : null}
-      {insight ? (
+      {job && job.draft.length > 0 ? (
+        <View style={styles.paragraphs}>
+          {job.draft.map((paragraph, index) => (
+            <ThemedText key={index} themeColor="textSecondary">
+              {paragraph}
+            </ThemedText>
+          ))}
+        </View>
+      ) : null}
+      {insight && !job ? (
         <>
           <View style={styles.paragraphs}>
             {insight.paragraphs.map((paragraph, index) => (
@@ -114,13 +138,13 @@ function DeeperReflection({
           ) : null}
         </>
       ) : null}
-      {insight ? (
+      {insight && !job ? (
         <ThemedText type="small" themeColor="textSecondary">
           {new Date(insight.generated_at).toLocaleString()} ·{' '}
           {insight.origin === 'legacy' ? 'Earlier cloud reflection' : 'On this device'}
         </ThemedText>
       ) : null}
-      {insight && insight.sourceIds.length > 0 ? (
+      {insight && !job && insight.sourceIds.length > 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
           Builds on:{' '}
           {insight.sourceIds
@@ -130,9 +154,20 @@ function DeeperReflection({
             .join(', ')}
         </ThemedText>
       ) : null}
-      <AppButton onPress={() => void generate()} disabled={busy || !snapshot}>
-        {insight ? 'Generate another version' : 'Generate reflection'}
-      </AppButton>
+      {job ? (
+        <AppButton variant="secondary" onPress={cancel}>
+          Cancel
+        </AppButton>
+      ) : (
+        <AppButton onPress={generate} disabled={elsewhere || !snapshot}>
+          {insight ? 'Generate another version' : 'Generate reflection'}
+        </AppButton>
+      )}
+      {elsewhere ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Another quarter’s reflection is being written. This one can start when it finishes.
+        </ThemedText>
+      ) : null}
       <AppButton variant="secondary" onPress={() => router.push('/settings')}>
         Manage local model
       </AppButton>
@@ -219,7 +254,9 @@ export default function ReadingScreen() {
 const styles = StyleSheet.create({
   comparison: { gap: Spacing.two },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Spacing.three },
-  loading: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.four },
+  writing: { gap: Spacing.two },
+  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: '100%' },
   reflectionError: { gap: Spacing.two, alignItems: 'flex-start' },
   retry: { minWidth: 0 },
   paragraphs: { gap: Spacing.three },

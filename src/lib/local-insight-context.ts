@@ -108,6 +108,53 @@ export function insightPrompt(snapshot: InsightSnapshot, history: InsightVersion
   });
 }
 
+const ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' };
+
+/**
+ * The paragraphs of a reply that is still being written, so the reading can show them forming.
+ * Nothing here is validated; `parseLocalInsight` alone decides what is saved. A paragraph cut off
+ * mid-escape is shown up to the escape, so a draft only ever grows into the finished text.
+ */
+export function draftParagraphs(raw: string): string[] {
+  const key = raw.indexOf('"paragraphs"');
+  const open = key < 0 ? -1 : raw.indexOf('[', key);
+  if (open < 0) return [];
+  const paragraphs: string[] = [];
+  for (let i = open + 1; i < raw.length; i += 1) {
+    if (raw[i] === ']') break;
+    if (raw[i] !== '"') continue;
+    let text = '';
+    let closed = false;
+    for (i += 1; i < raw.length; i += 1) {
+      const char = raw[i]!;
+      if (char === '"') {
+        closed = true;
+        break;
+      }
+      if (char !== '\\') {
+        text += char;
+        continue;
+      }
+      const next = raw[i + 1];
+      const hex = raw.slice(i + 2, i + 6);
+      if (next === undefined || (next === 'u' && !/^[0-9a-fA-F]{4}$/.test(hex))) {
+        i = raw.length;
+        break;
+      }
+      if (next === 'u') {
+        text += String.fromCharCode(parseInt(hex, 16));
+        i += 5;
+      } else {
+        text += ESCAPES[next] ?? next;
+        i += 1;
+      }
+    }
+    if (closed || text) paragraphs.push(text);
+    if (!closed) break;
+  }
+  return paragraphs;
+}
+
 export function parseLocalInsight(raw: string, evidence: InsightSnapshot['evidence']) {
   try {
     const value: unknown = JSON.parse(

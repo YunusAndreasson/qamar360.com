@@ -1,6 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useCatalog } from '@/hooks/use-catalog';
@@ -8,13 +7,13 @@ import type { Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import type { GoalReading } from '@/lib/goals';
 import type { Reading } from '@/lib/insights';
+import { makeInsightSnapshot } from '@/lib/local-insight-context';
 import {
-  LOCAL_PROMPT_VERSION,
-  makeInsightSnapshot,
-  selectInsightHistory,
-  type InsightVersion,
-} from '@/lib/local-insight-context';
-import { checkInsightAbort, generateLocalInsight, INSIGHT_ARTIFACT } from '@/lib/local-insight-model';
+  cancelReflection,
+  reflectionJobState,
+  startReflection,
+  subscribeReflectionJob,
+} from '@/lib/local-insight-job';
 import {
   localInsightRevision,
   readLocalInsights,
@@ -44,36 +43,27 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
   const archive = useLocalInsightArchive();
   const { presets } = useCatalog();
   const offset = usePreference('hijriOffset');
-  const [busy, setBusy] = useState(false);
+  const { job: running, error: failure } = useSyncExternalStore(
+    subscribeReflectionJob,
+    reflectionJobState,
+    reflectionJobState,
+  );
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const active = useRef<AbortController | null>(null);
   const currentUser = useLatestRef(userId);
   const notesEnabled = archive?.notesEnabled ?? false;
   const epoch = archive?.epoch ?? 0;
-  const cancel = useCallback(() => active.current?.abort(), []);
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
-      return () => {
-        setFocused(false);
-        cancel();
-      };
-    }, [cancel]),
+      return () => setFocused(false);
+    }, []),
   );
+  // A reflection outlives the screen that started it, but never the account.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') cancel();
-    });
-    return () => {
-      sub.remove();
-      cancel();
-    };
-  }, [cancel]);
-  useEffect(() => {
-    cancel();
-  }, [userId, reading.id, epoch, cancel]);
+    if (running && running.userId !== userId) cancelReflection();
+  }, [running, userId]);
 
   // Only cache newly fetched records. Offline rendering never overwrites a saved snapshot
   // with the empty initial arrays from useProgress/useGoals.
@@ -150,56 +140,13 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
     [archive, reading.id],
   );
   const insight = versions.find((v) => v.id === selected) ?? versions[0] ?? null;
-  const generate = async () => {
-    if (!userId || active.current) return;
-    const controller = new AbortController();
-    active.current = controller;
-    setBusy(true);
+  const job = running && running.userId === userId && running.readingId === reading.id ? running : null;
+  const generate = () => {
+    if (!userId) return;
     setError(null);
-    let unsubscribe = () => {};
-    try {
-      const state = readLocalInsights(userId);
-      const snapshot = state.snapshots[reading.id];
-      if (!snapshot) throw new Error('Open this quarter online once to save its records.');
-      unsubscribe = subscribeLocalInsights(() => {
-        if (readLocalInsights(userId).epoch !== state.epoch) controller.abort();
-      });
-      const history = selectInsightHistory(state.versions, reading.id, state.notesEnabled);
-      const input = state.notesEnabled ? snapshot : { ...snapshot, notes: [] };
-      const result = await generateLocalInsight(input, history, controller.signal);
-      checkInsightAbort(controller.signal);
-      if (currentUser.current !== userId || readLocalInsights(userId).epoch !== state.epoch) return;
-      const at = new Date().toISOString();
-      const version: InsightVersion = {
-        ...result,
-        id: `local:${at}:${Math.random().toString(36).slice(2)}`,
-        reading_id: reading.id,
-        generated_at: at,
-        origin: 'local',
-        model: INSIGHT_ARTIFACT,
-        promptVersion: LOCAL_PROMPT_VERSION,
-        snapshotAt: snapshot.capturedAt,
-        sourceIds: history.map((v) => v.id),
-        used_notes: input.notes.length > 0 || history.some((v) => v.used_notes),
-      };
-      updateLocalInsights(userId, (s) => ({ ...s, versions: [...s.versions, version] }));
-      setSelected(version.id);
-    } catch (caught) {
-      if (currentUser.current === userId)
-        setError(
-          controller.signal.aborted
-            ? 'Generation cancelled. Saved versions are unchanged.'
-            : caught instanceof Error
-              ? caught.message
-              : 'Could not generate a reflection.',
-        );
-    } finally {
-      unsubscribe();
-      if (active.current === controller) {
-        active.current = null;
-        setBusy(false);
-      }
-    }
+    // Land on the new version when it is saved, not on whichever one was picked before.
+    setSelected(null);
+    void startReflection(userId, reading.id);
   };
   return {
     insight,
@@ -207,9 +154,12 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
     selected: insight?.id ?? null,
     select: setSelected,
     generate,
-    cancel,
-    busy,
-    error,
+    cancel: cancelReflection,
+    /** This quarter's reflection while it is being written. */
+    job,
+    /** Another quarter's reflection is being written, and only one runs at a time. */
+    elsewhere: running !== null && job === null,
+    error: (failure && failure.userId === userId && failure.readingId === reading.id ? failure.message : null) ?? error,
     snapshot: archive?.snapshots[reading.id],
     history: archive?.versions ?? [],
   };

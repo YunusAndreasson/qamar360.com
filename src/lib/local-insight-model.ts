@@ -167,7 +167,15 @@ export async function removeInsightModel() {
   publish({ ready: false, progress: 0, error: null });
 }
 
-export async function generateLocalInsight(snapshot: InsightSnapshot, history: InsightVersion[], signal: AbortSignal) {
+/** Where a generation is. `text` is the reply so far, and only grows while writing. */
+export type InsightProgress = { phase: 'loading' | 'reading' | 'writing'; tokens: number; text: string };
+
+export async function generateLocalInsight(
+  snapshot: InsightSnapshot,
+  history: InsightVersion[],
+  signal: AbortSignal,
+  onProgress: (progress: InsightProgress) => void = () => {},
+) {
   if (generating || state.busy) throw new Error('Another model operation is in progress.');
   generating = true;
   let session: Awaited<ReturnType<typeof ExecuTorch.createLLMChatSession>> | undefined;
@@ -197,6 +205,7 @@ export async function generateLocalInsight(snapshot: InsightSnapshot, history: I
     tokenizer = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       checkInsightAbort(signal);
+      onProgress({ phase: 'loading', tokens: 0, text: '' });
       session = await api.createLLMChatSession(paths, {
         initialMessages: [{ role: 'system', content: LOCAL_INSIGHT_SYSTEM }],
         // ExecuTorch echoes the prompt into the reply by default, which here is the
@@ -204,8 +213,16 @@ export async function generateLocalInsight(snapshot: InsightSnapshot, history: I
         generationConfig: { echo: false, maxNewTokens: 900, temperature: 0.35 },
       });
       checkInsightAbort(signal);
+      onProgress({ phase: 'reading', tokens: 0, text: '' });
+      let text = '';
+      let tokens = 0;
       const result = await session.sendMessage(
         prompt + (attempt ? '\nReturn only the specified JSON object. The previous output was invalid.' : ''),
+        (token) => {
+          text += token;
+          tokens += 1;
+          onProgress({ phase: 'writing', tokens, text });
+        },
       );
       checkInsightAbort(signal);
       const reply = result.messages.findLast((m) => m.role === 'assistant')?.content;

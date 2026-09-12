@@ -17,6 +17,9 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+      "BGTaskSchedulerPermittedIdentifiers": [
+        "com.qamar360.app.reflection.*"
+      ],
         "UISupportedInterfaceOrientations~ipad": [
           "UIInterfaceOrientationPortrait",
           "UIInterfaceOrientationPortraitUpsideDown",
