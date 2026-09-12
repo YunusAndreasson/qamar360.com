@@ -60,9 +60,10 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
       return () => setFocused(false);
     }, []),
   );
-  // A reflection outlives the screen that started it, but never the account.
+  // A reflection outlives the screen that started it, but not a switch to another account. A
+  // session that reads as signed out for a moment, as while a token refreshes on resume, is not one.
   useEffect(() => {
-    if (running && running.userId !== userId) cancelReflection();
+    if (running && userId && running.userId !== userId) cancelReflection('account');
   }, [running, userId]);
 
   // Only cache newly fetched records. Offline rendering never overwrites a saved snapshot
@@ -154,7 +155,7 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
     selected: insight?.id ?? null,
     select: setSelected,
     generate,
-    cancel: cancelReflection,
+    cancel: () => cancelReflection(),
     /** This quarter's reflection while it is being written. */
     job,
     /** Another quarter's reflection is being written, and only one runs at a time. */

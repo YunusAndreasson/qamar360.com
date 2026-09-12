@@ -45,10 +45,18 @@ precedence over earlier model text.
   task registers its own identifier because registering one twice kills the app.
 - Where continued work is unavailable (iOS 17 to 25, the Simulator, a refused request, or a binary
   built before the module), backgrounding the app cancels the generation.
-- Progress: loading and reading the prompt are fixed steps, and writing scales the token count
-  against about 320 tokens. The progress shown by the system never moves backwards across the
-  retry. iOS expires tasks that report no progress. Model loading reports none while it runs, and
-  its duration has not been measured on a phone.
+- Progress: each phase owns a stretch of one attempt (loading 0 to 10%, reading 10 to 20%,
+  writing the rest, scaled against about 320 tokens). Loading and reading report nothing while
+  they run, so a one-second heartbeat eases through their stretch without reaching the next one.
+  iOS expires tasks that show no progress, and React Native's iOS timers keep firing in the
+  background through an `NSTimer`. A retry fills the rest of the bar instead of rewinding it.
+  Progress goes to the system in thousandths so a slow stretch still registers.
+- ExecuTorch clears its stop flag when generation starts, so a stop requested while the prompt
+  is still being read is lost. The token callback repeats it at the first token.
+- Every stop names its cause on the reading: the Cancel button, the system or the Live Activity
+  outside the app, leaving the app without continued work, another account, or a settings change.
+  A session that reads as signed out for a moment, as while a token refreshes on resume, does not
+  cancel. Only a different signed-in account does.
 - The draft paragraphs are read out of the partial JSON and shown unvalidated. Only
   `parseLocalInsight` decides what is saved.
 - ExecuTorch echoes the prompt into the reply unless the generation config sets `echo: false`.

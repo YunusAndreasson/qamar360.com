@@ -2,6 +2,7 @@ import { beforeEach, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
 
 import {
+  cancelReflection,
   reflectionJobState,
   startReflection,
   subscribeReflectionJob,
@@ -15,12 +16,13 @@ type Archive = { epoch: number; notesEnabled: boolean; snapshots: Record<string,
 const mockGenerate =
   jest.fn<(snapshot: unknown, history: unknown, signal: AbortSignal, onProgress: (p: InsightProgress) => void) => Promise<Result>>();
 const mockWork = { update: jest.fn(), end: jest.fn() };
-let mockBegin: (title: string, subtitle: string, onStop: () => void) => Promise<typeof mockWork | null>;
+let mockBegin: (title: string, subtitle: string, onStop: (reason: string) => void) => Promise<typeof mockWork | null>;
 let mockAppState: ((next: 'active' | 'background' | 'inactive' | 'unknown' | 'extension') => void) | null = null;
 let mockArchive: Archive;
 
 jest.mock('@/lib/continued-work', () => ({
-  beginContinuedWork: (title: string, subtitle: string, onStop: () => void) => mockBegin(title, subtitle, onStop),
+  beginContinuedWork: (title: string, subtitle: string, onStop: (reason: string) => void) =>
+    mockBegin(title, subtitle, onStop),
 }));
 jest.mock('@/lib/local-insight-model', () => ({
   INSIGHT_ARTIFACT: 'test-model',
@@ -80,10 +82,10 @@ it('streams a draft, saves the finished reflection and ends continued work as a 
   expect(reflectionJobState()).toEqual({ job: null, error: null });
 });
 
-it('cancels without saving when the person stops it from outside the app', async () => {
+it('stops without saving, and says so, when the work is ended outside the app', async () => {
   let stop = () => {};
   mockBegin = async (_title, _subtitle, onStop) => {
-    stop = onStop;
+    stop = () => onStop('expired');
     return mockWork;
   };
   mockGenerate.mockImplementation(async (_snapshot, _history, signal, onProgress) => {
@@ -99,7 +101,7 @@ it('cancels without saving when the person stops it from outside the app', async
   expect(reflectionJobState().error).toEqual({
     userId: 'user',
     readingId: READING,
-    message: 'Generation cancelled. Saved versions are unchanged.',
+    message: 'Writing was stopped outside the app. Saved versions are unchanged.',
   });
   expect(mockWork.end).toHaveBeenCalledWith(false);
 });
@@ -122,12 +124,76 @@ it('cancels on backgrounding only when the system would not keep the work runnin
   mockBegin = async () => null;
   await startReflection('user', READING);
   expect(mockArchive.versions).toHaveLength(0);
-  expect(reflectionJobState().error?.message).toBe('Generation cancelled. Saved versions are unchanged.');
+  expect(reflectionJobState().error?.message).toBe('Writing stopped when you left the app. Saved versions are unchanged.');
 
   mockBegin = async () => mockWork;
   await startReflection('user', READING);
   expect(mockArchive.versions).toHaveLength(1);
   expect(reflectionJobState().error).toBeNull();
+});
+
+it('keeps progress moving while the model loads and reads, without reaching the next phase', async () => {
+  jest.useFakeTimers();
+  try {
+    const during: number[] = [];
+    mockGenerate.mockImplementation(async (_snapshot, _history, _signal, onProgress) => {
+      onProgress({ phase: 'loading', tokens: 0, text: '' });
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      jest.advanceTimersByTime(60_000);
+      during.push(reflectionJobState().job!.fraction);
+      onProgress({ phase: 'reading', tokens: 0, text: '' });
+      jest.advanceTimersByTime(60_000);
+      during.push(reflectionJobState().job!.fraction);
+      return result;
+    });
+    await startReflection('user', READING);
+    expect(during[0]).toBeGreaterThan(0.05);
+    expect(during[0]).toBeLessThan(0.095);
+    expect(during[1]).toBeGreaterThan(0.15);
+    expect(during[1]).toBeLessThan(0.19);
+    expect(mockWork.update).toHaveBeenCalledWith('Loading the model', expect.any(Number));
+    expect(mockWork.update).toHaveBeenCalledWith('Reading this quarter', expect.any(Number));
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it('fits a retry into the rest of the bar instead of rewinding it', async () => {
+  const after: number[] = [];
+  mockGenerate.mockImplementation(async (_snapshot, _history, _signal, onProgress) => {
+    const step = (progress: InsightProgress) => {
+      onProgress(progress);
+      after.push(reflectionJobState().job!.fraction);
+    };
+    step({ phase: 'loading', tokens: 0, text: '' });
+    step({ phase: 'writing', tokens: 290, text: '' });
+    step({ phase: 'loading', tokens: 0, text: '' });
+    step({ phase: 'writing', tokens: 290, text: '' });
+    return result;
+  });
+  await startReflection('user', READING);
+  expect(after).toEqual([...after].sort((a, b) => a - b));
+  expect(after[2]).toBe(after[1]);
+  expect(after[3]).toBeGreaterThan(after[1]!);
+  expect(after[3]).toBeLessThanOrEqual(0.95);
+});
+
+it('names why it stopped when the app was cancelled from the screen or another account signed in', async () => {
+  mockGenerate.mockImplementation(async (_snapshot, _history, signal) => {
+    await tick();
+    if (signal.aborted) throw new Error('Generation cancelled.');
+    return result;
+  });
+  const running = startReflection('user', READING);
+  cancelReflection('account');
+  cancelReflection();
+  await running;
+  expect(reflectionJobState().error?.message).toBe('Writing stopped because the account changed. Saved versions are unchanged.');
+
+  const again = startReflection('user', READING);
+  cancelReflection();
+  await again;
+  expect(reflectionJobState().error?.message).toBe('Generation cancelled. Saved versions are unchanged.');
 });
 
 it('runs one reflection at a time', async () => {

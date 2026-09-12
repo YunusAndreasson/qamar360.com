@@ -81,6 +81,20 @@ it('reports each phase and every written token', async () => {
     { phase: 'writing', tokens: 2, text: reply },
   ]);
 });
+it('repeats a stop that arrived before writing began, and reports nothing written', async () => {
+  const controller = new AbortController();
+  const seen: string[] = [];
+  mockReply.mockImplementation(async (_message, onToken) => {
+    controller.abort();
+    (onToken as (token: string) => void)('{"paragraphs"');
+    return { messages: [{ role: 'assistant', content: '{"paragraphs"' }] };
+  });
+  await expect(
+    generateLocalInsight(snapshot, [], controller.signal, (progress) => seen.push(progress.phase)),
+  ).rejects.toThrow('cancelled');
+  expect(mockStop).toHaveBeenCalledTimes(2);
+  expect(seen).not.toContain('writing');
+});
 it('keeps the prompt out of the reply', async () => {
   await generateLocalInsight(snapshot, [], new AbortController().signal);
   expect(mockCreate.mock.calls[0]![1]).toMatchObject({ generationConfig: { echo: false } });

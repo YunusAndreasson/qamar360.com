@@ -219,6 +219,12 @@ export async function generateLocalInsight(
       const result = await session.sendMessage(
         prompt + (attempt ? '\nReturn only the specified JSON object. The previous output was invalid.' : ''),
         (token) => {
+          // ExecuTorch clears its stop flag when generation starts, so a stop requested while
+          // the prompt was still being read is lost. Repeat it at the first token.
+          if (signal.aborted) {
+            session?.stop();
+            return;
+          }
           text += token;
           tokens += 1;
           onProgress({ phase: 'writing', tokens, text });

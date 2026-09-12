@@ -49,13 +49,13 @@ it('returns null where the system will not keep work running, so the caller stay
 it('sends progress only when what the system shows would change, and ends once', async () => {
   const work = await beginContinuedWork('Title', 'Starting', () => {});
   work!.update('Writing', 0.101);
-  work!.update('Writing', 0.104);
+  work!.update('Writing', 0.1011);
   work!.update('Writing', 0.2);
   work!.update('Writing', 7);
   expect(mockNative.update.mock.calls).toEqual([
-    ['Title', 'Writing', 10, 100],
-    ['Title', 'Writing', 20, 100],
-    ['Title', 'Writing', 100, 100],
+    ['Title', 'Writing', 101, 1000],
+    ['Title', 'Writing', 200, 1000],
+    ['Title', 'Writing', 1000, 1000],
   ]);
 
   work!.end(true);
@@ -72,6 +72,7 @@ it('passes a stop from outside the app to the caller without ending the native w
   mockListener?.({ reason: 'expired' });
   mockListener?.({ reason: 'expired' });
   expect(onStop).toHaveBeenCalledTimes(1);
+  expect(onStop).toHaveBeenCalledWith('expired');
 
   work!.end(false);
   expect(mockNative.end).not.toHaveBeenCalled();
