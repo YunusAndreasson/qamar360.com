@@ -44,9 +44,35 @@ ExecuTorch's installer normally skips iOS artifacts on Linux: provision them wit
 `RNET_TARGET=ios node node_modules/react-native-executorch/scripts/download-libs.js`.
 Remove only the extracted AppleDouble `._*` metadata files from this package before
 resolving the fingerprint; macOS tar consumes them as metadata instead of files.
-Compare the result with EAS's fingerprint before retrying a mismatched build.
-The verified iOS fingerprint for release commit `abf7220` is
-`71f3c475b22598ed42927601e71f23e81cd7077c`.
+Both steps are required. Either one alone still resolves a different fingerprint.
+
+Verify the fingerprint locally before starting a build. EAS rejects a mismatch
+only after installing pods, so a mismatched build is discovered late and costs a
+near-complete build:
+
+```
+eas fingerprint:generate --platform ios --build-profile production --json --non-interactive
+```
+
+This reproduces the value the CLI sends. A rejected build's log prints the value
+EAS resolved alongside a per-source diff naming the `node_modules` directories
+that differ, so the two can be reconciled locally and compared before retrying.
+Read that log through the GraphQL `logFiles` query rather than the CLI, which
+reports only `Unknown error`; the file is brotli-compressed JSONL.
+
+A local Android build can break the iOS fingerprint. The Android Gradle Plugin
+rewrites `AndroidManifest.xml` files inside `node_modules` in place, removing the
+deprecated `package` attribute, and the edited file no longer matches the copy a
+clean install produces on EAS. This was observed in
+`@react-native-masked-view/masked-view` after an `expo run:android`. To identify
+an affected package, extract its exact version with `npm pack` into an empty
+directory and compare it against the installed copy with `diff -rq`, then restore
+the original file. Gradle output directories (`android/build`, `android/.cxx`)
+are already excluded from fingerprinting and can be left alone.
+
+Verified iOS fingerprints: release commit `abf7220` is
+`71f3c475b22598ed42927601e71f23e81cd7077c`; release commit `4b6c945` is
+`288dcd512f9605be62fb1a76d9c96c0deb1ee121`.
 
 Validation completed during implementation: root verification (1,042 tests plus
 typecheck, lint and Knip), web verification (134 tests, typecheck and build), Android
