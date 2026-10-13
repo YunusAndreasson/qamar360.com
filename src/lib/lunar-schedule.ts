@@ -46,13 +46,6 @@ const MINUTE_MS = 60_000;
 
 export type LunarFire = {
   hijriDay: MilestoneDay;
-  /**
-   * The Gregorian day the milestone falls on — the day the app will be *displaying* when the
-   * update arrives, which is not the day of {@link at} (a Hijri day turns at sunset, so the fire
-   * is usually the evening before). Carried because it is the key a quarterly reading is
-   * published under: the update and the reading it announces must be the same text.
-   */
-  dayISO: string;
   monthName: string;
   hijriYear: number;
   monthLength: number;
@@ -150,7 +143,6 @@ export function planLunarFires(todayISO: string, latDeg: number, lonDeg: number,
     if (!planned || planned.at.getTime() <= now.getTime()) return;
     fires.push({
       hijriDay: day,
-      dayISO,
       monthName: month.monthName,
       hijriYear: month.year,
       monthLength: month.length,

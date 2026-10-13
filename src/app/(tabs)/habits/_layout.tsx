@@ -40,8 +40,6 @@ export default function HabitsStackLayout() {
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />
-      {/* Today's private journal entry and its explicit AI-processing consent. */}
-      <Stack.Screen name="note" options={modalHeaderOptions(theme)} />
       {/* Which day the list shows — a month grid in a compact sheet, opened from the calendar
           glyph in the header. A sheet rather than a strip above the list: backfilling is
           occasional, and the strip charged every day for it. */}

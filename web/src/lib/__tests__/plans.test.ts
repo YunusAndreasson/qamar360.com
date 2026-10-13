@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Plan, PlanTask } from '../plans'
-import { planExcerpt, scheduledByPlan, scheduledLabel } from '../plans'
+import { MAX_PLAN_BODY, clampBody, planExcerpt, scheduledByPlan, scheduledLabel } from '../plans'
 
 // Expectations below are derived from intended behaviour, never copied from the current output —
 // so a test going red means the code is wrong, not the test.
@@ -93,3 +93,31 @@ describe('scheduledByPlan', () => {
     expect(byPlan.size).toBe(2)
   })
 })
+
+describe('clampBody', () => {
+  it('leaves text the database would accept exactly as written', () => {
+    const body = 'A short note.'
+    expect(clampBody(body, MAX_PLAN_BODY)).toBe(body)
+  })
+
+  it('keeps text sitting precisely on the limit', () => {
+    const body = 'a'.repeat(MAX_PLAN_BODY)
+    expect(clampBody(body, MAX_PLAN_BODY)).toHaveLength(MAX_PLAN_BODY)
+  })
+
+  it('cuts an over-long paste down to the limit instead of letting the write fail', () => {
+    expect(clampBody('a'.repeat(5000), MAX_PLAN_BODY)).toHaveLength(MAX_PLAN_BODY)
+  })
+
+  it('never cuts an emoji in half — the DB rejects the invalid UTF-8 that would make', () => {
+    // '🌙' is one code point and two UTF-16 units, so a cut at 3 lands inside it.
+    const clamped = clampBody('ab🌙cd', 3)
+    expect(clamped).toBe('ab')
+    expect(clamped.split('').every((ch) => ch.charCodeAt(0) < 0xd800)).toBe(true)
+  })
+
+  it('keeps a whole emoji when the cut falls after it', () => {
+    expect(clampBody('ab🌙cd', 4)).toBe('ab🌙')
+  })
+})
+

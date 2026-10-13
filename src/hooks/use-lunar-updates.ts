@@ -7,12 +7,6 @@
  * are still exactly right when the notification fires days later. What that does demand is a
  * re-arm whenever the figure has moved, which is what this hook is.
  *
- * The quarterly reading each update carries rests on the same argument, and needs it in one more
- * place: a quarter is measured against everything the WHOLE quarter asks, days not yet lived
- * included. So a reading baked mid-quarter is still exactly right on the night it fires unless
- * something was completed in between — and completing re-arms. A milestone armed before its
- * quarter has even begun simply has no reading to carry, and falls back to the landmark.
- *
  * Lives beside {@link useHabits} rather than inside it: that provider is long enough already,
  * and the only thing this needs from it is a user, a day, and a hint that something was ticked.
  */
@@ -21,7 +15,6 @@ import { AppState } from 'react-native';
 
 import { deviceLocation } from '@/lib/geo';
 import { loadGoalReadings } from '@/lib/goal-readings';
-import type { Reading } from '@/lib/insights';
 import { loadProgress } from '@/lib/load-progress';
 import { planLunarFires } from '@/lib/lunar-schedule';
 import { lunarUpdateCopy, type GoalAsk } from '@/lib/lunar-update';
@@ -61,15 +54,14 @@ async function arm(userId: string, today: string, doneToday: string[], signal: A
   // Cancellation must cover the reads too: the scheduler's own epoch only starts when called.
   if (signal.aborted) return;
   const month: MonthProgress | null = progress.status === 'fulfilled' ? progress.value.month : null;
-  const readings: Reading[] = progress.status === 'fulfilled' ? progress.value.readings : [];
 
   // The goal a new moon speaks for: the nearest horizon among those still asking for something.
   // Read separately from the progress window on purpose — a goal's measure is a lifetime sum, and
   // a windowed one would put a wrong number on a lock screen (see `loadGoalReadings`).
   //
   // The figure is the CLOSING month's ask, since the update is armed before the month it fires in
-  // opens — the same approximation the quarterly readings are baked in under, and arming re-runs
-  // on every trip to the background, so the number is refreshed right up to the night itself. It
+  // opens. Arming re-runs on every trip to the background, so the number is refreshed right up to
+  // the night itself. It
   // errs low rather than high: a month you kept pace with leaves next month's ask about where
   // this one's was, and a month you did not raises it. Understating what is asked is the side to
   // be wrong on.
@@ -88,8 +80,8 @@ async function arm(userId: string, today: string, doneToday: string[], signal: A
 
   await scheduleLunarUpdates(
     fires.map((fire) => {
-      const { title, body, assetKey, readingId } = lunarUpdateCopy(fire, month, readings, goalAsk);
-      return { at: fire.at, title, body, assetKey, readingId };
+      const { title, body, assetKey } = lunarUpdateCopy(fire, month, goalAsk);
+      return { at: fire.at, title, body, assetKey };
     }),
   );
 }

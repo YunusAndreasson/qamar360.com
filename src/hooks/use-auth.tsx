@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { clearLocalInsights } from '@/lib/local-insight-store';
 import * as socialAuth from '@/lib/social-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -99,8 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
       },
       async deleteAccount() {
-        // Remove device-only records as part of account deletion too.
-        if (session?.user.id) clearLocalInsights(session.user.id);
         const { error } = await supabase.functions.invoke('delete-account');
         if (error) throw error;
         await supabase.auth.signOut();

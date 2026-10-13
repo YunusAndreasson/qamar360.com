@@ -15,9 +15,7 @@ import {
 import { PlansProvider } from '@/hooks/use-plans';
 import { TasksProvider, useTasksSummary } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
-import { latestReadingId } from '@/lib/insights';
 import { setAppBadgeCount } from '@/lib/notifications';
-import { usePreference } from '@/lib/preferences';
 
 const { Trigger } = NativeTabs;
 
@@ -39,7 +37,7 @@ export default function TabsLayout() {
   // writes through `useTasks`, so it has to be able to see both.
   //
   // `GoalsProvider` nests innermost, for two reasons now. `useProgress` reads it — a goal's figures
-  // are derived from the same habits and completions the month and the quarterly readings are, so
+  // are derived from the same habits and completions the month is, so
   // they are computed in one place rather than fetched twice. And a goal may put a check-in on the
   // day, which means it needs the day and the habits state a closing day is judged against, the
   // same things `TasksProvider` came inside for.
@@ -105,7 +103,7 @@ function Tabs() {
           // tab is named for a day, and it was the one way back to it. The stepper only walks one
           // day per tap, each of which remounts the whole list, so returning from a backfill three
           // weeks back was twenty-one taps and no other route home. Guarded on being at the list
-          // itself: a press that is really "come back to this tab" from Insights should land you
+          // itself: a press that is really "come back to this tab" from another tab should land you
           // where you left off, and one arriving while a sheet is open is that sheet's to handle.
           tabPress: () => {
             if (pathname === '/habits') setViewDate(today);
@@ -122,18 +120,6 @@ function Tabs() {
           <Trigger.Icon sf="sun.max.fill" />
         ) : (
           <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="wb-sunny" />} />
-        )}
-      </Trigger>
-      {/* Second, carrying the moon that dates each newly published quarterly reading. */}
-      <Trigger name="insights">
-        {/* A dot, never a count. There is only ever one thing to say — a new quarter has closed —
-            and a number here would read as a backlog to clear. */}
-        <InsightsBadge />
-        <Trigger.Label>Insights</Trigger.Label>
-        {Platform.OS === 'ios' ? (
-          <Trigger.Icon sf="moon.fill" />
-        ) : (
-          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="dark-mode" />} />
         )}
       </Trigger>
       <Trigger name="progress">
@@ -192,14 +178,4 @@ function TodayBadge() {
   }, []);
 
   return remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null;
-}
-
-/** Reading-state leaf: collection/calendar changes need not rebuild the native navigator. */
-function InsightsBadge() {
-  const { hasHabits } = useHabitsSummary();
-  const { today } = useHabitsNavigation();
-  const seenReading = usePreference('insightsSeen');
-  const latestReading = latestReadingId(today);
-  const unread = hasHabits && latestReading !== null && latestReading !== seenReading;
-  return unread ? <Trigger.Badge>{' '}</Trigger.Badge> : null;
 }

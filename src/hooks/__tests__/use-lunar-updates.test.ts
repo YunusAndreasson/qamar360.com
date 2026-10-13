@@ -83,7 +83,7 @@ it.each(['disabled', 'signed out', 'user changed', 'day changed', 'offset change
       else renderer?.update(createElement(Harness, props));
     });
     await act(async () => {
-      old.resolve({ month: null, readings: [] });
+      old.resolve({ month: null });
       mockBackground?.('background');
     });
     expect(mockSchedule).toHaveBeenCalled();
@@ -100,9 +100,9 @@ it('starts independent reads together and only schedules the newest overlapping 
   expect(mockLoadGoals).toHaveBeenCalledTimes(1);
   await act(async () => { renderer?.update(createElement(Harness, { ...initial, progressKey: '1' })); });
   await act(async () => { mockBackground?.('background'); });
-  await act(async () => { fresh.resolve({ month: null, readings: [] }); });
+  await act(async () => { fresh.resolve({ month: null }); });
   expect(mockSchedule).toHaveBeenCalledTimes(1);
-  await act(async () => { old.resolve({ month: null, readings: [] }); });
+  await act(async () => { old.resolve({ month: null }); });
   expect(mockSchedule).toHaveBeenCalledTimes(1);
 });
 
@@ -110,6 +110,6 @@ it('still schedules landmark copy when either independent read fails', async () 
   mockLoadProgress.mockRejectedValue(new Error('Offline'));
   mockLoadGoals.mockRejectedValue(new Error('Offline'));
   await mount();
-  expect(mockCopy).toHaveBeenCalledWith(expect.anything(), null, [], null);
+  expect(mockCopy).toHaveBeenCalledWith(expect.anything(), null, null);
   expect(mockSchedule).toHaveBeenCalledWith([expect.objectContaining({ body: 'Landmark' })]);
 });

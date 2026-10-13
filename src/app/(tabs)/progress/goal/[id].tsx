@@ -279,9 +279,8 @@ export default function GoalScreen() {
 /**
  * The ask — the one thing on this screen that is about today.
  *
- * A dateline, the claim, and the per-day division under it: the same three-part shape the
- * quarterly readings wear ({@link import('@/components/reading-card').ReadingCard}), because this
- * is the same kind of statement — a sentence about a span, not a stat.
+ * A dateline, the claim, and the per-day division under it, because this is a sentence about a
+ * span, not a stat.
  */
 function Ask({ reading }: { reading: GoalReading }) {
   const { goal, quota, quotaRemaining, dailyTarget, met, overdue, acts } = reading;

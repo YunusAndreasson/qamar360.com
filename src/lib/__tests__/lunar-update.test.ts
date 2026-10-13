@@ -1,7 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { addDaysISO } from '@/lib/dates';
-import type { Noticing, Reading } from '@/lib/insights';
 import { MILESTONE_DAYS, type MilestoneDay } from '@/lib/lunar-phase';
 import type { LunarFire } from '@/lib/lunar-schedule';
 import { VISIBLE_ALT } from '@/lib/lunar-schedule';
@@ -11,9 +9,6 @@ import type { MonthProgress } from '@/lib/progress';
 function fire(hijriDay: MilestoneDay, over: Partial<LunarFire> = {}): LunarFire {
   return {
     hijriDay,
-    // Derived, not fixed: the four milestones fall a week apart, and a fixture that dated them
-    // all to one day would let a reading published on one of them answer for all four.
-    dayISO: addDaysISO('2026-07-19', hijriDay - 1),
     monthName: 'Muḥarram',
     hijriYear: 1448,
     monthLength: 30,
@@ -150,150 +145,38 @@ describe('lunarUpdateCopy', () => {
   });
 });
 
-// ── The reading an update carries ───────────────────────────────────────────
-// A milestone is also the moment a quarterly reading is published, and the two must be one text.
-// These pin the seam: which reading is picked, when it is allowed to speak, and what happens in
-// each of the ways it can be absent.
-
-const QUARTER_SPAN = {
-  startISO: '2026-07-19',
-  endISO: '2026-07-25',
-  milestone: 1 as const,
-  monthName: 'Muḥarram',
-  monthNumber: 1,
-  year: 1448,
-  days: 7,
-};
-
-function reading(over: Partial<Reading> = {}, lead: Partial<Noticing> = {}): Reading {
-  const tally = {
-    span: QUARTER_SPAN,
-    rate: 0.6,
-    earned: 4.2,
-    possible: 7,
-    sealedDays: 4,
-    longestRun: { days: 3, startISO: '2026-07-19', endISO: '2026-07-21' },
-    byHabit: new Map<string, { possible: number; earned: number }>(),
-    byWeekday: Array.from({ length: 7 }, () => ({ possible: 1, earned: 0.6 })),
-  };
-  return {
-    id: '1448-1-1',
-    span: QUARTER_SPAN,
-    phase: 'first-quarter',
-    phaseLabel: 'First quarter',
-    illumination: 0.5,
-    waxing: true,
-    publishedISO: '2026-07-26', // the day-8 fire's own day — 1 Muḥarram + 7
-    quarter: tally,
-    previous: null,
-    lead: {
-      kind: 'pace',
-      headline: 'Ahead of last quarter.',
-      body: '4.2 of 7 scheduled acts kept, against 3 of 7 last quarter.',
-      salience: 0.5,
-      notifiable: true,
-      ...lead,
-    },
-    closed: true,
-    ...over,
-  };
-}
-
-describe('the reading an update carries', () => {
-  it("speaks the reading's headline instead of the landmark and the bare figure", () => {
-    const copy = lunarUpdateCopy(fire(8), month(), [reading()]);
-    expect(copy.body).toBe('Ahead of last quarter.');
-    // Both of the things it replaced are gone — a lock screen gets one claim, not three.
-    expect(copy.body).not.toMatch(/A quarter of Muḥarram is behind you/);
-    expect(copy.body).not.toMatch(/You're at/);
-  });
-
-  it('still names the phase and the date in the title, so nothing downstream shifts', () => {
-    // `settings/index.tsx` renders the next update's title as its footer, off this same generator.
-    expect(lunarUpdateCopy(fire(8), month(), [reading()]).title).toBe('First quarter · 8 Muḥarram');
-    expect(lunarUpdateCopy(fire(8), null).title).toBe('First quarter · 8 Muḥarram');
-  });
-
-  it('carries the reading id, so the tap opens that reading rather than the feed', () => {
-    expect(lunarUpdateCopy(fire(8), month(), [reading()]).readingId).toBe('1448-1-1');
-  });
-
-  it('keeps the sky clause, which is about tonight and not about the record', () => {
-    const copy = lunarUpdateCopy(fire(8, { moonAlt: VISIBLE_ALT + 1 }), month(), [reading()]);
-    expect(copy.body).toBe('Ahead of last quarter. The moon is up now.');
-  });
-
-  it('picks the reading published on ITS day, never merely the newest', () => {
-    const elsewhere = reading({ id: '1448-1-22', publishedISO: '2026-08-16' });
-    const copy = lunarUpdateCopy(fire(8), month(), [elsewhere]);
-    expect(copy.readingId).toBeUndefined();
-    expect(copy.body).toMatch(/A quarter of Muḥarram is behind you/);
-  });
-
-  describe('falls back to the landmark, and says nothing it should not', () => {
-    it('when the reading names a slip', () => {
-      const held = reading({}, { kind: 'slipper', headline: 'Witr is the one asking for you.', notifiable: false });
-      const copy = lunarUpdateCopy(fire(8), month(), [held]);
-      expect(copy.body).not.toMatch(/asking for you/);
-      expect(copy.readingId).toBeUndefined();
-      expect(copy.body).toMatch(/A quarter of Muḥarram is behind you/);
-    });
-
-    it('when the quarter has not begun, so no reading exists for that day', () => {
-      const copy = lunarUpdateCopy(fire(15), month(), [reading()]);
-      expect(copy.body).toMatch(/The White Days/);
-      expect(copy.readingId).toBeUndefined();
-    });
-
-    it('when the record could not be read at all', () => {
-      const copy = lunarUpdateCopy(fire(8), null, []);
-      expect(copy.body).toBe('A quarter of Muḥarram is behind you.');
-      expect(copy.body).not.toMatch(/undefined|NaN|null/);
-    });
-  });
-
-  it('never lets a reading put a second moon in the body', () => {
-    for (const day of MILESTONE_DAYS) {
-      const copy = lunarUpdateCopy(fire(day, { moonAlt: VISIBLE_ALT + 1 }), month(), [
-        reading({ publishedISO: '2026-07-26' }),
-      ]);
-      expect(copy.body.match(/moon/gi)?.length ?? 0).toBeLessThanOrEqual(1);
-    }
-  });
-});
-
 describe('the new moon’s goal', () => {
   const ask = { title: 'Ḥifẓ of the Qurʾān', quota: 420, unit: 'lines' };
 
   // A temporal landmark is when an aspiration is most likely to be taken up, and this is the one
   // update that reaches you whether or not you opened the app.
   it('names what the opening month asks, in place of the degrees', () => {
-    const { body } = lunarUpdateCopy(fire(1), month(), [], ask);
+    const { body } = lunarUpdateCopy(fire(1), month(), ask);
     expect(body).toContain('420 lines toward Ḥifẓ of the Qurʾān.');
     expect(body).not.toContain('360°');
   });
 
-  // Three sentences on a lock screen is one too many — the same rule a reading is admitted under.
+  // Three sentences on a lock screen is one too many.
   it('replaces rather than joins', () => {
-    const { body } = lunarUpdateCopy(fire(1), month(), [], ask);
+    const { body } = lunarUpdateCopy(fire(1), month(), ask);
     expect(body.match(/\./g)?.length).toBe(2); // "Ṣafar begins." + the ask
   });
 
   // Only the new moon. The other three milestones are about the month that is passing.
   it('says nothing on the other milestones', () => {
     for (const day of [8, 15, 22] as const) {
-      expect(lunarUpdateCopy(fire(day), month(), [], ask).body).not.toContain('420');
+      expect(lunarUpdateCopy(fire(day), month(), ask).body).not.toContain('420');
     }
   });
 
   it('falls back to the landmark when there is no goal to speak for', () => {
-    expect(lunarUpdateCopy(fire(1), month(), [], null).body).toContain('360°');
+    expect(lunarUpdateCopy(fire(1), month(), null).body).toContain('360°');
   });
 
   // A four-figure ask reaching the lock screen as "1510" beside a goal screen saying "1,510" is
   // one measure wearing two faces.
   it('prints the ask the way every other surface prints a measure', () => {
-    const { body } = lunarUpdateCopy(fire(1), month(), [], { ...ask, quota: 1510 });
+    const { body } = lunarUpdateCopy(fire(1), month(), { ...ask, quota: 1510 });
     expect(body).toContain('1,510 lines');
   });
 });

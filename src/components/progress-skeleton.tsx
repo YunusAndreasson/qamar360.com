@@ -25,22 +25,6 @@ export function ProgressSkeleton() {
   );
 }
 
-/**
- * Insights: the next-reading line, one complete finding, then the first quiet archive group.
- *
- * The 78 is `NextReadingCard`'s settled height — 16pt padding either side of a 46pt text block
- * (a 24pt title, a 2pt gap, a 20pt caption), which out-measures the 26pt moon beside it.
- */
-export function InsightsSkeleton() {
-  return (
-    <View style={styles.root}>
-      <Skeleton height={78} />
-      <Skeleton height={136} />
-      <Skeleton height={200} />
-    </View>
-  );
-}
-
 /** Habits → Stats: the consistency ring, the streak pair, the weekday bars, the trend line. */
 export function StatsSkeleton() {
   return (

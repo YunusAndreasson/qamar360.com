@@ -62,7 +62,7 @@ type SaveState =
  * One plan: what it is, and the notes behind it.
  *
  * The notes are why this page exists — writing ten lines about a trip is work for a keyboard. So
- * it borrows the journal's save machinery wholesale: a debounced write, a strictly serialized
+ * it saves as you type: a debounced write, a strictly serialized
  * queue, and every write conditional on the row exactly as it was last read. The phone edits these
  * same rows, which is precisely the case that guard is for.
  *

@@ -19,7 +19,7 @@ import { haptics } from '@/lib/haptics';
 import { scheduledLabel } from '@/lib/plans';
 import type { Task } from '@/lib/tasks';
 
-/** The same ceiling `daily_notes` keeps, and the one the column checks. */
+/** The ceiling the column checks. */
 const MAX_BODY_LENGTH = 4000;
 
 /**
@@ -29,8 +29,8 @@ const MAX_BODY_LENGTH = 4000;
  * this wants a back button and a title of its own, and a second sheet on top of the first is how
  * a stack of modals starts.
  *
- * The notes field is the point of the screen, so it is given the room `note.tsx` gives a
- * reflection. A to-do could not have this and shouldn't: a one-off is a line you type, and a form
+ * The notes field is the point of the screen, so it is given the screen. A to-do could not have
+ * this and shouldn't: a one-off is a line you type, and a form
  * asking for notes about it would be asking for work the thing doesn't have.
  *
  * Below the fields, the one thing a plan can do: put a to-do on today or on tomorrow. That row is
@@ -220,6 +220,6 @@ function ScheduleRow({
 }
 
 const styles = StyleSheet.create({
-  // The reflection screen's measure: enough that the notes are the screen rather than a field on it.
+  // Enough that the notes are the screen rather than a field on it.
   notes: { minHeight: 240, paddingTop: Spacing.three },
 });

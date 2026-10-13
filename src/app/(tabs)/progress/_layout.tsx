@@ -12,8 +12,8 @@ export default function ProgressStackLayout() {
     <TabStack>
       <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Progress', headerLargeTitle: true }} />
       <Stack.Screen name="orbit" options={formSheetOptions(theme)} />
-      {/* One goal in full. Under a static `goal/` segment for the reason it was under one in the
-          Insights stack: neither route can then be swallowed by a sibling's dynamic one. */}
+      {/* One goal in full. Under a static `goal/` segment so it can't be swallowed by a sibling's
+          dynamic one. */}
       <Stack.Screen name="goal/[id]" options={transparentScreen} />
       {/* The composer takes `modalHeaderOptions`, the same as every other editor form in the app
           (`habits/_layout.tsx`) — an opaque themed bar in the shared title voice. Not

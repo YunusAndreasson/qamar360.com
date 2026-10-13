@@ -66,7 +66,7 @@ export type HabitPatch = {
 /** Everything needed to create a habit (name + schedule + optional goal). */
 export type HabitCreate = {
   name: string;
-  /** Curated catalog row this habit came from, so insights may attach only vetted evidence. */
+  /** Curated catalog row this habit came from. */
   preset_id?: string | null;
   schedule_days: number[];
   /** A Hijri recurrence instead of weekdays; omit/null for a weekly habit. */
@@ -1281,7 +1281,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (patch.target_count === undefined) return;
       // The reconcile below rewrites the VIEWED day, which the day picker can have parked up to
       // a month back. That is what you want from the habit editor on the day you are looking at,
-      // and data loss anywhere else: a goal accepting its monthly target from the Insights tab
+      // and data loss anywhere else: a goal accepting its monthly target from another tab
       // has no view of the day at all, and would silently turn a closed day's 'done' row into a
       // 'partial' one — lowering that month's degrees and the goal's own pace.
       if (opts?.reconcileViewedDay === false) return;

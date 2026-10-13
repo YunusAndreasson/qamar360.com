@@ -12,8 +12,7 @@
  *
  * This module owns only **when the asking happens** and **what the row says**; what the answer
  * does to the measure lives in `goals.ts`, which imports this one. The dependency runs one way on
- * purpose: `insights.ts` and `progress.ts` had to be untangled once already, and a cycle through
- * the module every screen derives from is the expensive kind.
+ * purpose: a cycle through the module every screen derives from is the expensive kind.
  *
  * Pure, and tested in `check-ins.test.ts` — jest here matches `src/**\/*.test.ts` only, so a
  * visibility matrix living inside a component would have no test at all (the same reason
@@ -67,7 +66,7 @@ export type CadenceKey = 'daily' | 'weekly' | 'quarter' | 'month';
  * the whole reason a check-in needed no recurrence engine of its own: `check_in_days` is the
  * weekday set habits use, `check_in_hijri` the {@link HijriSchedule} they use for the White Days
  * and Ramaḍān. The moon quarter reuses {@link MILESTONE_DAYS} rather than restating `[1,8,15,22]`,
- * so the ask lands on the same grid the quarterly readings publish on and cannot drift from it.
+ * so the ask lands on the same grid the lunar updates fire on and cannot drift from it.
  */
 export const CADENCES: {
   key: CadenceKey;

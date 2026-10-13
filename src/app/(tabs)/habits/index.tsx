@@ -257,8 +257,7 @@ export default function HabitsScreen() {
       void refresh();
       void refreshTasks();
       // A cadence set from the "+" sheet lands while this screen is behind a modal, so the day has
-      // to re-read on the way back — the same rule the Insights screen follows, and for the same
-      // reason: `useGoals` is a provider, but the modal's write does not pass through this render.
+      // to re-read on the way back: `useGoals` is a provider, but the modal's write does not pass through this render.
       void refreshGoals();
     }, [refresh, refreshTasks, refreshGoals]),
   );
@@ -722,14 +721,6 @@ export default function HabitsScreen() {
           ),
           headerRight: () => (
             <HeaderActions>
-              {isToday ? (
-                <HeaderIconButton
-                  icon={Icons.note}
-                  color={theme.accent}
-                  accessibilityLabel="Write today’s reflection"
-                  onPress={() => router.push('/habits/note')}
-                />
-              ) : null}
               {/* One door to add: the sheet forks to a stack, an exchange, or a one-off task —
                   hence the bare "Add", which is all this button can honestly promise. */}
               <HeaderIconButton

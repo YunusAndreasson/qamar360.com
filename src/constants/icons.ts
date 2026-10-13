@@ -24,11 +24,6 @@ export const Icons = {
   // ── Navigation / chrome ────────────────────────────────────────────────
   close: { sf: 'xmark', material: 'close' },
   add: { sf: 'plus', material: 'add' },
-  // Today's reflection — the journal entry you write for the day. A page ruled with
-  // lines, which is what this was, reads as something to be READ; the pencil breaking the frame
-  // says "write" instead. (It was also the same silhouette as `calendar` at header size, back
-  // when a calendar glyph held the other end of Today's bar — that end is now the moon.)
-  note: { sf: 'square.and.pencil', material: 'edit-square' },
   check: { sf: 'checkmark', material: 'check' },
   chevronLeft: { sf: 'chevron.left', material: 'chevron-left' },
   chevronRight: { sf: 'chevron.right', material: 'chevron-right' },
@@ -68,8 +63,7 @@ export const Icons = {
   skip: { sf: 'minus.circle', material: 'do-not-disturb-on' },
   undo: { sf: 'arrow.uturn.backward', material: 'undo' },
   edit: { sf: 'pencil', material: 'edit' },
-  // Per-habit and per-stack stats — the ⋯ sheet's "Stats" action and its empty state. NOT the
-  // Insights tab, which is the moon's own; that one is a tab-bar glyph, written inline there.
+  // Per-habit and per-stack stats — the ⋯ sheet's "Stats" action and its empty state.
   stats: { sf: 'chart.bar.xaxis', material: 'insights' },
   delete: { sf: 'trash', material: 'delete' },
   deleteOutline: { sf: 'trash', material: 'delete-outline' },

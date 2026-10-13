@@ -121,9 +121,8 @@ function PlanRow({ plan, today, scheduledOn }: { plan: Plan; today: string | nul
 /**
  * A plan is named before it exists.
  *
- * The journal can navigate to a day and let the first save create the row, because a reflection's
- * identity is its date. A plan's identity is its title, and the column refuses an empty one — so
- * there is nothing to create until there is a name.
+ * A plan's identity is its title, and the column refuses an empty one — so there is nothing to
+ * create until there is a name.
  */
 function NamePlanDialog({
   open,

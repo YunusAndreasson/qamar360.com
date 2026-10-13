@@ -67,8 +67,8 @@ export default function RootLayout() {
  * `isUpdatePending`, not `isUpdateAvailable` — pending means the bundle is already on the device,
  * so the restart is instant and works with the network gone. Available only means one exists.
  *
- * Offered rather than applied. Reloading is a cold start: it would take a half-typed to-do or an
- * unsaved reflection with it, and an app that restarts itself under the user's hands to install
+ * Offered rather than applied. Reloading is a cold start: it would take a half-typed to-do or
+ * unsaved plan notes with it, and an app that restarts itself under the user's hands to install
  * something they never asked about is the behaviour people turn updates off over. The toast
  * carries the app's own action affordance and self-dismisses; declining costs nothing, because the
  * update applies on the next launch anyway.
@@ -123,17 +123,12 @@ function RootNavigator() {
     if (ready) SplashScreen.hide();
   }, [ready]);
 
-  // Tapping a lunar update opens the reading it carried, in full — the banner is that reading's
-  // first line, so the tap lands on the rest of it rather than somewhere it has to be looked up.
-  // An update that carried only the landmark has no id, and opens the feed instead. Gated on a
-  // mounted navigator and a session, so a cold-start tap can't navigate before the tabs exist or
-  // land a signed-out user on a protected route.
+  // Tapping a lunar update opens Progress: the banner is about the month, and that is where the
+  // month is drawn. Gated on a mounted navigator and a session, so a cold-start tap can't navigate
+  // before the tabs exist or land a signed-out user on a protected route.
   useEffect(() => {
     if (!ready || !session) return;
-    return subscribeToUpdateTaps((readingId) => {
-      if (readingId) router.navigate({ pathname: '/(tabs)/insights/[id]', params: { id: readingId } });
-      else router.navigate('/insights');
-    });
+    return subscribeToUpdateTaps(() => router.navigate('/progress'));
   }, [ready, session, router]);
 
   if (!ready) return null;

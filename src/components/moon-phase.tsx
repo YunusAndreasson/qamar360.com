@@ -37,7 +37,7 @@ export function MoonPhase({
    * visible however little of it the sun is on.
    *
    * For the moons that sit in a LIST, where the glyph is a row's leading mark and not the subject.
-   * A new moon is 14% of one colour on a card of nearly the same colour, so on the Insights feed
+   * A new moon is 14% of one colour on a card of nearly the same colour, so in a list
    * every fourth row led with what looked like a failed image while its three neighbours led with
    * a bright disc — the reader's eye reads that as a fault, not as a phase. A hairline says "this
    * is a moon, and it is dark", which is the actual fact.

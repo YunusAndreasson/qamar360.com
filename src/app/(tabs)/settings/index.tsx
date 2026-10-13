@@ -6,7 +6,6 @@ import { Alert, AppState, Linking, Pressable, StyleSheet, View } from 'react-nat
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { Avatar } from '@/components/avatar';
-import { LocalInsightSettings } from '@/components/local-insight-settings';
 import { SectionLabel } from '@/components/section-label';
 import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
@@ -275,7 +274,7 @@ export default function SettingsScreen() {
           notificationsAvailable
             ? nextUpdate
               ? `Next · ${nextUpdate}`
-              : 'New moon, first quarter, full moon, last quarter — each with a reading of the quarter just gone.'
+              : 'New moon, first quarter, full moon, last quarter.'
             : undefined
         }>
         {notificationsAvailable ? (
@@ -308,8 +307,6 @@ export default function SettingsScreen() {
           />
         ) : null}
       </SettingsSection>
-
-      <LocalInsightSettings />
 
       {/* Feel — the app's own texture. Every one defaults on; turning one off is a preference
           for quiet, never a loss of function. */}

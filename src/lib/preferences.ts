@@ -118,21 +118,6 @@ const SPEC = {
    * feature, and inheriting someone's opt-out of per-habit reminders would silence it wrongly.
    */
   lunarUpdates: flag('prefs.lunarUpdates', true),
-  /**
-   * The id of the newest quarterly reading the user has actually looked at — what the Insights
-   * tab's unread dot is measured against. Not a "seen" flag but the id itself, so the dot returns
-   * on its own at the next moon quarter with nothing to reset it.
-   *
-   * Any string parses: a reading id is derived from the Hijri calendar, so an unknown one simply
-   * never matches and the dot shows — the safe direction to fail. The empty fallback is the
-   * behaviour before it existed: nothing has been read, so the first reading is new.
-   */
-  insightsSeen: {
-    key: 'prefs.insightsSeen',
-    fallback: '',
-    parse: (raw) => raw,
-    serialize: (v) => v,
-  } satisfies Spec<string>,
   /** Custom day-part boundaries, or `null` to follow the real sun (the default). */
   dayBands: {
     key: 'prefs.dayBands',

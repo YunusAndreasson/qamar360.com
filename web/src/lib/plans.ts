@@ -2,7 +2,6 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query'
 
 import type { Tables } from '#/lib/database.types'
 import { addDaysISO, formatDayShort } from '#/lib/dates'
-import { clampBody } from '#/lib/notes'
 import { requireUserId, supabaseBrowser } from '#/lib/supabase/client'
 
 /**
@@ -16,12 +15,12 @@ import { requireUserId, supabaseBrowser } from '#/lib/supabase/client'
  *
  * The DB enforces `char_length(trim(title)) between 1 and 200` and `char_length(body) <= 4000`,
  * which shapes two rules the UI cannot opt out of: a plan can never be saved without a title (so a
- * new one is named before it exists, rather than created empty at a URL the way a reflection is),
+ * new one is named before it exists, rather than created empty at a URL),
  * and the notes are clamped before they are ever sent.
  */
 export type Plan = Tables<'plans'>
 
-/** Matches the `plans` body check. The same ceiling a reflection keeps. */
+/** Matches the `plans` body check. */
 export const MAX_PLAN_BODY = 4000
 /** Matches the `plans` title check. */
 export const MAX_PLAN_TITLE = 200
@@ -199,4 +198,21 @@ export function scheduledByPlan(tasks: readonly PlanTask[]): Map<string, PlanTas
     if (held === undefined || task.due_on < held.due_on) byPlan.set(task.plan_id, task)
   }
   return byPlan
+}
+
+/**
+ * Cut `body` to the length the database will accept, so a long paste clamps instead of
+ * failing. Never leaves a lone high surrogate behind: half an emoji is invalid UTF-8 and
+ * Postgres rejects the whole write.
+ *
+ * The limit counts UTF-16 units while the DB constraint counts code points, so an astral
+ * character costs two here and one there — the counter can read a little pessimistic, which
+ * is the safe direction.
+ */
+export function clampBody(body: string, max: number): string {
+  if (body.length <= max) return body
+  const cut = body.slice(0, max)
+  const last = cut.charCodeAt(cut.length - 1)
+  const strayLeadSurrogate = last >= 0xd800 && last <= 0xdbff
+  return strayLeadSurrogate ? cut.slice(0, -1) : cut
 }

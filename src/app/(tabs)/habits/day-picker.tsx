@@ -20,7 +20,7 @@ import { DATE_LOCALE, hijriParts, todayLocalISO } from '@/lib/dates';
  * **The subtitle is the Hijri date, and only that.** The grid below is the OS's own, so it counts
  * in Gregorian and always will — it names the month, circles the day, and on Android prints the
  * full date in its headline. What it cannot say is the day in the calendar the rest of the app
- * reckons in: the moon on the button that opens this sheet, the months Progress and Insights are
+ * reckons in: the moon on the button that opens this sheet, the months Progress is
  * filed under, a habit scheduled on a Hijri day. So the sheet says that, and the two calendars
  * are stated once each rather than the Gregorian one twice. It falls back to the full Gregorian
  * date on a runtime whose `Intl` has no Islamic calendar, so the line is never empty.

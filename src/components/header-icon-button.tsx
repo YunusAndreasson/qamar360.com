@@ -51,8 +51,7 @@ export function HeaderIconButton({
  *
  * Today's day picker opened from a calendar glyph, which said only "there is a date behind this"
  * — a thing the large title beside it was already saying, in words. This app reckons its months
- * by the moon (the Hijri date, the four lunar updates, the month ring on Progress, a reading per
- * quarter on Insights), so the shape the day *has* is a phase, and a phase is legible at 22pt in
+ * by the moon (the Hijri date, the four lunar updates, the month ring on Progress), so the shape the day *has* is a phase, and a phase is legible at 22pt in
  * a way a numeral is not: you can see from the header that the month is nearly out.
  *
  * Drawn `onSky` so it is a moon over the starfield rather than a white coin on it, and with the

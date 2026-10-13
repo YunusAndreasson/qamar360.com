@@ -138,9 +138,8 @@ export type ProgressHabit = {
   target_count?: number | null;
   /**
    * Optional, because none of the arithmetic here needs one — a rate is a rate whatever the act
-   * is called. The quarterly readings do ({@link import('./insights').computeReadings} names the
-   * act that gained ground), and they run off this same sweep, so it rides along rather than
-   * forcing a second habit shape.
+   * is called. The goals do (they name the acts that feed them), and they run off this same
+   * habit shape, so it rides along rather than forcing a second one.
    */
   name?: string | null;
 };
@@ -460,12 +459,8 @@ export function daysLeftLabel({ dayOfMonth, monthLength }: Pick<MonthProgress, '
  * told apart (an excused day leaves the rate entirely; a day the act never ran on was never in
  * it), and collapsing them is the classic way a habit's rate quietly starts counting Fridays it
  * was never scheduled for.
- *
- * Exported so the quarterly readings ({@link import('./insights').computeReadings}) can run off
- * the identical rule rather than a second copy of it — a reading that disagreed with the orbit
- * above it would be worse than no reading.
  */
-export function creditOnDay(
+function creditOnDay(
   completions: CompletionRow[],
 ): (habit: ProgressHabit, iso: string) => number | null | undefined {
   // date → (habit id → its completion row) for that day.

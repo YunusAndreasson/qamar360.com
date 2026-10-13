@@ -1,5 +1,5 @@
 /**
- * Reading the record: one fetch, and the two pure sweeps run over it.
+ * Reading the record: one fetch, and the pure sweep run over it.
  *
  * This is the data layer under {@link import('@/hooks/use-progress').useProgress}, and it lives
  * apart from that hook because two callers need it from **outside** the navigator — the
@@ -11,40 +11,8 @@
 
 import type { Habit } from '@/hooks/use-habits';
 import { addDaysISO } from '@/lib/dates';
-import { computeReadings, type Reading } from '@/lib/insights';
-import {
-  computeProgress,
-  creditOnDay,
-  withDoneToday,
-  type CompletionRow,
-  type ProgressDerived,
-} from '@/lib/progress';
+import { computeProgress, withDoneToday, type CompletionRow, type ProgressDerived } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
-
-/**
- * The two pure sweeps, run over one fetch: the instruments and the quarterly readings.
- *
- * They are composed here rather than inside `computeProgress` so `lib/insights` can depend on
- * `lib/progress` (for the app's degrees unit and its habit shape) without the two importing each
- * other. Both read the SAME completion rule — {@link creditOnDay} — so a reading can never quote
- * a figure the orbit above it disagrees with.
- */
-export function derive(habits: Habit[], completions: CompletionRow[], today: string): Derived {
-  return {
-    ...computeProgress(habits, completions, today),
-    readings: computeReadings(habits, creditOnDay(completions), today),
-  };
-}
-
-/** Everything one progress fetch yields. */
-export type Derived = ProgressDerived & {
-  /**
-   * One written reading per moon quarter, newest first — the Insights feed, and the text the
-   * lunar updates carry. Includes the quarter still being lived (`closed: false`), which only
-   * the notification arming reads.
-   */
-  readings: Reading[];
-};
 
 /**
  * How far back the day-complete overlay pulls completions — a Hijri year covers everything its
@@ -86,7 +54,7 @@ export async function fetchProgressWindow(
  *  ids the overlay already knows are done for `today` (it only fires once the day is complete) —
  *  overlaid via {@link withDoneToday} so the overlay's degrees don't undercount ticks that haven't
  *  yet reached the server, and so match the Progress tab. */
-export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<Derived> {
+export async function loadProgress(userId: string, today: string, doneToday: string[]): Promise<ProgressDerived> {
   const { habits, completions } = await fetchProgressWindow(userId, today, OVERLAY_WINDOW_DAYS);
-  return derive(habits, withDoneToday(completions, doneToday, today), today);
+  return computeProgress(habits, withDoneToday(completions, doneToday, today), today);
 }

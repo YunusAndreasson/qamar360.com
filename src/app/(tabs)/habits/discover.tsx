@@ -370,7 +370,7 @@ export default function DiscoverScreen() {
         );
       case 'category':
         // The app's one section caption, the same `SectionLabel` the stack and exchange libraries
-        // use for the very same job — and Settings, and the day, and the Insights feed. This screen
+        // use for the very same job — and Settings, and the day. This screen
         // was the single place that reached for an 18pt `heading` instead, on the argument that a
         // long library needs a stronger marker to walk by; but the two sibling libraries reached
         // from the same + menu are no shorter, and this is the only one of the three that ALSO has

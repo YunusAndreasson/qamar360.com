@@ -16,8 +16,6 @@ import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
 import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
 import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
 import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
-import { Route as AuthedJournalIndexRouteImport } from './routes/_authed/journal/index'
-import { Route as AuthedJournalDayRouteImport } from './routes/_authed/journal/$day'
 import { Route as AuthedPlansIndexRouteImport } from './routes/_authed/plans/index'
 import { Route as AuthedPlansIdRouteImport } from './routes/_authed/plans/$id'
 
@@ -55,16 +53,6 @@ const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
   path: '/routines',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedJournalIndexRoute = AuthedJournalIndexRouteImport.update({
-  id: '/journal/',
-  path: '/journal/',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedJournalDayRoute = AuthedJournalDayRouteImport.update({
-  id: '/journal/$day',
-  path: '/journal/$day',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthedPlansIndexRoute = AuthedPlansIndexRouteImport.update({
   id: '/plans/',
   path: '/plans/',
@@ -83,9 +71,7 @@ export interface FileRoutesByFullPath {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
-  '/journal/$day': typeof AuthedJournalDayRoute
   '/plans/$id': typeof AuthedPlansIdRoute
-  '/journal/': typeof AuthedJournalIndexRoute
   '/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesByTo {
@@ -95,9 +81,7 @@ export interface FileRoutesByTo {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
-  '/journal/$day': typeof AuthedJournalDayRoute
   '/plans/$id': typeof AuthedPlansIdRoute
-  '/journal': typeof AuthedJournalIndexRoute
   '/plans': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesById {
@@ -109,9 +93,7 @@ export interface FileRoutesById {
   '/_authed/habits': typeof AuthedHabitsRoute
   '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
-  '/_authed/journal/$day': typeof AuthedJournalDayRoute
   '/_authed/plans/$id': typeof AuthedPlansIdRoute
-  '/_authed/journal/': typeof AuthedJournalIndexRoute
   '/_authed/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRouteTypes {
@@ -123,9 +105,7 @@ export interface FileRouteTypes {
     | '/habits'
     | '/progress'
     | '/routines'
-    | '/journal/$day'
     | '/plans/$id'
-    | '/journal/'
     | '/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -135,9 +115,7 @@ export interface FileRouteTypes {
     | '/habits'
     | '/progress'
     | '/routines'
-    | '/journal/$day'
     | '/plans/$id'
-    | '/journal'
     | '/plans'
   id:
     | '__root__'
@@ -148,9 +126,7 @@ export interface FileRouteTypes {
     | '/_authed/habits'
     | '/_authed/progress'
     | '/_authed/routines'
-    | '/_authed/journal/$day'
     | '/_authed/plans/$id'
-    | '/_authed/journal/'
     | '/_authed/plans/'
   fileRoutesById: FileRoutesById
 }
@@ -211,20 +187,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRoutinesRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/journal/': {
-      id: '/_authed/journal/'
-      path: '/journal'
-      fullPath: '/journal/'
-      preLoaderRoute: typeof AuthedJournalIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/journal/$day': {
-      id: '/_authed/journal/$day'
-      path: '/journal/$day'
-      fullPath: '/journal/$day'
-      preLoaderRoute: typeof AuthedJournalDayRouteImport
-      parentRoute: typeof AuthedRoute
-    }
     '/_authed/plans/': {
       id: '/_authed/plans/'
       path: '/plans'
@@ -247,9 +209,7 @@ interface AuthedRouteChildren {
   AuthedHabitsRoute: typeof AuthedHabitsRoute
   AuthedProgressRoute: typeof AuthedProgressRoute
   AuthedRoutinesRoute: typeof AuthedRoutinesRoute
-  AuthedJournalDayRoute: typeof AuthedJournalDayRoute
   AuthedPlansIdRoute: typeof AuthedPlansIdRoute
-  AuthedJournalIndexRoute: typeof AuthedJournalIndexRoute
   AuthedPlansIndexRoute: typeof AuthedPlansIndexRoute
 }
 
@@ -258,9 +218,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedHabitsRoute: AuthedHabitsRoute,
   AuthedProgressRoute: AuthedProgressRoute,
   AuthedRoutinesRoute: AuthedRoutinesRoute,
-  AuthedJournalDayRoute: AuthedJournalDayRoute,
   AuthedPlansIdRoute: AuthedPlansIdRoute,
-  AuthedJournalIndexRoute: AuthedJournalIndexRoute,
   AuthedPlansIndexRoute: AuthedPlansIndexRoute,
 }
 

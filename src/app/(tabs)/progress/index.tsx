@@ -71,7 +71,7 @@ export default function ProgressScreen() {
   // Re-read the goals whenever this tab comes forward. `useProgress` is a hook, so every screen
   // holding one holds its own instance — and a goal is set on Today, in another tab, while this
   // one sits mounted behind it. Re-reading on focus makes the list correct by construction rather
-  // than by trusting a propagation path. (The same rule the plans list and Insights follow.)
+  // than by trusting a propagation path. (The same rule the plans list follows.)
   useFocusEffect(
     useCallback(() => {
       void refreshGoals();
@@ -152,6 +152,6 @@ const styles = StyleSheet.create({
   // the reading screen's note).
   note: { marginLeft: Spacing.three, marginRight: Spacing.three },
   // Their own region, set off from the note that closes the degree instruments. The gap rides
-  // on top of AppScreen's own child gap, the same way the Insights archive's did.
+  // on top of AppScreen's own child gap.
   goals: { gap: Spacing.three, marginTop: Spacing.three },
 });
