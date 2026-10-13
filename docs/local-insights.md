@@ -10,7 +10,7 @@ precedence over earlier model text.
 
 - React Native ExecuTorch 0.10.1; Gemma 4 E2B XNNPACK 8da4w export pinned to
   `e20831dd07f0f0d2bb6ee85e204e974a8a69b903`. Downloaded files are checked by size
-  and SHA-256 before installation. About 2.67 GB is downloaded explicitly in Settings.
+  and SHA-256 before installation. About 2.67 GB is downloaded explicitly, from the reading's card or from Settings.
 - The download guard requires 6 GiB reported RAM and about 3.2 GB free storage.
   This is an initial conservative guard, not a measured guarantee against memory pressure.
 - The export's 4,048-token context is budgeted with a 2,800-token input limit,
@@ -24,9 +24,10 @@ precedence over earlier model text.
   SQLite secure deletion is enabled. This is app-private storage, not an independently
   encrypted database.
 - Opening a closed quarter with fresh records saves its inputs for offline reuse.
-  Existing cloud reflections are imported read-only. New versions are never uploaded.
-  Cloud endpoints and the old cloud consent setting remain for older app builds.
-- Local journal permission defaults off and is independent of cloud permission.
+  New versions are never uploaded. The cloud path an earlier build used is gone: the Worker
+  endpoint, the `generated_insights` table and the cloud consent columns were all removed. A
+  reflection imported from it before then stays on the device, marked `legacy`.
+- Local journal permission defaults off.
   Revocation clears cached note bodies and all directly or transitively note-derived
   local versions, and invalidates in-flight work. Account deletion clears this account's
   archive. Signing out keeps the account-scoped archive for the next sign-in.

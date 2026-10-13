@@ -21,7 +21,6 @@ import {
   clampBody,
   invalidateNotes,
   noteQueryOptions,
-  notesConsentQueryOptions,
   readingMinutes,
   saveNote,
   wordCount,
@@ -66,7 +65,6 @@ type SaveState =
 function DayEditor({ day }: { day: string }) {
   const qc = useQueryClient()
   const { data: note, isPending, isError } = useQuery(noteQueryOptions(day))
-  const { data: consented } = useQuery(notesConsentQueryOptions())
 
   const [body, setBody] = useState('')
   const [ready, setReady] = useState(false)
@@ -239,15 +237,6 @@ function DayEditor({ day }: { day: string }) {
   }, [fullscreen])
 
   const words = wordCount(body)
-  // Never claim a privacy guarantee we have not confirmed: while the consent read is in flight
-  // (or has failed) `consented` is undefined, and the Worker may well be feeding this text to
-  // the model. Say only the part that is unconditionally true.
-  const insightLine =
-    consented === undefined
-      ? 'Private to you.'
-      : consented
-        ? 'Private to you. May inform your quarterly insights.'
-        : 'Private to you. Not used in insights.'
   const hijri = formatHijriDate(day)
   const gregorian = formatGregorian(day)
   const weekday = localDate(day).toLocaleDateString(undefined, { weekday: 'long' })
@@ -270,7 +259,7 @@ function DayEditor({ day }: { day: string }) {
                   mismatch on every non-English visit. The Hijri heading above is unaffected:
                   it formats through an explicit locale and a hardcoded month table. */}
               {hydrated && `${weekday}${hijri ? ` · ${gregorian}` : ''} · `}
-              {insightLine}
+              Private to you.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">

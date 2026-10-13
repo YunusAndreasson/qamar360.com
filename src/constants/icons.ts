@@ -24,7 +24,7 @@ export const Icons = {
   // ── Navigation / chrome ────────────────────────────────────────────────
   close: { sf: 'xmark', material: 'close' },
   add: { sf: 'plus', material: 'add' },
-  // Today's reflection — the journal entry you write (or dictate) for the day. A page ruled with
+  // Today's reflection — the journal entry you write for the day. A page ruled with
   // lines, which is what this was, reads as something to be READ; the pencil breaking the frame
   // says "write" instead. (It was also the same silhouette as `calendar` at header size, back
   // when a calendar glyph held the other end of Today's bar — that end is now the moon.)

@@ -63,7 +63,6 @@ export type Database = {
           created_at: string | null
           id: string
           note_date: string
-          spoken_seconds: number | null
           updated_at: string | null
           user_id: string
         }
@@ -72,7 +71,6 @@ export type Database = {
           created_at?: string | null
           id?: string
           note_date: string
-          spoken_seconds?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -81,67 +79,12 @@ export type Database = {
           created_at?: string | null
           id?: string
           note_date?: string
-          spoken_seconds?: number | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "daily_notes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      generated_insights: {
-        Row: {
-          evidence_preset_id: string | null
-          evidence_text: string | null
-          generated_at: string
-          model: string
-          next_step: string
-          paragraphs: string[]
-          prompt_version: number
-          reading_id: string
-          used_notes: boolean
-          user_id: string
-        }
-        Insert: {
-          evidence_preset_id?: string | null
-          evidence_text?: string | null
-          generated_at?: string
-          model: string
-          next_step: string
-          paragraphs: string[]
-          prompt_version: number
-          reading_id: string
-          used_notes?: boolean
-          user_id: string
-        }
-        Update: {
-          evidence_preset_id?: string | null
-          evidence_text?: string | null
-          generated_at?: string
-          model?: string
-          next_step?: string
-          paragraphs?: string[]
-          prompt_version?: number
-          reading_id?: string
-          used_notes?: boolean
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generated_insights_evidence_preset_id_fkey"
-            columns: ["evidence_preset_id"]
-            isOneToOne: false
-            referencedRelation: "presets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "generated_insights_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -677,8 +620,6 @@ export type Database = {
       }
       users: {
         Row: {
-          ai_notes_consent_at: string | null
-          ai_notes_consent_version: number | null
           avatar_path: string | null
           created_at: string | null
           email: string
@@ -686,8 +627,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          ai_notes_consent_at?: string | null
-          ai_notes_consent_version?: number | null
           avatar_path?: string | null
           created_at?: string | null
           email: string
@@ -695,8 +634,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          ai_notes_consent_at?: string | null
-          ai_notes_consent_version?: number | null
           avatar_path?: string | null
           created_at?: string | null
           email?: string

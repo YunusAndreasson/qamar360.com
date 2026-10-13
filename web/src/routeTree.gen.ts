@@ -20,7 +20,6 @@ import { Route as AuthedJournalIndexRouteImport } from './routes/_authed/journal
 import { Route as AuthedJournalDayRouteImport } from './routes/_authed/journal/$day'
 import { Route as AuthedPlansIndexRouteImport } from './routes/_authed/plans/index'
 import { Route as AuthedPlansIdRouteImport } from './routes/_authed/plans/$id'
-import { Route as ApiInsightsReadingIdRouteImport } from './routes/api/insights/$readingId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,11 +75,6 @@ const AuthedPlansIdRoute = AuthedPlansIdRouteImport.update({
   path: '/plans/$id',
   getParentRoute: () => AuthedRoute,
 } as any)
-const ApiInsightsReadingIdRoute = ApiInsightsReadingIdRouteImport.update({
-  id: '/api/insights/$readingId',
-  path: '/api/insights/$readingId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,7 +85,6 @@ export interface FileRoutesByFullPath {
   '/routines': typeof AuthedRoutinesRoute
   '/journal/$day': typeof AuthedJournalDayRoute
   '/plans/$id': typeof AuthedPlansIdRoute
-  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/journal/': typeof AuthedJournalIndexRoute
   '/plans/': typeof AuthedPlansIndexRoute
 }
@@ -104,7 +97,6 @@ export interface FileRoutesByTo {
   '/routines': typeof AuthedRoutinesRoute
   '/journal/$day': typeof AuthedJournalDayRoute
   '/plans/$id': typeof AuthedPlansIdRoute
-  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/journal': typeof AuthedJournalIndexRoute
   '/plans': typeof AuthedPlansIndexRoute
 }
@@ -119,7 +111,6 @@ export interface FileRoutesById {
   '/_authed/routines': typeof AuthedRoutinesRoute
   '/_authed/journal/$day': typeof AuthedJournalDayRoute
   '/_authed/plans/$id': typeof AuthedPlansIdRoute
-  '/api/insights/$readingId': typeof ApiInsightsReadingIdRoute
   '/_authed/journal/': typeof AuthedJournalIndexRoute
   '/_authed/plans/': typeof AuthedPlansIndexRoute
 }
@@ -134,7 +125,6 @@ export interface FileRouteTypes {
     | '/routines'
     | '/journal/$day'
     | '/plans/$id'
-    | '/api/insights/$readingId'
     | '/journal/'
     | '/plans/'
   fileRoutesByTo: FileRoutesByTo
@@ -147,7 +137,6 @@ export interface FileRouteTypes {
     | '/routines'
     | '/journal/$day'
     | '/plans/$id'
-    | '/api/insights/$readingId'
     | '/journal'
     | '/plans'
   id:
@@ -161,7 +150,6 @@ export interface FileRouteTypes {
     | '/_authed/routines'
     | '/_authed/journal/$day'
     | '/_authed/plans/$id'
-    | '/api/insights/$readingId'
     | '/_authed/journal/'
     | '/_authed/plans/'
   fileRoutesById: FileRoutesById
@@ -170,7 +158,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
-  ApiInsightsReadingIdRoute: typeof ApiInsightsReadingIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,13 +239,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPlansIdRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/api/insights/$readingId': {
-      id: '/api/insights/$readingId'
-      path: '/api/insights/$readingId'
-      fullPath: '/api/insights/$readingId'
-      preLoaderRoute: typeof ApiInsightsReadingIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -291,7 +271,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
-  ApiInsightsReadingIdRoute: ApiInsightsReadingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

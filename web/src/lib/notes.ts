@@ -6,7 +6,7 @@ import { requireUserId, supabaseBrowser } from '#/lib/supabase/client'
 
 /**
  * A day's reflection. One row per (user, day) — the same `daily_notes` table the phone
- * writes and the insights Worker reads, so `body` stays plain text on every surface.
+ * writes and its on-device model reads, so `body` stays plain text on every surface.
  *
  * The DB enforces `char_length(trim(body)) between 1 and 4000`, which shapes two rules the
  * UI cannot opt out of: a reflection can never be saved blank (emptying one deletes the
@@ -53,25 +53,6 @@ export const noteQueryOptions = (day: string) =>
 export function invalidateNotes(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['notes'], exact: true })
 }
-
-/**
- * Whether reflections may feed the quarterly insights. The toggle lives on the phone; the
- * web only reports it, so a diary page always says where its text can go. RLS on `users`
- * is `auth.uid() = id`, so the bare select returns exactly the caller's row.
- */
-export const notesConsentQueryOptions = () =>
-  queryOptions({
-    queryKey: ['notes-consent'],
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<boolean> => {
-      const { data, error } = await supabaseBrowser
-        .from('users')
-        .select('ai_notes_consent_at,ai_notes_consent_version')
-        .maybeSingle()
-      if (error) throw error
-      return data?.ai_notes_consent_at != null && data.ai_notes_consent_version === 1
-    },
-  })
 
 /**
  * The result of a save. A conflict is an outcome, not an error: the phone writes the same

@@ -186,7 +186,7 @@ export async function generateLocalInsight(
   try {
     checkInsightAbort(signal);
     await refreshInsightModel();
-    if (!state.ready) throw new Error('Download the model in Settings first.');
+    if (!state.ready) throw new Error('Download the model first.');
     const api = await runtime();
     const paths = Object.fromEntries(FILES.map((f) => [f.key, (directory + f.name).replace('file://', '')])) as {
       modelPath: string;

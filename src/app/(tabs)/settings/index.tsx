@@ -18,7 +18,6 @@ import { useToast } from '@/components/toast';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Spacing } from '@/constants/theme';
-import { useAiNoteConsent } from '@/hooks/use-ai-note-consent';
 import { useAuth } from '@/hooks/use-auth';
 import { useAvatar } from '@/hooks/use-avatar';
 import { clearCompletionHistory } from '@/hooks/use-habits';
@@ -49,7 +48,6 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
-  const noteConsent = useAiNoteConsent();
   const avatar = useAvatar();
 
   // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
@@ -309,18 +307,6 @@ export default function SettingsScreen() {
             showChevron
           />
         ) : null}
-      </SettingsSection>
-
-      <SettingsSection
-        title="Earlier cloud insights"
-        footer="Older versions of the app generated insights on a server. This version generates reflections on this device, so this setting only affects those older versions. Turning it off deletes the cloud insights that used your notes.">
-        <SettingsRow
-          icon="privacy"
-          label="Allow notes in cloud insights"
-          sublabel={noteConsent.error ?? (noteConsent.loading ? 'Loading…' : 'Used only by older versions of the app')}
-          switchValue={noteConsent.enabled}
-          onSwitchChange={(value) => void noteConsent.setEnabled(value)}
-        />
       </SettingsSection>
 
       <LocalInsightSettings />

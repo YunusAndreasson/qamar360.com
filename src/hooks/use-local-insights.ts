@@ -20,8 +20,6 @@ import {
   subscribeLocalInsights,
   updateLocalInsights,
 } from '@/lib/local-insight-store';
-import { parsePersonalizedInsight } from '@/lib/personalized-insights';
-import { usePreference } from '@/lib/preferences';
 import { supabase } from '@/lib/supabase';
 
 export function useLocalInsightArchive() {
@@ -42,7 +40,6 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
   const userId = user?.id;
   const archive = useLocalInsightArchive();
   const { presets } = useCatalog();
-  const offset = usePreference('hijriOffset');
   const { job: running, error: failure } = useSyncExternalStore(
     subscribeReflectionJob,
     reflectionJobState,
@@ -71,59 +68,37 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
   useEffect(() => {
     if (!userId || !focused || !live || !reading.closed) return;
     const controller = new AbortController();
-    const snapshot = makeInsightSnapshot(reading, habits, goals, presets, offset);
+    const snapshot = makeInsightSnapshot(reading, habits, goals, presets);
     const valid = () =>
       !controller.signal.aborted && currentUser.current === userId && readLocalInsights(userId).epoch === epoch;
     void (async () => {
       try {
         if (!valid()) return;
         updateLocalInsights(userId, (s) => ({ ...s, snapshots: { ...s.snapshots, [reading.id]: snapshot } }));
-        const [notes, legacy] = await Promise.all([
-          notesEnabled
-            ? supabase
-                .from('daily_notes')
-                .select('note_date,body')
-                .eq('user_id', userId)
-                .gte('note_date', reading.span.startISO)
-                .lte('note_date', reading.span.endISO)
-                .order('note_date')
-                .abortSignal(controller.signal)
-            : Promise.resolve({ data: [], error: null }),
-          supabase.from('generated_insights').select('*').eq('user_id', userId).abortSignal(controller.signal),
-        ]);
+        const notes = notesEnabled
+          ? await supabase
+              .from('daily_notes')
+              .select('note_date,body')
+              .eq('user_id', userId)
+              .gte('note_date', reading.span.startISO)
+              .lte('note_date', reading.span.endISO)
+              .order('note_date')
+              .abortSignal(controller.signal)
+          : { data: [], error: null };
         if (!valid()) return;
-        updateLocalInsights(userId, (state) => {
-          const versions = [...state.versions];
-          for (const row of legacy.data ?? []) {
-            const id = `legacy:${row.reading_id}:${row.generated_at}`;
-            if (versions.some((v) => v.id === id) || (row.used_notes && !state.notesEnabled)) continue;
-            const parsed = parsePersonalizedInsight({ insight: { ...row, evidence: row.evidence_text } });
-            if (parsed)
-              versions.push({
-                ...parsed,
-                id,
-                origin: 'legacy',
-                model: row.model,
-                promptVersion: row.prompt_version,
-                snapshotAt: row.generated_at,
-                sourceIds: [],
-              });
-          }
-          return {
-            ...state,
-            versions,
-            snapshots: {
-              ...state.snapshots,
-              [reading.id]: {
-                ...snapshot,
-                notes:
-                  state.notesEnabled && !notes.error
-                    ? (notes.data ?? []).map((n) => ({ date: n.note_date, body: n.body }))
-                    : [],
-              },
+        updateLocalInsights(userId, (state) => ({
+          ...state,
+          snapshots: {
+            ...state.snapshots,
+            [reading.id]: {
+              ...snapshot,
+              notes:
+                state.notesEnabled && !notes.error
+                  ? (notes.data ?? []).map((n) => ({ date: n.note_date, body: n.body }))
+                  : [],
             },
-          };
-        });
+          },
+        }));
         if (notes.error)
           setError('Journal notes could not be refreshed, so a new version will use recorded habits only.');
       } catch {
@@ -131,7 +106,7 @@ export function useLocalInsights(reading: Reading, habits: Habit[], goals: GoalR
       }
     })();
     return () => controller.abort();
-  }, [userId, focused, live, reading, habits, goals, presets, offset, notesEnabled, epoch, currentUser]);
+  }, [userId, focused, live, reading, habits, goals, presets, notesEnabled, epoch, currentUser]);
 
   const versions = useMemo(
     () =>

@@ -300,8 +300,6 @@ const styles = StyleSheet.create({
   writing: { gap: Spacing.two },
   track: { height: 4, borderRadius: 2, overflow: 'hidden' },
   fill: { height: '100%' },
-  reflectionError: { gap: Spacing.two, alignItems: 'flex-start' },
-  retry: { minWidth: 0 },
   paragraphs: { gap: Spacing.three },
   nextStep: { gap: Spacing.one, padding: Spacing.three, borderRadius: Radius.control },
   evidence: { gap: Spacing.one, paddingTop: Spacing.one },

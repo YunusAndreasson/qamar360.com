@@ -2,20 +2,26 @@ import type { SunnahPreset } from '@/constants/sunnah-habits';
 import type { Habit } from '@/hooks/use-habits';
 import type { GoalReading } from '@/lib/goals';
 import type { Reading } from '@/lib/insights';
-import { personalizedInsightRequest, type PersonalizedInsight } from '@/lib/personalized-insights';
 
 export const LOCAL_PROMPT_VERSION = 1;
 export type InsightSnapshot = {
   reading: Reading;
   capturedAt: string;
-  facts: ReturnType<typeof personalizedInsightRequest>;
+  facts: ReturnType<typeof quarterFacts>;
   habits: { id: string; name: string; earned: number; possible: number }[];
   goals: { title: string; unit: string; direction: 'up' | 'down'; earned: number; target: number }[];
   evidence: { id: string; text: string }[];
   notes: { date: string; body: string }[];
 };
-export type InsightVersion = PersonalizedInsight & {
+export type InsightVersion = {
+  reading_id: string;
+  paragraphs: [string, string, string];
+  next_step: string;
+  evidence: string | null;
+  used_notes: boolean;
+  generated_at: string;
   id: string;
+  /** `legacy` is a reflection an earlier build generated in the cloud and imported. None are made now. */
   origin: 'local' | 'legacy';
   model: string;
   promptVersion: number;
@@ -23,14 +29,42 @@ export type InsightVersion = PersonalizedInsight & {
   sourceIds: string[];
 };
 
+// The quarter's figures as the prompt reads them. Nested under `reading` because snapshots already
+// saved on a device have that shape, and one of those can be all an offline generation has.
+function quarterFacts(reading: Reading, habits: Habit[]) {
+  const liveHabitIds = new Set(habits.map((habit) => habit.id));
+  return {
+    reading: {
+      span: {
+        startISO: reading.span.startISO,
+        endISO: reading.span.endISO,
+        days: reading.span.days,
+        milestone: reading.span.milestone,
+      },
+      quarter: {
+        earned: reading.quarter.earned,
+        possible: reading.quarter.possible,
+        rate: reading.quarter.rate,
+        sealedDays: reading.quarter.sealedDays,
+        longestRunDays: reading.quarter.longestRun?.days ?? 0,
+      },
+      previous: reading.previous
+        ? { earned: reading.previous.earned, possible: reading.previous.possible, rate: reading.previous.rate }
+        : null,
+      habits: [...reading.quarter.byHabit]
+        .filter(([id]) => liveHabitIds.has(id))
+        .map(([id, metric]) => ({ id, earned: metric.earned, possible: metric.possible })),
+    },
+  };
+}
+
 export function makeInsightSnapshot(
   reading: Reading,
   habits: Habit[],
   goals: GoalReading[],
   presets: SunnahPreset[],
-  offset: -2 | -1 | 0 | 1 | 2,
 ): InsightSnapshot {
-  const facts = personalizedInsightRequest(reading, habits, goals, offset);
+  const facts = quarterFacts(reading, habits);
   const presetIds = new Set(habits.map((h) => h.preset_id));
   return {
     reading,
