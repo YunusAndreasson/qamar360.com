@@ -4,6 +4,7 @@ import {
   buildPaths,
   columnBounds,
   DIRECTION_THRESHOLD,
+  lineCrossesRect,
   linearFit,
   mean,
   pointAt,
@@ -326,3 +327,35 @@ describe('spanColumns', () => {
     expect(spanColumns([0.5], 210, BOX)).toEqual([{ left: 0, width: 210 }]);
   });
 });
+
+describe('lineCrossesRect', () => {
+  const rect = { left: 10, right: 30, top: 40, bottom: 60 };
+
+  it('sees a chord that passes through the rectangle between two points outside it', () => {
+    expect(lineCrossesRect([{ x: 0, y: 50 }, { x: 100, y: 50 }], rect)).toBe(true);
+  });
+
+  it('sees a steep chord that only clips a corner of it', () => {
+    // Falls from above the rectangle to below it inside its width.
+    expect(lineCrossesRect([{ x: 5, y: 0 }, { x: 35, y: 100 }], rect)).toBe(true);
+  });
+
+  it('ignores a line that runs under it, however long', () => {
+    expect(lineCrossesRect([{ x: 0, y: 90 }, { x: 50, y: 90 }, { x: 100, y: 90 }], rect)).toBe(false);
+  });
+
+  it('ignores a line that is over the rectangle only outside its width', () => {
+    // In the rectangle's band at x = 0 and falling away: by x = 10 it is already below.
+    expect(lineCrossesRect([{ x: 0, y: 50 }, { x: 8, y: 95 }, { x: 100, y: 95 }], rect)).toBe(false);
+  });
+
+  it('counts a lone point only when it sits inside', () => {
+    expect(lineCrossesRect([{ x: 20, y: 50 }], rect)).toBe(true);
+    expect(lineCrossesRect([{ x: 20, y: 90 }], rect)).toBe(false);
+  });
+
+  it('says no for an empty line', () => {
+    expect(lineCrossesRect([], rect)).toBe(false);
+  });
+});
+

@@ -90,6 +90,33 @@ export function polylineLength(points: readonly Pt[]): number {
 }
 
 /**
+ * Whether the line through `points` passes through a rectangle — used to keep a label's opaque
+ * plate off the curve it is labelling. Tested on the straight chords between points, which is what
+ * a smoothed curve stays close to; a caller that needs clearance should grow the rectangle.
+ * A lone point counts when it sits inside.
+ */
+export function lineCrossesRect(
+  points: readonly Pt[],
+  rect: { left: number; right: number; top: number; bottom: number },
+): boolean {
+  const inside = (p: Pt) => p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
+  if (points.length === 1) return inside(points[0]!);
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const from = Math.max(Math.min(a.x, b.x), rect.left);
+    const to = Math.min(Math.max(a.x, b.x), rect.right);
+    if (from > to) continue; // this chord is wholly to one side
+    // The chord's height where it enters and leaves the rectangle's width.
+    const yAt = (x: number) => (b.x === a.x ? a.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x));
+    const y0 = b.x === a.x ? Math.min(a.y, b.y) : Math.min(yAt(from), yAt(to));
+    const y1 = b.x === a.x ? Math.max(a.y, b.y) : Math.max(yAt(from), yAt(to));
+    if (y1 >= rect.top && y0 <= rect.bottom) return true;
+  }
+  return false;
+}
+
+/**
  * The `d` attributes for a series: the line itself, and the area between it and the baseline.
  * Both are empty strings below two points — a one-point "line" is a dot, and a one-point area is a
  * degenerate sliver that renders as a hairline artefact.

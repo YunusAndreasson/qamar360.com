@@ -20,7 +20,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import type { RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
-import { buildSmoothPaths, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
+import { buildSmoothPaths, lineCrossesRect, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { formatPercent } from '@/lib/progress-format';
@@ -60,6 +60,11 @@ const AVERAGE_LABEL_GAP = 3;
  *  Needed because an absolutely-positioned `top` places the plate's EDGE, not the text's baseline,
  *  so every decision about what the plate would cover is made from this number. */
 const AVERAGE_LABEL_HEIGHT = 16;
+/** The widest the label gets ("Avg 100%"), for deciding what its plate would cover before it is
+ *  laid out. A little generous on purpose: a spot judged clear must be clear. */
+const AVERAGE_LABEL_WIDTH = 72;
+/** How far in from the rule's end the label sits, at either end. */
+const AVERAGE_LABEL_INSET = 2;
 
 /** How far back the projection is fitted — recent shape only, so an old rhythm can't anchor it. */
 const FIT_WINDOW = 14;
@@ -244,12 +249,41 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // occlusion. What it must never sit on is something STRAIGHT: a gap in the baseline, or in the
   // long flat run of a curve along it, is the one overlap the eye reads as breakage rather than as
   // depth.
-  const averageLabelTop =
-    averageY === null
-      ? null
-      : settled[0] && settled[0].y < averageY && averageY + AVERAGE_LABEL_GAP + AVERAGE_LABEL_HEIGHT <= BASELINE_Y
-        ? averageY + AVERAGE_LABEL_GAP
-        : Math.max(0, averageY - AVERAGE_LABEL_GAP - AVERAGE_LABEL_HEIGHT);
+  //
+  // And it is no longer pinned to the rule's START. A record that opens high and settles low puts
+  // its first point exactly where the label would go, with no room beneath the rule to move to —
+  // so the plate sat on the very beginning of the line, which reads as a line with its start torn
+  // off. The rule has two ends; the label takes the first spot the curve does not pass through,
+  // trying the start first so nothing moves on a chart that was already fine. Only when every spot
+  // is crossed does it fall back to the start and accept the overlap.
+  const averageLabel = (() => {
+    if (averageY === null) return null;
+    const above = Math.max(0, averageY - AVERAGE_LABEL_GAP - AVERAGE_LABEL_HEIGHT);
+    const below = averageY + AVERAGE_LABEL_GAP;
+    const belowFits = below + AVERAGE_LABEL_HEIGHT <= BASELINE_Y;
+    const startTop = settled[0] && settled[0].y < averageY && belowFits ? below : above;
+    const startLeft = BOX.padX + AVERAGE_LABEL_INSET;
+    const endLeft = averageEndX - AVERAGE_LABEL_INSET - AVERAGE_LABEL_WIDTH;
+    const spots = [
+      { atEnd: false, top: startTop },
+      ...(belowFits || startTop !== above ? [{ atEnd: false, top: startTop === above ? below : above }] : []),
+      // The end is a second place only when the rule is long enough for it to be a different one.
+      ...(endLeft >= startLeft + AVERAGE_LABEL_WIDTH
+        ? [{ atEnd: true, top: above }, ...(belowFits ? [{ atEnd: true, top: below }] : [])]
+        : []),
+    ];
+    const clear = spots.find(({ atEnd, top }) => {
+      const left = atEnd ? endLeft : startLeft;
+      // Grown by the stroke, so a line brushing the plate's edge counts as touching it.
+      return !lineCrossesRect(settled, {
+        left: left - 2,
+        right: left + AVERAGE_LABEL_WIDTH + 2,
+        top: top - 2,
+        bottom: top + AVERAGE_LABEL_HEIGHT + 2,
+      });
+    });
+    return clear ?? spots[0]!;
+  })();
 
   const settledPaths = buildSmoothPaths(settled, BASELINE_Y);
   const unsettledPath = buildSmoothPaths(unsettled, BASELINE_Y).line;
@@ -411,12 +445,18 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // A missing reading is already a state everything downstream handles (the readout renders only
   // `readoutText ?` and the a11y value falls back to `''`), so the fix is to say there isn't one
   // rather than to invent a guard the hook order can't support.
+  //
+  // The year card is the one exception, because its newest bucket is the month the hero above is
+  // about: "This month · 40%" under a card titled Year said the hero's own figure a second time,
+  // one card down. It reads the newest month that has CLOSED instead, which is the latest thing
+  // on this card the hero does not already say. The hollow dot still marks the open month.
   const latest = points[count - 1];
+  const resting = period === 'year' ? (closed[closed.length - 1]?.p ?? latest) : latest;
   const restingText =
     trend && trend.risingMonths >= 3 && trend.sinceMonthName
       ? `Rising since ${trend.sinceMonthName}`
-      : latest
-        ? readingFor(latest)
+      : resting
+        ? readingFor(resting)
         : null;
   const readoutText = focusedPoint ? readingFor(focusedPoint) : restingText;
 
@@ -616,14 +656,13 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
             ) : null}
 
             {/* The rule's direct label. Drawn in RN text rather than SVG so it wears the app's own
-                type and colour roles. It sits at the left edge, clear of the forecast, and flips to
-                whichever side of the rule the curve is NOT on where it opens.
-                It also carries the card's own background as a plate. The flip only knows where the
-                curve STARTS — a lifetime line that climbs steeply a few points in walks straight
-                through the text either way, and on this record it did. A label you have to read
-                through a stroke is not a label; the plate costs a few pixels of the area fill and
-                makes the reference legible whatever shape the curve turns out to be. */}
-            {averageLabelTop !== null ? (
+                type and colour roles. It sits at one end of the rule, clear of the forecast, on
+                whichever side the curve leaves free.
+                It also carries the card's own background as a plate, for the record where no spot
+                is free: a busy lifetime line can cross all four. A label you have to read through a
+                stroke is not a label; the plate costs a few pixels of the area fill and makes the
+                reference legible whatever shape the curve turns out to be. */}
+            {averageLabel !== null ? (
               <ThemedText
                 type="smallCompact"
                 themeColor="textSecondary"
@@ -632,7 +671,10 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
                 style={[
                   styles.averageLabel,
                   { backgroundColor: theme.backgroundElement },
-                  { top: averageLabelTop },
+                  { top: averageLabel.top },
+                  averageLabel.atEnd
+                    ? { right: width - averageEndX + AVERAGE_LABEL_INSET }
+                    : { left: BOX.padX + AVERAGE_LABEL_INSET },
                 ]}
                 pointerEvents="none">
                 Avg {formatPercent(average)}
@@ -693,7 +735,6 @@ const styles = StyleSheet.create({
   chart: { width: '100%', height: BOX.height },
   averageLabel: {
     position: 'absolute',
-    left: BOX.padX + 2,
     paddingHorizontal: Spacing.one,
     borderRadius: Radius.control,
     overflow: 'hidden', // Android clips a Text's background to its radius only when told to
