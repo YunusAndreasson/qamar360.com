@@ -17,19 +17,12 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-      "BGTaskSchedulerPermittedIdentifiers": [
-        "com.qamar360.app.reflection.*"
-      ],
         "UISupportedInterfaceOrientations~ipad": [
           "UIInterfaceOrientationPortrait",
           "UIInterfaceOrientationPortraitUpsideDown",
           "UIInterfaceOrientationLandscapeLeft",
           "UIInterfaceOrientationLandscapeRight"
         ]
-      },
-      "entitlements": {
-        "com.apple.developer.kernel.increased-memory-limit": true,
-        "com.apple.developer.kernel.extended-virtual-addressing": true
       }
     },
     "android": {
@@ -47,7 +40,6 @@
     },
     "plugins": [
       "./plugins/strip-aps-environment.js",
-      "./plugins/local-insights-backup.js",
       "expo-router",
       [
         "expo-splash-screen",
