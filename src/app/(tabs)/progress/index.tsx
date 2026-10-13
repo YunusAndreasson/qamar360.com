@@ -11,7 +11,6 @@ import { GoalTrendChart } from '@/components/goal-trend-chart';
 import { MonthSummary } from '@/components/month-summary';
 import { OverTime } from '@/components/over-time';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
-import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
 import { useProgress } from '@/hooks/use-progress';
@@ -27,11 +26,8 @@ import { goalMeta, goalSeries, type GoalReading } from '@/lib/goals';
  * cards above. What they are not is a thing you do — the doing is on Today, where the check-in
  * asks — so nothing here is tickable and nothing here is a control.
  *
- * They sit BELOW the closing degrees note rather than among the period cards, and the note is why.
- * It defines a full orbit as 360°, which is the unit every instrument above it is drawn in; a
- * kilogram chart under that sentence would read as captioned by it. A goal counts in its own
- * units, so it follows the note as its own region rather than joining a run of cards that share
- * one.
+ * They sit BELOW the period cards as their own region rather than among them: every card above
+ * is drawn in one unit, a share of what the span asked for, and a goal counts in its own.
  *
  * No section label. The card's header names it, which is the rule the period cards already keep —
  * "the period names the card, and nothing else does" ({@link OverTime}).
@@ -133,13 +129,6 @@ export default function ProgressScreen() {
           figure is never set beside one measured against a different span. */}
       <OverTime seriesByPeriod={seriesByPeriod} periods={seriesPeriods} trend={trend} />
 
-      {/* The unit, once, for the whole screen.
-          The bucket is named beside every figure; this closing note defines the shared unit once. */}
-      <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        A full orbit is 360° — everything the span asked for, kept. Touch a line to read any point
-        on it.
-      </ThemedText>
-
       {/* A goal you have put down keeps its record but leaves this list: it is asking nothing of
           the month, and a list of live goals is only useful if everything on it is live. */}
       <Goals live={goals.filter((reading) => reading.goal.status !== 'released')} checkIns={checkIns} today={today} />
@@ -148,10 +137,7 @@ export default function ProgressScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Hung on the card edge, like every other closing caption in the app (SettingsSection's footer,
-  // the reading screen's note).
-  note: { marginLeft: Spacing.three, marginRight: Spacing.three },
-  // Their own region, set off from the note that closes the degree instruments. The gap rides
-  // on top of AppScreen's own child gap.
+  // Their own region, set off from the period cards above. The gap rides on top of AppScreen's
+  // own child gap.
   goals: { gap: Spacing.three, marginTop: Spacing.three },
 });

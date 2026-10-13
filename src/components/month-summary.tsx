@@ -222,11 +222,10 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
             the question a benchmark is FOR ("am I doing better than I usually do?"), which the
             ring used to pose as a triangle and leave you to work out. */}
         <View style={styles.reading}>
+          {/* The figure carries no caption of its own. The card is titled "This month" on a screen
+              titled "Progress", so a "Monthly progress" label under it said the header a second
+              time; and what the figure is counted from is what the ⓘ sheet is for. */}
           <TallyPercent rate={thisRate} />
-          <ThemedText type="smallBold">Monthly progress</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-            Daily habit completion across all {monthLength} days
-          </ThemedText>
           <ThemedText type="smallCompact" themeColor="textSecondary">
             {reading}
           </ThemedText>
