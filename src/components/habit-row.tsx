@@ -15,7 +15,7 @@ type Props = {
   settling: boolean;
   /** Tick it, or take it back. */
   onToggle: (habit: Habit) => void;
-  /** Open the act sheet — skip today, insights, edit, move to a stack, delete. */
+  /** Open the act sheet — skip today, stats, edit, move to a stack, delete. */
   onOptions: (habit: Habit) => void;
 };
 
@@ -54,7 +54,7 @@ function HabitRowBase({ habit, done, skipped, settling, onToggle, onOptions }: P
       onToggle={() => onToggle(habit)}
       options={{
         accessibilityLabel: `Manage ${habit.name}`,
-        accessibilityHint: 'Skip today, see insights, edit, move it into a stack, or delete it.',
+        accessibilityHint: 'Skip today, see stats, edit, move it into a stack, or delete it.',
         onPress: () => onOptions(habit),
       }}
     />

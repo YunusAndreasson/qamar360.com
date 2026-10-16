@@ -67,8 +67,8 @@ export default function HabitsStackLayout() {
       {/* The stack picker — where an act goes. A native form sheet sized to its content (the
           existing stacks, plus starting a new one). */}
       <Stack.Screen name="add-to-stack" options={formSheetOptions(theme)} />
-      {/* One act's options (skip today / insights / edit / move) — raised by tapping an act line,
-          since acts are read rather than ticked. */}
+      {/* One act's options (skip today / stats / edit / move) — raised by an act's `⋯`; a tap on
+          the act itself ticks it. */}
       <Stack.Screen name="act-actions" options={formSheetOptions(theme)} />
       {/* "Manage stack" (edit / delete / add acts) for a stack card — raised by its ⋯. */}
       <Stack.Screen name="stack-manage" options={formSheetOptions(theme)} />

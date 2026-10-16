@@ -96,7 +96,7 @@ export function useStackStats(stackId: string): StackStatsData {
         setError(null);
       } catch {
         if (identityRef.current !== key) return;
-        setError("Couldn't load these insights. Pull down to try again.");
+        setError("Could not load these stats. Pull down to try again.");
       } finally {
         if (inFlight.current?.key === key) inFlight.current = null;
       }

@@ -27,7 +27,7 @@ type Props = {
   skipped: boolean;
   /** Tick this act for the viewed day, or take it back. */
   onToggle: (habit: Habit) => void;
-  /** Open this act's sheet (skip today / insights / edit / move). */
+  /** Open this act's sheet (skip today / stats / edit / move). */
   onOptions: (habit: Habit) => void;
   /** The viewed day's completions are being (re)fetched after a day-step — see `CompletionRing`'s
    *  `settling` doc. Keeps an act already done on the landed day from replaying its sweep. */
@@ -66,7 +66,7 @@ type Props = {
  * rows one at a time and would otherwise have nothing to go on.
  *
  * **And the `⋯` is now a real button.** The row's tap is spoken for, so everything you can *do* to
- * a single act — excuse it today, its insights, edit it, move it — moved into the trailing door
+ * a single act — excuse it today, its stats, edit it, move it — moved into the trailing door
  * that says exactly that everywhere else in the app (see `row-trailing-button.tsx`: a chevron means
  * more to READ, a `⋯` means things to DO). It was a bare glyph while the whole row opened that
  * sheet. A long press still belongs to the drag layer's wrapper (`DraggableMemberRow`).
@@ -165,7 +165,7 @@ function ActRowBase({ habit, ordinal, done, skipped, onToggle, onOptions, settli
           the one thing an inert row still needs to be able to undo. */}
       <RowOptionsButton
         label={`Manage ${habit.name}`}
-        hint="Skip today, insights, edit, or move it to another stack."
+        hint="Skip today, stats, edit, or move it to another stack."
         onPress={() => onOptions(habit)}
       />
     </View>

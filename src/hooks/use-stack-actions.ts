@@ -54,7 +54,7 @@ export function useConfirmDeleteStack() {
 }
 
 /**
- * Open the "manage stack" sheet (add acts / insights / edit / delete) — the `stack-manage` route,
+ * Open the "manage stack" sheet (add acts / stats / edit / delete) — the `stack-manage` route,
  * a `fitToContents` form sheet. Used by the stack card's "Manage stack" row (the ⋯ at the foot of
  * the fold) and the act editor's "edit stack".
  *

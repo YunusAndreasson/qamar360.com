@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
 import { StatsSkeleton } from '@/components/progress-skeleton';
@@ -28,10 +28,15 @@ export default function HabitStatsScreen() {
   useBackIfStale(!loading && !habitsLoading && !habit);
 
   if (loading || (habitsLoading && !habit)) {
+    // Named from the first frame: the habit is already in memory, only its history is loading, and
+    // a title left unset showed the route's own name ("stats") until it landed.
     return (
-      <AppScreen transparent>
-        <StatsSkeleton />
-      </AppScreen>
+      <>
+        <Stack.Screen options={{ title: habit?.name ?? '' }} />
+        <AppScreen transparent>
+          <StatsSkeleton />
+        </AppScreen>
+      </>
     );
   }
   if (!habit || !stats) return null;

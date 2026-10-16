@@ -20,17 +20,19 @@ export function FormField({ label, hint, error, style, ref, secureTextEntry, onF
   const id = useId();
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
-  const fieldLabel = label ?? props.placeholder;
-
+  // The caption comes from `label` alone. It used to fall back to the placeholder, which turned
+  // every placeholder-only field into a captioned one — the habit editor's count row grew "3" and
+  // "unit — e.g. pages, cups" as captions wedged between its two boxes. A field that wants a
+  // caption names one; the placeholder still names the field to a screen reader.
   return (
     <>
-      {fieldLabel ? <FieldLabel nativeID={id}>{fieldLabel}</FieldLabel> : null}
+      {label ? <FieldLabel nativeID={id}>{label}</FieldLabel> : null}
       <View style={styles.field}>
         <TextInput
           {...props}
           ref={ref}
-          accessibilityLabel={props.accessibilityLabel ?? fieldLabel}
-          accessibilityLabelledBy={fieldLabel ? id : undefined}
+          accessibilityLabel={props.accessibilityLabel ?? label ?? props.placeholder}
+          accessibilityLabelledBy={label ? id : undefined}
           accessibilityHint={error ?? hint ?? props.accessibilityHint}
           secureTextEntry={secureTextEntry && !visible}
           onFocus={(event) => { setFocused(true); onFocus?.(event); }}

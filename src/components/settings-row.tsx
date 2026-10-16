@@ -81,12 +81,19 @@ export function SettingsRow({
         />
       ) : busy ? (
         <ActivityIndicator color={iconColor} />
-      ) : value ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          {value}
-        </ThemedText>
-      ) : showChevron ? (
-        <AppIcon name="chevronRight" size={16} color={theme.textSecondary} />
+      ) : value || showChevron ? (
+        // A row that opens something keeps its chevron even when it states a value — the iOS
+        // Settings idiom ("Hijri date  As calculated  ›"). The value used to win outright, so the
+        // two rows that both state and open looked like read-outs nobody could tap. One group that
+        // never shrinks, so the label beside it is what gives way.
+        <View style={styles.trailing}>
+          {value ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {value}
+            </ThemedText>
+          ) : null}
+          {showChevron ? <AppIcon name="chevronRight" size={16} color={theme.textSecondary} /> : null}
+        </View>
       ) : null}
     </>
   );
@@ -122,6 +129,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   labels: { flex: 1, gap: Spacing.half },
+  trailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 0 },
   pressed: { opacity: Pressed.dim },
   faded: { opacity: Disabled },
 });

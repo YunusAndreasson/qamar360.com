@@ -477,7 +477,7 @@ export default function HabitsScreen() {
   const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
 
 
-  // An act's `⋯` opens its sheet — skip today, insights, edit, move. Its *tap* ticks it (below):
+  // An act's `⋯` opens its sheet — skip today, stats, edit, move. Its *tap* ticks it (below):
   // the row is a checkbox, so the things you can do TO an act live behind the trailing door the
   // rest of the day already uses for exactly that.
   const openAct = useCallback(

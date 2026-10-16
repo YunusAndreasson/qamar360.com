@@ -251,25 +251,31 @@ export function HabitEditorForm({
         style={styles.modeRow}
       />
       {goalMode === 'count' ? (
+        // Each box in its own wrapper: `FormField` is a field *plus* its optional caption and hint,
+        // so the width (and the unit's flex) has to sit on a view that holds all of it — set on
+        // the input itself, `flex: 1` landed inside a wrapper that never grew.
         <View style={styles.goalCountRow}>
-          <FormField
-            value={targetText}
-            onChangeText={(t) => setTargetText(t.replace(/[^0-9]/g, ''))}
-            keyboardType="number-pad"
-            placeholder="3"
-            maxLength={4}
-            accessibilityLabel="Daily target count"
-            style={styles.targetInput}
-          />
-          <FormField
-            value={unit}
-            onChangeText={setUnit}
-            placeholder="unit — e.g. pages, cups (optional)"
-            autoCapitalize="none"
-            maxLength={24}
-            accessibilityLabel="Count unit"
-            style={styles.unitInput}
-          />
+          <View style={styles.targetBox}>
+            <FormField
+              value={targetText}
+              onChangeText={(t) => setTargetText(t.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              placeholder="3"
+              maxLength={4}
+              accessibilityLabel="Daily target count"
+              style={styles.targetInput}
+            />
+          </View>
+          <View style={styles.unitBox}>
+            <FormField
+              value={unit}
+              onChangeText={setUnit}
+              placeholder="Unit, e.g. pages or cups (optional)"
+              autoCapitalize="none"
+              maxLength={24}
+              accessibilityLabel="Count unit"
+            />
+          </View>
         </View>
       ) : null}
 
@@ -385,8 +391,9 @@ const styles = StyleSheet.create({
   hint: { marginTop: Spacing.one },
   modeRow: { marginTop: Spacing.one },
   goalCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, marginTop: Spacing.two },
-  targetInput: { width: 72, textAlign: 'center' },
-  unitInput: { flex: 1 },
+  targetBox: { width: 72 },
+  targetInput: { textAlign: 'center' },
+  unitBox: { flex: 1 },
   subLabel: { marginTop: Spacing.three },
   monthDayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
   monthDay: { width: 40, height: 36, paddingHorizontal: 0, paddingVertical: 0 },

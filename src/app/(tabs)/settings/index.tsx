@@ -180,7 +180,8 @@ export default function SettingsScreen() {
 
   // Turning the feature on is where the OS prompt is earned, so the first time it goes through
   // the sheet that explains what the four nights are; that sheet flips the preference itself,
-  // and only on a grant. Once permission exists the switch is just a switch.
+  // whatever the OS answers (the System notifications row then says if it is blocked). Once
+  // permission exists the switch is just a switch.
   const onToggleLunarUpdates = (value: boolean) => {
     if (!value || notifGranted === true) {
       setPreference('lunarUpdates', value);

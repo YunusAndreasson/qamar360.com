@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
 import { AppScreen } from '@/components/app-screen';
 import { StatsSkeleton } from '@/components/progress-skeleton';
@@ -30,10 +30,15 @@ export default function StackStatsScreen() {
   useBackIfStale(!loading && !habitsLoading && !stack);
 
   if (loading || (habitsLoading && !stack)) {
+    // Named from the first frame: the stack is already in memory, only its history is loading, and
+    // a title left unset showed the route's own name ("stack-stats") until it landed.
     return (
-      <AppScreen transparent>
-        <StatsSkeleton />
-      </AppScreen>
+      <>
+        <Stack.Screen options={{ title: stack?.name ?? '' }} />
+        <AppScreen transparent>
+          <StatsSkeleton />
+        </AppScreen>
+      </>
     );
   }
   if (!stack || !stats) return null;

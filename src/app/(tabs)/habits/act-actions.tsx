@@ -5,18 +5,16 @@ import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useGoals } from '@/hooks/use-goals';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmAgainstPlan, confirmDestructive } from '@/lib/alerts';
+import { dayInSentence } from '@/lib/dates';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 
 /**
- * One act's options — the sheet a tap on an act line raises.
+ * One act's options — the sheet a row's `⋯` raises.
  *
- * Acts inside a stack are read, not ticked (the stack's seal completes them), so a tap on one has
- * to mean *inspect* instead. Everything you might want from a single habit lives here: excusing it
- * on a day it doesn't apply — the escape hatch the stack-only model needs, so an unavoidable miss
- * doesn't cost the whole stack — plus its history, its settings, and where it lives. The rows that
- * DO tick (a stackless habit, an exchange) reach the same sheet from the fold's manage door, since
- * their tap is spoken for.
+ * A tap on the row ticks it; everything else you might want from a single habit lives here:
+ * excusing it on a day it doesn't apply — so an unavoidable miss doesn't cost the whole stack —
+ * plus its stats, its settings, and where it lives.
  *
  * Presented `fitToContents` from the habits stack layout, the same compact sheet-of-rows as
  * "Manage stack".
@@ -31,7 +29,7 @@ import { haptics } from '@/lib/haptics';
 export default function ActActionsScreen() {
   const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
-  const { habits, skipped, skipHabit, deleteHabit, isToday, viewDate } = useHabits();
+  const { habits, skipped, skipHabit, deleteHabit, today, viewDate } = useHabits();
   // The stored rows only — not `useProgress`, which would pull the whole record to raise a sheet.
   // All this needs is which goal an act drives and what its owner wrote about slipping.
   const { goals, goalActs } = useGoals();
@@ -110,12 +108,12 @@ export default function ActActionsScreen() {
           {
             // "Today" only when it is: on a backfilled day the row has to name the day it excuses.
             icon: 'skip',
-            label: isSkipped ? 'Un-skip' : isToday ? 'Skip today' : `Skip ${viewDate}`,
+            label: isSkipped ? 'Un-skip' : `Skip ${dayInSentence(viewDate, today)}`,
             sublabel: isSkipped
               ? habit.stack_id
                 ? 'Put it back in the sequence'
-                : 'Put it back in today'
-              : 'Excused — it won’t count against you',
+                : 'Put it back in the day'
+              : 'Excused, so it won’t count against you',
             onPress: toggleSkip,
           },
           { icon: 'stats', label: 'Stats', onPress: openStats },

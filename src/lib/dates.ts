@@ -77,9 +77,9 @@ export const DATE_LOCALE = 'en-US';
  * with the single variation that is *real* as an option; everything else was an accident.
  *
  * @param weekday `'long'` gives a bare `Thursday` for the last week, falling back to the dated form
- * beyond it. Today's header can afford the bare one because a day-stepper sits beside it, so the
- * week is obvious from the move you just made. A list of many rows cannot — three bare Thursdays
- * in a column name nothing — so lists keep the default `'short'` and always carry the date.
+ * beyond it. Today's header can afford the bare one because it names a single day you just picked
+ * from a month grid, so the week is never in question. A list of many rows cannot — three bare
+ * Thursdays in a column name nothing — so lists keep the default `'short'` and always carry the date.
  */
 export function dayTitle(
   iso: string,
@@ -92,6 +92,18 @@ export function dayTitle(
     return localDate(iso).toLocaleDateString(DATE_LOCALE, { weekday: 'long' });
   }
   return localDate(iso).toLocaleDateString(DATE_LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/**
+ * {@link dayTitle} for the middle of a sentence: "Skip yesterday", "Last reading 82 kg, today".
+ *
+ * Only the two near-day names are words, so only they drop their capital. The dated form is a
+ * proper date and keeps it — lowercasing the whole title is how "Thu, Oct 14" became
+ * "thu, oct 14" in a sentence.
+ */
+export function dayInSentence(iso: string, today: string): string {
+  const title = dayTitle(iso, today);
+  return iso === today || iso === addDaysISO(today, -1) ? title.toLowerCase() : title;
 }
 
 /** Local weekday index for a `YYYY-MM-DD` day: 0=Sunday … 6=Saturday (matches `Date#getDay` and `schedule_days`). */

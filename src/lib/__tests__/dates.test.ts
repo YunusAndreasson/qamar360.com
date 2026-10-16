@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from '@jest/globals';
 
 import {
   addDaysISO,
+  dayInSentence,
   dayTitle,
   describeHijriOffset,
   describeHijriSchedule,
@@ -71,6 +72,19 @@ describe('dayTitle', () => {
 
   it('prefers the near-day names over the option', () => {
     expect(dayTitle('2026-08-14', TODAY, { weekday: 'long' })).toBe('Yesterday');
+  });
+});
+
+describe('dayInSentence', () => {
+  const TODAY = '2026-08-15';
+
+  it('lowercases the two near-day names, which are ordinary words mid-sentence', () => {
+    expect(dayInSentence(TODAY, TODAY)).toBe('today');
+    expect(dayInSentence('2026-08-14', TODAY)).toBe('yesterday');
+  });
+
+  it('keeps a dated day as written — never "thu, aug 13"', () => {
+    expect(dayInSentence('2026-08-13', TODAY)).toBe('Thu, Aug 13');
   });
 
   it('names a day the same way whichever surface asks — the whole point of one ladder', () => {

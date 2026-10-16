@@ -249,6 +249,7 @@ export default function SignInScreen() {
               <>
                 {showEmailField ? (
                   <FormField
+                    label="Email"
                     placeholder="Email"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -267,6 +268,7 @@ export default function SignInScreen() {
 
                 {mode === 'reset' ? (
                   <FormField
+                    label="6-digit code"
                     placeholder="6-digit code"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -282,6 +284,7 @@ export default function SignInScreen() {
 
                 {showPasswordField ? (
                   <FormField
+                    label="Password"
                     placeholder="Password"
                     autoCapitalize="none"
                     ref={passwordRef}
@@ -297,6 +300,7 @@ export default function SignInScreen() {
 
                 {mode === 'reset' ? (
                   <FormField
+                    label="New password"
                     placeholder="New password"
                     autoCapitalize="none"
                     ref={newPasswordRef}

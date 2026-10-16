@@ -17,7 +17,7 @@ const SAMPLE_MONTH_LENGTH = 30;
 const WHAT_ARRIVES: Record<number, string> = {
   1: 'A new month begins',
   8: 'A quarter of the way',
-  15: 'Halfway — the White Days',
+  15: 'Halfway: the White Days',
   22: 'The final stretch',
 };
 
@@ -39,14 +39,14 @@ export default function LunarUpdatesScreen() {
     await ensurePermission();
     // Set regardless of the answer. The preference records what the *user* wants; whether the
     // OS is currently allowing it is a separate fact, and the Settings row underneath spells it
-    // out ("Allow notifications · Off", tappable through to system settings). Reverting the
-    // switch on a denial instead would leave them with a toggle that silently sprang back.
+    // out ("System notifications · Blocked in system settings", tappable through to them).
+    // Reverting the switch on a denial instead would leave a toggle that silently sprang back.
     setPreference('lunarUpdates', true);
     router.back();
   };
 
   return (
-    <FormSheet title="Four nights a month" subtitle="At each quarter of the moon — nothing else">
+    <FormSheet title="Four nights a lunar month" subtitle="At each quarter of the moon, and nothing else">
       <View style={styles.rows}>
         {MILESTONE_DAYS.map((day) => {
           const { label, illumination, waxing } = phaseOf(day, SAMPLE_MONTH_LENGTH);
@@ -65,8 +65,7 @@ export default function LunarUpdatesScreen() {
       </View>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        Each one carries the reading for the quarter just gone, and opens it in full. No daily
-        reminders.
+        Each one says where the month stands, in degrees, and opens Progress. No daily reminders.
       </ThemedText>
 
       <AppButton onPress={() => void allow()} busy={asking}>

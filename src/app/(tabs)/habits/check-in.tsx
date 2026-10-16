@@ -12,7 +12,7 @@ import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
 import { useHabitsNavigation } from '@/hooks/use-habits';
 import { answeredOn, describeCadence, formatReading, latestBefore } from '@/lib/check-ins';
-import { dayTitle } from '@/lib/dates';
+import { dayInSentence, dayTitle } from '@/lib/dates';
 
 /**
  * Answering a check-in: where the goal stands today.
@@ -114,7 +114,7 @@ export default function CheckInScreen() {
 
       {previous ? (
         <ThemedText type="small" themeColor="textSecondary">
-          {`Last reading ${formatReading(previous.value)} ${goal.unit}, ${dayTitle(previous.taken_on, today).toLowerCase()}`}
+          {`Last reading ${formatReading(previous.value)} ${goal.unit}, ${dayInSentence(previous.taken_on, today)}`}
         </ThemedText>
       ) : null}
 

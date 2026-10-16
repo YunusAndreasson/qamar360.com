@@ -37,9 +37,9 @@ type Props = {
   onUnseal: (stackId: string) => void;
   /** Tick one act for the viewed day, or take it back — fired by a tap on an act row. */
   onToggleAct: (habit: Habit) => void;
-  /** Open one act's sheet (skip today / insights / edit / move) — the act row's `⋯`. */
+  /** Open one act's sheet (skip today / stats / edit / move) — the act row's `⋯`. */
   onAct: (habit: Habit) => void;
-  /** Open the stack's sheet (add acts / insights / edit / delete) — the sibling of {@link onAct}. */
+  /** Open the stack's sheet (add acts / stats / edit / delete) — the sibling of {@link onAct}. */
   onEditStack: (stackId: string) => void;
   /** Screen-reader reorder for the whole stack (Move up / Move down on the header). */
   onMove?: (stackId: string, delta: -1 | 1) => void;
@@ -189,7 +189,7 @@ function StackCardBase({
     <ManageRow
       label="Manage stack"
       accessibilityLabel={`Manage ${stack.name} stack`}
-      accessibilityHint="Add acts, see insights, edit, or delete the stack."
+      accessibilityHint="Add acts, see stats, edit, or delete the stack."
       onPress={() => onEditStack(stack.id)}
     />
   );

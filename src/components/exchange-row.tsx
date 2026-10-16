@@ -14,7 +14,7 @@ type Props = {
   settling: boolean;
   /** Hold it, or take it back. */
   onToggle: (habit: Habit) => void;
-  /** Open the exchange sheet — skip today, insights, edit, delete. */
+  /** Open the exchange sheet — skip today, stats, edit, delete. */
   onOptions: (habit: Habit) => void;
 };
 
@@ -42,7 +42,7 @@ function ExchangeRowBase({ habit, held, skipped, settling, onToggle, onOptions }
       onToggle={() => onToggle(habit)}
       options={{
         accessibilityLabel: `Manage ${habit.name} exchange`,
-        accessibilityHint: 'Skip today, see insights, edit, or delete the exchange.',
+        accessibilityHint: 'Skip today, see stats, edit, or delete the exchange.',
         onPress: () => onOptions(habit),
       }}
     />
