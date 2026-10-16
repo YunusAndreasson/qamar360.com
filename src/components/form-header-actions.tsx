@@ -74,14 +74,18 @@ const styles = StyleSheet.create({
   pressed: { opacity: Pressed.dim },
 });
 
-function HeaderCancelButton({ onCancel, label }: { onCancel: () => void; label: string }) {
+/** The bar's dismiss. Exported for the one editor that writes its own bar (the goal composer, whose
+ *  save guards itself with a ref the compiler won't let pass through {@link formHeaderActions}). */
+export function HeaderCancelButton({ onCancel, label, disabled = false }: { onCancel: () => void; label: string; disabled?: boolean }) {
   return (
     <Pressable
       onPress={onCancel}
+      disabled={disabled}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       hitSlop={8}
       style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="small" themeColor={disabled ? 'textDisabled' : 'textSecondary'}>
         {label}
       </ThemedText>
     </Pressable>
@@ -115,14 +119,16 @@ function HeaderNewButton({
   );
 }
 
-function HeaderSaveButton({ onSave, canSave, label }: { onSave: () => void; canSave: boolean; label: string }) {
+/** The bar's commit. `busy` is a save in flight — paired with a "Saving…" label and a disabled
+ *  Cancel, so a second tap can't write twice and Cancel can't walk away from a write mid-flight. */
+export function HeaderSaveButton({ onSave, canSave, label, busy = false }: { onSave: () => void; canSave: boolean; label: string; busy?: boolean }) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onSave}
       disabled={!canSave}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !canSave }}
+      accessibilityState={{ disabled: !canSave, busy }}
       hitSlop={8}
       style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
       <ThemedText type="smallBold" style={{ color: canSave ? theme.accent : theme.textDisabled }}>

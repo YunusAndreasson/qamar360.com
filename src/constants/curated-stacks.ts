@@ -55,7 +55,7 @@ const FRIDAY = [5];
 export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[] }[] = [
   {
     key: 'hinges',
-    title: 'THE HINGES OF THE DAY',
+    title: 'The hinges of the day',
     stacks: [
       {
         id: 'after-waking',
@@ -93,7 +93,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
   },
   {
     key: 'prayers',
-    title: 'THE FIVE PRAYERS',
+    title: 'The five prayers',
     stacks: [
       {
         id: 'after-fajr',
@@ -163,7 +163,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
     // Its own heading rather than a sixth card under "THE FIVE PRAYERS", which is a count and
     // would stop being true. The title says the difference outright: every other stack in this
     // file hangs off something you already do, and this one hangs off something you are taking up.
-    title: 'THE PRAYER YOU CHOOSE',
+    title: 'The prayer you choose',
     stacks: [
       {
         id: 'after-duha',
@@ -192,7 +192,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
   },
   {
     key: 'week',
-    title: 'THE WEEKLY PRAYER',
+    title: 'The weekly prayer',
     stacks: [
       {
         id: 'after-jumuah',
@@ -212,7 +212,7 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
   },
   {
     key: 'body',
-    title: 'BODY & MIND',
+    title: 'Body & mind',
     stacks: [
       {
         id: 'after-waking-body',

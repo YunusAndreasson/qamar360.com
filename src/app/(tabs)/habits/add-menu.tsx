@@ -20,7 +20,7 @@ export default function AddMenuScreen() {
   return (
     <FormSheet title="Add">
       <View style={styles.group}>
-        <SectionLabel>REPEATING</SectionLabel>
+        <SectionLabel>Repeating</SectionLabel>
         <SheetActions actions={[
           { icon: 'stack', label: 'Stack', sublabel: 'A routine with several habits', onPress: () => router.replace('/habits/stack-library') },
           { icon: 'repeat', label: 'Habit', sublabel: 'One activity to repeat', onPress: () => router.replace('/habits/discover') },
@@ -29,7 +29,7 @@ export default function AddMenuScreen() {
         ]} />
       </View>
       <View style={styles.group}>
-        <SectionLabel>ONE-OFF</SectionLabel>
+        <SectionLabel>One-off</SectionLabel>
         <SheetActions actions={[
           { icon: 'task', label: 'To-do', sublabel: 'Something to do today', onPress: () => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } }) },
           { icon: 'plan', label: 'Plan', sublabel: 'Save something for later', onPress: () => router.replace('/habits/plans') },

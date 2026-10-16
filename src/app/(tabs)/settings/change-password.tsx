@@ -68,7 +68,7 @@ export default function ChangePasswordScreen() {
       <Stack.Screen options={{ headerRight: headerSaveAction(() => void save(), canSave) }} />
 
       <FormField
-        label="NEW PASSWORD"
+        label="New password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -83,7 +83,7 @@ export default function ChangePasswordScreen() {
 
       <FormField
         ref={confirmRef}
-        label="CONFIRM PASSWORD"
+        label="Confirm password"
         value={confirm}
         onChangeText={setConfirm}
         secureTextEntry

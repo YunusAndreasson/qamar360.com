@@ -29,7 +29,7 @@ type Props = {
 export function SettingsSection({ title, footer, children }: Props) {
   return (
     <View style={styles.wrap}>
-      {title ? <SectionLabel>{title.toUpperCase()}</SectionLabel> : null}
+      {title ? <SectionLabel>{title}</SectionLabel> : null}
       <Surface>
         <SeparatedRows>{children}</SeparatedRows>
       </Surface>

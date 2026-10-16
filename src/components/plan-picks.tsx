@@ -2,9 +2,10 @@ import { useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
+import { FieldLabel } from '@/components/field-label';
 import { RowSeparator } from '@/components/row-separator';
 import { ThemedText } from '@/components/themed-text';
-import { RowLeadingSlot, Spacing, Tracking, Typography } from '@/constants/theme';
+import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Plan } from '@/lib/plans';
 import { separatedRows } from '@/lib/separated-rows';
@@ -78,9 +79,7 @@ export function PlanPicks({ plans, onPick }: { plans: Plan[]; onPick: (plan: Pla
       {/* The one line that says where these came from. Without it a plan under the field is just a
           to-do someone else wrote, and the two lists never connect in the reader's head. */}
       <View style={styles.caption}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.captionText}>
-          FROM YOUR PLANS
-        </ThemedText>
+        <FieldLabel>From your plans</FieldLabel>
       </View>
       {rows.map((row) => (
         <View key={row.key}>
@@ -104,7 +103,8 @@ const styles = StyleSheet.create({
   leading: RowLeadingSlot,
   title: { flex: 1, marginLeft: Spacing.three },
   // Not a row: no 56pt minimum and no leading slot, so it reads as a heading over the rows rather
-  // than as the first of them.
-  caption: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three, paddingBottom: Spacing.one },
-  captionText: { fontSize: Typography.small.fontSize - 2, letterSpacing: Tracking.overline },
+  // than as the first of them. The app's own form caption, at the caption size every other one
+  // keeps — it was the one text in the app set off the type ramp (12pt). FieldLabel brings its own
+  // 8pt top margin, so the padding here makes up the same 16 above it.
+  caption: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one },
 });

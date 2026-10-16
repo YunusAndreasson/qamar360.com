@@ -28,7 +28,7 @@ type Props = {
 export function CheckInSection({ entries, topGap, today, onPress }: Props) {
   if (entries.length === 0) return null;
   return (
-    <CardSection label="CHECK IN" topGap={topGap}>
+    <CardSection label="Check in" topGap={topGap}>
       {entries.map((entry) => (
         <CheckInRow
           key={entry.goal.id}

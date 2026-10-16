@@ -203,7 +203,7 @@ export function TaskSection({
 
   return (
     <CardSection
-      label="TO DO"
+      label="To do"
       topGap={topGap}
       // The way in, once there is a list. Suppressed on a past day: writing something down "for
       // last Tuesday" is not a thing anyone means to do — and while an edit is open, since the

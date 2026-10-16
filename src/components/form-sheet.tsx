@@ -7,7 +7,7 @@ import { SeparatedRows } from '@/components/separated-rows';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
-import { Spacing } from '@/constants/theme';
+import { Pressed, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import type { ReactNode } from 'react';
@@ -42,7 +42,13 @@ export function FormSheet({ title, subtitle, children }: { title: string; subtit
           <ThemedText type="heading" accessibilityRole="header">{title}</ThemedText>
           {subtitle ? <ThemedText type="small" themeColor="textSecondary">{subtitle}</ThemedText> : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={() => router.back()} style={styles.close}>
+        {/* The app's press dim, like every other bare glyph — not a scale: a Reanimated view inside
+            a native sheet flies during the sheet's own transition (see `selectable-pill.tsx`). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Close ${title}`}
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <AppIcon name="close" size={22} color={theme.textSecondary} />
         </Pressable>
       </View>
@@ -130,6 +136,7 @@ const styles = StyleSheet.create({
   },
   headingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: Pressed.dim },
   header: {
     flex: 1,
     gap: Spacing.half,

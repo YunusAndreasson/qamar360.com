@@ -92,7 +92,7 @@ export default function CheckInScreen() {
       {/* The unit sits beside the field rather than inside it: a suffix inside a numeric input
           moves as the number grows, and this one is read while typing. */}
       <View>
-        <FieldLabel>{existing ? 'CORRECT THE READING' : 'WHERE YOU ARE'}</FieldLabel>
+        <FieldLabel>{existing ? 'Correct the reading' : 'Where you are'}</FieldLabel>
         <View style={styles.measure}>
           <View style={styles.field}>
             <FormField
@@ -119,7 +119,7 @@ export default function CheckInScreen() {
       ) : null}
 
       <FormField
-        label="NOTE"
+        label="Note"
         value={noteValue}
         onChangeText={setNote}
         placeholder="What the number doesn’t say"

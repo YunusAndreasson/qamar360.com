@@ -107,7 +107,7 @@ export function HabitSection({ habits: loose, topGap, completed, skipped, settli
 
   return (
     <CardSection
-      label="HABITS"
+      label="Habits"
       topGap={topGap}
       // The offer, not the premise: only when the library recognises something here, and phrased
       // as a shortcut past the per-habit "Move to a stack" rather than as a chore to clear.

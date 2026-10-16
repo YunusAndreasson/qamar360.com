@@ -109,9 +109,9 @@ export const MOMENTS: Record<MomentKey, MomentDef> = MOMENT_DEFS;
  * word at the head of the screen three times over — the same reason the stack names dropped it.
  */
 export const MOMENT_GROUPS: { key: string; title: string; moments: MomentKey[] }[] = [
-  { key: 'prayers', title: 'PRAYERS', moments: ['fajr', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
-  { key: 'life', title: 'SOMETHING YOU DO', moments: ['waking-up', 'before-dawn', 'bedtime'] },
-  { key: 'sky', title: 'JUST A TIME: WEAKEST CUE', moments: ['morning', 'midday', 'evening', 'night'] },
+  { key: 'prayers', title: 'Prayers', moments: ['fajr', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] },
+  { key: 'life', title: 'Something you do', moments: ['waking-up', 'before-dawn', 'bedtime'] },
+  { key: 'sky', title: 'Just a time: weakest cue', moments: ['morning', 'midday', 'evening', 'night'] },
 ];
 
 /** Narrow the DB's `text` column (or any unknown string) to a MomentKey. `hasOwn`, not `in`:

@@ -54,13 +54,12 @@ export default function StackRenameScreen() {
       <Stack.Screen
         options={{
           title: 'Edit stack',
-          headerTitleAlign: 'center',
           ...formHeaderActions({ onCancel: () => router.back(), onSave: save, canSave }),
         }}
       />
 
       <FormField
-        label="NAME"
+        label="Name"
         value={name}
         onChangeText={setName}
         placeholder="e.g. Fajr"

@@ -817,7 +817,7 @@ export default function HabitsScreen() {
                   appendix to it. */}
               <SectionLabel
                 style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing || checkInCardShowing) }]}>
-                STACKS
+                Stacks
               </SectionLabel>
               <HabitDragProvider
                 scrollRef={scrollRef}

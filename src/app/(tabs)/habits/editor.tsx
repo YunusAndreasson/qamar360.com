@@ -15,8 +15,8 @@ import { otherNames } from '@/lib/names';
  * A `stackId` is honoured but no longer required. It used to be: creating without one closed the
  * screen rather than "mint an orphan", back when a habit lived in a stack or nowhere. A habit with
  * no stack is now an ordinary unit of the day (see `HabitSection`), so this screen is its create
- * path too — reached from the "+" menu's **Habit** card, and from Discover's "create your own" when
- * that library is opened unscoped, which until now pushed here only to be popped straight back.
+ * path too — reached from Discover's "Custom" and "Create your own habit" when that library is
+ * opened unscoped (the "+" menu's Habit), which once pushed here only to be popped straight back.
  */
 export default function HabitEditorScreen() {
   const router = useRouter();

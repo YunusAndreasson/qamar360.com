@@ -81,7 +81,7 @@ export type CuratedExchangeGroup = {
 export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   {
     key: 'table',
-    title: 'THE TABLE',
+    title: 'The table',
     blurb: 'A meal has a clear beginning. That’s where the swap goes, before the first bite.',
     exchanges: [
       {
@@ -120,7 +120,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'screen',
-    title: 'THE SCREEN',
+    title: 'The screen',
     blurb: 'You reach for your phone at the same few moments. Name one, and put something else there.',
     exchanges: [
       {
@@ -156,7 +156,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'tongue',
-    title: 'THE TONGUE',
+    title: 'The tongue',
     blurb: 'The words are out before you decide on them, so decide on them beforehand.',
     exchanges: [
       {
@@ -191,7 +191,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'impulse',
-    title: 'THE IMPULSE',
+    title: 'The impulse',
     blurb: 'You move before you think. Pick the move now, while you’re calm.',
     exchanges: [
       {

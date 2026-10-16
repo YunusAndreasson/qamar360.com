@@ -379,7 +379,7 @@ export default function DiscoverScreen() {
         return (
           <View style={wrap}>
             <View style={styles.section}>
-              <SectionLabel>{item.category.title.toUpperCase()}</SectionLabel>
+              <SectionLabel>{item.category.title}</SectionLabel>
               <SettingsSection>
                 {item.presets.map(renderPreset)}
               </SettingsSection>

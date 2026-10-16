@@ -75,9 +75,7 @@ export default function ExchangeFormScreen() {
         options={{
           // Sentence case, like every other title in this stack ("New act", "New stack").
           title: isNew ? 'New exchange' : 'Edit exchange',
-          // Centered so it doesn't crowd "Cancel" on Android's left-aligned header.
-          headerTitleAlign: 'center',
-          ...formHeaderActions({ onCancel: () => router.back(), onSave: save, canSave }),
+          ...formHeaderActions({ onCancel: () => router.back(), onSave: save, canSave, saveLabel: isNew ? 'Create' : 'Save' }),
         }}
       />
 
@@ -87,7 +85,7 @@ export default function ExchangeFormScreen() {
           tired, where a leading "when I" on every exchange is a third of the line spent on
           grammar. The hint asks for the same brevity in words. */}
       <FormField
-        label="WHEN"
+        label="When"
         value={cue}
         onChangeText={setCue}
         placeholder="sitting down to eat"
@@ -98,7 +96,7 @@ export default function ExchangeFormScreen() {
       />
 
       <FormField
-        label="INSTEAD OF"
+        label="Instead of"
         value={insteadOf}
         onChangeText={setInsteadOf}
         placeholder="soft drinks"
@@ -110,7 +108,7 @@ export default function ExchangeFormScreen() {
       {/* Past tense, like every habit name in the app: it is read at the moment of ticking, and
           what the tick asserts is that the deed is done. */}
       <FormField
-        label="I DID"
+        label="I did"
         value={name}
         onChangeText={setName}
         placeholder="Drank a glass of water"
@@ -120,7 +118,7 @@ export default function ExchangeFormScreen() {
         hint={isDuplicate ? undefined : 'Something actually to hand in that moment.'}
       />
 
-      <FieldLabel>REPEAT</FieldLabel>
+      <FieldLabel>Repeat</FieldLabel>
       <WeekdayPicker days={days} onChange={setDays} />
 
       {/* Three fields is a lot to ask of someone who hasn't been told why each one matters, and

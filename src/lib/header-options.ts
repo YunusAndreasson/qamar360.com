@@ -61,6 +61,9 @@ export function stackHeaderOptions(theme: { background: string; text: string }) 
 export function modalHeaderOptions(theme: { background: string; text: string }) {
   return {
     presentation: 'modal' as const,
+    // Centred on Android too (iOS centres it already), so a modal's title never crowds the Close
+    // or Cancel beside it — said once here rather than by each editor that remembered to.
+    headerTitleAlign: 'center' as const,
     headerStyle: { backgroundColor: theme.background },
     headerTintColor: theme.text,
     // Same title voice as stackHeaderOptions' compact bar.
@@ -70,8 +73,9 @@ export function modalHeaderOptions(theme: { background: string; text: string }) 
 
 /**
  * Native-Stack options for a bottom sheet sized to its content — the compact sheet-of-rows
- * idiom (add-to-stack, stack-manage, the habit-stacking guide). No nav bar: the sheet carries
- * its own title; the grabber or a swipe-down dismisses it.
+ * idiom (the add menu, add-to-stack, an act's or a stack's options, the day picker, Settings'
+ * pickers). No nav bar: the sheet carries its own title and its own ✕ (`FormSheet`); the grabber
+ * or a swipe-down dismisses it too.
  */
 export function formSheetOptions(theme: { background: string }) {
   return {

@@ -1,12 +1,15 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { AppButton } from '@/components/app-button';
+import { DisclosureRow } from '@/components/disclosure-row';
+import { EmptyState } from '@/components/empty-state';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
+import { HeaderCancelButton, HeaderSaveButton, headerCloseAction } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { SelectablePill } from '@/components/selectable-pill';
+import { Skeleton } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { WeekdayPicker } from '@/components/weekday-picker';
@@ -24,16 +27,24 @@ type CadenceChoice = CadenceKey | 'none';
 
 /** Wait for an edit's data before mounting the stateful form. */
 export default function GoalComposerScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { goals, loading } = useGoals();
   const editing = id ? goals.find((goal) => goal.id === id) : undefined;
   if (id && !editing) {
+    // A modal with no form in it yet still needs a way out of it: its own Close, since there is
+    // nothing here to cancel. While the goals load it shows the form's shape, not a word.
     return (
       <FormScreen>
-        <Stack.Screen options={{ title: 'Edit goal', headerTitleAlign: 'center' }} />
-        <ThemedText themeColor="textSecondary">
-          {loading ? 'Loading…' : 'That goal is no longer here.'}
-        </ThemedText>
+        <Stack.Screen options={{ title: 'Edit goal', headerLeft: headerCloseAction(() => router.back()) }} />
+        {loading ? (
+          <>
+            <Skeleton height={56} />
+            <Skeleton height={56} />
+          </>
+        ) : (
+          <EmptyState icon="goal" title="This goal is no longer here" />
+        )}
       </FormScreen>
     );
   }
@@ -58,7 +69,6 @@ function GoalForm({ editing }: { editing?: Goal }) {
   const [weekday, setWeekday] = useState(editing?.check_in_days[0] ?? new Date().getDay());
   const [obstacle, setObstacle] = useState(editing?.obstacle ?? '');
   const [ifThen, setIfThen] = useState(editing?.if_then ?? '');
-  const [planExpanded, setPlanExpanded] = useState(!!(editing?.obstacle || editing?.if_then));
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -142,28 +152,23 @@ function GoalForm({ editing }: { editing?: Goal }) {
 
   return (
     <FormScreen>
+      {/* The bar every other editor commits from — the same Cancel and Create/Save buttons — with
+          the save's busy state. Save stays enabled on an incomplete goal: a tap is how its missing
+          fields get named, below. */}
       <Stack.Screen options={{
-        title: editing ? 'Edit goal' : 'New goal', headerTitleAlign: 'center',
-        headerLeft: () => (
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving }}
-            disabled={saving} onPress={() => router.back()} style={styles.headerAction}>
-            <ThemedText type="small" themeColor={saving ? 'textDisabled' : 'textSecondary'}>Cancel</ThemedText>
-          </Pressable>
-        ),
+        title: editing ? 'Edit goal' : 'New goal',
+        headerLeft: () => <HeaderCancelButton label="Cancel" onCancel={() => router.back()} disabled={saving} />,
         headerRight: () => (
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving, busy: saving }}
-            disabled={saving} onPress={save} style={styles.headerAction}>
-            <ThemedText type="smallBold" themeColor={saving ? 'textDisabled' : 'accent'}>
-              {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
-            </ThemedText>
-          </Pressable>
+          <HeaderSaveButton
+            label={saving ? 'Saving…' : editing ? 'Save' : 'Create'}
+            onSave={save}
+            canSave={!saving}
+            busy={saving}
+          />
         ),
         gestureEnabled: !saving,
       }} />
       <View pointerEvents={saving ? 'none' : 'auto'} style={styles.form}>
-        <ThemedText type="small" themeColor="textSecondary">
-          Choose something you can measure, then check in to track your progress.
-        </ThemedText>
         <FormField
           label="Goal name" value={title} onChangeText={setTitle}
           placeholder="e.g. Read 12 books" error={attempted ? titleError : null}
@@ -199,7 +204,7 @@ function GoalForm({ editing }: { editing?: Goal }) {
             <SelectablePill
               key={span.months} label={span.label}
               selected={(!editing || spanTouched) && spanMonths === span.months}
-              onPress={() => { setSpanMonths(span.months); setSpanTouched(true); }}
+              onPress={() => { haptics.selection(); setSpanMonths(span.months); setSpanTouched(true); }}
             />
           ))}
         </View>
@@ -220,7 +225,12 @@ function GoalForm({ editing }: { editing?: Goal }) {
               onPress={() => { haptics.selection(); setCadence(option.key); }}
             />
           ))}
-          {!mustAsk ? <SelectablePill label="No schedule" selected={cadence === 'none'} onPress={() => setCadence('none')} /> : null}
+          {!mustAsk ? (
+            <SelectablePill
+              label="No schedule" selected={cadence === 'none'}
+              onPress={() => { haptics.selection(); setCadence('none'); }}
+            />
+          ) : null}
         </View>
         {mustAsk ? <ThemedText type="small" themeColor="textSecondary">Check-ins are required to track a decreasing amount.</ThemedText> : null}
         {cadence === 'weekly' ? (
@@ -233,18 +243,18 @@ function GoalForm({ editing }: { editing?: Goal }) {
           </>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button" accessibilityState={{ expanded: planExpanded }}
-          onPress={() => setPlanExpanded((expanded) => !expanded)} style={styles.disclosure}>
-          <ThemedText type="rowTitle">Plan for obstacles (optional)</ThemedText>
-          <ThemedText type="small" themeColor="accent">{planExpanded ? 'Hide' : 'Add a plan'}</ThemedText>
-        </Pressable>
-        {planExpanded ? (
-          <>
-            <FormField label="What might get in the way?" value={obstacle} onChangeText={setObstacle} placeholder="e.g. Being too tired to read" multiline />
-            <FormField label="What will you do then?" value={ifThen} onChangeText={setIfThen} placeholder="e.g. Read one page before bed" multiline />
-          </>
-        ) : null}
+        {/* The app's disclosure row, open from the start when the goal already carries a plan —
+            closed, it would hide the plan from the person who wrote it. */}
+        <View style={styles.section}>
+          <DisclosureRow
+            label="Plan for obstacles (optional)"
+            expandHint="Shows two fields for what might get in the way, and what you will do then."
+            collapseHint="Hides the plan."
+            initiallyExpanded={!!(editing?.obstacle || editing?.if_then)}>
+            <FormField label="Obstacle" value={obstacle} onChangeText={setObstacle} placeholder="What might get in the way?" multiline />
+            <FormField label="Plan" value={ifThen} onChangeText={setIfThen} placeholder="What will you do then?" multiline />
+          </DisclosureRow>
+        </View>
       </View>
       {attempted && !valid ? (
         <ThemedText type="small" themeColor="danger" role="alert">
@@ -252,9 +262,6 @@ function GoalForm({ editing }: { editing?: Goal }) {
         </ThemedText>
       ) : null}
       {saveError ? <ThemedText type="small" themeColor="danger" role="alert">{saveError}</ThemedText> : null}
-      <AppButton onPress={save} busy={saving} busyLabel="Saving…" style={styles.submit}>
-        {editing ? 'Save changes' : 'Create goal'}
-      </AppButton>
     </FormScreen>
   );
 }
@@ -269,11 +276,8 @@ function horizonLabel(horizon: string | null): string {
 
 const styles = StyleSheet.create({
   form: { gap: Spacing.two },
-  headerAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.three },
   section: { marginTop: Spacing.three },
   pair: { flexDirection: 'row', gap: Spacing.three },
   half: { flex: 1, gap: Spacing.two },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  disclosure: { marginTop: Spacing.three, minHeight: 48, justifyContent: 'center', gap: Spacing.one },
-  submit: { marginTop: Spacing.three },
 });

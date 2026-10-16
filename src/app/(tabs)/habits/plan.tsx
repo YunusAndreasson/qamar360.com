@@ -128,7 +128,7 @@ export default function PlanScreen() {
         options={{
           title: plan ? 'Plan' : 'New plan',
           headerTitleAlign: 'center',
-          ...formHeaderActions({ onCancel: () => router.back(), onSave: () => void save(), canSave }),
+          ...formHeaderActions({ onCancel: () => router.back(), onSave: () => void save(), canSave, saveLabel: plan ? 'Save' : 'Create' }),
         }}
       />
       {/* Two providers can fail here and the reader does not care which: saving the plan is
@@ -138,7 +138,7 @@ export default function PlanScreen() {
       <ErrorBanner message={error} onDismiss={dismissError} />
       <ErrorBanner message={taskError} onDismiss={dismissTaskError} />
       <FormField
-        label="TITLE"
+        label="Title"
         value={title}
         onChangeText={setDraftTitle}
         placeholder="What is it?"
@@ -148,7 +148,7 @@ export default function PlanScreen() {
         maxLength={200}
       />
       <FormField
-        label="NOTES"
+        label="Notes"
         value={body}
         onChangeText={setDraftBody}
         placeholder="Anything worth remembering about it."

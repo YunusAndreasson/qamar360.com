@@ -45,7 +45,7 @@ function ExchangeSectionBase({ exchanges, topGap, completed, skipped, settling, 
     // drinks"), and using it here made one wording mean the whole feature on the day and one field
     // of one item in the editor. Every other way in — the "+" menu, the act sheet, the library,
     // the guide — already says exchange; the day was the last screen that didn't.
-    <CardSection label="EXCHANGES" topGap={topGap}>
+    <CardSection label="Exchanges" topGap={topGap}>
       {exchanges.map((habit) => (
         <ExchangeRow
           key={habit.id}

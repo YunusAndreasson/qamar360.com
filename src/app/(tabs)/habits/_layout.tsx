@@ -31,12 +31,12 @@ export default function HabitsStackLayout() {
         options={{ ...modalHeaderOptions(theme), title: 'Ready-made stacks', headerLeft: headerCloseAction(() => router.back()) }}
       />
       {/* Add an act: search/filter the curated Sunnah library or create your own — a native
-          modal sheet (from the bottom, the same idiom as the editor it sits beside in the empty
-          state), with a centered "Add acts" title, a native search bar, and a left-aligned
-          Close; the pinned chips sit below it. With a `stackId` param it adds into that stack. */}
+          modal sheet, with a native search bar and a left-aligned Close; the chips lead the list.
+          The screen titles itself ("Add a habit", or "Add to {stack}" with a `stackId`); this is
+          the same words as the fallback, so the bar never flashes the route's name first. */}
       <Stack.Screen
         name="discover"
-        options={{ ...modalHeaderOptions(theme), title: 'Add acts', headerLeft: headerCloseAction(() => router.back()) }}
+        options={{ ...modalHeaderOptions(theme), title: 'Add a habit', headerLeft: headerCloseAction(() => router.back()) }}
       />
       {/* New / edit habit — a native modal sheet; Cancel/Save live in its nav bar. */}
       <Stack.Screen name="editor" options={modalHeaderOptions(theme)} />

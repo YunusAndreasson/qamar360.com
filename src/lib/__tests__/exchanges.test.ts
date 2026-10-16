@@ -74,7 +74,7 @@ describe('the curated exchange library', () => {
     expect(EXCHANGE_GROUPS.every((g) => g.exchanges.length > 0)).toBe(true);
   });
 
-  it('titles its groups in the uppercase voice the library headers use', () => {
-    for (const group of EXCHANGE_GROUPS) expect(group.title).toBe(group.title.toUpperCase());
+  it('titles its groups as written: the section caption sets its own capitals', () => {
+    for (const group of EXCHANGE_GROUPS) expect(group.title).not.toBe(group.title.toUpperCase());
   });
 });

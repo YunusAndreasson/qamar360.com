@@ -30,6 +30,7 @@ export function DisclosureRow({
   accessibilityLabel,
   expandHint,
   collapseHint,
+  initiallyExpanded = false,
   children,
 }: {
   label: string;
@@ -37,10 +38,13 @@ export function DisclosureRow({
   accessibilityLabel?: string;
   expandHint: string;
   collapseHint: string;
+  /** Opens on its first render — for content the user already filled in, which a closed row would
+   *  hide from the very person who wrote it. Read once; after that the row owns its state. */
+  initiallyExpanded?: boolean;
   children: ReactNode;
 }) {
   const theme = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
 
   return (
     <>

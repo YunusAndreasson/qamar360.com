@@ -2,8 +2,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { GoalTrendChart } from '@/components/goal-trend-chart';
+import { ProgressSkeleton } from '@/components/progress-skeleton';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { Surface } from '@/components/surface';
@@ -49,11 +51,20 @@ export default function GoalScreen() {
     // Two different states wearing one shape. Until the goals have loaded — a cold start, or a
     // notification opening this route directly — there is simply no answer yet, and saying "no
     // longer here" would be a verdict delivered before the question was asked.
+    // While the goals load it shows the page's shape, as every other screen does, not a word.
     return (
-      <AppScreen transparent centered>
+      <>
         <Stack.Screen options={{ title: 'Goal' }} />
-        <ThemedText type="rowTitle">{loading ? 'Loading…' : 'That goal is no longer here.'}</ThemedText>
-      </AppScreen>
+        {loading ? (
+          <AppScreen transparent>
+            <ProgressSkeleton />
+          </AppScreen>
+        ) : (
+          <AppScreen transparent centered>
+            <EmptyState icon="goal" title="This goal is no longer here" />
+          </AppScreen>
+        )}
+      </>
     );
   }
 

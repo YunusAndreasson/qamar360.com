@@ -232,7 +232,7 @@ export default function SettingsScreen() {
 
       {/* Appearance */}
       <View style={styles.controlGroup}>
-        <SectionLabel>APPEARANCE</SectionLabel>
+        <SectionLabel>Appearance</SectionLabel>
         <ThemeSegmented />
       </View>
 
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
       {/* Week start — the same bare-segmented shape as Appearance: three mutually-exclusive
           options read better as one control than as a row that opens a list of three. */}
       <View style={styles.controlGroup}>
-        <SectionLabel>WEEK STARTS ON</SectionLabel>
+        <SectionLabel>Week starts on</SectionLabel>
         <Segmented
           options={WEEK_STARTS}
           value={String(weekStart)}

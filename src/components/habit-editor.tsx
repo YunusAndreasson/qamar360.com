@@ -217,16 +217,14 @@ export function HabitEditorForm({
           // (the card rows, the options sheet, Discover) — and "habit" when it stands on its own,
           // matching the "+" menu's card. Sentence case, like every other title in this stack.
           title: `${isNew ? 'New' : 'Edit'} ${noun}`,
-          // Center the title so it doesn't crowd the "Cancel" button on Android's
-          // left-aligned header (iOS centers it already).
-          headerTitleAlign: 'center',
-          ...formHeaderActions({ onCancel: onClose, onSave: save, canSave }),
+          // A new one is created, an existing one saved — the verb every editor uses for each.
+          ...formHeaderActions({ onCancel: onClose, onSave: save, canSave, saveLabel: isNew ? 'Create' : 'Save' }),
         }}
       />
 
       {/* Name */}
       <FormField
-        label="NAME"
+        label="Name"
         value={name}
         onChangeText={setName}
         // An example, not a restatement of the label: it shows the house style in one glance —
@@ -242,7 +240,7 @@ export function HabitEditorForm({
           "Goal": that word belongs to the Goals feature, a horizon over many days, and one field
           here wearing it made the two read as the same thing. The shared Segmented control, so
           this mode choice reads exactly like Settings'. */}
-      <FieldLabel>TARGET</FieldLabel>
+      <FieldLabel>Target</FieldLabel>
       <Segmented
         options={[
           { value: 'once', label: 'Once daily' },
@@ -282,7 +280,7 @@ export function HabitEditorForm({
       ) : null}
 
       {/* Schedule */}
-      <FieldLabel>REPEAT</FieldLabel>
+      <FieldLabel>Repeat</FieldLabel>
       {/* Weekly (weekdays) vs Hijri (lunar dates) — the two schedule kinds. */}
       <Segmented
         options={[
@@ -299,7 +297,7 @@ export function HabitEditorForm({
       ) : (
         <>
           {/* Days of every Hijri month — with a one-tap White Days (13–15) fill. */}
-          <FieldLabel style={styles.subLabel}>EACH HIJRI MONTH</FieldLabel>
+          <FieldLabel style={styles.subLabel}>Each Hijri month</FieldLabel>
           <SelectablePill
             selected={whiteDaysOn}
             label="White Days (13–15)"
@@ -328,7 +326,7 @@ export function HabitEditorForm({
           </View>
 
           {/* Annual occasions — Ramadan, ʿArafah, ʿĀshūrāʾ. */}
-          <FieldLabel style={styles.subLabel}>OCCASIONS</FieldLabel>
+          <FieldLabel style={styles.subLabel}>Occasions</FieldLabel>
           <View style={styles.occasions}>
             {HIJRI_OCCASIONS.map((occ) => (
               <SelectablePill
@@ -355,7 +353,7 @@ export function HabitEditorForm({
           aren't made here; you start one on Today by dropping one habit onto another. */}
       {!isNew && stackName ? (
         <>
-          <FieldLabel>STACK</FieldLabel>
+          <FieldLabel>Stack</FieldLabel>
           <Pressable
             onPress={onEditStack}
             accessibilityRole="button"
@@ -382,7 +380,7 @@ export function HabitEditorForm({
           variant="destructive"
           onPress={confirmDelete}
           style={styles.delete}>
-          Delete habit
+          {`Delete ${noun}`}
         </AppButton>
       ) : null}
     </FormScreen>
