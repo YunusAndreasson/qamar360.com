@@ -35,7 +35,7 @@ describe('habitRowContract — the three states', () => {
     expect(c.enabled).toBe(false);
     expect(c.checked).toBe(false);
     expect(c.label).toContain('excused today');
-    expect(c.hint).toBe('Excused for today — nothing to record.');
+    expect(c.hint).toBe('Excused for today. Nothing to record.');
   });
 
   it('lets excused outrank done — an excused row can never also be asserting', () => {

@@ -77,7 +77,7 @@ export default function GoalScreen() {
       // accepted target quietly editing a completion row weeks in the past.
       await updateHabit(contributor.habitId, { target_count: dailyTarget, target_unit: goal.unit }, { reconcileViewedDay: false });
       await refresh();
-      show(`${contributor.name} now asks ${dailyTarget} a day`, 'success');
+      show(`${contributor.name} set to ${dailyTarget} ${goal.unit} a day`, 'success');
     })();
   };
 
@@ -92,7 +92,7 @@ export default function GoalScreen() {
 
   const setAside = () => {
     void (async () => {
-      if (await updateGoal(goal.id, { status: 'released' })) show('Set aside — it stays in your record', 'success');
+      if (await updateGoal(goal.id, { status: 'released' })) show('Set aside. It stays in your record.', 'success');
     })();
   };
 
@@ -104,7 +104,7 @@ export default function GoalScreen() {
 
   const remove = () =>
     confirmDestructive({
-      title: `Delete ${goal.title}?`,
+      title: 'Delete goal',
       // The acts are the user's own habits and their history is the record — deleting the horizon
       // must not reach into either, and the dialog has to say so or nobody will risk the button.
       message: 'The acts behind it stay on your day, with everything you have logged against them.',
@@ -144,7 +144,7 @@ export default function GoalScreen() {
           against your BEST closed month, the second against your recent pace — so the sentence
           names the one it is actually quoting. */}
       {!reachable && arrival ? (
-        <SettingsSection footer={`At the pace of your last few months this arrives in ${arrival.monthName} ${arrival.year}. Moving the horizon there is the honest version of this goal — the alternative is a monthly target you have never once hit.`}>
+        <SettingsSection footer={`At the pace of your last few months, you would reach it in ${arrival.monthName} ${arrival.year}.`}>
           <SettingsRow
             icon="calendar"
             label="This asks for more than your best month"
@@ -223,7 +223,7 @@ export default function GoalScreen() {
                 ? 'On your day, and not counted here'
                 : act.contributes
                   ? `Counts toward the ${goal.unit}`
-                  : 'Revision — holds what is already there'
+                  : 'Revision: holds what is already there'
             }
             value={act.targetCount !== null ? `${act.targetCount} a day` : undefined}
           />

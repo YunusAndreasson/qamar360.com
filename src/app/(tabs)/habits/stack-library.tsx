@@ -92,7 +92,7 @@ export default function StackLibraryScreen() {
       }
     }
 
-    show(`Added ${plan.name} — find it on Today`, 'success', {
+    show(`Added ${plan.name} to Today`, 'success', {
       label: 'Undo',
       onPress: () => {
         void (async () => {

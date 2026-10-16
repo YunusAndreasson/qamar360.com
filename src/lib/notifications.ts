@@ -90,7 +90,7 @@ export async function configureNotifications(): Promise<void> {
     try {
       await N.setNotificationChannelAsync(CHANNEL_ID, {
         name: 'Lunar updates',
-        description: 'Four times a lunar month, at each quarter of the moon.',
+        description: 'Four nights a lunar month, at each quarter of the moon.',
         importance: N.AndroidImportance.DEFAULT,
         showBadge: false,
         lightColor: Colors.dark.accent,

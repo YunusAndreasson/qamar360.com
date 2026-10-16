@@ -742,8 +742,10 @@ export default function HabitsScreen() {
         <AppScreen transparent centered>
           <EmptyState
             icon="cloudOff"
-            title="Couldn't load your habits"
-            body={error ?? 'Check your connection and try again.'}>
+            title="Could not load your habits"
+            // Not `body={error}`: the provider's message opens with this title word for word, and
+            // its own advice is the retry right below. The same call the Progress tab makes.
+            body="Check your connection, then try again.">
             <AppButton onPress={() => void reload()} accessibilityLabel="Try loading again">
               Try again
             </AppButton>
@@ -763,10 +765,12 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
-          {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
+          {/* Errors first: they are about the day you are looking at, and a line about tomorrow
+              is the one thing on the screen that can wait. */}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
           <ErrorBanner message={goalsError} onDismiss={dismissGoalsError} style={styles.banner} />
+          {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
               until there is a list — the way in is the header "+". */}
@@ -1040,7 +1044,7 @@ function HabitsEmptyState({
     <EmptyState
       art={<MoonEmblem />}
       title="Anchor your first stack"
-      body={'Attach a short sequence to something you already\u00A0do — waking, a prayer, going to bed.'}>
+      body={'Attach a short sequence to something you already\u00A0do: waking, a prayer, going to bed.'}>
       <AppButton onPress={() => router.push('/habits/stack-library')} accessibilityLabel="Choose an anchor">
         Choose an anchor
       </AppButton>

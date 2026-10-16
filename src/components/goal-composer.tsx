@@ -15,7 +15,7 @@ import { Spacing } from '@/constants/theme';
 import { useGoals } from '@/hooks/use-goals';
 import { confirmProceed } from '@/lib/alerts';
 import { CADENCES, cadenceOf, cadenceFields, hasCadence, type CadenceKey } from '@/lib/check-ins';
-import { hijriParts, todayLocalISO } from '@/lib/dates';
+import { DATE_LOCALE, hijriParts, localDate, todayLocalISO } from '@/lib/dates';
 import { parseGoalNumber } from '@/lib/goal-form';
 import { horizonFromLunarMonths, type Goal } from '@/lib/goals';
 import { haptics } from '@/lib/haptics';
@@ -50,7 +50,7 @@ function GoalForm({ editing }: { editing?: Goal }) {
   const [targetText, setTargetText] = useState(editing ? String(editing.target_value) : '');
   const [startText, setStartText] = useState('');
   const [spanMonths, setSpanMonths] = useState(11);
-  // An edit keeps its exact stored deadline until the user deliberately chooses a new one.
+  // An edit keeps its exact stored horizon until the user deliberately chooses a new one.
   const [spanTouched, setSpanTouched] = useState(false);
   const [cadence, setCadence] = useState<CadenceChoice>(
     editing ? (hasCadence(editing) ? (cadenceOf(editing) ?? 'weekly') : 'none') : 'weekly',
@@ -248,7 +248,7 @@ function GoalForm({ editing }: { editing?: Goal }) {
       </View>
       {attempted && !valid ? (
         <ThemedText type="small" themeColor="danger" role="alert">
-          {titleError ?? targetError ?? unitError ?? startError ?? 'A deadline could not be calculated on this device.'}
+          {titleError ?? targetError ?? unitError ?? startError ?? 'A horizon could not be calculated on this device.'}
         </ThemedText>
       ) : null}
       {saveError ? <ThemedText type="small" themeColor="danger" role="alert">{saveError}</ThemedText> : null}
@@ -260,9 +260,11 @@ function GoalForm({ editing }: { editing?: Goal }) {
 }
 
 function horizonLabel(horizon: string | null): string {
-  if (!horizon) return 'A deadline could not be calculated on this device.';
+  if (!horizon) return 'A horizon could not be calculated on this device.';
   const parts = hijriParts(horizon);
-  return parts ? `By the end of ${parts.monthName} ${parts.year}` : `Deadline: ${horizon}`;
+  return parts
+    ? `By the end of ${parts.monthName} ${parts.year}`
+    : `By ${localDate(horizon).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })}`;
 }
 
 const styles = StyleSheet.create({

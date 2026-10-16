@@ -41,8 +41,8 @@ export function useConfirmDeleteStack() {
         title: 'Delete stack',
         message:
           count === 1
-            ? `Delete “${stack.name}”? Its one act can stay — it’ll need a new anchor — or be deleted with it.`
-            : `Delete “${stack.name}”? Its ${count} acts can stay — they’ll need a new anchor — or be deleted with it.`,
+            ? `Delete “${stack.name}”? Its one act can stay, needing a new anchor, or be deleted with it.`
+            : `Delete “${stack.name}”? Its ${count} acts can stay, needing a new anchor, or be deleted with it.`,
         keepLabel: count === 1 ? 'Keep the act' : 'Keep the acts',
         onKeep: () => remove(false),
         destroyLabel: count === 1 ? 'Delete the act too' : 'Delete the acts too',

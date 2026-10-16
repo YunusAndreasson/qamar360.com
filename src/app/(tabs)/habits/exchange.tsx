@@ -94,7 +94,7 @@ export default function ExchangeFormScreen() {
         autoCapitalize="none"
         autoFocus={isNew}
         accessibilityLabel="When this happens"
-        hint="A moment you would notice arriving — a few words."
+        hint="A moment you would notice arriving, in a few words."
       />
 
       <FormField
@@ -104,7 +104,7 @@ export default function ExchangeFormScreen() {
         placeholder="soft drinks"
         autoCapitalize="none"
         accessibilityLabel="Instead of"
-        hint="Named so you recognise the moment — this is not what gets tracked."
+        hint="Named so you recognise the moment. This is not what gets tracked."
       />
 
       {/* Past tense, like every habit name in the app: it is read at the moment of ticking, and

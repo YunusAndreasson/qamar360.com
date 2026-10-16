@@ -238,13 +238,15 @@ export function HabitEditorForm({
         error={isDuplicate ? 'You already use that name.' : undefined}
       />
 
-      {/* Goal — a single daily act, or counting toward a numeric target (e.g. 5 pages).
-          The shared Segmented control, so this mode choice reads exactly like Settings'. */}
-      <FieldLabel>GOAL</FieldLabel>
+      {/* Target — a single daily act, or counting toward a numeric target (e.g. 5 pages). Not
+          "Goal": that word belongs to the Goals feature, a horizon over many days, and one field
+          here wearing it made the two read as the same thing. The shared Segmented control, so
+          this mode choice reads exactly like Settings'. */}
+      <FieldLabel>TARGET</FieldLabel>
       <Segmented
         options={[
           { value: 'once', label: 'Once daily' },
-          { value: 'count', label: 'Count', accessibilityLabel: 'Count goal' },
+          { value: 'count', label: 'Count', accessibilityLabel: 'Count target' },
         ]}
         value={goalMode}
         onChange={setGoalMode}

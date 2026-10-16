@@ -111,7 +111,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
           {!hasData ? (
             <View style={styles.empty} pointerEvents="none">
               <ThemedText type="small" themeColor="textSecondary">
-                Your rhythm draws here as you complete it.
+                No completions to plot yet.
               </ThemedText>
             </View>
           ) : null}

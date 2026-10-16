@@ -127,7 +127,7 @@ export default function SettingsScreen() {
       setClearing(false);
       // Habits and stacks are untouched; the Habits/Progress tabs refetch on focus,
       // so they show a clean slate on return. A quiet toast confirms — no blocking dialog needed.
-      toast.show('Progress reset — your habits and stacks are untouched.', 'success');
+      toast.show('Progress reset. Your habits and stacks are untouched.', 'success');
     } catch {
       setClearing(false);
       toast.show('Could not reset progress. Check your connection.', 'danger');
@@ -138,7 +138,7 @@ export default function SettingsScreen() {
     confirmDestructive({
       title: 'Reset progress',
       message:
-        'This permanently deletes all your completion history — every check-off — for a fresh start. Your habits and stacks stay. This can’t be undone.',
+        'This permanently deletes all your completion history, every check-off, for a fresh start. Your habits and stacks stay. This can’t be undone.',
       confirmLabel: 'Reset',
       onConfirm: () => void runReset(),
     });
@@ -364,8 +364,8 @@ export default function SettingsScreen() {
 
       {/* About */}
       <SettingsSection title="About">
-        <SettingsRow icon="privacy" label="Privacy Policy" onPress={() => openBrowser(Links.privacy)} showChevron />
-        <SettingsRow icon="document" label="Terms of Service" onPress={() => openBrowser(Links.terms)} showChevron />
+        <SettingsRow icon="privacy" label="Privacy policy" onPress={() => openBrowser(Links.privacy)} showChevron />
+        <SettingsRow icon="document" label="Terms of service" onPress={() => openBrowser(Links.terms)} showChevron />
         <SettingsRow icon="help" label="Support" onPress={() => openBrowser(Links.support)} showChevron />
       </SettingsSection>
 

@@ -93,7 +93,7 @@ export default function ProgressScreen() {
           {/* Not `body={error}`: the hook's one error string says "pull down to try again",
               which is impossible here (no refreshControl on this branch) and would repeat the
               title. Name the fix this branch actually offers. */}
-          <EmptyState icon="cloudOff" title="Couldn't load your progress" body="Check your connection, then try again.">
+          <EmptyState icon="cloudOff" title="Could not load your progress" body="Check your connection, then try again.">
             <AppButton onPress={() => void refresh()} accessibilityLabel="Try loading again">
               Try again
             </AppButton>
@@ -103,14 +103,14 @@ export default function ProgressScreen() {
     }
     return (
       <AppScreen transparent>
-        {/* Says what to DO. The line's "starts on the second day" used to be here too — a fact
-            about a chart that isn't on screen yet, explained to someone with no record to draw
-            one from. The chart says it itself ("Your line begins tomorrow"), in the empty plot,
-            on the day it matters. */}
+        {/* Says what is missing, then what to DO. The line's "starts on the second day" used to
+            be here too — a fact about a chart that isn't on screen yet, explained to someone with
+            no record to draw one from. The chart says it itself, in the empty plot, on the day it
+            matters. */}
         <EmptyState
           icon="stats"
-          title="Your line begins here"
-          body="Anchor a habit and keep it. The record draws itself as the days go.">
+          title="No record yet"
+          body="Anchor your first stack and keep it.">
           <BrowseHabitsButton />
         </EmptyState>
       </AppScreen>

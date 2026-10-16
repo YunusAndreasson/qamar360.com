@@ -83,7 +83,7 @@ export default function DayTimesScreen() {
       ) : (
         <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
           Morning opens at first light, midday at the sun’s peak, evening as it falls, night at
-          dusk — measured where you are, so they move with the season.
+          dusk. Measured where you are, so they move with the season.
         </ThemedText>
       )}
     </FormSheet>

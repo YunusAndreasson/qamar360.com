@@ -59,7 +59,7 @@ export default function ExchangeLibraryScreen() {
     ]);
     if (created.length === 0) return; // createHabits already surfaced the error
     haptics.added();
-    show(`Added ${entry.name} — find it on Today`, 'success', {
+    show(`Added ${entry.name} to Today`, 'success', {
       label: 'Undo',
       onPress: () => {
         for (const habit of created) void deleteHabit(habit.id);

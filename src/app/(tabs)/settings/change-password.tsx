@@ -40,7 +40,7 @@ export default function ChangePasswordScreen() {
       // dismissed by back/outside-tap without firing any button, leaving a changed password
       // behind a still-`busy`, permanently dead Save.
       router.back();
-      toast.show('Password updated.', 'success');
+      toast.show('Password updated', 'success');
     } catch (e) {
       setBusy(false);
       // Surface Supabase's own reason when it gives one ("New password should be different

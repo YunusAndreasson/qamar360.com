@@ -85,7 +85,7 @@ export function useProgress(): ProgressData {
         setError(null);
       } catch {
         if (userRef.current !== userId) return;
-        setError('Couldn’t load your progress. Pull down to try again.');
+        setError('Could not load your progress. Pull down to try again.');
       } finally {
         if (inFlight.current?.key === userId) inFlight.current = null;
       }

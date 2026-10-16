@@ -31,7 +31,7 @@ export default function AddMenuScreen() {
       <View style={styles.group}>
         <SectionLabel>ONE-OFF</SectionLabel>
         <SheetActions actions={[
-          { icon: 'task', label: 'To-do', sublabel: 'A task for today', onPress: () => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } }) },
+          { icon: 'task', label: 'To-do', sublabel: 'Something to do today', onPress: () => router.dismissTo({ pathname: '/habits', params: { compose: 'task' } }) },
           { icon: 'plan', label: 'Plan', sublabel: 'Save something for later', onPress: () => router.replace('/habits/plans') },
         ]} />
       </View>

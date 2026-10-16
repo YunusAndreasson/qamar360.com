@@ -78,7 +78,7 @@ export default function StackNewScreen() {
         await createHabitInStack(habitInputFor(pendingPreset), id);
       }
       const landed = pendingHabitId || pendingPreset;
-      show(landed ? `Created ${trimmed} — the act is in it` : 'Stack created — add your first act', 'success', {
+      show(landed ? `Created ${trimmed}, with the act in it` : 'Stack created. Add its first act.', 'success', {
         label: 'Undo',
         onPress: () => void deleteStack(id),
       });

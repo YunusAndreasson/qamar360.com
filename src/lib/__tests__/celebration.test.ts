@@ -37,7 +37,7 @@ describe('celebrationCopy', () => {
 
   it('frames pace vs last month: ahead, behind, or first-month (none)', () => {
     expect(celebrationCopy(month({ thisRate: 0.5, previousRate: 0.4 }), DAY).paceLabel).toBe(
-      "ahead of last month's pace",
+      'ahead of last month’s pace',
     );
     expect(celebrationCopy(month({ thisRate: 0.3, previousRate: 0.45 }), DAY).paceLabel).toBe(
       `last month you were at 162°`,

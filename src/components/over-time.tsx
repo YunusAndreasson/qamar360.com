@@ -686,7 +686,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
             {closed.length === 0 ? (
               <View style={styles.empty} pointerEvents="none">
                 <ThemedText type="small" themeColor="textSecondary">
-                  Your line begins tomorrow.
+                  Nothing to plot until tomorrow.
                 </ThemedText>
               </View>
             ) : null}

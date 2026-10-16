@@ -115,7 +115,7 @@ export function habitRowContract({
       label: `${spoken}, excused today`,
       // A statement rather than an instruction: activating this row does nothing at all, and a
       // hint that described an action would be describing the `⋯` beside it instead.
-      hint: 'Excused for today — nothing to record.',
+      hint: 'Excused for today. Nothing to record.',
       meta,
     };
   }

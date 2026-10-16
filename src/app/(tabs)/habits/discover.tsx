@@ -397,7 +397,7 @@ export default function DiscoverScreen() {
               <SettingsRow
                 icon="add"
                 label={`Create your own ${noun}`}
-                sublabel="Name, schedule and goal"
+                sublabel="Name, schedule and target"
                 onPress={goCreateHabit}
                 showChevron
               />

@@ -363,7 +363,7 @@ describe('goalMeta', () => {
   });
 
   it('states a passed horizon as a fact, with what is left', () => {
-    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('Target date passed · 100 lines to go');
+    expect(goalMeta(read([], { horizon_on: '2026-06-01' }), TODAY)).toBe('Past its horizon · 100 lines to go');
   });
 
   it('reads a met goal as reached', () => {

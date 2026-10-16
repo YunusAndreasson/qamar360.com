@@ -517,7 +517,7 @@ export function goalMeta(reading: GoalReading, today: string): string {
   // said once: "82.4 kg, 7.4 to go" needs no second "kg" to be read correctly.
   if (measured) {
     const here = `${formatMeasure(earned)} ${goal.unit}`;
-    if (overdue) return `${here}, target date passed`;
+    if (overdue) return `${here}, past its horizon`;
     if (!monthName || quota === null) return `${here}, ${formatMeasure(remaining)} to go`;
     if (quotaRemaining === 0) return `${here} · ${monthName} target reached`;
     return `${here} · ${formatMeasure(quotaRemaining)} left in ${monthName}`;
@@ -525,7 +525,7 @@ export function goalMeta(reading: GoalReading, today: string): string {
   // No Islamic calendar on this runtime: there are no lunar months to divide by, so the row says
   // the one thing that is still true.
   if (!monthName || quota === null) return `${formatMeasure(remaining)} ${goal.unit} to go`;
-  if (overdue) return `Target date passed · ${formatMeasure(remaining)} ${goal.unit} to go`;
+  if (overdue) return `Past its horizon · ${formatMeasure(remaining)} ${goal.unit} to go`;
   if (quotaRemaining === 0) return `${monthName} target reached`;
   return `${formatMeasure(quotaRemaining)} ${goal.unit} left in ${monthName}`;
 }

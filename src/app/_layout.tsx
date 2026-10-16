@@ -86,7 +86,7 @@ function UpdateReady() {
   useEffect(() => {
     if (!isUpdatePending || announced.current) return;
     announced.current = true;
-    show('An update is ready.', 'success', {
+    show('Update ready', 'success', {
       label: 'Restart',
       onPress: () =>
         void reloadAsync().catch(() => show('Could not restart. Close and reopen the app.', 'danger')),

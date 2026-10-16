@@ -35,7 +35,7 @@ export function celebrationCopy(month: MonthProgress | null, day: string, hijriD
   if (month.hasPrevious) {
     paceLabel =
       month.thisRate > month.previousRate
-        ? "ahead of last month's pace"
+        ? 'ahead of last month’s pace'
         : `last month you were at ${formatDegrees(month.previousRate)}`;
   }
 
