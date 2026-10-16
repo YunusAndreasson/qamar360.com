@@ -28,13 +28,13 @@ import { loadProgress } from '@/lib/load-progress';
 import { moonIllumination } from '@/lib/moon';
 import { getPreference } from '@/lib/preferences';
 import type { MonthProgress } from '@/lib/progress';
-import { formatPercent } from '@/lib/progress-format';
+import { orbitDegrees } from '@/lib/progress-format';
 import { displayDateISO } from '@/lib/sun';
 
 /**
  * The day-complete celebration — a subtle, self-dismissing moonlit moment shown when the last
  * scheduled habit of the (live) day is ticked. Reframes the moment as gratitude ("Alḥamdulillāh")
- * over self-congratulation, grounds it in the Hijri date, and gives calm progress feedback (percentages
+ * over self-congratulation, grounds it in the Hijri date, and gives calm progress feedback (degrees
  * this month, days left, pace vs last month). The visual rides the same `Tick` clock the celebrate
  * haptic already fires on (the haptic itself lives in `use-habits`, so we never double-buzz here).
  *
@@ -240,7 +240,7 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 
         {statsReady && copy.rate != null ? (
           <FadeInView delay={Duration.base} style={styles.stats}>
-            <PercentReadout target={copy.rate} />
+            <DegreesReadout rate={copy.rate} />
             {copy.daysLeftLabel ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.paceText}>
                 {copy.daysLeftLabel}
@@ -255,18 +255,19 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 }
 
 /**
- * The percentage readout, isolated so its count-up re-renders only this text — the moon/backdrop SVG
+ * The big "247°" readout, isolated so its count-up re-renders only this text — the moon/backdrop SVG
  * siblings stay still. The stats block only appears once the fetch resolves — already after the
  * beat — so the {@link useTallyUp} ramp starts on mount (the fade-in reveals it) rather than
  * sitting at 0; Reduce Motion shows the final number at once (the hook gates itself).
  */
-function PercentReadout({ target }: { target: number }) {
-  const shown = useTallyUp(Math.floor(target * 100), Duration.tally);
+function DegreesReadout({ rate }: { rate: number }) {
+  // The guarded figure: a month a hair short of whole comes to rest on 359°, never a premature 360°.
+  const shown = useTallyUp(orbitDegrees(rate), Duration.tally);
 
   return (
     <View style={styles.center}>
-      <ThemedText type="display" themeColor="complete" style={styles.percent}>
-        {shown === Math.floor(target * 100) ? formatPercent(target) : `${shown}%`}
+      <ThemedText type="display" themeColor="complete" style={styles.degrees}>
+        {shown}°
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         this month
@@ -295,6 +296,6 @@ const styles = StyleSheet.create({
   moon: { width: MOON_SIZE, height: MOON_SIZE, alignItems: 'center', justifyContent: 'center' },
   headline: { textAlign: 'center' },
   stats: { alignItems: 'center', gap: Spacing.one },
-  percent: { textAlign: 'center' },
+  degrees: { textAlign: 'center' },
   paceText: { textAlign: 'center' },
 });

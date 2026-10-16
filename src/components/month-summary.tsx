@@ -18,7 +18,7 @@ import { HeroGlow } from '@/components/ornament/hero-glow';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { TallyPercent } from '@/components/tally-percent';
+import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
@@ -27,7 +27,7 @@ import type { MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { moonIllumination } from '@/lib/moon';
 import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
-import { formatPercent } from '@/lib/progress-format';
+import { formatDegrees } from '@/lib/progress-format';
 
 // Exported for the reading sheet's legend, which redraws these marks at glyph scale. The legend
 // quotes the instrument rather than approximating it — the last time a legend carried its own
@@ -109,14 +109,9 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
   if (!month) return null;
 
+  // `paceRate` is where the month itself stands — what it has asked of you so far, on the same orbit
+  // scale; the one benchmark that exists on a first day, so the ring always has a mark to catch.
   const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, averageRate, monthsAveraged } = month;
-  const thisDegrees = toDegrees(thisRate);
-  // Where the month itself stands — what it has asked of you so far, on the same orbit scale. The
-  // one benchmark that exists on a first day, so the ring always has a mark to catch.
-  const paceDegrees = toDegrees(paceRate);
-  // Your usual by this same day, on the *same* absolute orbit scale as the headline — so the two
-  // read as comparable positions (188° vs 360°), and the number is exactly where the caret sits.
-  // No signed delta to be misread as a position.
   // What "Day 11 of 29" was really for, said as the answer rather than the inputs: nobody wants the
   // ordinal, they want to know how much month is left to fix it in. It moved off the header when
   // the month's name took the caption slot, and it lands here because it belongs beside the
@@ -125,12 +120,12 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = [
     `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
-    `Monthly progress ${formatPercent(thisRate)}. ${formatPercent(paceRate)} of the month has elapsed.`,
+    `This month is at ${formatDegrees(thisRate)} of the orbit; the month itself has reached ${formatDegrees(paceRate)}.`,
     // The figure and the count are said here and nowhere on screen. The card gives the verdict,
     // which is what was asked for; this gives the measurement behind it, for anyone who wants to
     // know what "usual" was counted from.
     monthsAveraged > 0
-      ? `Usually ${formatPercent(averageRate)} by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
+      ? `Usually ${formatDegrees(averageRate)} by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
       : '',
     reading,
   ]
@@ -146,10 +141,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
       params: {
         monthName,
         year: String(year),
-        current: String(thisDegrees),
         currentRate: String(thisRate),
         paceRate: String(paceRate),
-        pace: String(paceDegrees),
       },
     });
 
@@ -225,7 +218,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           {/* The figure carries no caption of its own. The card is titled "This month" on a screen
               titled "Progress", so a "Monthly progress" label under it said the header a second
               time; and what the figure is counted from is what the ⓘ sheet is for. */}
-          <TallyPercent rate={thisRate} />
+          <TallyDegrees rate={thisRate} />
           <ThemedText type="smallCompact" themeColor="textSecondary">
             {reading}
           </ThemedText>

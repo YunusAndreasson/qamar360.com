@@ -40,7 +40,7 @@ describe('celebrationCopy', () => {
       "ahead of last month's pace",
     );
     expect(celebrationCopy(month({ thisRate: 0.3, previousRate: 0.45 }), DAY).paceLabel).toBe(
-      `last month you were at 45%`,
+      `last month you were at 162°`,
     );
     // Equal is not "ahead" — falls to the behind/at-parity form.
     expect(celebrationCopy(month({ thisRate: 0.4, previousRate: 0.4 }), DAY).paceLabel).toContain('last month');

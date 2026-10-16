@@ -20,7 +20,7 @@ import { WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { usePreference } from '@/lib/preferences';
 import { clamp01 } from '@/lib/progress';
-import { formatPercent } from '@/lib/progress-format';
+import { formatDegrees } from '@/lib/progress-format';
 
 const MAX_BAR_HEIGHT = 96;
 const BAR_WIDTH = 14;
@@ -32,12 +32,12 @@ const plural = (weekday: number) => `${WEEKDAY_NAMES[weekday] ?? ''}s`;
 
 function weekdayReadout(stat: WeekdayStat, best: number | null, tough: number | null): string {
   const tag = stat.weekday === best ? ' · strongest' : stat.weekday === tough ? ' · toughest' : '';
-  return `${plural(stat.weekday)} · ${formatPercent(stat.rate)}${tag}`;
+  return `${plural(stat.weekday)} · ${formatDegrees(stat.rate)}${tag}`;
 }
 
 function weekdayA11y(stat: WeekdayStat, best: number | null, tough: number | null): string {
   const tag = stat.weekday === best ? ', your strongest' : stat.weekday === tough ? ', your toughest' : '';
-  return `${plural(stat.weekday)}, ${formatPercent(stat.rate)}${tag}`;
+  return `${plural(stat.weekday)}, ${formatDegrees(stat.rate).replace('°', ' degrees')}${tag}`;
 }
 
 /**
@@ -131,7 +131,7 @@ export function HabitWeekdayBars({
   const focusedStat = focused != null ? (byWeekday[focused] ?? null) : null;
   const readoutText = focusedStat ? weekdayReadout(focusedStat, bestWeekday, toughestWeekday) : restingText;
 
-  const a11y = `Best day. ${active.map((w) => `${plural(w.weekday)} ${formatPercent(w.rate)}`).join(', ')}.`;
+  const a11y = `Best day. ${active.map((w) => `${plural(w.weekday)} ${formatDegrees(w.rate).replace('°', ' degrees')}`).join(', ')}.`;
 
   return (
     <StatCard>

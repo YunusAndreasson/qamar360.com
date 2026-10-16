@@ -1,7 +1,11 @@
-/** Monthly completion and pace labels for the day-complete overlay. */
+/**
+ * Copy for the day-complete celebration overlay — pure so it's unit-testable and the overlay stays
+ * dumb. Every figure is in the app's orbit degrees ({@link formatDegrees}); the pace line reuses the
+ * same whole-month scale as the Progress orbit, so "ahead of last month" is like for like.
+ */
 import { hijriParts } from '@/lib/dates';
 import { daysLeftLabel, type MonthProgress } from '@/lib/progress';
-import { formatPercent } from '@/lib/progress-format';
+import { formatDegrees } from '@/lib/progress-format';
 
 export type CelebrationCopy = {
   /** e.g. "15 Muḥarram 1448", or null on a runtime whose Intl lacks the Islamic calendar. */
@@ -32,7 +36,7 @@ export function celebrationCopy(month: MonthProgress | null, day: string, hijriD
     paceLabel =
       month.thisRate > month.previousRate
         ? "ahead of last month's pace"
-        : `last month you were at ${formatPercent(month.previousRate)}`;
+        : `last month you were at ${formatDegrees(month.previousRate)}`;
   }
 
   return { hijriLabel, rate: month.thisRate, daysLeftLabel: daysLeftLabel(month), paceLabel };

@@ -9,7 +9,7 @@ import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { formatPercent } from '@/lib/progress-format';
+import { formatDegrees } from '@/lib/progress-format';
 
 import type { ReactNode } from 'react';
 
@@ -57,32 +57,29 @@ export default function OrbitReadingSheet() {
   const theme = useTheme();
   // A snapshot of the card that opened this, passed as params rather than re-derived — mounting
   // the progress hook here would fire a fetch to re-answer a question already on screen.
-  const { monthName, year, current, pace, currentRate, paceRate } = useLocalSearchParams<{
+  const { monthName, year, currentRate, paceRate } = useLocalSearchParams<{
     monthName: string;
     year: string;
-    current: string;
-    pace: string;
-    currentRate?: string;
-    paceRate?: string;
+    currentRate: string;
+    paceRate: string;
   }>();
 
   return (
-    <FormSheet title="Monthly progress" subtitle={`${monthName} ${year} H`}>
+    <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H`}>
       <Surface>
         {/* Ordered as the ring is read: you first, because that is the bright arc and the number
             above it; then the mark you are chasing. */}
-        <LegendRow glyph={<Dot color={theme.accent} />} label="Habit completion" value={formatPercent(currentRate === undefined ? Number(current) / 360 : Number(currentRate))} />
+        <LegendRow glyph={<Dot color={theme.accent} />} label="You, this month" value={formatDegrees(Number(currentRate))} />
         <RowSeparator />
         {/* "The month so far", not "on pace": the number is where the month itself has got to, and
             catching it means the two arc heads meet. True on a first day, when there is no past
             self to race. */}
-        <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="Month elapsed" value={formatPercent(paceRate === undefined ? Number(pace) / 360 : Number(paceRate))} />
+        <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="The month so far" value={formatDegrees(Number(paceRate))} />
       </Surface>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        Each day contributes its habit completion rate, divided by the number of days in this lunar month.
-        Completing every scheduled habit every day fills the ring to 100% (360°).
-        The moon shows the lunar phase. To-dos and goal check-ins are counted separately.
+        A full orbit is 360°: the whole month kept. The moon inside it shows tonight’s real phase for
+        the date, not your progress. To-dos and goal check-ins are counted separately.
       </ThemedText>
     </FormSheet>
   );
@@ -91,7 +88,7 @@ export default function OrbitReadingSheet() {
 /** One mark from the ring, what it is, and its figure. */
 function LegendRow({ glyph, label, value }: { glyph: ReactNode; label: string; value: string }) {
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${label}, ${value.replace('%', ' percent')}`}>
+    <View style={styles.row} accessible accessibilityLabel={`${label}, ${value.replace('°', ' degrees')}`}>
       <View style={styles.glyph}>{glyph}</View>
       <ThemedText type="rowTitle" style={styles.label}>
         {label}

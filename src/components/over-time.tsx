@@ -23,7 +23,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { buildSmoothPaths, lineCrossesRect, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { formatPercent } from '@/lib/progress-format';
+import { formatDegrees } from '@/lib/progress-format';
 
 /** The dot on a point: the hollow one on the span still running, and the solid one under a finger.
  *  The hollow one is stroked, so half that stroke hangs outside the radius — which is what makes
@@ -60,7 +60,7 @@ const AVERAGE_LABEL_GAP = 3;
  *  Needed because an absolutely-positioned `top` places the plate's EDGE, not the text's baseline,
  *  so every decision about what the plate would cover is made from this number. */
 const AVERAGE_LABEL_HEIGHT = 16;
-/** The widest the label gets ("Avg 100%"), for deciding what its plate would cover before it is
+/** The widest the label gets ("Avg 360°"), for deciding what its plate would cover before it is
  *  laid out. A little generous on purpose: a spot judged clear must be clear. */
 const AVERAGE_LABEL_WIDTH = 72;
 /** How far in from the rule's end the label sits, at either end. */
@@ -419,7 +419,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   const readingFor = (p: SeriesPoint) =>
     p.possible === 0
       ? `${bucketLabel(p, period)} · nothing due`
-      : `${bucketLabel(p, period)} · ${formatPercent(p.rate)}`;
+      : `${bucketLabel(p, period)} · ${formatDegrees(p.rate)}`;
 
   // At rest the line reads the newest bucket — where you are now, which is what you came for.
   //
@@ -468,7 +468,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // same rule the card follows on screen — one fact, said once, in the one place that owns it.
   const a11y = [
     `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.`,
-    average !== null ? `Averaging ${formatPercent(average)}.` : null,
+    average !== null ? `Averaging ${formatDegrees(average)}.` : null,
     // The shape of the thing, for whoever cannot see its shape. This is where the direction word
     // went when it came off the card: sighted readers get it from the arrowhead on the dashed run,
     // and an arrowhead is no use here. It belongs to the plot's DESCRIPTION, never to its value.
@@ -677,7 +677,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
                     : { left: BOX.padX + AVERAGE_LABEL_INSET },
                 ]}
                 pointerEvents="none">
-                Avg {formatPercent(average)}
+                Avg {formatDegrees(average)}
               </ThemedText>
             ) : null}
 

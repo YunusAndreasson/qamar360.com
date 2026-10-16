@@ -72,7 +72,13 @@ describe('lunarUpdateCopy', () => {
   describe('silence, not shame', () => {
     it('says so when the user is ahead of last month', () => {
       const { body } = lunarUpdateCopy(fire(15), month({ thisRate: 0.5, previousRate: 0.3 }));
-      expect(body).toContain('ahead of last month');
+      expect(body).toContain('180°, ahead of last month');
+    });
+
+    it('never rounds a month short of whole up to the full orbit', () => {
+      const { body } = lunarUpdateCopy(fire(22), month({ thisRate: 0.999 }));
+      expect(body).toContain('359°');
+      expect(body).not.toContain('360°');
     });
 
     it('says nothing at all about last month when the user is behind', () => {
@@ -85,7 +91,7 @@ describe('lunarUpdateCopy', () => {
     it('drops the figure entirely rather than print a zero', () => {
       for (const day of MILESTONE_DAYS) {
         const { body } = lunarUpdateCopy(fire(day), month({ thisRate: 0 }));
-        expect(body).not.toMatch(/You're at/); // no "you're at 0°" on anyone's lock screen
+        expect(body).not.toMatch(/You[’']re at/); // no "you're at 0°" on anyone's lock screen
         expect(body).not.toMatch(/(^|[^36])0°/); // nor a bare zero anywhere (day 1's "360°" is fine)
         expect(body).toMatch(/\S/); // the landmark line still stands on its own
       }
@@ -126,7 +132,7 @@ describe('lunarUpdateCopy', () => {
       const { body } = lunarUpdateCopy(fire(1, { future: true }), month({ thisRate: 0.9 }));
       expect(body).toContain('360°'); // the one degree figure true of any month about to begin
       expect(body).not.toContain('324°'); // this month's 0.9 must not leak into next month's copy
-      expect(body).not.toMatch(/You're at/);
+      expect(body).not.toMatch(/You[’']re at/);
     });
 
     it('still produces a usable update when progress failed to load', () => {

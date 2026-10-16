@@ -22,6 +22,7 @@ import { formatMeasure } from '@/lib/goals';
 import { milestoneAssetKey } from '@/lib/lunar-phase';
 import { type LunarFire, VISIBLE_ALT } from '@/lib/lunar-schedule';
 import { type MonthProgress, toDegrees } from '@/lib/progress';
+import { orbitDegrees } from '@/lib/progress-format';
 
 /**
  * The one goal a new moon may speak for: the nearest horizon among the open ones, and what the
@@ -49,10 +50,11 @@ export type LunarUpdateCopy = {
  */
 function degreesSentence(month: MonthProgress | null): string | null {
   if (!month) return null;
-  const degrees = toDegrees(month.thisRate);
-  if (degrees === 0) return null; // nothing done yet: say nothing, rather than print a zero
+  if (toDegrees(month.thisRate) === 0) return null; // nothing done yet: say nothing, rather than print a zero
+  // The guarded figure the screens show, so a month a hair short of whole says 359°, never 360°.
+  const degrees = orbitDegrees(month.thisRate);
   const ahead = month.hasPrevious && month.thisRate > month.previousRate;
-  return ahead ? `You're at ${degrees}° — ahead of last month.` : `You're at ${degrees}°.`;
+  return ahead ? `You’re at ${degrees}°, ahead of last month.` : `You’re at ${degrees}°.`;
 }
 
 /** The clause about the real sky, or `null` when the moon isn't meaningfully above the horizon. */
