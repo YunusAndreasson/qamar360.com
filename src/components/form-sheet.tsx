@@ -62,7 +62,7 @@ export function FormSheet({ title, subtitle, children }: { title: string; subtit
  * muted sub-line, `danger` tinting for destructive actions. Rows that *navigate or pick* stay
  * silent (the haptic vocabulary never buzzes navigation); the destination action confirms.
  */
-export function SheetRow({
+function SheetRow({
   icon,
   label,
   sublabel,

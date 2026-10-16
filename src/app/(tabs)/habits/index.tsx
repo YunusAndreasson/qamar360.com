@@ -7,6 +7,7 @@ import { ActRow } from '@/components/act-row';
 import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
+import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { CheckInSection } from '@/components/check-in-section';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
@@ -1026,7 +1027,6 @@ function HabitsEmptyState({
   isToday: boolean;
   onBuild: () => void;
 }) {
-  const router = useRouter();
   // A rest day (you have stacks, none fall today) is a calm, action-free "bedtime" note. The
   // brand-new user instead gets the warm moon emblem and the question the whole app turns on.
   if (hasHabits) {
@@ -1046,11 +1046,10 @@ function HabitsEmptyState({
       art={<MoonEmblem />}
       title="Anchor your first stack"
       body={'Attach a short sequence to something you already\u00A0do: waking, a prayer, going to bed.'}>
-      <AppButton onPress={() => router.push('/habits/stack-library')} accessibilityLabel="Choose an anchor">
-        Choose an anchor
-      </AppButton>
+      {/* The shared "start here" button — one label and one destination for every first run. */}
+      <BrowseHabitsButton />
       {/* Names the noun, like every other way in: "your own" alone never said your own *what*. */}
-      <AppButton variant="secondary" onPress={onBuild} accessibilityLabel="Create your own stack" hitSlop={8}>
+      <AppButton variant="secondary" onPress={onBuild} accessibilityLabel="Create your own stack">
         Your own stack
       </AppButton>
     </EmptyState>

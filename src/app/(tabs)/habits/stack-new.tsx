@@ -7,9 +7,7 @@ import { FormScreen } from '@/components/form-screen';
 import { GuideLink } from '@/components/guide-link';
 import { MomentPicker } from '@/components/moment-picker';
 import { useToast } from '@/components/toast';
-import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
-import { habitInputFor } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
 import { isDuplicateName, otherNames } from '@/lib/names';
@@ -22,20 +20,15 @@ import { isDuplicateName, otherNames } from '@/lib/names';
  * moment's day-order slot (or the end, unanchored) as a card holding an "Add your first
  * act" row, so the next step is visible in the world rather than remembered.
  *
- * Reached from the stack picker's "New stack…", it also carries a pending act (`pendingHabitId`
- * for one that exists, `pendingPresetId` for one from the library) and lands it the moment the
- * stack is created — so "none of these" is never a dead end that loses what you were adding.
+ * Reached from the stack picker's "New stack", it also carries the act being placed
+ * (`pendingHabitId`) and lands it the moment the stack is created — so "none of these" is never a
+ * dead end that loses what you were moving.
  */
 export default function StackNewScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { pendingHabitId, pendingPresetId } = useLocalSearchParams<{
-    pendingHabitId?: string;
-    pendingPresetId?: string;
-  }>();
-  const { stacks, createStack, deleteStack, moveHabit, createHabitInStack } = useHabits();
-  const { presets } = useCatalog();
-  const pendingPreset = pendingPresetId ? (presets.find((p) => p.id === pendingPresetId) ?? null) : null;
+  const { pendingHabitId } = useLocalSearchParams<{ pendingHabitId?: string }>();
+  const { stacks, createStack, deleteStack, moveHabit } = useHabits();
 
   const [name, setName] = useState('');
   const [moment, setMoment] = useState<MomentKey | null>(null);
@@ -70,15 +63,12 @@ export default function StackNewScreen() {
     void (async () => {
       const id = await createStack(trimmed, [], { moment });
       if (!id) return;
-      // An act was waiting on this stack (the picker's "New stack…") — land it now, and let the
+      // An act was waiting on this stack (the picker's "New stack") — land it now, and let the
       // toast say where it went instead of asking for a first act the stack already has.
       if (pendingHabitId) {
         await moveHabit(pendingHabitId, { toStackId: id, placement: { type: 'member-append' } });
-      } else if (pendingPreset) {
-        await createHabitInStack(habitInputFor(pendingPreset), id);
       }
-      const landed = pendingHabitId || pendingPreset;
-      show(landed ? `Created ${trimmed}, with the act in it` : 'Stack created. Add its first act.', 'success', {
+      show(pendingHabitId ? `Created ${trimmed}, with the act in it` : 'Stack created. Add its first act.', 'success', {
         label: 'Undo',
         onPress: () => void deleteStack(id),
       });

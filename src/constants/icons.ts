@@ -65,8 +65,9 @@ export const Icons = {
   edit: { sf: 'pencil', material: 'edit' },
   // Per-habit and per-stack stats — the ⋯ sheet's "Stats" action and its empty state.
   stats: { sf: 'chart.bar.xaxis', material: 'insights' },
-  delete: { sf: 'trash', material: 'delete' },
-  deleteOutline: { sf: 'trash', material: 'delete-outline' },
+  // One delete glyph, outlined like the rest of the row glyphs — Android used to mix a filled
+  // `delete` on the sheets with an outlined one in Settings for the same act.
+  delete: { sf: 'trash', material: 'delete-outline' },
   // ── Appearance / brand / moment emblems ────────────────────────────────
   // `sun` and `moon` double as the midday / night stack emblems on Today; the whole moment
   // set (lib/moments.ts) draws from this block. Near-twins across groups (dhuhr↔sun,
@@ -114,6 +115,9 @@ export const Icons = {
   vibration: { sf: 'iphone.radiowaves.left.and.right', material: 'vibration' },
   // Sky motion — the drift, twinkle and meteors, named by what they add rather than by a switch.
   sparkle: { sf: 'sparkles', material: 'auto-awesome' },
+  // The day-complete celebration — a seal, the app's word for finishing a whole. It used to wear
+  // `moon`, two rows below the lunar updates wearing the same glyph.
+  celebrate: { sf: 'checkmark.seal', material: 'verified' },
   // ── Toast / status ─────────────────────────────────────────────────────
   success: { sf: 'checkmark.circle.fill', material: 'check-circle' },
   danger: { sf: 'exclamationmark.triangle.fill', material: 'error-outline' },

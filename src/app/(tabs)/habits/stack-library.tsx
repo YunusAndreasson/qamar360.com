@@ -9,6 +9,7 @@ import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
+import { SettingsSection } from '@/components/settings-section';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
@@ -110,10 +111,10 @@ export default function StackLibraryScreen() {
   };
 
   return (
-    <AppScreen>
+    <AppScreen contentStyle={styles.content}>
       {/* "Custom" opposite the route's Close: the same door the closing row opens, out of a scroll
           that is ~10 cards deep. See {@link headerNewAction} for why it is a word and not a "+". */}
-      <Stack.Screen options={{ headerRight: headerNewAction('Custom', 'Build your own stack', goCreateStack) }} />
+      <Stack.Screen options={{ headerRight: headerNewAction('Custom', 'Create your own stack', goCreateStack) }} />
 
       {/* The case for anchoring, at the head of the screen where the anchoring is chosen — the
           photograph and the thesis always, the argument behind one tap. It used to be a row in the
@@ -136,18 +137,18 @@ export default function StackLibraryScreen() {
         </View>
       ))}
 
-      {/* The from-scratch path stays one tap away without shouting over the library. The "why"
-          that used to sit beside it now opens the screen instead. */}
-      <View style={styles.group}>
-        <Surface>
-          <SettingsRow
-            icon="stack"
-            label="Your own stack"
-            sublabel="Name it, anchor it to a moment, then add your acts"
-            onPress={goCreateStack}
-          />
-        </Surface>
-      </View>
+      {/* The from-scratch path stays one tap away without shouting over the library — the same
+          closing row all three libraries end on: an add glyph, "Create your own …", and the
+          chevron a row that opens something carries. */}
+      <SettingsSection>
+        <SettingsRow
+          icon="add"
+          label="Create your own stack"
+          sublabel="Name it, anchor it to a moment, then add your acts"
+          onPress={goCreateStack}
+          showChevron
+        />
+      </SettingsSection>
     </AppScreen>
   );
 }
@@ -188,52 +189,52 @@ function CuratedCard({
   const hint = `${said.join(', ')}, anchored to ${moment.label}.`;
 
   return (
-    <View style={styles.card}>
-      <Surface>
-        <View style={styles.cardBody}>
-          <View style={styles.cardHeader}>
-            <AppIcon name={moment.icon} size={22} color={theme.textSecondary} />
-            <ThemedText type="rowTitle" style={styles.cardTitle}>
-              {curated.name}
+    <Surface>
+      <View style={styles.cardBody}>
+        <View style={styles.cardHeader}>
+          <AppIcon name={moment.icon} size={22} color={theme.textSecondary} />
+          <ThemedText type="rowTitle" style={styles.cardTitle}>
+            {curated.name}
+          </ThemedText>
+        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          {curated.blurb}
+        </ThemedText>
+        <View style={styles.acts}>
+          {acts.map((name, i) => (
+            <Fragment key={name}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.act}>
+                {`${i + 1}  ${name}`}
+              </ThemedText>
+            </Fragment>
+          ))}
+        </View>
+        {plan === null ? (
+          <View style={styles.added}>
+            <AppIcon name="check" size={16} color={theme.textDisabled} />
+            <ThemedText type="small" themeColor="textDisabled">
+              Already yours
             </ThemedText>
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {curated.blurb}
-          </ThemedText>
-          <View style={styles.acts}>
-            {acts.map((name, i) => (
-              <Fragment key={name}>
-                <ThemedText type="small" themeColor="textDisabled" style={styles.act}>
-                  {`${i + 1}  ${name}`}
-                </ThemedText>
-              </Fragment>
-            ))}
-          </View>
-          {plan === null ? (
-            <View style={styles.added}>
-              <AppIcon name="check" size={16} color={theme.textDisabled} />
-              <ThemedText type="small" themeColor="textDisabled">
-                Already yours
-              </ThemedText>
-            </View>
-          ) : (
-            <AppButton
-              variant="secondary"
-              onPress={onAdd}
-              accessibilityLabel={`Add the ${curated.name} stack`}
-              accessibilityHint={hint}>
-              {label}
-            </AppButton>
-          )}
-        </View>
-      </Surface>
-    </View>
+        ) : (
+          <AppButton
+            variant="secondary"
+            onPress={onAdd}
+            accessibilityLabel={`Add the ${curated.name} stack`}
+            accessibilityHint={hint}>
+            {label}
+          </AppButton>
+        )}
+      </View>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { marginBottom: Spacing.four },
-  card: { marginBottom: Spacing.two },
+  // 24 between groups — the step Settings and Discover keep between their sections.
+  content: { gap: Spacing.four },
+  // 8 from a caption to its first card and between cards: the app's caption→card beat.
+  group: { gap: Spacing.two },
   cardBody: { padding: Spacing.three, gap: Spacing.two },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   // Semibold via the FACE, never fontWeight (the Android fake-bold gotcha).

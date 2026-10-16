@@ -4,7 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { FormSheet } from '@/components/form-sheet';
 import { ORBIT_SIZE, RING_STROKE } from '@/components/month-summary';
-import { RowSeparator } from '@/components/row-separator';
+import { SeparatedRows } from '@/components/separated-rows';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -66,15 +66,15 @@ export default function OrbitReadingSheet() {
 
   return (
     <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H`}>
+      {/* Ordered as the ring is read: you first, because that is the bright arc and the number
+          above it; then the mark you are chasing — "the month so far", not "on pace": the number
+          is where the month itself has got to, and catching it means the two arc heads meet. True
+          on a first day, when there is no past self to race. */}
       <Surface>
-        {/* Ordered as the ring is read: you first, because that is the bright arc and the number
-            above it; then the mark you are chasing. */}
-        <LegendRow glyph={<Dot color={theme.accent} />} label="You, this month" value={formatDegrees(Number(currentRate))} />
-        <RowSeparator />
-        {/* "The month so far", not "on pace": the number is where the month itself has got to, and
-            catching it means the two arc heads meet. True on a first day, when there is no past
-            self to race. */}
-        <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="The month so far" value={formatDegrees(Number(paceRate))} />
+        <SeparatedRows>
+          <LegendRow glyph={<Dot color={theme.accent} />} label="You, this month" value={formatDegrees(Number(currentRate))} />
+          <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="The month so far" value={formatDegrees(Number(paceRate))} />
+        </SeparatedRows>
       </Surface>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-na
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
 import type { IconName } from '@/constants/icons';
-import { Disabled, Pressed, Spacing } from '@/constants/theme';
+import { Disabled, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -110,7 +110,9 @@ export function SettingsRow({
       // spoken with the label rather than left to be discovered as a second element.
       accessibilityLabel={value ? `${label}, ${value}` : label}
       accessibilityState={{ disabled: !!busy, busy: !!busy }}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed, busy && styles.faded]}>
+      // A background highlight, not a dim: the press every other list row in the app gives
+      // (`SheetRow`, the day's rows), and the one the platform's own grouped lists use.
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.backgroundSelected }, busy && styles.faded]}>
       {content}
     </Pressable>
   );
@@ -130,6 +132,5 @@ const styles = StyleSheet.create({
   },
   labels: { flex: 1, gap: Spacing.half },
   trailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 0 },
-  pressed: { opacity: Pressed.dim },
   faded: { opacity: Disabled },
 });

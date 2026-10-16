@@ -9,6 +9,7 @@ import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
+import { SettingsSection } from '@/components/settings-section';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
@@ -68,10 +69,10 @@ export default function ExchangeLibraryScreen() {
   };
 
   return (
-    <AppScreen>
+    <AppScreen contentStyle={styles.content}>
       {/* "Custom" opposite the route's Close — the sibling of the stack library's, same reasoning. */}
       <Stack.Screen
-        options={{ headerRight: headerNewAction('Custom', 'Build your own exchange', goCreateExchange) }}
+        options={{ headerRight: headerNewAction('Custom', 'Create your own exchange', goCreateExchange) }}
       />
 
       {/* The case for replacing rather than resisting, at the head of the screen where the
@@ -81,10 +82,14 @@ export default function ExchangeLibraryScreen() {
 
       {EXCHANGE_GROUPS.map((group) => (
         <View key={group.key} style={styles.group}>
-          <SectionLabel>{group.title}</SectionLabel>
-          <ThemedText type="small" themeColor="textDisabled" style={styles.blurb}>
-            {group.blurb}
-          </ThemedText>
+          {/* The caption and its line, bound tighter than the cards they introduce. The line is
+              prose, so `textSecondary`: `textDisabled` is the floor for an inert chip. */}
+          <View style={styles.heading}>
+            <SectionLabel>{group.title}</SectionLabel>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.blurb}>
+              {group.blurb}
+            </ThemedText>
+          </View>
           {group.exchanges.map((entry) => (
             <ExchangeCard
               key={entry.id}
@@ -96,17 +101,16 @@ export default function ExchangeLibraryScreen() {
         </View>
       ))}
 
-      {/* The from-scratch path. The "why" that used to sit beside it now opens the screen. */}
-      <View style={styles.group}>
-        <Surface>
-          <SettingsRow
-            icon="exchange"
-            label="Your own exchange"
-            sublabel="The moment, the routine you turn from, and the deed instead"
-            onPress={goCreateExchange}
-          />
-        </Surface>
-      </View>
+      {/* The from-scratch path — the closing row all three libraries end on. */}
+      <SettingsSection>
+        <SettingsRow
+          icon="add"
+          label="Create your own exchange"
+          sublabel="The moment, the routine you turn from, and the deed instead"
+          onPress={goCreateExchange}
+          showChevron
+        />
+      </SettingsSection>
     </AppScreen>
   );
 }
@@ -127,65 +131,65 @@ function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: 
   const theme = useTheme();
 
   return (
-    <View style={styles.card}>
-      <Surface>
-        <View style={styles.cardBody}>
-          <View style={styles.cardHeader}>
-            <AppIcon name="exchange" size={22} color={theme.textSecondary} />
-            <ThemedText type="rowTitle" style={styles.cardTitle}>
-              {entry.name}
+    <Surface>
+      <View style={styles.cardBody}>
+        <View style={styles.cardHeader}>
+          <AppIcon name="exchange" size={22} color={theme.textSecondary} />
+          <ThemedText type="rowTitle" style={styles.cardTitle}>
+            {entry.name}
+          </ThemedText>
+        </View>
+        {/* The plan, in the Today row's exact grammar — from the same function, so "exact" is
+            enforced rather than asked for. */}
+        <ThemedText type="small" themeColor="textSecondary">
+          {exchangePlanLine(entry.insteadOf, entry.cue)}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {entry.detail}
+        </ThemedText>
+        {/* Per-entry sourcing, one tap down. `DisclosureRow` is the shared row this card used to
+            hand-roll — it carries the `Pressable`-not-`Touchable` finding that made it work
+            inside a Surface, and the intro at the top of this screen now uses it too. */}
+        <DisclosureRow
+          label="Why this works"
+          accessibilityLabel={`Why this works: ${entry.name}`}
+          expandHint="Shows the evidence behind it."
+          collapseHint="Hides the evidence.">
+          <ThemedText type="small" themeColor="textSecondary">
+            {entry.evidence}
+          </ThemedText>
+        </DisclosureRow>
+        {owned ? (
+          <View style={styles.added}>
+            <AppIcon name="check" size={16} color={theme.textDisabled} />
+            <ThemedText type="small" themeColor="textDisabled">
+              Already yours
             </ThemedText>
           </View>
-          {/* The plan, in the Today row's exact grammar — from the same function, so "exact" is
-              enforced rather than asked for. */}
-          <ThemedText type="small" themeColor="textSecondary">
-            {exchangePlanLine(entry.insteadOf, entry.cue)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textDisabled">
-            {entry.detail}
-          </ThemedText>
-          {/* Per-entry sourcing, one tap down. `DisclosureRow` is the shared row this card used to
-              hand-roll — it carries the `Pressable`-not-`Touchable` finding that made it work
-              inside a Surface, and the intro at the top of this screen now uses it too. */}
-          <DisclosureRow
-            label="Why this works"
-            accessibilityLabel={`Why this works: ${entry.name}`}
-            expandHint="Shows the evidence behind it."
-            collapseHint="Hides the evidence.">
-            <ThemedText type="small" themeColor="textSecondary">
-              {entry.evidence}
-            </ThemedText>
-          </DisclosureRow>
-          {owned ? (
-            <View style={styles.added}>
-              <AppIcon name="check" size={16} color={theme.textDisabled} />
-              <ThemedText type="small" themeColor="textDisabled">
-                Already yours
-              </ThemedText>
-            </View>
-          ) : (
-            <AppButton
-              variant="secondary"
-              onPress={onAdd}
-              accessibilityLabel={`Add the exchange: ${entry.name} instead of ${entry.insteadOf}`}
-              // "Its moment:" rather than running the cue straight on, now that a cue is the bare
-              // moment ("headphones on") instead of a "when I…" clause that could finish a sentence.
-              accessibilityHint={`Adds it to today. Its moment: ${entry.cue}.`}>
-              Add this exchange
-            </AppButton>
-          )}
-        </View>
-      </Surface>
-    </View>
+        ) : (
+          <AppButton
+            variant="secondary"
+            onPress={onAdd}
+            accessibilityLabel={`Add the exchange: ${entry.name} instead of ${entry.insteadOf}`}
+            // "Its moment:" rather than running the cue straight on, now that a cue is the bare
+            // moment ("headphones on") instead of a "when I…" clause that could finish a sentence.
+            accessibilityHint={`Adds it to today. Its moment: ${entry.cue}.`}>
+            Add this exchange
+          </AppButton>
+        )}
+      </View>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { marginBottom: Spacing.four },
-  // Hung to the section label's inset, and given air before the first card so it reads as the
-  // group's line rather than the first card's.
-  blurb: { marginLeft: Spacing.three, marginTop: Spacing.half, marginBottom: Spacing.two },
-  card: { marginBottom: Spacing.two },
+  // 24 between groups — the step Settings and Discover keep between their sections.
+  content: { gap: Spacing.four },
+  // 8 from the heading to its first card and between cards: the app's caption→card beat.
+  group: { gap: Spacing.two },
+  heading: { gap: Spacing.half },
+  // Hung to the section label's inset, so it reads as the caption's line.
+  blurb: { marginLeft: Spacing.three },
   cardBody: { padding: Spacing.three, gap: Spacing.two },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   // Semibold via the FACE, never fontWeight (the Android fake-bold gotcha).

@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { GoalTrendChart } from '@/components/goal-trend-chart';
 import { MonthSummary } from '@/components/month-summary';
+import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { OverTime } from '@/components/over-time';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
 import { Spacing } from '@/constants/theme';
@@ -108,7 +109,7 @@ export default function ProgressScreen() {
             no record to draw one from. The chart says it itself, in the empty plot, on the day it
             matters. */}
         <EmptyState
-          icon="stats"
+          art={<MoonEmblem />}
           title="No record yet"
           body="Anchor your first stack and keep it.">
           <BrowseHabitsButton />

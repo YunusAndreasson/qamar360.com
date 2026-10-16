@@ -8,7 +8,6 @@ import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { headerNewAction } from '@/components/form-header-actions';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
@@ -369,8 +368,8 @@ export default function DiscoverScreen() {
           </View>
         );
       case 'category':
-        // The app's one section caption, the same `SectionLabel` the stack and exchange libraries
-        // use for the very same job — and Settings, and the day. This screen
+        // The app's one section caption — `SettingsSection`'s own `SectionLabel`, the one the stack
+        // and exchange libraries use for the very same job — and Settings, and the day. This screen
         // was the single place that reached for an 18pt `heading` instead, on the argument that a
         // long library needs a stronger marker to walk by; but the two sibling libraries reached
         // from the same + menu are no shorter, and this is the only one of the three that ALSO has
@@ -378,12 +377,9 @@ export default function DiscoverScreen() {
         // already on the screen.
         return (
           <View style={wrap}>
-            <View style={styles.section}>
-              <SectionLabel>{item.category.title}</SectionLabel>
-              <SettingsSection>
-                {item.presets.map(renderPreset)}
-              </SettingsSection>
-            </View>
+            <SettingsSection title={item.category.title}>
+              {item.presets.map(renderPreset)}
+            </SettingsSection>
           </View>
         );
       case 'create':
@@ -502,7 +498,4 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
     gap: Spacing.two,
   },
-  // A category: its heading hugs the card it names (the inter-section gap above provides the
-  // separation from the previous group).
-  section: { gap: Spacing.two },
 });

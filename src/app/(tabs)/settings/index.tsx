@@ -270,7 +270,9 @@ export default function SettingsScreen() {
           moon; the permission row appears only once they're wanted, since that's the only
           state in which the OS answer matters. */}
       <SettingsSection
-        title="Lunar updates"
+        // "Notifications", not "Lunar updates": the section's first row already says that, and a
+        // caption that repeats its only row's label names nothing.
+        title="Notifications"
         footer={
           notificationsAvailable
             ? nextUpdate
@@ -319,7 +321,7 @@ export default function SettingsScreen() {
           onSwitchChange={(value) => setPreference('haptics', value)}
         />
         <SettingsRow
-          icon="moon"
+          icon="celebrate"
           label="Celebrate finishing the day"
           switchValue={celebrateDay}
           onSwitchChange={(value) => setPreference('celebrateDay', value)}
@@ -380,7 +382,7 @@ export default function SettingsScreen() {
           onPress={confirmReset}
         />
         <SettingsRow
-          icon="deleteOutline"
+          icon="delete"
           label="Delete account"
           destructive
           busy={busy}

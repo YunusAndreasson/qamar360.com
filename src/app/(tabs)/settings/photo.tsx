@@ -40,7 +40,7 @@ export default function PhotoSheet() {
             label: path ? 'Choose a different photo' : 'Choose a photo',
             onPress: () => run(choose),
           },
-          path ? { icon: 'deleteOutline', label: 'Remove photo', danger: true, onPress: () => run(remove) } : null,
+          path ? { icon: 'delete', label: 'Remove photo', danger: true, onPress: () => run(remove) } : null,
         ]}
       />
       {/* The upload is the one thing here that takes long enough to doubt. It replaces the error
