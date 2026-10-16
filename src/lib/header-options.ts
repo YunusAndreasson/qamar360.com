@@ -1,6 +1,10 @@
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Platform } from 'react-native';
 
 import { Face } from '@/constants/theme';
+
+/** Whether this build runs the Liquid Glass design — iOS 26 and up. A native constant, read once. */
+const LIQUID_GLASS = isLiquidGlassAvailable();
 
 /**
  * Options for a tab's root screen so the stack's fixed sky (painted by `TabStack`) shows
@@ -83,7 +87,10 @@ export function formSheetOptions(theme: { background: string }) {
     headerShown: false,
     sheetAllowedDetents: 'fitToContents' as const,
     sheetGrabberVisible: true,
-    sheetCornerRadius: 24,
+    // iOS 26 draws a sheet's corner concentric with the display's own, and pinning 24 there swapped
+    // it for a tighter, flatter one on every sheet in the app. Elsewhere (Android, iOS before 26)
+    // 24 is the sheet's corner; left unset, react-native-screens uses the system's.
+    ...(LIQUID_GLASS ? null : { sheetCornerRadius: 24 }),
     contentStyle: { backgroundColor: theme.background },
   };
 }

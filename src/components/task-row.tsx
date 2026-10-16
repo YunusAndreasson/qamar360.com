@@ -88,8 +88,8 @@ function TaskRowBase({ task, today, onToggle, onEdit, onDelete }: Props) {
       </Pressable>
 
       <RowMenu label={`Options for ${task.title}`} actions={[
-        { id: 'edit', title: 'Edit', onSelect: () => onEdit(task) },
-        { id: 'delete', title: 'Delete', destructive: true, onSelect: () => onDelete(task) },
+        { id: 'edit', title: 'Edit', icon: 'edit', onSelect: () => onEdit(task) },
+        { id: 'delete', title: 'Delete', icon: 'delete', destructive: true, onSelect: () => onDelete(task) },
       ]} />
     </View>
   );

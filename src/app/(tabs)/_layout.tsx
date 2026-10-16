@@ -76,9 +76,11 @@ function Tabs() {
       // ../open-arabic (`useTabBarAutoHide`) if the two platforms should ever match.
       minimizeBehavior="onScrollDown"
       // iOS gets a translucent system material (content blurs through it) instead of a solid
-      // fill — the native tab-bar look. We pick the light/dark variant from the *effective*
-      // scheme so it tracks the in-app appearance override, not just the OS. Android has no
-      // glass, so it keeps the themed solid background.
+      // fill — the native tab-bar look — in the light/dark variant of the *effective* scheme.
+      // That only reaches iOS 18–25: on iOS 26 the system draws the bar's glass and ignores this
+      // prop, and what keeps that bar on the in-app appearance is the window override the
+      // preferences store applies (`Appearance.setColorScheme`). Android has no glass, so it keeps
+      // the themed solid background.
       blurEffect={scheme === 'dark' ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
       backgroundColor={Platform.OS === 'ios' ? undefined : colors.background}
       // The badge in the app's own steel — the platform default is alarm-red, which made the

@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { Appearance } from 'react-native';
 
 import { hijriParts } from '@/lib/dates';
-import { getPreference, resetPreferencesCache, setPreference } from '@/lib/preferences';
+import { getPreference, initPreferences, resetPreferencesCache, setPreference } from '@/lib/preferences';
 
 // The app persists through the expo-sqlite Web Storage shim; under Jest there is none, so stand
 // an in-memory one up and let the tests exercise the real read/parse/write path rather than the
@@ -101,5 +102,25 @@ describe('side effects', () => {
     expect(hijriParts('2026-07-19')).not.toEqual(base);
     setPreference('hijriOffset', 0);
     expect(hijriParts('2026-07-19')).toEqual(base);
+  });
+});
+
+describe('appearance reaches the OS', () => {
+  it('overrides the system scheme with an explicit choice, and hands it back for "system"', () => {
+    const set = jest.spyOn(Appearance, 'setColorScheme').mockImplementation(() => {});
+    setPreference('appearance', 'dark');
+    expect(set).toHaveBeenLastCalledWith('dark');
+    setPreference('appearance', 'system');
+    expect(set).toHaveBeenLastCalledWith('unspecified');
+    set.mockRestore();
+  });
+
+  it('applies the stored choice at startup, before the first render', () => {
+    store.set('prefs.themePreference', 'light');
+    resetPreferencesCache();
+    const set = jest.spyOn(Appearance, 'setColorScheme').mockImplementation(() => {});
+    initPreferences();
+    expect(set).toHaveBeenCalledWith('light');
+    set.mockRestore();
   });
 });

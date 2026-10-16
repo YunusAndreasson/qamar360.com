@@ -1,6 +1,6 @@
-import { router, useFocusEffect } from 'expo-router';
+import { Link, router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
@@ -37,20 +37,35 @@ function Goals({ live, checkIns, today }: { live: GoalReading[]; checkIns: GoalC
   if (live.length === 0) return null;
   return (
     <View style={styles.goals}>
-      {live.map((reading) => (
-        <GoalTrendChart
-          key={reading.goal.id}
-          title={reading.goal.title}
-          // The standing, worded correctly in both directions — `goalMeta` already knows whether
-          // this is "1,240 of 9,060 lines" or "82.4 kg · 7.4 left in Rajab".
-          readout={goalMeta(reading, today)}
-          series={goalSeries(reading.goal.id, checkIns)}
-          target={reading.goal.target_value}
-          unit={reading.goal.unit}
-          today={today}
-          onPress={() => router.push({ pathname: '/(tabs)/progress/goal/[id]', params: { id: reading.goal.id } })}
-        />
-      ))}
+      {live.map((reading) => {
+        const href = { pathname: '/(tabs)/progress/goal/[id]', params: { id: reading.goal.id } } as const;
+        const card = (
+          <GoalTrendChart
+            key={reading.goal.id}
+            title={reading.goal.title}
+            // The standing, worded correctly in both directions — `goalMeta` already knows whether
+            // this is "1,240 of 9,060 lines" or "82.4 kg · 7.4 left in Rajab".
+            readout={goalMeta(reading, today)}
+            series={goalSeries(reading.goal.id, checkIns)}
+            target={reading.goal.target_value}
+            unit={reading.goal.unit}
+            today={today}
+            // On iOS the `Link` below hands the card its press; everywhere else it opens the goal itself.
+            onPress={Platform.OS === 'ios' ? undefined : () => router.push(href)}
+          />
+        );
+        // iOS 18+ zooms the card into the goal it opens: the same line, grown into its own screen
+        // (`Link.AppleZoomTarget` there). The zoom needs the navigation to go through a `Link`,
+        // which tags the route with its source; below iOS 18 the system has no zoom, and it is a
+        // plain push.
+        return Platform.OS === 'ios' ? (
+          <Link key={reading.goal.id} href={href} asChild>
+            <Link.Trigger withAppleZoom>{card}</Link.Trigger>
+          </Link>
+        ) : (
+          card
+        );
+      })}
     </View>
   );
 }

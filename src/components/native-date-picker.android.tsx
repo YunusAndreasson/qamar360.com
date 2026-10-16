@@ -54,9 +54,14 @@ export function NativeDatePicker({ value, mode, minimumDate, maximumDate, onValu
             floating inside the plate holding it. The other four keys are the ones `color` would
             have set on its own — `elementColors` takes precedence over it, so anything the accent
             should still reach has to be named here. */}
+        {/* No title either: Material's "Select date" sat right under the sheet's own "Choose a day",
+            the same instruction twice. The headline (the picked date) stays — the sheet's subtitle
+            is the Hijri date and leans on it for the Gregorian one. M3 holds the header at its
+            120dp minimum with or without a title, so the height below is unchanged. */}
         <DateTimePicker
           {...shared}
           showVariantToggle={false}
+          showTitle={false}
           selectableDates={selectableDates}
           elementColors={{
             containerColor: theme.backgroundElement,

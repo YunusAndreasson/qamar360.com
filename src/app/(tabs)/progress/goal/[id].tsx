@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -168,8 +168,12 @@ export default function GoalScreen() {
 
       {/* The line the check-ins draw. Above THE MEASURE because a picture of where the number has
           been answers "am I moving?" faster than any row of figures under it can. */}
+      {/* Where the Progress card's zoom lands on iOS 18+ — the same line, now the screen's own.
+          A pass-through when the screen was opened any other way. */}
       {asking ? (
-        <GoalTrendChart series={series} target={goal.target_value} unit={goal.unit} today={today} />
+        <Link.AppleZoomTarget>
+          <GoalTrendChart series={series} target={goal.target_value} unit={goal.unit} today={today} />
+        </Link.AppleZoomTarget>
       ) : null}
 
       <SettingsSection title="THE MEASURE">

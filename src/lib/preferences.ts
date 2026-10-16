@@ -1,6 +1,7 @@
 import 'expo-sqlite/localStorage/install';
 
 import { useSyncExternalStore } from 'react';
+import { Appearance } from 'react-native';
 
 import { setHijriOffset } from '@/lib/dates';
 import type { DayBands } from '@/lib/sun';
@@ -174,15 +175,27 @@ export function setPreference<K extends PreferenceKey>(key: K, value: Preference
   for (const listener of listeners) listener();
 }
 
-/** Preferences that non-React modules hold as their own state, pushed on change (and once at
- *  startup by {@link initPreferences}) so those modules stay plain and synchronous. */
+/** Preferences that live outside React as well as in it, pushed on change (and once at startup by
+ *  {@link initPreferences}) so the modules and the OS that hold them stay in step. */
 function applySideEffects(key: PreferenceKey): void {
   if (key === 'hijriOffset') setHijriOffset(read('hijriOffset'));
+  // The appearance is handed to the OS too, not only to the app's own colours. The JS theme has
+  // always followed the in-app choice (`useEffectiveScheme`), but everything the system draws —
+  // alerts, the keyboard, native menus and pickers, and on iOS 26 the tab bar itself, whose
+  // `blurEffect` the system now ignores — followed the phone's setting instead, so "Dark" on a
+  // light phone put light chrome over a dark app. `setColorScheme` overrides the window's style
+  // (iOS) and the night mode (Android; MainActivity handles `uiMode`, so nothing restarts), and
+  // `useColorScheme` then reports the same answer the preference gives.
+  if (key === 'appearance') {
+    const appearance = read('appearance');
+    Appearance.setColorScheme(appearance === 'system' ? 'unspecified' : appearance);
+  }
 }
 
 /** Push every such preference into its module. Called once, before the first render. */
 export function initPreferences(): void {
   applySideEffects('hijriOffset');
+  applySideEffects('appearance');
 }
 
 function subscribe(listener: () => void) {
