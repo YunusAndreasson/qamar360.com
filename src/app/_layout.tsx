@@ -5,10 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { reloadAsync, useUpdates } from 'expo-updates';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { MaterialSymbolsFont } from '@/components/app-icon';
 import { DayCompleteProvider } from '@/components/day-complete';
 import { ToastProvider, useToast } from '@/components/toast';
 import { FontAssets } from '@/constants/fonts';
@@ -110,8 +112,9 @@ function RootNavigator() {
   const router = useRouter();
   // Local-asset fonts resolve in milliseconds, well inside the auth gate's splash hold; on a
   // load error the app degrades to the system font rather than deadlocking the splash (the
-  // same philosophy as AuthProvider's safety-net timeout).
-  const [fontsLoaded, fontError] = useFonts(FontAssets);
+  // same philosophy as AuthProvider's safety-net timeout). On Android the icon font loads with
+  // them, so no glyph ever paints a frame before its font (see `AppIcon`).
+  const [fontsLoaded, fontError] = useFonts(Platform.OS === 'android' ? { ...FontAssets, ...MaterialSymbolsFont } : FontAssets);
   const scheme = useEffectiveScheme();
   const theme = useTheme();
 

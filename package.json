@@ -68,6 +68,7 @@
     "gen:tz-coords": "node scripts/gen-tz-coords.mjs",
     "gen:moons": "node scripts/gen-moons.mjs",
     "gen:fonts": "python3 scripts/build-fonts.py",
+    "gen:glyphs": "node scripts/gen-material-glyphs.mjs",
     "seed:catalog": "node scripts/seed-catalog.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
