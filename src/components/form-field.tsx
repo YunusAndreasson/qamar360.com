@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 
 import { FieldLabel } from '@/components/field-label';
 import { ThemedText } from '@/components/themed-text';
@@ -12,7 +12,7 @@ type Props = TextInputProps & {
   label?: string;
   hint?: string;
   error?: string | null;
-  ref?: Ref<TextInput>;
+  ref?: Ref<TextInputInstance>;
 };
 
 export function FormField({ label, hint, error, style, ref, secureTextEntry, onFocus, onBlur, ...props }: Props) {

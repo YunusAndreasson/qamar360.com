@@ -16,7 +16,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { googleAuthAvailable, socialAuthAvailable } from '@/lib/social-auth';
 
 import type { ReactNode } from 'react';
-import type { TextInput } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot' | 'reset';
 
@@ -70,8 +70,8 @@ export default function SignInScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   // Refs for keyboard "next" focus-chaining so the form is submittable without
   // reaching the button (which can sit behind the keyboard).
-  const passwordRef = useRef<TextInput>(null);
-  const newPasswordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
+  const newPasswordRef = useRef<TextInputInstance>(null);
 
   function goTo(next: Mode) {
     setError(null);

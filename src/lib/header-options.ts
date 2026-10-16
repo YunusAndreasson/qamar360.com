@@ -13,8 +13,8 @@ export const transparentScreen = {
   // Android's compact header is otherwise tinted opaque (stackHeaderOptions), capping the
   // fixed sky with a hard seam right where the overhead glow is richest; a sky-backed root
   // lets the sky continue behind the bar instead — the parity of iOS's at-rest transparent
-  // large-title bar. The header stays in-flow (NOT headerTransparent), so content still
-  // starts below the bar and no manual insets appear. Scoped here — not in
+  // large-title bar. On Android the header stays in-flow (NOT headerTransparent), so content
+  // still starts below the bar and no manual insets appear. Scoped here — not in
   // stackHeaderOptions — so pushed opaque screens keep their themed bar seam-free.
   ...(Platform.OS === 'android' ? { headerStyle: { backgroundColor: 'transparent' } } : null),
 };
@@ -23,7 +23,11 @@ export const transparentScreen = {
  * Native-Stack header options, themed per platform.
  *
  * iOS keeps the system's translucent (glass) large-title bar, which auto-adapts
- * to light/dark — so we set no background there. Android has no glass header and
+ * to light/dark — so we set no background there. Leaving it unset is also what lets
+ * expo-router (SDK 58+) float the bar over the content on iOS 26+ (Liquid Glass): the
+ * screen runs up under it, and each root scroll view's `contentInsetAdjustmentBehavior=
+ * "automatic"` keeps the first row clear of it. A screen whose content slides under the bar
+ * pins `headerTransparent: false` for itself. Android has no glass header and
  * react-navigation otherwise paints a light header even in dark mode, so we tint
  * it to match the app's theme. `headerShadowVisible: false` drops the hairline
  * separator on both.

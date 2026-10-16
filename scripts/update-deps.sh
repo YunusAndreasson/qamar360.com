@@ -64,8 +64,8 @@ fi
 
 echo
 echo "▸ [4/5] Re-pinning Expo-managed packages to SDK-compatible versions…"
-# Packages listed under `expo.install.exclude` in package.json are deliberately
-# ahead of the SDK 57 pin and are skipped here — see that list for which ones.
+# Any package listed under `expo.install.exclude` in package.json (none today) is
+# deliberately ahead of the installed SDK's pin and is skipped here.
 # `EXPO_DEBUG=1 npx expo install --check` prints exactly what was skipped.
 npx expo install --fix --npm
 

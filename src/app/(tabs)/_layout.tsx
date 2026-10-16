@@ -1,6 +1,5 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePathname } from 'expo-router';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { useEffect, useEffectEvent } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -116,27 +115,15 @@ function Tabs() {
             churn every pathname for nothing) — this is the label the user reads, and it has always
             matched that screen's own title. */}
         <Trigger.Label>Today</Trigger.Label>
-        {Platform.OS === 'ios' ? (
-          <Trigger.Icon sf="sun.max.fill" />
-        ) : (
-          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="wb-sunny" />} />
-        )}
+        <Trigger.Icon sf="sun.max.fill" md="wb_sunny" />
       </Trigger>
       <Trigger name="progress">
         <Trigger.Label>Progress</Trigger.Label>
-        {Platform.OS === 'ios' ? (
-          <Trigger.Icon sf="chart.xyaxis.line" />
-        ) : (
-          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="show-chart" />} />
-        )}
+        <Trigger.Icon sf="chart.xyaxis.line" md="show_chart" />
       </Trigger>
       <Trigger name="settings">
         <Trigger.Label>Settings</Trigger.Label>
-        {Platform.OS === 'ios' ? (
-          <Trigger.Icon sf="gearshape.fill" />
-        ) : (
-          <Trigger.Icon src={<Trigger.VectorIcon family={MaterialIcons} name="settings" />} />
-        )}
+        <Trigger.Icon sf="gearshape.fill" md="settings" />
       </Trigger>
     </NativeTabs>
   );

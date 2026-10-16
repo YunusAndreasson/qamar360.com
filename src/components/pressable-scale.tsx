@@ -1,4 +1,4 @@
-import { Pressable, type PressableProps, type StyleProp, type View, type ViewStyle } from 'react-native';
+import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -8,15 +8,12 @@ import Animated, {
 
 import { Scale, Spring } from '@/constants/motion';
 
-import type { Ref } from 'react';
-
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
   /** Scale target while pressed. Defaults to `Scale.press`; pass `Scale.glyph` for bare icons. */
   scaleTo?: number;
-  ref?: Ref<View>;
 };
 
 /**
@@ -34,7 +31,6 @@ export function PressableScale({
   onPressIn,
   onPressOut,
   disabled,
-  ref,
   ...props
 }: Props) {
   const scale = useSharedValue(1);
@@ -45,7 +41,6 @@ export function PressableScale({
 
   return (
     <AnimatedPressable
-      ref={ref}
       disabled={disabled}
       onPressIn={(e) => {
         if (!reduceMotion && !disabled) scale.set(withSpring(scaleTo, Spring.press));

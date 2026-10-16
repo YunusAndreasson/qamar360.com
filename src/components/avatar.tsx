@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Duration } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -31,6 +32,9 @@ export function Avatar({ url, cacheKey, monogram }: { url: string | null; cacheK
           source={{ uri: url, cacheKey: cacheKey ?? undefined }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
+          // A photo still on its way in fades up rather than popping; one already on disk paints
+          // at once, so the cached-launch case above never replays the fade.
+          transition={{ duration: Duration.base, skipOnCacheHit: 'all' }}
           // Hidden from the accessibility tree: the name and email beside it already say whose
           // account this is, and the button around it says what the photo is for.
           accessible={false}

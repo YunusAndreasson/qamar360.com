@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, type TextInput } from 'react-native';
+import { Alert, type TextInputInstance } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { FormField } from '@/components/form-field';
@@ -24,7 +24,7 @@ export default function ChangePasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const confirmRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInputInstance>(null);
 
   const longEnough = password.length >= MIN_LENGTH;
   const matches = password === confirm;

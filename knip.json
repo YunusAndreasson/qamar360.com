@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/app/**/*.{ts,tsx}",
-    "babel.config.js",
     "plugins/**/*.js",
     "scripts/**/*.mjs"
   ],
@@ -16,7 +15,6 @@
   "ignoreBinaries": ["python3", "rsvg-convert"],
   "ignoreDependencies": [
     "@jest/globals",
-    "@babel/types",
     "@typescript-eslint/parser"
   ]
 }
