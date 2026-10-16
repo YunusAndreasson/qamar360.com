@@ -1,25 +1,32 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppIcon } from '@/components/app-icon';
 import { CardSection } from '@/components/card-section';
+import { Fold } from '@/components/fold';
 import { PlanPicks } from '@/components/plan-picks';
+import { RowSeparator } from '@/components/row-separator';
+import { TRAILING_GLYPH, trailingGlyphBox } from '@/components/row-trailing-button';
+import { SeparatedRows } from '@/components/separated-rows';
 import { TaskComposer } from '@/components/task-composer';
 import { TaskRow } from '@/components/task-row';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { RowLeadingSlot, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import type { Plan } from '@/lib/plans';
-import type { Task } from '@/lib/tasks';
+import { splitTasks, type Task, type TaskPlace } from '@/lib/tasks';
 
 type Props = {
-  /** The viewed day's tasks, open ones first (`lib/tasks.visibleTasks`). */
+  /** The viewed day's tasks, in position order (`lib/tasks.visibleTasks`). */
   tasks: Task[];
   /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
   topGap: number;
   /** The real today, so a task carried forward can say where it came from. */
   today: string;
+  /** The day being viewed — what the done fold and the held rows are scoped to. */
+  viewDate: string;
   /** Whether the viewed day is today — a past day is a record, not somewhere to write. */
   isToday: boolean;
   /** The composer has been asked for from outside (the "+" menu's Task choice). */
@@ -36,6 +43,8 @@ type Props = {
   onDelete: (task: Task) => void;
 };
 
+const NO_HOLDS: ReadonlyMap<string, TaskPlace> = new Map();
+
 /**
  * TO DO — the day's one-off things, above the practice.
  *
@@ -46,13 +55,20 @@ type Props = {
  * The section is **not permanent chrome**. With nothing on the list it renders nothing at all —
  * Today opens on the practice, as it did before this existed — and the way to start one is the
  * header "+". Once there is a list, the `＋ Add` row lives in the card and capture is instant for
- * the rest of the day. A finished task greys in place and leaves when the day turns over, so the
- * card stays until then rather than vanishing under the finger that emptied it.
+ * the rest of the day.
+ *
+ * **What is left to do is always on show; what is done folds away.** Every row here is a checkbox,
+ * and a checkbox behind a fold costs a tap to reach — the app keeps its chevrons for things to
+ * *read*, and the finished to-dos are exactly that: the record of the day. So the open ones list
+ * directly and the finished ones gather behind a closing "N done" bar, in the fold the stack cards
+ * use. A finished one greys in place first and folds only once the list settles (see
+ * {@link splitTasks}), and a lone one never folds at all.
  */
 export function TaskSection({
   tasks,
   topGap,
   today,
+  viewDate,
   isToday,
   composeRequested,
   onComposeHandled,
@@ -64,8 +80,6 @@ export function TaskSection({
   onDelete,
 }: Props) {
   // The task being rewritten (the long press), or null while the composer is capturing new ones.
-  const theme = useTheme();
-  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [composing, setComposing] = useState(false);
   const [text, setText] = useState('');
@@ -73,6 +87,42 @@ export function TaskSection({
   // clears for the next one, and a strip of suggestions slamming back under the keyboard after
   // every to-do would be worse than not offering them at all.
   const [touched, setTouched] = useState(false);
+
+  // Both scoped to the viewed day and *derived* rather than reset, the way the stack cards' fold
+  // state is (`habits/index.tsx`): the day can turn over without anyone touching this card.
+  const [doneFold, setDoneFold] = useState({ day: viewDate, open: false });
+  const doneOpen = doneFold.day === viewDate && doneFold.open;
+  // Where each touched row was when it was touched — held there until the list settles.
+  const [held, setHeld] = useState({ day: viewDate, places: NO_HOLDS });
+  const places = held.day === viewDate ? held.places : NO_HOLDS;
+
+  // The list settles whenever the screen comes back into view — returning from a sheet, from
+  // another tab, from the background — and the rows then sit where their state says.
+  useFocusEffect(
+    useCallback(() => {
+      setHeld((prev) => (prev.places.size === 0 ? prev : { day: prev.day, places: NO_HOLDS }));
+    }, []),
+  );
+
+  const hold = useCallback(
+    (id: string, place: TaskPlace) =>
+      setHeld((prev) => {
+        const current = prev.day === viewDate ? prev.places : NO_HOLDS;
+        if (current.has(id)) return prev;
+        return { day: viewDate, places: new Map(current).set(id, place) };
+      }),
+    [viewDate],
+  );
+  // One per half, so a tick pins the row to the half it was ticked in. Stable across renders, so
+  // the rows' memo comparators hold.
+  const toggleOpen = useCallback((task: Task) => {
+    hold(task.id, 'open');
+    onToggle(task);
+  }, [hold, onToggle]);
+  const toggleDone = useCallback((task: Task) => {
+    hold(task.id, 'done');
+    onToggle(task);
+  }, [hold, onToggle]);
 
   // Stable across renders, so the rows' memo comparators hold — an arrow minted inside the map
   // would rebuild every row on every keystroke in the composer.
@@ -102,9 +152,9 @@ export function TaskSection({
   // The outside request opens the field directly rather than being copied into state — one source
   // of truth, and no effect chasing a prop. It is spent when the field closes.
   const composerOpen = isToday && (composing || editing !== null || composeRequested);
-  const showTasks = expanded || composerOpen;
-  const done = tasks.filter((task) => task.done_on !== null).length;
   if (tasks.length === 0 && !composerOpen) return null;
+
+  const { open, done } = splitTasks(tasks, places);
 
   const closeComposer = () => {
     // Keep what was typed rather than dropping it: a keyboard dismissed mid-thought (or an edit
@@ -131,6 +181,26 @@ export function TaskSection({
     onCreate(clean);
   }
 
+  // Rewriting one happens **in its own row** — the row you tapped becomes the field, which is the
+  // whole promise of the composer. It used to render only at the foot of the card, so an edit put
+  // the task on screen twice: the untouched row where it has always been, and a second copy of it
+  // in a field below the list.
+  const row = (task: Task, onToggleRow: (task: Task) => void) =>
+    editing?.id === task.id ? (
+      <TaskComposer
+        key={task.id}
+        open
+        value={text}
+        onChangeText={setText}
+        onOpen={() => setComposing(true)}
+        onSubmit={submit}
+        onClose={closeComposer}
+        onDelete={() => confirmDelete(task)}
+      />
+    ) : (
+      <TaskRow key={task.id} task={task} today={today} onToggle={onToggleRow} onEdit={startEditing} onDelete={confirmDelete} />
+    );
+
   return (
     <CardSection
       label="TO DO"
@@ -139,7 +209,7 @@ export function TaskSection({
       // last Tuesday" is not a thing anyone means to do — and while an edit is open, since the
       // field for that is up in the list and two live fields would fight for the keyboard.
       trailing={
-        isToday && !editing && showTasks ? (
+        isToday && !editing ? (
           <>
             <TaskComposer
               open={composerOpen}
@@ -160,46 +230,56 @@ export function TaskSection({
           </>
         ) : null
       }>
-      {tasks.length > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`To-dos, ${done} of ${tasks.length} complete`}
-          accessibilityState={{ expanded: showTasks, disabled: composerOpen }}
-          disabled={composerOpen}
-          onPress={() => setExpanded((value) => !value)}
-          style={({ pressed }) => [styles.summary, pressed && { backgroundColor: theme.backgroundSelected }]}>
-          <View style={styles.summaryText}>
-            <ThemedText type="rowTitle">{tasks.length - done} remaining</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">{done} of {tasks.length} complete</ThemedText>
-          </View>
-          <AppIcon name={showTasks ? 'expandLess' : 'expandMore'} color={theme.textSecondary} size={18} />
-        </Pressable>
-      ) : null}
-      {showTasks ? tasks.map((task) =>
-        // Rewriting one happens **in its own row** — the row you tapped becomes the field, which is
-        // the whole promise of the composer. It used to render only at the foot of the card, so an
-        // edit put the task on screen twice: the untouched row where it has always been, and a
-        // second copy of it in a field below the list.
-        editing?.id === task.id ? (
-          <TaskComposer
-            key={task.id}
-            open
-            value={text}
-            onChangeText={setText}
-            onOpen={() => setComposing(true)}
-            onSubmit={submit}
-            onClose={closeComposer}
-            onDelete={() => confirmDelete(task)}
-          />
-        ) : (
-          <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onEdit={startEditing} onDelete={confirmDelete} />
-        ),
+      {open.map((task) => row(task, toggleOpen))}
+      {done.length > 0 ? (
+        <View>
+          <DoneBar count={done.length} open={doneOpen} onPress={() => setDoneFold({ day: viewDate, open: !doneOpen })} />
+          {/* The finished rows ride the stack cards' fold, so the two disclosures on the day move
+              alike. Their own `SeparatedRows`: the card's rules stop at this block's edge. */}
+          <Fold expanded={doneOpen}>
+            <RowSeparator />
+            <SeparatedRows>{done.map((task) => row(task, toggleDone))}</SeparatedRows>
+          </Fold>
+        </View>
       ) : null}
     </CardSection>
   );
 }
 
+/**
+ * The bar the finished to-dos fold behind. Built from the day's own parts so it lands on the day's
+ * two columns: the leading slot puts its count under the to-do titles, and the chevron sits on the
+ * same line as every other trailing mark. Chrome at the foot — 44pt and in the reading tone, like
+ * a stack's "Manage stack" — because it is the record of the day, not something left to do.
+ */
+function DoneBar({ count, open, onPress }: { count: number; open: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      android_ripple={{ color: theme.backgroundSelected }}
+      accessibilityRole="button"
+      accessibilityLabel={`${count} done`}
+      accessibilityState={{ expanded: open }}
+      accessibilityHint={open ? 'Hides the finished to-dos.' : 'Shows the finished to-dos.'}
+      style={({ pressed }) => [styles.doneBar, pressed && { backgroundColor: theme.backgroundSelected }]}>
+      <View style={styles.leading}>
+        <AppIcon name="check" size={18} color={theme.textSecondary} />
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.doneLabel}>
+        {count} done
+      </ThemedText>
+      <View style={styles.doneChevron}>
+        <AppIcon name={open ? 'expandLess' : 'expandMore'} size={TRAILING_GLYPH} color={theme.textSecondary} />
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  summary: { flexDirection: 'row', alignItems: 'center', padding: Spacing.three, minHeight: 56 },
-  summaryText: { flex: 1, gap: Spacing.half },
+  doneBar: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingLeft: Spacing.three },
+  leading: RowLeadingSlot,
+  // The leading slot's 16pt gap, as on the rows above, so "N done" starts in their title column.
+  doneLabel: { flex: 1, marginLeft: Spacing.three },
+  doneChevron: trailingGlyphBox,
 });

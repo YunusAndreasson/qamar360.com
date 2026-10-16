@@ -138,3 +138,32 @@ export function taskRowContract({
     meta,
   };
 }
+
+/** Where a to-do sits on the card: in the day's open list, or folded with the finished ones. */
+export type TaskPlace = 'open' | 'done';
+
+/**
+ * The to-do card's two halves: the open list, and the finished ones that fold away under it.
+ *
+ * A row's place normally follows its state, with two exceptions that keep the card still under the
+ * finger:
+ *
+ * - **`held`** pins a row to the place it had when it was last touched. Ticking a to-do greys it in
+ *   place rather than whisking it into the fold — a row that moved under the finger would take its
+ *   own undo with it — and un-ticking one inside the open fold leaves it there. The card clears the
+ *   pins when the list *settles* (the screen comes back into focus), and everything then sits where
+ *   its state says.
+ * - **A fold that would hold one line is no fold.** With fewer than two finished, the finished one
+ *   stays in the open list, greyed, exactly as it was before there was a fold to put it in.
+ *
+ * Both halves keep the day's `position` order.
+ */
+export function splitTasks<T extends Task>(
+  tasks: readonly T[],
+  held: ReadonlyMap<string, TaskPlace>,
+): { open: T[]; done: T[] } {
+  const placeOf = (task: T): TaskPlace => held.get(task.id) ?? (task.done_on !== null ? 'done' : 'open');
+  const done = tasks.filter((task) => placeOf(task) === 'done');
+  if (done.length < 2) return { open: [...tasks], done: [] };
+  return { open: tasks.filter((task) => placeOf(task) === 'open'), done };
+}

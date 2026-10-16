@@ -72,13 +72,15 @@ function TaskRowBase({ task, today, onToggle, onEdit, onDelete }: Props) {
           <CompletionRing complete={done} size={24} strokeWidth={2} />
         </View>
         <View style={styles.text}>
-          <ThemedText type="rowTitle" style={{ color: done ? theme.textSecondary : theme.text }}>
+          {/* Done wears `textDisabled`, the day's one "done" tone — the acts, the stackless habits
+              and the check-ins already do. Clamped at two lines like every other free-text row. */}
+          <ThemedText type="rowTitle" numberOfLines={2} style={{ color: done ? theme.textDisabled : theme.text }}>
             {task.title}
           </ThemedText>
           {/* Only when it has come forward from an earlier day. A note of where it came from —
               never "overdue", never a count of the days it has waited. */}
           {row.meta ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
               {row.meta}
             </ThemedText>
           ) : null}

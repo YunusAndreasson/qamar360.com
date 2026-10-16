@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { Task } from '@/lib/tasks';
-import { carriedLabel, isOpen, openCountOn, openTitlesOn, showsOn, taskRowContract, visibleTasks } from '@/lib/tasks';
+import { carriedLabel, isOpen, openCountOn, openTitlesOn, showsOn, splitTasks, taskRowContract, visibleTasks } from '@/lib/tasks';
 
 const TODAY = '2026-08-06'; // a Thursday
 
@@ -172,5 +172,36 @@ describe('openTitlesOn', () => {
   it('does not carry an overdue to-do onto another day', () => {
     const rows = [task({ due_on: '2026-08-01' })];
     expect(openTitlesOn(rows, TODAY)).toEqual([]);
+  });
+});
+
+describe('splitTasks', () => {
+  const open = (id: string, position: number) => task({ id, position, done_on: null });
+  const done = (id: string, position: number) => task({ id, position, done_on: '2026-08-15' });
+  const NONE = new Map<string, 'open' | 'done'>();
+
+  it('folds the finished ones away once there are two of them, keeping position order', () => {
+    const { open: o, done: d } = splitTasks([open('a', 0), done('b', 1), open('c', 2), done('d', 3)], NONE);
+    expect(o.map((t) => t.id)).toEqual(['a', 'c']);
+    expect(d.map((t) => t.id)).toEqual(['b', 'd']);
+  });
+
+  it('keeps a lone finished to-do in the list: a fold that would hold one line is no fold', () => {
+    const { open: o, done: d } = splitTasks([open('a', 0), done('b', 1)], NONE);
+    expect(o.map((t) => t.id)).toEqual(['a', 'b']);
+    expect(d).toEqual([]);
+  });
+
+  it('holds a just-ticked to-do where it was ticked, until the list settles', () => {
+    const tasks = [done('a', 0), done('b', 1), done('c', 2)];
+    const { open: o, done: d } = splitTasks(tasks, new Map([['c', 'open' as const]]));
+    expect(o.map((t) => t.id)).toEqual(['c']);
+    expect(d.map((t) => t.id)).toEqual(['a', 'b']);
+  });
+
+  it('holds an un-ticked to-do inside the open fold rather than pulling it out under the finger', () => {
+    const tasks = [done('a', 0), open('b', 1), done('c', 2)];
+    const { done: d } = splitTasks(tasks, new Map([['b', 'done' as const]]));
+    expect(d.map((t) => t.id)).toEqual(['a', 'b', 'c']);
   });
 });

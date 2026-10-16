@@ -74,15 +74,15 @@ const LIST_BOTTOM_INSET = ScrollBottomInset + Spacing.five;
 const SECTION_LEAD = Spacing.three;
 const SECTION_BREAK = Spacing.five;
 
-/** The header names one day at a time, with a stepper under it — so it takes the bare weekday for
- *  the last week (the week is obvious from the move you just made) and no year (the stepper only
- *  reaches thirty days back, so there is never another year to tell this one from). */
+/** The header names one day at a time, picked from a month grid — so it takes the bare weekday for
+ *  the last week and no year (the picker only reaches thirty days back, so there is never another
+ *  year to tell this one from). */
 function viewDateTitle(viewDate: string, today: string): string {
   return dayTitle(viewDate, today, { weekday: 'long' });
 }
 
-/** A top-level card of the day: a stack and the acts it has due. Every habit lives in one, so
- *  this is the only kind of entry the list has. */
+/** A card of the stacks grid: a stack and the acts it has due. The habits that live in no stack,
+ *  and the exchanges, are sections of their own below the grid rather than entries in it. */
 type Entry = { stack: HabitStack; members: Habit[]; sortKey: number };
 
 type StackEntryProps = {
@@ -368,7 +368,7 @@ export default function HabitsScreen() {
       if (!first) continue; // a populated stack always has ≥1 member, but keep the index access honest
       out.push({ stack: stackById.get(stackId)!, members: sorted, sortKey: first.position });
     }
-    // A stack with no acts at all ("+ → Build your own stack", waiting on its first) has no
+    // A stack with no acts at all ("Your own stack", waiting on its first act) has no
     // position to inherit. An anchored one previews its day-order slot — just after the last
     // populated block of an earlier-or-same band, mirroring lib/moments.dayOrderPlacement, so
     // the card doesn't jump when its first act lands; anything else holds the end of the
@@ -517,8 +517,8 @@ export default function HabitsScreen() {
   const rewriteTask = useCallback((task: Task, title: string) => void renameTask(task.id, title), [renameTask]);
   const removeTask = useCallback((task: Task) => void deleteTask(task.id), [deleteTask]);
 
-  // The stack card's "⋯" opens the native manage menu (add acts / edit / delete) — an iOS action
-  // sheet or an Android bottom sheet.
+  // The stack card's "Manage stack" door opens its sheet (add acts / stats / edit / delete) — one
+  // bottom sheet on both platforms.
   const openStackActions = useStackActions();
 
   // The empty stack card's "Add your first act" row → the Add screen scoped to that stack
@@ -721,8 +721,8 @@ export default function HabitsScreen() {
           ),
           headerRight: () => (
             <HeaderActions>
-              {/* One door to add: the sheet forks to a stack, an exchange, or a one-off task —
-                  hence the bare "Add", which is all this button can honestly promise. */}
+              {/* One door to add: the sheet forks to six things you can start, repeating or
+                  one-off — hence the bare "Add", which is all this button can honestly promise. */}
               <HeaderIconButton
                 icon={Icons.add}
                 color={theme.accent}
@@ -778,6 +778,7 @@ export default function HabitsScreen() {
             tasks={tasks}
             topGap={SECTION_LEAD}
             today={today}
+            viewDate={viewDate}
             isToday={isToday}
             composeRequested={compose === 'task'}
             onComposeHandled={clearCompose}

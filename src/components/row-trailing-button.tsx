@@ -60,15 +60,22 @@ export function RowTrailingButton({
           app's Lc-15 legibility floor (see `theme-contract.test.ts` — deliberate and WCAG-exempt),
           which is right for an inert chip and wrong for the only control on the row. The same fix
           `disclosure-row.tsx` already made for the same reason. */}
-      <AppIcon name={icon} size={18} color={theme.textSecondary} />
+      <AppIcon name={icon} size={TRAILING_GLYPH} color={theme.textSecondary} />
     </Touchable>
   );
 }
 
+/** The trailing glyph's size, and the padding either side of it. Exported so the two trailing
+ *  marks that are not this button — the to-do's native `⋯` menu and the done fold's chevron — sit
+ *  on the same vertical line as every button that is. The to-do's `⋯` drew a 20pt glyph centred in
+ *  the box (29pt from the edge, not 25) while it kept its own copy of these numbers. */
+export const TRAILING_GLYPH = 18;
+export const trailingGlyphBox = { paddingLeft: Spacing.four, paddingRight: Spacing.three } as const;
+
 /** The button's footprint: its glyph plus its own padding. The bar beside it reserves exactly this
  *  much on its right, so a full-width press region can sit under the button and still not let a
  *  long title run beneath the glyph. */
-export const TRAILING_BOX = Spacing.four + 18 + Spacing.three;
+export const TRAILING_BOX = trailingGlyphBox.paddingLeft + TRAILING_GLYPH + trailingGlyphBox.paddingRight;
 
 /** The management door — everything you can *do* to the unit, one tap away in a sheet. Wears the
  *  `⋯` that means exactly that everywhere else in the app. */
@@ -84,7 +91,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.three,
+    ...trailingGlyphBox,
   },
 });
