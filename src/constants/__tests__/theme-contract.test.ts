@@ -1,14 +1,11 @@
 /**
  * The colour contract — what the palette PROMISES, enforced.
  *
- * The 25 semantic roles in theme.ts alias onto generated Radix-style scales (palette.ts).
+ * The 26 semantic roles in theme.ts alias onto generated Radix-style scales (palette.ts).
  * Radix's scale guarantees are informal ("step 11/12 hold Lc 60/90 on step 2"); this suite makes
  * the ones this app relies on formal, against the roles components actually consume. Thresholds
  * are tight round numbers the current palette clears — when retuning curves in
  * scripts/gen-palette.mjs, a failure here means a real legibility regression, not test noise.
- *
- * Ratchet target (below the Radix ideal today; raise the threshold when a retune clears it):
- *   - dark dangerText on danger sits at ~Lc 50 (WCAG-fine at 7:1; APCA is the stricter lens)
  */
 
 import { describe, expect, it } from '@jest/globals';
@@ -80,10 +77,6 @@ describe('APCA text contracts (Radix step-11/12 semantics)', () => {
     expectApca([['accent', 'accentText']], 65);
   });
 
-  it('text on the danger solid holds Lc 50 (ratchet target: 60)', () => {
-    expectApca([['danger', 'dangerText']], 50);
-  });
-
   it('disabled text stays above the legibility floor (Lc 15 — deliberate, WCAG-exempt)', () => {
     expectApca([['backgroundElement', 'textDisabled']], 15);
   });
@@ -116,7 +109,6 @@ describe('WCAG 2.1 contracts (non-text UI and coloured text)', () => {
 
   it('text on solids also clears 4.5:1', () => {
     expectWcag([['accentText', 'accent']], 4.5);
-    expectWcag([['dangerText', 'danger']], 4.5);
   });
 });
 

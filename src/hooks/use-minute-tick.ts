@@ -11,12 +11,13 @@ const sameMinute = (a: Date, b: Date): boolean => Math.floor(a.getTime() / 60_00
  * into the next season). The returned Date is reference-stable between ticks, so a `useMemo`
  * keyed on it recomputes the sky only when the minute actually rolls over, not every render.
  *
- * **`enabled` parks the clock, and it is the difference between one sky ticking and four.** The
- * only caller is the screen sky, and under `NativeTabs` every tab is mounted eagerly and never
- * unmounts — so four skies exist for the life of the app while at most one is visible. Each held
- * its own unconditional interval, and each minute all four recomputed the real-sky field and
- * re-rendered a few hundred SVG stars nobody was looking at. Measured on an Android dev build:
- * one such tick cost **1298ms of React render across the four**, ~9.7s after the last touch. The
+ * **`enabled` parks the clock, and it is the difference between one sky ticking and all of them.**
+ * The only caller is the screen sky, and under `NativeTabs` every tab is mounted eagerly and never
+ * unmounts — so one sky per tab exists for the life of the app while at most one is visible. Each
+ * held its own unconditional interval, and each minute every one recomputed the real-sky field and
+ * re-rendered a few hundred SVG stars nobody was looking at. Measured on an Android dev build, back
+ * when there were four tabs: one such tick cost **1298ms of React render across the four**, ~9.7s
+ * after the last touch. The
  * sky's animated layers were already gated on `useOnStage`; this is that same gate finally
  * applied to the clock driving their DATA.
  *

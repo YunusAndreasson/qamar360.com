@@ -74,13 +74,13 @@ export function GeometricBackdrop({ variant }: { variant: Variant }) {
  * phone's tilt ({@link useSkyTilt}), each layer at its own depth so the sky reads dimensional,
  * not flat.
  *
- * Under `NativeTabs` all four tabs are mounted eagerly and never unmount, so four of these
+ * Under `NativeTabs` all three tabs are mounted eagerly and never unmount, so three of these
  * exist for the whole life of the app while at most one is ever visible. The moving parts are
  * therefore shared (one gravity sensor, one set of twinkle clocks — see `use-sky.tsx`) and every
  * animated layer here is gated on {@link useOnStage}: off stage, or with the app out of the
  * foreground, this sky stops writing to its views entirely and simply hangs there, still — as
  * does the minute clock feeding them, which for a long time did not and re-rendered the whole
- * star field in all four skies once a minute (see {@link useMinuteTick}).
+ * star field in every sky once a minute (see {@link useMinuteTick}).
  */
 function ScreenSky() {
   const scheme = useEffectiveScheme();
@@ -90,8 +90,8 @@ function ScreenSky() {
   const tilt = useSkyTilt();
   const onStage = useOnStage();
   // Parked off stage. Every animated layer below already takes `onStage`, but the CLOCK that
-  // feeds them did not: it ticked in all four eagerly-mounted tabs at once, and each tick
-  // recomputed `stars` and re-rendered the whole field behind three skies nobody was looking at.
+  // feeds them did not: it ticked in every eagerly-mounted tab at once, and each tick recomputed
+  // `stars` and re-rendered the whole field behind skies nobody was looking at.
   const now = useMinuteTick(onStage);
 
   // The phase is derived from the tick's day, NOT frozen at mount: this sky lives inside the

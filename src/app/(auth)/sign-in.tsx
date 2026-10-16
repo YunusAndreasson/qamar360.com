@@ -356,7 +356,7 @@ export default function SignInScreen() {
 /**
  * The screen's small print: a text affordance rather than a button, so the things you rarely want
  * stop competing with the two you usually do. RN `Pressable` (not gesture-handler's `Touchable`,
- * which has form on small rows swallowing their own release) and a 44pt box under a `small` label,
+ * which has form on small rows swallowing their own release) and a 48pt box under a `small` label,
  * so quiet to the eye is still full-size to a thumb.
  */
 function TextLink({ children, onPress }: { children: ReactNode; onPress: () => void }) {

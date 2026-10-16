@@ -21,8 +21,8 @@ export default function HabitsStackLayout() {
     <TabStack>
       {/* Transparent so the fixed sky behind the stack shows through the (transparent) list. */}
       <Stack.Screen name="index" options={transparentScreen} />
-      {/* The "+" fork: stack, exchange, or a one-off task — a compact form sheet whose three cards
-          name the noun each one makes. */}
+      {/* The "+" fork: six things you can start, repeating or one-off — a compact form sheet whose
+          rows name the noun each one makes. */}
       <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
       {/* The library of ready-made stacks, each anchored to a moment the day already has — a
           native modal sheet with a left-aligned Close, like Discover beside it. */}
@@ -60,9 +60,10 @@ export default function HabitsStackLayout() {
       {/* A whole stack's Stats — the same four cards over the stack's seal history, reached
           from "Manage stack". Presented exactly like its per-act sibling above. */}
       <Stack.Screen name="stack-stats" options={transparentScreen} />
-      {/* Name a new (empty) stack — the one-field modal the add menu's "New stack" opens. */}
+      {/* Name a new (empty) stack — the one-field modal behind "Your own stack", the stack
+          library's "Custom" and the stack picker's "New stack". */}
       <Stack.Screen name="stack-new" options={modalHeaderOptions(theme)} />
-      {/* Rename a stack — the one-field modal the manage menu's Rename action opens. */}
+      {/* Rename a stack — the one-field modal behind "Manage stack" → "Edit stack". */}
       <Stack.Screen name="stack-rename" options={modalHeaderOptions(theme)} />
       {/* The stack picker — where an act goes. A native form sheet sized to its content (the
           existing stacks, plus starting a new one). */}

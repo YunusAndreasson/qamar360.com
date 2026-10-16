@@ -447,7 +447,7 @@ export default function DiscoverScreen() {
           content is the native filter-row idiom (they're one flick from anywhere), and the always-
           visible search bar carries pinned findability. They stay a descendant of the single
           tracked scroll — an outside-the-scroll sibling would sit un-inset at the screen's true
-          top under that same header. The route's centered "Add Habit" is the title. */}
+          top under that same header. The title is the screen's own ("Add a habit"). */}
       <FlatList
         data={rows}
         renderItem={renderRow}

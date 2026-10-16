@@ -83,8 +83,8 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
         accessibilityLabel="To-do"
         style={[styles.text, styles.input, { color: theme.text }]}
       />
-      {/* Deleting lives here, in the state where you are already changing the thing — so a task
-          carries no trailing "⋯" of its own at rest, and nothing has to be discovered by swiping.
+      {/* Deleting also lives here, in the state where you are already changing the thing — beside
+          the row's own "⋯" at rest, so nothing has to be discovered by swiping.
           `onPressIn`, deliberately: the field's own blur closes this row, and a press that waited
           for the release would be cancelled out from under the finger. It only raises a confirm,
           so an accidental touch costs one "Cancel". */}

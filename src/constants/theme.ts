@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 
 // "Mission control under a night sky" — an instrument panel lit by one moon. The values live
 // in generated Radix-style 12-step scales (src/constants/palette.ts, authored in OKLCH by
-// scripts/gen-palette.mjs); this block is the app's public vocabulary — 25 semantic roles
+// scripts/gen-palette.mjs); this block is the app's public vocabulary — 26 semantic roles
 // aliased onto scale steps. Components read ONLY these roles via `useTheme()`, never raw steps.
 // The panel neutrals carry a deliberate indigo night-sky cast. A single steel `accent` — deep
 // lapis on the light page, luminous ice against the dark sky — is spent sparingly on what's
@@ -21,7 +21,9 @@ import { palette } from '@/constants/palette';
 //
 // A role with no reader is not a role — it is a colour waiting to drift from whatever it once
 // described — so one that loses its last caller comes out. (`sun` did: it named a glyph the
-// stack card stopped drawing when the current chapter started saying itself with a clock.)
+// stack card stopped drawing when the current chapter started saying itself with a clock. So did
+// `dangerText`: no surface is ever filled with `danger` — destructive buttons are a tint, not a
+// solid — so text on it had nothing to sit on.)
 export const Colors = {
   light: {
     text: palette.light.night[12],
@@ -81,7 +83,6 @@ export const Colors = {
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
     glow: palette.light.moon[6],
     danger: palette.light.ember[9],
-    dangerText: palette.light.ember.contrast,
     dangerSubtle: palette.light.ember[3],
     rippleOnFill: palette.light.whiteA[7],
     // The darkened app behind a focused overlay (the celebration card). One value both sides:
@@ -129,7 +130,6 @@ export const Colors = {
     complete: palette.dark.moon[9],
     glow: palette.dark.moon[10],
     danger: palette.dark.ember[9],
-    dangerText: palette.dark.ember.contrast,
     dangerSubtle: palette.dark.ember[3],
     rippleOnFill: palette.dark.whiteA[7],
     // See light note — the same night falls over the dark page.
@@ -249,11 +249,10 @@ export const Typography = {
     fontSize: 18,
     lineHeight: 24,
   },
-  // A reading's claim — the sentence a whole feature exists to write. The ladder had nothing
-  // between `heading` 18 and `subtitle` 32, so the claim was set at the same size as the words
-  // "This month" labelling the card above it, and one point off the archive rows filed beneath
-  // it: three rungs the eye cannot separate. A claim outranks a card's label, and now says so.
-  // Prose, not an instrument readout — so no `heroCap` entry and no tabular figures.
+  // A claim — the one sentence a card exists to say, like a goal screen's "420 lines to go." The
+  // ladder had nothing between `heading` 18 and `subtitle` 32, so such a sentence sat at the size
+  // of the labels around it, a rung the eye cannot separate. A claim outranks a card's label, and
+  // says so. Prose, not an instrument readout — so no `heroCap` entry and no tabular figures.
   claim: {
     fontFamily: Face.bodySemiBold,
     fontSize: 22,

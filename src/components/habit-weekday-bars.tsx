@@ -47,7 +47,7 @@ function weekdayA11y(stat: WeekdayStat, best: number | null, tough: number | nul
  *
  * **Every bar is the same tone.** The best day used to be drawn in warm `complete` moonlight, which
  * is the one colour this app reserves for a thing KEPT IN FULL — the lit moon, the closed orbit, a
- * quarter's figure at 360°. "Your strongest weekday" is a superlative, not a completion: a gold
+ * month's figure at 360°. "Your strongest weekday" is a superlative, not a completion: a gold
  * Sunday standing at 40° told a reader who had learned the app's one colour rule that Sundays were
  * finished. The rank was never the colour's job anyway — the tallest bar is the best one, which is
  * what a bar chart is FOR, and the readout above names it in words.
