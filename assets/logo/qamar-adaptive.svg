@@ -1,0 +1,13 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- The mark for Android's adaptive icon layers (foreground + themed monochrome): the same Q,
+       scaled 0.70 about the centre. An adaptive layer is 108dp with only the inner 72dp shown, and
+       only a 66dp circle (radius 313 of 1024) is promised to survive every launcher mask. At full
+       size the ring reached radius 332 and the tail ~412, so a circular mask cut the tail off and
+       pressed the ring against the edge; here the tail ends inside radius ~290. White on
+       transparent: the foreground sits on the layer's background colour, and the monochrome layer
+       reads only alpha. -->
+  <g transform="translate(512 512) scale(0.70) translate(-512 -512)">
+    <circle cx="512" cy="512" r="312" fill="none" stroke="#FFFFFF" stroke-width="40"/>
+    <line x1="703" y1="703" x2="789" y2="789" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round"/>
+  </g>
+</svg>

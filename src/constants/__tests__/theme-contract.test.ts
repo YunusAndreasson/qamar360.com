@@ -133,14 +133,21 @@ describe('scale structure', () => {
 });
 
 describe('native launch sync', () => {
-  it('app.json splash + adaptive icon match the dark background (seamless launch seam)', () => {
+  it('app.json splash matches each appearance, and the adaptive icon the dark background (seamless launch seam)', () => {
     const dark = Colors.dark.background.toUpperCase();
     expect(appJson.expo.android.adaptiveIcon.backgroundColor.toUpperCase()).toBe(dark);
+    // A flat background is the colour above, never an image that silently overrides it (an image
+    // wins over `backgroundColor`, which is how a stale #10131B tile outlived a retune).
+    expect('backgroundImage' in appJson.expo.android.adaptiveIcon).toBe(false);
     const plugins = appJson.expo.plugins as unknown as (string | [string, Record<string, unknown>])[];
     const splash = plugins.find(
-      (p): p is [string, { backgroundColor: string }] => Array.isArray(p) && p[0] === 'expo-splash-screen',
+      (p): p is [string, { backgroundColor: string; dark: { backgroundColor: string } }] =>
+        Array.isArray(p) && p[0] === 'expo-splash-screen',
     );
-    expect(splash?.[1].backgroundColor.toUpperCase()).toBe(dark);
+    // Light by default and dark under `dark`, each the app's own page: launching never flashes
+    // the other appearance's background before the first frame.
+    expect(splash?.[1].backgroundColor.toUpperCase()).toBe(Colors.light.background.toUpperCase());
+    expect(splash?.[1].dark.backgroundColor.toUpperCase()).toBe(dark);
   });
 
   it('app.json notification tint matches the dark accent (a palette retune must not strand it)', () => {

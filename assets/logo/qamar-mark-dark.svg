@@ -1,0 +1,7 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- The mark for the LIGHT splash: the same Q in the app's light-theme text colour (night 12,
+       #14161A) on transparent, over the light page (#F5F6F8). The white mark stays for the dark
+       splash. Same geometry as the icon/mark. -->
+  <circle cx="512" cy="512" r="312" fill="none" stroke="#14161A" stroke-width="40"/>
+  <line x1="703" y1="703" x2="789" y2="789" stroke="#14161A" stroke-width="40" stroke-linecap="round"/>
+</svg>
