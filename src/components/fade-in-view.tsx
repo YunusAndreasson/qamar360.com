@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -8,7 +7,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Duration } from '@/constants/motion';
+import { Duration, Ease } from '@/constants/motion';
 
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -45,7 +44,7 @@ export function FadeInView({ children, style, delay = 0 }: Props) {
     // Decelerate in — the app's one "appear" easing (the coalesce card and the celebration
     // overlay fade the same way), so every entrance lands with the same character.
     // One duration for every entrance in the app — the fade is a house character, not a knob.
-    opacity.set(withDelay(delay, withTiming(1, { duration: Duration.base, easing: Easing.out(Easing.quad) })));
+    opacity.set(withDelay(delay, withTiming(1, { duration: Duration.base, easing: Ease.enter })));
   }, [reduceMotion, opacity, delay]);
 
   const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));

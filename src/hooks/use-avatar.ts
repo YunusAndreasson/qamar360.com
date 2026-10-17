@@ -10,6 +10,12 @@ import { supabase } from '@/lib/supabase';
  *  no use for it (see the call site). Module-level so it is stable across renders. */
 const IGNORE_LOADING = () => {};
 
+/** Re-sign a URL this old on the next refresh. The URL lives an hour (`SIGNED_URL_SECONDS` in
+ *  lib/avatar), and Settings is mounted eagerly and never unmounts, so a URL minted at launch would
+ *  otherwise outlive itself: the next load of it (a cache eviction, the sheet's larger image)
+ *  fails and the photo drops back to the monogram. Ten minutes of margin over the hour. */
+const RESIGN_AFTER_MS = 50 * 60 * 1000;
+
 /**
  * The user's photo, as the Settings screen needs it: a URL to draw, and the two verbs that change
  * it.
@@ -39,8 +45,28 @@ export function useAvatar(seedPath: string | null = null) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const todayRef = useRef(todayLocalISO());
-  /** The key the URL in state was signed for — see the note above. */
-  const signedFor = useRef<string | null>(null);
+  /** The key the URL in state was signed for, and when — see the note above. Recorded only once a
+   *  URL actually came back: a sign that failed (a passing network error) has to be retried by the
+   *  next refresh, not mistaken for a photo already on screen. */
+  const signedFor = useRef<{ path: string; at: number } | null>(null);
+
+  /** Mint and show a URL for `next`; `null` clears it. */
+  const show = useCallback(async (next: string | null) => {
+    if (!next) {
+      signedFor.current = null;
+      setUrl(null);
+      return;
+    }
+    const signed = await signedPhotoUrl(next);
+    if (signed) {
+      signedFor.current = { path: next, at: Date.now() };
+      setUrl(signed);
+    } else if (signedFor.current?.path !== next) {
+      // A failed early re-sign keeps the URL already showing (it has minutes left); only a photo
+      // with no working URL at all falls back to the monogram.
+      setUrl(null);
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
@@ -57,15 +83,10 @@ export function useAvatar(seedPath: string | null = null) {
     }
     const next = data.avatar_path;
     setPath(next);
-    if (!next) {
-      signedFor.current = null;
-      setUrl(null);
-      return;
-    }
-    if (signedFor.current === next) return;
-    signedFor.current = next;
-    setUrl(await signedPhotoUrl(next));
-  }, [userId]);
+    const held = signedFor.current;
+    if (next && held?.path === next && Date.now() - held.at < RESIGN_AFTER_MS) return;
+    await show(next);
+  }, [userId, show]);
 
   // No loading gate. The monogram is not a spinner standing in for the photo, it is the other
   // complete answer — so there is nothing to withhold while the read is in flight, and Settings is
@@ -81,9 +102,8 @@ export function useAvatar(seedPath: string | null = null) {
       .eq('id', userIdValue);
     if (writeError) throw writeError;
     setPath(next);
-    signedFor.current = next;
-    setUrl(next ? await signedPhotoUrl(next) : null);
-  }, []);
+    await show(next);
+  }, [show]);
 
   /**
    * Pick a photo and make it the user's.

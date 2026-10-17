@@ -455,12 +455,41 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // two round-trips wins; the id is dropped again only if the delete itself fails and we restore.
   const deletedHabitIds = useRef<Set<string>>(new Set());
   const deletedStackIds = useRef<Set<string>>(new Set());
+  // Server rows this session took down as CLEANUP — a habit whose insert landed after the user
+  // cancelled it, a stack shell left by a failed create — whose DELETE didn't make it (offline is
+  // the usual reason). They used to be fire-and-forget, so the row came back on the next refresh as
+  // something the user never kept. Now each is tombstoned (hidden from every fetch this session)
+  // and its DELETE is retried at the head of the next fetch of its table until one sticks.
+  const pendingPurges = useRef<{ habits: Set<string>; habit_stacks: Set<string> }>({
+    habits: new Set(),
+    habit_stacks: new Set(),
+  });
+  const purgeRow = useCallback(async (table: 'habits' | 'habit_stacks', id: string) => {
+    (table === 'habits' ? deletedHabitIds : deletedStackIds).current.add(id);
+    let failed = true;
+    try {
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      failed = error !== null;
+    } catch {
+      // A transport throw is the same answer as an error response: still in the table.
+    }
+    if (failed) pendingPurges.current[table].add(id);
+    else pendingPurges.current[table].delete(id);
+  }, []);
+  const retryPurges = useCallback(
+    async (table: 'habits' | 'habit_stacks') => {
+      const ids = [...pendingPurges.current[table]];
+      if (ids.length > 0) await Promise.all(ids.map((id) => purgeRow(table, id)));
+    },
+    [purgeRow],
+  );
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
 
   const fetchHabits = useCallback(async () => {
     if (!userId) return true;
+    await retryPurges('habits');
     const gen = mutationGen.current;
     const openAtStart = mutationsOpen.current;
     const { data, error: habitsError } = await supabase
@@ -480,10 +509,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     if (mutationGen.current !== gen || openAtStart > 0) return true;
     setHabits(((data ?? []) as Habit[]).filter((h) => !deletedHabitIds.current.has(h.id)));
     return true;
-  }, [userId]);
+  }, [userId, retryPurges]);
 
   const fetchStacks = useCallback(async () => {
     if (!userId) return true;
+    await retryPurges('habit_stacks');
     const gen = mutationGen.current;
     const openAtStart = mutationsOpen.current;
     const { data, error: stacksError } = await supabase
@@ -497,7 +527,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     if (mutationGen.current !== gen || openAtStart > 0) return true;
     setStacks((data ?? []).filter((s) => !deletedStackIds.current.has(s.id)));
     return true;
-  }, [userId]);
+  }, [userId, retryPurges]);
 
   const fetchCompletions = useCallback(
     async (day: string) => {
@@ -1229,7 +1259,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         );
         const persisted = all.filter((p) => {
           if (!cancelledPos.has(p.position)) return true;
-          void supabase.from('habits').delete().eq('id', p.id);
+          void purgeRow('habits', p.id);
           return false;
         });
         // Swap the temp rows for the persisted ones (real ids), keeping position order.
@@ -1249,7 +1279,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return [];
       }
     },
-    [userId, ensureUserRow, habitsRef],
+    [userId, ensureUserRow, habitsRef, purgeRow],
   );
   const createHabits = useGuardedMutation(beginMutation, endMutation, runCreateHabits);
 
@@ -1370,7 +1400,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!userId) return;
       const removed = habitsRef.current.find((h) => h.id === habitId);
       if (!removed) return;
-      const prevStacks = stacksRef.current;
       const wasDone = completedRef.current.has(habitId);
       const wasSkipped = skippedRef.current.has(habitId);
       const emptyStackId =
@@ -1378,6 +1407,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         !habitsRef.current.some((h) => h.id !== habitId && h.stack_id === removed.stack_id)
           ? removed.stack_id
           : null;
+      const emptyShell = emptyStackId ? stacksRef.current.find((s) => s.id === emptyStackId) : undefined;
+      // Put back only the shell this delete took down — a wholesale prevStacks restore would
+      // clobber any other stack op that landed while the DELETE was in flight (as `restoreShell`
+      // in moveHabit spells out).
+      const restoreEmptyShell = () => {
+        if (!emptyShell) return;
+        setStacks((cur) => (cur.some((s) => s.id === emptyShell.id) ? cur : [...cur, emptyShell]));
+      };
 
       // Optimistic removal. The tombstones keep a refresh that overlaps the DELETE from handing
       // the row back (see `deletedHabitIds`) — the sheet pops the moment this state lands, and the
@@ -1416,7 +1453,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           const { error: stackError } = await supabase.from('habit_stacks').delete().eq('id', emptyStackId);
           if (stackError) {
             deletedStackIds.current.delete(emptyStackId); // it survived — let a refresh show it again
-            setStacks(prevStacks);
+            restoreEmptyShell();
             setError('Deleted the habit, but could not remove its empty stack. Pull down to refresh.');
           }
         }
@@ -1425,7 +1462,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         deletedHabitIds.current.delete(habitId);
         if (emptyStackId) deletedStackIds.current.delete(emptyStackId);
         setHabits((prev) => [...prev, removed].sort((a, b) => a.position - b.position));
-        setStacks(prevStacks);
+        restoreEmptyShell();
         if (wasDone) {
           setCompleted((prev) => {
             const next = new Set(prev);
@@ -1602,13 +1639,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         // persistGrouping already rolled the habits back; undo the stack shell too (local + remote).
         habitsRef.current = prevHabits;
         setStacks((cur) => cur.filter((s) => s.id !== stackId));
-        void supabase.from('habit_stacks').delete().eq('id', stackId);
+        void purgeRow('habit_stacks', stackId);
         setError('Could not create that stack. Check your connection.');
         return null;
       }
       return stackId;
     },
-    [userId, ensureUserRow, persistGrouping, habitsRef],
+    [userId, ensureUserRow, persistGrouping, habitsRef, purgeRow],
   );
   const createStack = useGuardedMutation(beginMutation, endMutation, runCreateStack);
 
@@ -1658,12 +1695,24 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       deletedStackIds.current.add(stackId);
       for (const id of realIds) deletedHabitIds.current.add(id);
 
+      // Targeted, never `setHabits(prevHabits)` / `setStacks(prevStacks)`: those snapshots predate
+      // the DELETE's round-trip, and any other edit that landed meanwhile (a rename, a reorder,
+      // another stack's create) would be silently rolled back with it. Only what this delete
+      // changed goes back: the stack row, its members' stack_id, and any acts it took down.
+      const shell = prevStacks.find((s) => s.id === stackId);
+      const memberIds = new Set(prevHabits.filter((h) => h.stack_id === stackId).map((h) => h.id));
       const restore = () => {
         deletedStackIds.current.delete(stackId);
         for (const id of realIds) deletedHabitIds.current.delete(id);
-        setHabits(prevHabits);
-        habitsRef.current = prevHabits;
-        setStacks(prevStacks);
+        const cur = habitsRef.current;
+        const missing = doomed.filter((d) => !cur.some((h) => h.id === d.id));
+        const restored = [
+          ...cur.map((h) => (memberIds.has(h.id) && h.stack_id === null ? { ...h, stack_id: stackId } : h)),
+          ...missing,
+        ].sort((a, b) => a.position - b.position);
+        setHabits(restored);
+        habitsRef.current = restored;
+        if (shell) setStacks((s) => (s.some((x) => x.id === shell.id) ? s : [...s, shell]));
         if (wasDone.length > 0) setCompleted((prev) => new Set([...prev, ...wasDone]));
         if (wasSkipped.length > 0) setSkipped((prev) => new Set([...prev, ...wasSkipped]));
       };

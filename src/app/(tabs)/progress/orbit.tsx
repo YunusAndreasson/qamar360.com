@@ -1,4 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -50,6 +51,14 @@ export default function OrbitReadingSheet() {
     today: string;
   }>();
   const moon = today ? moonAlmanac(today) : null;
+  // Only the card can open this with its snapshot. Reached any other way (a bare link), there is no
+  // month to read, and a subtitle built from absent params would say "undefined".
+  const router = useRouter();
+  const orphaned = !monthName;
+  useEffect(() => {
+    if (orphaned) router.back();
+  }, [orphaned, router]);
+  if (orphaned) return null;
 
   return (
     <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H · ${daysLeft}`}>

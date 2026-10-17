@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -15,7 +14,7 @@ import { FadeInView } from '@/components/fade-in-view';
 import { LargeMoon, MoonBloomCanvas } from '@/components/moon-body';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { ThemedText } from '@/components/themed-text';
-import { Duration, Scale, Tick } from '@/constants/motion';
+import { Duration, Ease, Scale, Tick } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTallyUp } from '@/hooks/use-tally-up';
@@ -153,8 +152,8 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 
   useEffect(() => {
     if (reduceMotion) return;
-    enter.set(withTiming(1, { duration: Duration.base, easing: Easing.out(Easing.quad) }));
-    beat.set(withDelay(Tick.sweep, withTiming(1, { duration: Tick.settle, easing: Easing.out(Easing.quad) })));
+    enter.set(withTiming(1, { duration: Duration.base, easing: Ease.enter }));
+    beat.set(withDelay(Tick.sweep, withTiming(1, { duration: Tick.settle, easing: Ease.enter })));
     const t = setTimeout(() => setLit(true), Tick.sweep);
     return () => clearTimeout(t);
   }, [reduceMotion, enter, beat]);

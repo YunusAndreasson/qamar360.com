@@ -8,6 +8,7 @@ import { useLatestRef } from '@/hooks/use-latest-ref';
 import { todayLocalISO } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, setOpenTasksProbe } from '@/lib/day-close';
 import { haptics } from '@/lib/haptics';
+import { newId } from '@/lib/id';
 import { createRefreshGuard } from '@/lib/refresh-guard';
 import { supabase } from '@/lib/supabase';
 import { openCountOn, visibleTasks, type Task } from '@/lib/tasks';
@@ -187,7 +188,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
       const day = viewDateRef.current;
       const position = rowsRef.current.reduce((max, t) => Math.max(max, t.position), -1) + 1;
-      const tempId = `temp-${position}-${clean.length}-${day}`;
+      // Unique per create, not derived from the row: a position/length/day id repeated whenever a
+      // to-do was deleted and another of the same length added before the first insert answered,
+      // and the two in-flight rows then shared one cancellation mark (the kept one deleted on the
+      // server, the deleted one resurrected). The `temp-` prefix is what the rest of this file reads.
+      const tempId = `temp-${newId()}`;
       const optimistic: Task = {
         id: tempId,
         user_id: userId,

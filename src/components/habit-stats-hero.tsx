@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -12,7 +11,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { TallyDegrees } from '@/components/tally-degrees';
 import { ThemedText } from '@/components/themed-text';
-import { Duration } from '@/constants/motion';
+import { Duration, Ease } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { TrendPoint } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
@@ -70,7 +69,7 @@ export function HabitStatsHero({
   const progress = useSharedValue(0);
   useEffect(() => {
     progress.set(
-      reduceMotion ? rate : withTiming(rate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }),
+      reduceMotion ? rate : withTiming(rate, { duration: Duration.orbit, easing: Ease.draw }),
     );
   }, [rate, reduceMotion, progress]);
   const arcProps = useAnimatedProps(() => ({ strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.get()) }));

@@ -524,6 +524,10 @@ export function DraggableEntry({
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
+  // The finger's last vertical speed, handed to the drop spring so a flicked release keeps moving
+  // into its slot instead of dead-stopping and re-accelerating. Stashed in `onUpdate` because
+  // `onFinalize` (the cancel path) carries no velocity of its own.
+  const releaseVelocity = useSharedValue(0);
 
   // Register this entry's frame (grid coordinates). `e.nativeEvent.layout` is parent-relative in
   // principle, but on this RN/Fabric build a view tracked by `useAnimatedRef` reports layout.x/y
@@ -592,6 +596,7 @@ export function DraggableEntry({
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
+      releaseVelocity.set(0);
       scheduleOnRN(onDragActive, entryKey);
       scheduleOnRN(haptics.pickup);
     },
@@ -601,6 +606,7 @@ export function DraggableEntry({
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
       pointerAbsoluteY.set(e.absoluteY);
+      releaseVelocity.set(e.velocityY);
     },
     onDeactivate: () => {
       if (draggingKey.get() !== entryKey) return;
@@ -631,7 +637,7 @@ export function DraggableEntry({
         } else {
           ghostLift.set(withSpring(0, Spring.settle));
           ghostY.set(
-            withSpring(targetY, Spring.settle, (finished) => {
+            withSpring(targetY, { ...Spring.settle, velocity: releaseVelocity.get() }, (finished) => {
               if (finished === true) scheduleOnRN(finishBetween, entryKey, beforeKey);
             }),
           );
@@ -653,7 +659,7 @@ export function DraggableEntry({
       } else {
         ghostLift.set(withSpring(0, Spring.settle));
         ghostY.set(
-          withSpring(home, Spring.settle, (finished) => {
+          withSpring(home, { ...Spring.settle, velocity: releaseVelocity.get() }, (finished) => {
             if (finished !== true || draggingKey.get() !== entryKey) return;
             draggingKey.set(null);
             scheduleOnRN(onDragActive, null);
@@ -741,6 +747,10 @@ function MemberRowDrag({
   } = useDrag();
   const ref = useAnimatedRef<Animated.View>();
   const preLift = useSharedValue(0);
+  // The finger's last vertical speed, handed to the drop spring so a flicked release keeps moving
+  // into its slot instead of dead-stopping and re-accelerating. Stashed in `onUpdate` because
+  // `onFinalize` (the cancel path) carries no velocity of its own.
+  const releaseVelocity = useSharedValue(0);
   const entryKey = `member:${habitId}`;
 
   // Register this member row's grid-coordinate frame (measured on the UI thread and converted the
@@ -817,6 +827,7 @@ function MemberRowDrag({
       committed.set(false);
       preLift.set(0); // the ghost's lift takes over from the pre-lift swell
       draggingKey.set(entryKey);
+      releaseVelocity.set(0);
       // Refresh this card's member frames: their onLayout misses card-level shifts (a stack above
       // collapsing, entries reordered), and an in-card reorder resolving against drifted frames
       // commits the wrong index. Other stacks cannot participate in this reorder.
@@ -828,6 +839,7 @@ function MemberRowDrag({
       if (draggingKey.get() !== entryKey) return;
       lastTranslationY.set(e.translationY);
       pointerAbsoluteY.set(e.absoluteY);
+      releaseVelocity.set(e.velocityY);
     },
     onDeactivate: () => {
       if (draggingKey.get() !== entryKey) return;
@@ -860,7 +872,7 @@ function MemberRowDrag({
           } else {
             ghostLift.set(withSpring(0, Spring.settle));
             ghostY.set(
-              withSpring(targetY, Spring.settle, (finished) => {
+              withSpring(targetY, { ...Spring.settle, velocity: releaseVelocity.get() }, (finished) => {
                 if (finished === true) scheduleOnRN(finishReorder, entryKey, reorderStack, at);
               }),
             );
@@ -886,7 +898,7 @@ function MemberRowDrag({
       } else {
         ghostLift.set(withSpring(0, Spring.settle));
         ghostY.set(
-          withSpring(home, Spring.settle, (finished) => {
+          withSpring(home, { ...Spring.settle, velocity: releaseVelocity.get() }, (finished) => {
             if (finished !== true || draggingKey.get() !== entryKey) return;
             draggingKey.set(null);
             scheduleOnRN(onDragActive, null);

@@ -4,6 +4,10 @@ import { TabStack } from '@/components/tab-stack';
 import { useTheme } from '@/hooks/use-theme';
 import { formSheetOptions, transparentScreen } from '@/lib/header-options';
 
+// A screen opened straight from a link (a sheet or a pushed record) still gets the tab's root
+// under it, so its back/close always has somewhere to land.
+export const unstable_settings = { anchor: 'index' };
+
 /** The Settings tab's native Stack over the shared fixed sky — large title that collapses on scroll. */
 export default function SettingsStackLayout() {
   const theme = useTheme();

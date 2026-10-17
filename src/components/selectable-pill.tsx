@@ -69,6 +69,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Radius.control,
+    // iOS's continuous corner, matching Surface; Android ignores it.
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
   },
 });

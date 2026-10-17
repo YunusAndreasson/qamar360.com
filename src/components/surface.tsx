@@ -36,12 +36,13 @@ export function Surface({
     // Outer: the elevation shadow + the card's position. No `overflow: hidden` here — that would
     // clip the shadow away on iOS. Opaque backing so the shadow has a shape to cast.
     <View
-      style={[Elevation.card, { borderRadius: radius, backgroundColor: theme.backgroundElement }, style]}
+      style={[Elevation.card, styles.curve, { borderRadius: radius, backgroundColor: theme.backgroundElement }, style]}
       {...props}>
       {/* Inner: the visible card — clipped to the radius so the pattern + any press highlight stay
           inside the rounded corners. A lighter top edge reads as "lit from above". */}
       <View
         style={[
+          styles.curve,
           styles.clip,
           {
             borderRadius: radius,
@@ -60,6 +61,9 @@ export function Surface({
 }
 
 const styles = StyleSheet.create({
+  // iOS's continuous (squircle) corner, the shape its own cards and sheets use; Android ignores it.
+  // On both layers, so the shadow and the clip follow the same curve.
+  curve: { borderCurve: 'continuous' },
   clip: {
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',

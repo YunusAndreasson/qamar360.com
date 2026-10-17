@@ -5,6 +5,10 @@ import { TabStack } from '@/components/tab-stack';
 import { useTheme } from '@/hooks/use-theme';
 import { formSheetOptions, modalHeaderOptions, transparentScreen } from '@/lib/header-options';
 
+// A screen opened straight from a link (a sheet or a pushed record) still gets the tab's root
+// under it, so its back/close always has somewhere to land.
+export const unstable_settings = { anchor: 'index' };
+
 /**
  * The Today tab's native Stack, laid over the shared fixed sky (see {@link TabStack}).
  * `HabitsProvider` lives at the (tabs) root (so the tab bar's badge shares this state); the

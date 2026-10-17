@@ -4,10 +4,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
+import { fetchCompletionRows } from '@/lib/completion-reads';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
 import { computeHabitStats, STATS_WINDOW_DAYS, type HabitStats } from '@/lib/habit-stats';
 import type { CompletionRow } from '@/lib/progress';
-import { supabase } from '@/lib/supabase';
 
 // Re-export the chart-facing stat types so component code imports them from the hook (mirrors
 // `use-progress`). `HabitStats` itself stays internal — callers read the fields off the hook.
@@ -17,14 +17,7 @@ export type { TrendPoint, WeekdayStat } from '@/lib/habit-stats';
  *  so the payload scales with real usage, not the window. Throws on a query error. */
 async function fetchHabitCompletions(userId: string, habitId: string, today: string): Promise<CompletionRow[]> {
   const since = addDaysISO(today, -(STATS_WINDOW_DAYS - 1));
-  const { data, error } = await supabase
-    .from('habit_completions')
-    .select('habit_id, completed_at, status, count')
-    .eq('user_id', userId)
-    .eq('habit_id', habitId)
-    .gte('completed_at', since);
-  if (error) throw error;
-  return data ?? [];
+  return fetchCompletionRows(userId, (query) => query.eq('habit_id', habitId).gte('completed_at', since));
 }
 
 type HabitStatsData = {

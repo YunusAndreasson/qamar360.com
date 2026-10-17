@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import Animated, {
-  Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -10,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Duration, Tick } from '@/constants/motion';
+import { Duration, Ease, Tick } from '@/constants/motion';
 import { useTheme } from '@/hooks/use-theme';
 import { clamp01, ringMetrics } from '@/lib/progress';
 
@@ -93,13 +92,13 @@ export function OrbitMark({
     }
     if (kept && !from.kept) {
       // Closing: the arc sweeps shut, then the closed orbit warms as the sweep lands.
-      progress.set(withTiming(1, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }));
+      progress.set(withTiming(1, { duration: Tick.sweep, easing: Ease.draw }));
       warm.set(withDelay(Tick.sweep, withTiming(1, { duration: Tick.settle })));
       return;
     }
     // Opening again, or a part of the day moving: no ceremony either way, only the new length.
     warm.set(withTiming(kept ? 1 : 0, { duration: Duration.fast }));
-    progress.set(withTiming(target, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }));
+    progress.set(withTiming(target, { duration: Tick.sweep, easing: Ease.draw }));
   }, [target, kept, animate, reduceMotion, progress, warm]);
 
   // A zero-length dash can still paint a sliver, so the arc hides until it has any length.

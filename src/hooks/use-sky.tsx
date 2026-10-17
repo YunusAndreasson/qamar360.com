@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   cancelAnimation,
-  Easing,
   SensorType,
   useAnimatedReaction,
   useAnimatedSensor,
@@ -12,7 +11,7 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { Parallax, Twinkle } from '@/constants/motion';
+import { Ease, Parallax, Twinkle } from '@/constants/motion';
 import { useAppForeground } from '@/hooks/use-on-stage';
 import { useSkyMotion } from '@/hooks/use-sky-motion';
 
@@ -87,7 +86,7 @@ export function SkyProvider({ children }: { children: ReactNode }) {
     if (!twinkling) return;
     breath.forEach((value, i) =>
       value.set(
-        withRepeat(withTiming(1, { duration: Twinkle.half[i]!, easing: Easing.inOut(Easing.sin) }), -1, true),
+        withRepeat(withTiming(1, { duration: Twinkle.half[i]!, easing: Ease.breathe }), -1, true),
       ),
     );
     // Parked, not reset: the loops resume from wherever they had reached, so returning to the app

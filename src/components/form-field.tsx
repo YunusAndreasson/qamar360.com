@@ -65,10 +65,13 @@ export function FormField({ label, hint, error, style, ref, secureTextEntry, onF
   );
 }
 
+/** The Show/Hide button's width, which the password text stops short of (plus a breath). */
+const VISIBILITY_WIDTH = 72;
+
 const styles = StyleSheet.create({
   field: { position: 'relative' },
-  password: { paddingRight: 80 },
-  visibility: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: 72, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  password: { paddingRight: VISIBILITY_WIDTH + Spacing.two },
+  visibility: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: VISIBILITY_WIDTH, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   input: {
     // A comfortably large 18pt — the app can afford it and it reads better on iOS. Deliberately
     // NO `lineHeight`: an explicit lineHeight on an iOS TextInput clips the glyph box — the tops of

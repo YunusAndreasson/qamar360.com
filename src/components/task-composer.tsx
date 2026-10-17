@@ -3,7 +3,7 @@ import { Touchable } from 'react-native-gesture-handler';
 
 import { AppIcon } from '@/components/app-icon';
 import { ThemedText } from '@/components/themed-text';
-import { RowLeadingSlot, Spacing, Typography } from '@/constants/theme';
+import { Radius, RowLeadingSlot, Spacing, Typography, UnitRow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -62,7 +62,9 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
   return (
     <View style={styles.row}>
       <View style={styles.leading}>
-        {/* A hollow ring in waiting — the mark this line is about to become. */}
+        {/* A hollow ring in waiting — the mark this line is about to become. Drawn here, not a
+            CompletionRing, and in `controlTrack` rather than the ring's `text`: nothing exists
+            yet to tick, so it must read as a placeholder, not a live control. */}
         <View style={[styles.pending, { borderColor: theme.controlTrack }]} />
       </View>
       <TextInput
@@ -104,13 +106,8 @@ export function TaskComposer({ open, value, onChangeText, onOpen, onSubmit, onCl
 
 const styles = StyleSheet.create({
   // The row geometry of a task, so the field sits exactly where its row will.
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    minHeight: 56,
-  },
+  // Its trailing edge is Spacing.three, not the `⋯` box: the open composer's delete sits inline.
+  row: { ...UnitRow, paddingRight: Spacing.three },
   // The shared token, not a copy of its numbers: this slot has to hold the same column as every
   // other leading mark on the day, and a literal that happens to match is one that can stop.
   leading: RowLeadingSlot,
@@ -119,6 +116,6 @@ const styles = StyleSheet.create({
   // 18pt input would announce itself as a form the section doesn't have.
   // Deliberately no `lineHeight`: on iOS an explicit one clips the glyph box (see FormField).
   input: { fontSize: Typography.rowTitle.fontSize, padding: 0 },
-  pending: { width: 24, height: 24, borderRadius: 12, borderWidth: 2 },
+  pending: { width: 24, height: 24, borderRadius: Radius.full, borderWidth: 2 },
   delete: { paddingLeft: Spacing.three, alignItems: 'center', justifyContent: 'center' },
 });

@@ -5,7 +5,7 @@ import { CompletionRing } from '@/components/completion-ring';
 import { RowMenu } from '@/components/native-menu';
 import { TRAILING_BOX } from '@/components/row-trailing-button';
 import { ThemedText } from '@/components/themed-text';
-import { RowLeadingSlot, Spacing } from '@/constants/theme';
+import { RowLeadingSlot, UnitRow, UnitRowText } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Task } from '@/lib/tasks';
 import { taskRowContract } from '@/lib/tasks';
@@ -97,21 +97,14 @@ function TaskRowBase({ task, today, onToggle, onEdit, onDelete }: Props) {
 
 const styles = StyleSheet.create({
   bar: { position: 'relative' },
-  // 56 to match the stack card headers below it; a wrapped title pushes past it, hence a floor.
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: Spacing.three,
+    ...UnitRow,
     // The floated `⋯` button's box, the same constant the stack headers and the loose rows reserve,
     // so every trailing glyph on the day holds one vertical line.
     paddingRight: TRAILING_BOX,
-    paddingVertical: Spacing.two,
-    minHeight: 56,
   },
   leading: RowLeadingSlot,
-  // Spacing.three matches the stack header's glyph→title gap, landing the task in the same column
-  // as the act names and stack titles below it.
-  text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },
+  text: UnitRowText,
 });
 
 // Memoized on what the row paints. Mirrors the comparators on `ActRow` and `ExchangeRow`: any

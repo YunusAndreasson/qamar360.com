@@ -14,7 +14,7 @@ import { StackCompleteFlash } from '@/components/stack-complete-flash';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Collapse } from '@/constants/motion';
-import { Disabled, Face, RowLeadingSlot, Spacing } from '@/constants/theme';
+import { Disabled, Face, RowLeadingSlot, Spacing, UnitRow, UnitRowText } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { isStackComplete } from '@/lib/progress';
@@ -366,16 +366,12 @@ const styles = StyleSheet.create({
   // clamp ceiling. It also lands the list on one repeat unit (56 + the grid's 8pt gap = 64) and
   // stops Radius.card from eating a third of the height per corner.
   header: {
+    ...UnitRow,
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: Spacing.three,
     // The floated trailing button's box, reserved so the title and clock stop where it begins. Kept
     // as one derived constant rather than a literal, so widening the button can't silently start
     // clipping names — and shared with the rows below, which reserve the same box for their `⋯`.
     paddingRight: TRAILING_BOX,
-    paddingVertical: Spacing.two,
-    minHeight: 56,
   },
   // See the header's `settling` comment: a plain dim, not an animation — the fetch it's waiting
   // on is what settles, this just holds off asserting an answer meanwhile.
@@ -388,9 +384,9 @@ const styles = StyleSheet.create({
   // Semibold via the FACE, never fontWeight: a weight override beside rowTitle's registered
   // family would silently fall back to Roboto on Android (the theme.ts fake-bold gotcha).
   // flex 1 — with three siblings competing for the row, the title is the one that gives way.
-  // Spacing.three (not two) so the leading mark → title gap matches the act rows' numeral →
-  // name gap, and the title lands in the same column as the act names below.
-  titleBlock: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },
+  // The shared text column (Spacing.three, not two), so the title lands in the same column as the
+  // act names below.
+  titleBlock: UnitRowText,
   title: { fontFamily: Face.bodySemiBold },
   // The clock reads as part of the name ("Morning, until 09:41"), so it sits one proximity step
   // closer than the fold button beyond it.

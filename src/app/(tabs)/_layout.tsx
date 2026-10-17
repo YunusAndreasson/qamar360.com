@@ -37,6 +37,7 @@ export default function TabsLayout() {
       <DayRecordProvider>
         <TasksProvider>
           <Tabs />
+          <AppIconBadge />
         </TasksProvider>
       </DayRecordProvider>
     </HabitsProvider>
@@ -49,9 +50,10 @@ function Tabs() {
   const colors = useTheme();
   const scheme = useEffectiveScheme();
   const pathname = usePathname();
-  // Navigation needs the live calendar but not completion state. Keeping this subscription
-  // separate lets badge changes update a leaf below without rebuilding the native navigator.
+  // Navigation needs the live calendar but not completion state; the badge needs only the count.
+  // Both are narrow summaries, so a tick that doesn't change the number never reaches this tree.
   const { today, setViewDate } = useHabitsNavigation();
+  const remaining = useRemainingToday();
 
   return (
     <NativeTabs
@@ -100,8 +102,11 @@ function Tabs() {
             if (pathname === '/habits') setViewDate(today);
           },
         }}>
-        {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. */}
-        <TodayBadge />
+        {/* How much of the day is still open — a quiet nudge from any tab. Hidden at zero. It
+            must be written right here: a Trigger's children are read as options, never rendered,
+            and anything that isn't Badge/Label/Icon is dropped — a wrapper component around the
+            badge never mounts, so the badge (and anything it did) silently disappears. */}
+        {remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null}
         {/* "Today", not "Habits": the screen holds stacks, exchanges and to-dos, and only one of
             those is a habit in the ordinary sense. The route is still `habits` (renaming it would
             churn every pathname for nothing) — this is the label the user reads, and it has always
@@ -122,17 +127,21 @@ function Tabs() {
   );
 }
 
-/** The completion-sensitive part of the tab tree. A tick updates this leaf, not NativeTabs. */
-function TodayBadge() {
-  // What the day still asks of you, counted in **units**: one per unsealed stack, one per open
-  // exchange, one per open task. This is the one leaf where both providers are in view.
+/** What the day still asks of you, counted in **units**: one per unsealed stack, one per open
+ *  exchange, one per open task. Both providers' narrow summaries, so it changes only with the count. */
+function useRemainingToday(): number {
   const { remainingToday } = useHabitsSummary();
   const { openToday } = useTasksSummary();
-  const { user } = useAuth();
-  const remaining = remainingToday + openToday;
+  return remainingToday + openToday;
+}
 
-  // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
-  // it. Zeroed on unmount so sign-out cannot leave the previous user's count on the icon.
+/** Keeps the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
+ *  it. A sibling of the navigator rather than a Trigger child, which would never mount. */
+function AppIconBadge() {
+  const remaining = useRemainingToday();
+  const { user } = useAuth();
+
+  // Zeroed on unmount so sign-out cannot leave the previous user's count on the icon.
   useEffect(() => {
     void setAppBadgeCount(user ? remaining : 0);
   }, [user, remaining]);
@@ -155,5 +164,5 @@ function TodayBadge() {
     return () => sub.remove();
   }, []);
 
-  return remaining > 0 ? <Trigger.Badge>{String(remaining)}</Trigger.Badge> : null;
+  return null;
 }

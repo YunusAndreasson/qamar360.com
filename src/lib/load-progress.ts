@@ -8,6 +8,7 @@
  */
 
 import type { Habit } from '@/hooks/use-habits';
+import { fetchCompletionRows } from '@/lib/completion-reads';
 import { addDaysISO } from '@/lib/dates';
 import { computeProgress, withDoneToday, type CompletionRow, type ProgressDerived } from '@/lib/progress';
 import { supabase } from '@/lib/supabase';
@@ -32,19 +33,14 @@ export async function fetchProgressWindow(
   today: string,
   windowDays?: number,
 ): Promise<{ habits: Habit[]; completions: CompletionRow[] }> {
-  const completionsQuery = supabase
-    .from('habit_completions')
-    .select('habit_id, completed_at, status, count')
-    .eq('user_id', userId);
-  const [habitsRes, completionsRes] = await Promise.all([
+  const [habitsRes, completions] = await Promise.all([
     supabase.from('habits').select('*').eq('user_id', userId).order('position', { ascending: true }),
-    windowDays === undefined
-      ? completionsQuery
-      : completionsQuery.gte('completed_at', addDaysISO(today, -(windowDays - 1))),
+    fetchCompletionRows(userId, (query) =>
+      windowDays === undefined ? query : query.gte('completed_at', addDaysISO(today, -(windowDays - 1))),
+    ),
   ]);
   if (habitsRes.error) throw habitsRes.error;
-  if (completionsRes.error) throw completionsRes.error;
-  return { habits: (habitsRes.data ?? []) as Habit[], completions: completionsRes.data ?? [] };
+  return { habits: (habitsRes.data ?? []) as Habit[], completions };
 }
 
 /** One-shot progress read (fetch + pure {@link computeProgress}) for callers outside the Progress

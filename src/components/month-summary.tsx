@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
-  Easing,
   useAnimatedReaction,
   useDerivedValue,
   useReducedMotion,
@@ -25,7 +24,7 @@ import {
 } from '@/components/orbit-drawing';
 import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { Duration, Scale } from '@/constants/motion';
+import { Duration, Ease, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useOnStage } from '@/hooks/use-on-stage';
@@ -98,7 +97,7 @@ export function MonthSummary({
   useEffect(() => {
     breath.set(reduceMotion || !onStage
       ? 0
-      : withRepeat(withTiming(1, { duration: Duration.breath, easing: Easing.inOut(Easing.sin) }), -1, true));
+      : withRepeat(withTiming(1, { duration: Duration.breath, easing: Ease.breathe }), -1, true));
   }, [reduceMotion, onStage, breath]);
 
   if (!month) return null;
@@ -130,7 +129,7 @@ export function MonthSummary({
   // and a detail view that disagrees with the card it opened from is worse than a stale one.
   const openReading = () =>
     router.push({
-      pathname: '/(tabs)/progress/orbit',
+      pathname: '/progress/orbit',
       params: {
         monthName,
         year: String(year),
@@ -268,7 +267,7 @@ function OrbitCanvas({
       haptics.orbitClosed();
       if (!reduceMotion) {
         glint.set(0);
-        glint.set(withTiming(1, { duration: Duration.orbit, easing: Easing.inOut(Easing.cubic) }));
+        glint.set(withTiming(1, { duration: Duration.orbit, easing: Ease.pass }));
       }
     } else if (arrival.grew) {
       haptics.orbitLanded();
@@ -290,7 +289,7 @@ function OrbitCanvas({
       return;
     }
     progress.set(arrival.from);
-    progress.set(withTiming(currentRate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }));
+    progress.set(withTiming(currentRate, { duration: Duration.orbit, easing: Ease.draw }));
     // Timed to the sweep rather than called back from it, so a change arriving mid-sweep cancels the
     // landing it interrupted instead of buzzing for a place the stripe never reached.
     const timer = setTimeout(() => landed(arrival), Duration.orbit);

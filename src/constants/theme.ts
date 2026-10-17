@@ -379,3 +379,19 @@ export const MaxContentWidth = 800;
  *  task's own leading slot, and a stack header's completion ring all centre in this same 32-wide
  *  box, so their columns line up regardless of which kind of row it is. */
 export const RowLeadingSlot = { width: 32, alignItems: 'center', justifyContent: 'center' } as const satisfies ViewStyle;
+
+/** The day's top-level row — a loose habit, a task, a stack header, the to-do composer. 56 so the
+ *  eye keeps one rhythm down the day (and so a stack header's drop band is 32pt; see StackCard). A
+ *  floor, not a height: a wrapped title or a two-line meta pushes past it. The trailing padding is
+ *  left to each row, because what it reserves (the `⋯` button's box, or an inline delete) differs. */
+export const UnitRow = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingLeft: Spacing.three,
+  paddingVertical: Spacing.two,
+  minHeight: 56,
+} as const satisfies ViewStyle;
+
+/** The text column beside a {@link RowLeadingSlot}: Spacing.three is the glyph→title gap every
+ *  row shares, which is what lands names, act titles and stack titles in one column. */
+export const UnitRowText = { flex: 1, marginLeft: Spacing.three, gap: Spacing.half } as const satisfies ViewStyle;

@@ -7,7 +7,7 @@
  * (no overshoot), `< 1` adds a measured bit of life. This reads more predictably
  * and is far easier to keep consistent than physics constants.
  */
-import type { WithSpringConfig } from 'react-native-reanimated';
+import { Easing, type WithSpringConfig } from 'react-native-reanimated';
 
 export const Spring = {
   /** Press in/out — snappy, no overshoot. */
@@ -17,6 +17,22 @@ export const Spring = {
   /** A restrained confirmation overshoot — the habit check "pop". */
   confirm: { duration: 380, dampingRatio: 0.62 },
 } satisfies Record<string, WithSpringConfig>;
+
+/**
+ * Timing curves, named by what the motion is doing rather than by the maths. `draw` is a mark
+ * travelling to its value (a ring sweeping shut, a chart line drawing on) — fast out of the gate,
+ * landing softly; `enter` is something arriving (a fade-in, the celebration card rising); `settle`
+ * is a symmetric change of state (a fold opening, a flash cross-fading to rest); `pass` is a light
+ * crossing and leaving (the orbit's glint); `breathe` is one half-cycle of an ambient loop.
+ * Tune here, never inline.
+ */
+export const Ease = {
+  draw: Easing.out(Easing.cubic),
+  enter: Easing.out(Easing.quad),
+  settle: Easing.inOut(Easing.quad),
+  pass: Easing.inOut(Easing.cubic),
+  breathe: Easing.inOut(Easing.sin),
+} as const;
 
 /** Timing durations (ms) for fades and layout transitions. `orbit` is the Progress
  *  screen's signature ring sweep — slower and more deliberate than a UI transition;

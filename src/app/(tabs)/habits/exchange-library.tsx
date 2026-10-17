@@ -1,23 +1,20 @@
 import { Stack, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { AppButton } from '@/components/app-button';
-import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { DisclosureRow } from '@/components/disclosure-row';
 import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
+import { LibraryCard } from '@/components/library-card';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
-import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { type CuratedExchange, EXCHANGE_GROUPS } from '@/constants/exchanges';
 import { EXCHANGE_GUIDE } from '@/constants/guides';
-import { Face, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
-import { useTheme } from '@/hooks/use-theme';
 import { DAILY_SCHEDULE } from '@/lib/dates';
 import { exchangePlanLine } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
@@ -128,57 +125,40 @@ export default function ExchangeLibraryScreen() {
  * this library makes, so it stays one tap away rather than being cut.
  */
 function ExchangeCard({ entry, owned, onAdd }: { entry: CuratedExchange; owned: boolean; onAdd: () => void }) {
-  const theme = useTheme();
-
   return (
-    <Surface>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
-          <AppIcon name="exchange" size={22} color={theme.textSecondary} />
-          <ThemedText type="rowTitle" style={styles.cardTitle}>
-            {entry.name}
-          </ThemedText>
-        </View>
-        {/* The plan, in the Today row's exact grammar — from the same function, so "exact" is
-            enforced rather than asked for. */}
+    <LibraryCard
+      icon="exchange"
+      title={entry.name}
+      owned={owned}
+      action={{
+        label: 'Add this exchange',
+        onPress: onAdd,
+        accessibilityLabel: `Add the exchange: ${entry.name} instead of ${entry.insteadOf}`,
+        // "Its moment:" rather than running the cue straight on, now that a cue is the bare
+        // moment ("headphones on") instead of a "when I…" clause that could finish a sentence.
+        accessibilityHint: `Adds it to today. Its moment: ${entry.cue}.`,
+      }}>
+      {/* The plan, in the Today row's exact grammar — from the same function, so "exact" is
+          enforced rather than asked for. */}
+      <ThemedText type="small" themeColor="textSecondary">
+        {exchangePlanLine(entry.insteadOf, entry.cue)}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {entry.detail}
+      </ThemedText>
+      {/* Per-entry sourcing, one tap down. `DisclosureRow` is the shared row this card used to
+          hand-roll — it carries the `Pressable`-not-`Touchable` finding that made it work
+          inside a Surface, and the intro at the top of this screen now uses it too. */}
+      <DisclosureRow
+        label="Why this works"
+        accessibilityLabel={`Why this works: ${entry.name}`}
+        expandHint="Shows the evidence behind it."
+        collapseHint="Hides the evidence.">
         <ThemedText type="small" themeColor="textSecondary">
-          {exchangePlanLine(entry.insteadOf, entry.cue)}
+          {entry.evidence}
         </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {entry.detail}
-        </ThemedText>
-        {/* Per-entry sourcing, one tap down. `DisclosureRow` is the shared row this card used to
-            hand-roll — it carries the `Pressable`-not-`Touchable` finding that made it work
-            inside a Surface, and the intro at the top of this screen now uses it too. */}
-        <DisclosureRow
-          label="Why this works"
-          accessibilityLabel={`Why this works: ${entry.name}`}
-          expandHint="Shows the evidence behind it."
-          collapseHint="Hides the evidence.">
-          <ThemedText type="small" themeColor="textSecondary">
-            {entry.evidence}
-          </ThemedText>
-        </DisclosureRow>
-        {owned ? (
-          <View style={styles.added}>
-            <AppIcon name="check" size={16} color={theme.textDisabled} />
-            <ThemedText type="small" themeColor="textDisabled">
-              Already yours
-            </ThemedText>
-          </View>
-        ) : (
-          <AppButton
-            variant="secondary"
-            onPress={onAdd}
-            accessibilityLabel={`Add the exchange: ${entry.name} instead of ${entry.insteadOf}`}
-            // "Its moment:" rather than running the cue straight on, now that a cue is the bare
-            // moment ("headphones on") instead of a "when I…" clause that could finish a sentence.
-            accessibilityHint={`Adds it to today. Its moment: ${entry.cue}.`}>
-            Add this exchange
-          </AppButton>
-        )}
-      </View>
-    </Surface>
+      </DisclosureRow>
+    </LibraryCard>
   );
 }
 
@@ -190,9 +170,4 @@ const styles = StyleSheet.create({
   heading: { gap: Spacing.half },
   // Hung to the section label's inset, so it reads as the caption's line.
   blurb: { marginLeft: Spacing.three },
-  cardBody: { padding: Spacing.three, gap: Spacing.two },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  // Semibold via the FACE, never fontWeight (the Android fake-bold gotcha).
-  cardTitle: { flex: 1, fontFamily: Face.bodySemiBold },
-  added: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 44 },
 });

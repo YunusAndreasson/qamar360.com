@@ -12,7 +12,7 @@
     "src/lib/database.types.ts",
     "web/**"
   ],
-  "ignoreBinaries": ["magick", "python3", "rsvg-convert"],
+  "ignoreBinaries": ["magick", "rsvg-convert"],
   "ignoreDependencies": [
     "@expo/agent-cli",
     "@jest/globals",

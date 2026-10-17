@@ -701,6 +701,11 @@ export default function HabitsScreen() {
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
+          // The inline to-do composer and rename field live in this list, so the keyboard has to
+          // push the list rather than sit on the row being typed into. iOS-only prop; Android still
+          // relies on the window (keyboard-controller's KeyboardAwareScrollView would cover both,
+          // but this ref is the drag engine's `measure`/`scrollTo` target and wants a device run).
+          automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled">
           {/* The week, Saturday to Jumuʿah, each day with its orbit: where the day you are on sits
               among the days around it, and the way to any of them. Above the errors, because it is

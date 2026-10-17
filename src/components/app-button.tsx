@@ -57,6 +57,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
     borderRadius: Radius.button,
+    // iOS's continuous corner, matching Surface; Android ignores it.
+    borderCurve: 'continuous',
     // minHeight drives the height to a sleek 48 (text line-height 24 + Spacing.two top/bottom
     // = 40, so minHeight wins); the padding only takes over if Dynamic Type grows the label.
     minHeight: 48,

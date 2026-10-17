@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { RowTrailingButton } from '@/components/row-trailing-button';
-import { Collapse } from '@/constants/motion';
+import { Collapse, Ease } from '@/constants/motion';
 
 import type { ReactNode } from 'react';
 
@@ -99,7 +99,7 @@ export function Fold({
       progress.set(target);
       return;
     }
-    progress.set(withTiming(target, { duration: Collapse.duration, easing: Easing.inOut(Easing.quad) }));
+    progress.set(withTiming(target, { duration: Collapse.duration, easing: Ease.settle }));
   }, [expanded, reduceMotion, progress]);
 
   const bodyStyle = useAnimatedStyle(() => {

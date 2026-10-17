@@ -5,7 +5,7 @@ import { AppIcon } from '@/components/app-icon';
 import { CompletionRing } from '@/components/completion-ring';
 import { RowOptionsButton, TRAILING_BOX } from '@/components/row-trailing-button';
 import { ThemedText } from '@/components/themed-text';
-import { Disabled, RowLeadingSlot, Spacing } from '@/constants/theme';
+import { Disabled, RowLeadingSlot, UnitRow, UnitRowText } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { LooseRowContract } from '@/lib/loose-row';
 
@@ -116,23 +116,15 @@ export function LooseRow({ contract, settling, onToggle, options }: Props) {
 
 const styles = StyleSheet.create({
   bar: { position: 'relative' },
-  // 56 to match the stack cards above it, so the eye keeps one rhythm down the day — though a
-  // two-line meta will push past it, which is why this is a floor and not a height.
   main: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: Spacing.three,
+    ...UnitRow,
     // The floated `⋯` button's box, reserved so a long name stops where the button begins — the
     // same constant the stack header reserves for its chevron, so the day's trailing glyphs hold
     // one vertical line.
     paddingRight: TRAILING_BOX,
-    paddingVertical: Spacing.two,
-    minHeight: 56,
   },
   // See the row's `settling` comment: a plain dim, not an animation.
   settling: { opacity: Disabled },
   leading: RowLeadingSlot,
-  // Spacing.three matches the stack header's glyph→title gap, landing the name in the same column
-  // as the act names and stack titles above it.
-  text: { flex: 1, marginLeft: Spacing.three, gap: Spacing.half },
+  text: UnitRowText,
 });

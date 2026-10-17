@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import Animated, {
-  Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -9,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { Duration, Tick } from '@/constants/motion';
+import { Duration, Ease, Tick } from '@/constants/motion';
 import { useTheme } from '@/hooks/use-theme';
 import { clamp01, ringMetrics } from '@/lib/progress';
 
@@ -151,8 +150,8 @@ export function CompletionRing({
       quiet.set(0);
       flash.set(1);
       checkDraw.set(0);
-      progress.set(withTiming(1, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }));
-      checkDraw.set(withDelay(Tick.checkDelay, withTiming(1, { duration: Tick.check, easing: Easing.out(Easing.cubic) })));
+      progress.set(withTiming(1, { duration: Tick.sweep, easing: Ease.draw }));
+      checkDraw.set(withDelay(Tick.checkDelay, withTiming(1, { duration: Tick.check, easing: Ease.draw })));
       quiet.set(withDelay(Tick.settleDelay, withTiming(1, { duration: Tick.settle })));
       flash.set(withDelay(Tick.settleDelay, withTiming(0, { duration: Tick.settle })));
       return;
@@ -171,7 +170,7 @@ export function CompletionRing({
     // the seal's own sweep clock, so ticking one act reads as the same motion as sealing all of
     // them — just a shorter piece of it. No check, no flash, no haptic: nothing has been asserted
     // about the group yet.
-    progress.set(withTiming(target, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }));
+    progress.set(withTiming(target, { duration: Tick.sweep, easing: Ease.draw }));
   }, [complete, target, settling, reduceMotion, progress, checkDraw, flash, quiet]);
 
   // Zero-length dashes with round caps can render as a stray dot, so each stroke hides

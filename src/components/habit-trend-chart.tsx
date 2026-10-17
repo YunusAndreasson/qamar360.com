@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -13,7 +12,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-nativ
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
-import { Duration, PageEnter } from '@/constants/motion';
+import { Duration, Ease, PageEnter } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import type { TrendPoint } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
@@ -66,7 +65,7 @@ export function HabitTrendChart({ trend }: { trend: TrendPoint[] }) {
     reveal.set(
       reduceMotion
         ? 1
-        : withDelay(PageEnter.third, withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) })),
+        : withDelay(PageEnter.third, withTiming(1, { duration: Duration.orbit, easing: Ease.draw })),
     );
   }, [width, reduceMotion, reveal]);
 

@@ -1,12 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
+import { fetchCompletionRows } from '@/lib/completion-reads';
 import { weekStartISO } from '@/lib/dates';
 import { rateOf, replaceDay, rowsForDay } from '@/lib/day-record';
 import { tallyDays, type CompletionRow } from '@/lib/progress';
-import { supabase } from '@/lib/supabase';
 
 type DayRecord = {
   /**
@@ -46,18 +46,23 @@ export function DayRecordProvider({ children }: { children: ReactNode }) {
   // day's orbit for a moment on every switch.
   const live = useLatestRef({ viewDate, completed, skipped, counts, settled: !completionsLoading });
 
+  // Only the newest read may land. The window moves at midnight (and the account can change), and
+  // a read for the old window that resolves after the new one's would put yesterday's record back
+  // over today's: an orbit missing for the new day, or the old first week, until the next focus.
+  const latestRead = useRef(0);
   const refresh = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('habit_completions')
-      .select('habit_id, completed_at, status, count')
-      .eq('user_id', userId)
-      .gte('completed_at', from)
-      .lte('completed_at', today);
-    if (error) return; // keep what is drawn; the next focus tries again
+    const read = ++latestRead.current;
+    let data: CompletionRow[];
+    try {
+      data = await fetchCompletionRows(userId, (q) => q.gte('completed_at', from).lte('completed_at', today));
+    } catch {
+      return; // keep what is drawn; the next focus tries again
+    }
+    if (read !== latestRead.current) return;
     // A tick made while this was in flight is in the day's sets but maybe not in `data`.
     const day = live.current;
-    setRows(day.settled ? replaceDay(data ?? [], day.viewDate, rowsForDay(day.viewDate, day.completed, day.skipped, day.counts)) : (data ?? []));
+    setRows(day.settled ? replaceDay(data, day.viewDate, rowsForDay(day.viewDate, day.completed, day.skipped, day.counts)) : data);
   }, [userId, from, today, live]);
 
   // The first read, and again whenever the window moves (a new day, another account). The

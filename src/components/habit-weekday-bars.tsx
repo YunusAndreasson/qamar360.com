@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -12,7 +11,7 @@ import Animated, {
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
-import { Duration, PageEnter } from '@/constants/motion';
+import { Duration, Ease, PageEnter } from '@/constants/motion';
 import { DenseLabelScale, Radius, Spacing } from '@/constants/theme';
 import type { WeekdayStat } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
@@ -71,7 +70,7 @@ function Bar({
     reveal.set(
       reduceMotion
         ? 1
-        : withDelay(PageEnter.second + index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Easing.out(Easing.cubic) })),
+        : withDelay(PageEnter.second + index * STAGGER_MS, withTiming(1, { duration: Duration.slow, easing: Ease.draw })),
     );
   }, [reduceMotion, reveal, index]);
   const fillStyle = useAnimatedStyle(() => ({ height: targetHeight * reveal.get() }));

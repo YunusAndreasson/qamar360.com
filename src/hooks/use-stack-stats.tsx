@@ -4,25 +4,18 @@ import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit, type HabitStack } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
+import { fetchCompletionRows } from '@/lib/completion-reads';
 import { addDaysISO, todayLocalISO } from '@/lib/dates';
 import { STATS_WINDOW_DAYS, type HabitStats } from '@/lib/habit-stats';
 import type { CompletionRow } from '@/lib/progress';
 import { computeStackStats } from '@/lib/stack-stats';
-import { supabase } from '@/lib/supabase';
 
 /** Pull a stack's acts' completion history over the stats window. Only rows that exist are
  *  returned, so the payload scales with real usage, not the window. Throws on a query error. */
 async function fetchStackCompletions(userId: string, habitIds: string[], today: string): Promise<CompletionRow[]> {
   if (habitIds.length === 0) return [];
   const since = addDaysISO(today, -(STATS_WINDOW_DAYS - 1));
-  const { data, error } = await supabase
-    .from('habit_completions')
-    .select('habit_id, completed_at, status, count')
-    .eq('user_id', userId)
-    .in('habit_id', habitIds)
-    .gte('completed_at', since);
-  if (error) throw error;
-  return data ?? [];
+  return fetchCompletionRows(userId, (query) => query.in('habit_id', habitIds).gte('completed_at', since));
 }
 
 type StackStatsData = {

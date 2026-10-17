@@ -2,23 +2,20 @@ import { Stack, useRouter } from 'expo-router';
 import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AppButton } from '@/components/app-button';
-import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
+import { LibraryCard } from '@/components/library-card';
 import { SectionLabel } from '@/components/section-label';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
-import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { CURATED_GROUPS, type CuratedStack } from '@/constants/curated-stacks';
 import { STACKING_GUIDE } from '@/constants/guides';
-import { Face, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
-import { useTheme } from '@/hooks/use-theme';
 import { buildCuratedPlan } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS } from '@/lib/moments';
@@ -168,7 +165,6 @@ function CuratedCard({
   plan: ReturnType<typeof buildCuratedPlan>;
   onAdd: () => void;
 }) {
-  const theme = useTheme();
   const { presets } = useCatalog();
   const byId = new Map(presets.map((p) => [p.id, p]));
   const acts = curated.acts.map((a) => byId.get(a.presetId)?.name).filter((n): n is string => n !== undefined);
@@ -189,44 +185,24 @@ function CuratedCard({
   const hint = `${said.join(', ')}, anchored to ${moment.label}.`;
 
   return (
-    <Surface>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
-          <AppIcon name={moment.icon} size={22} color={theme.textSecondary} />
-          <ThemedText type="rowTitle" style={styles.cardTitle}>
-            {curated.name}
-          </ThemedText>
-        </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {curated.blurb}
-        </ThemedText>
-        <View style={styles.acts}>
-          {acts.map((name, i) => (
-            <Fragment key={name}>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.act}>
-                {`${i + 1}  ${name}`}
-              </ThemedText>
-            </Fragment>
-          ))}
-        </View>
-        {plan === null ? (
-          <View style={styles.added}>
-            <AppIcon name="check" size={16} color={theme.textDisabled} />
-            <ThemedText type="small" themeColor="textDisabled">
-              Already yours
+    <LibraryCard
+      icon={moment.icon}
+      title={curated.name}
+      owned={plan === null}
+      action={{ label, onPress: onAdd, accessibilityLabel: `Add the ${curated.name} stack`, accessibilityHint: hint }}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {curated.blurb}
+      </ThemedText>
+      <View style={styles.acts}>
+        {acts.map((name, i) => (
+          <Fragment key={name}>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.act}>
+              {`${i + 1}  ${name}`}
             </ThemedText>
-          </View>
-        ) : (
-          <AppButton
-            variant="secondary"
-            onPress={onAdd}
-            accessibilityLabel={`Add the ${curated.name} stack`}
-            accessibilityHint={hint}>
-            {label}
-          </AppButton>
-        )}
+          </Fragment>
+        ))}
       </View>
-    </Surface>
+    </LibraryCard>
   );
 }
 
@@ -235,13 +211,8 @@ const styles = StyleSheet.create({
   content: { gap: Spacing.four },
   // 8 from a caption to its first card and between cards: the app's caption→card beat.
   group: { gap: Spacing.two },
-  cardBody: { padding: Spacing.three, gap: Spacing.two },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  // Semibold via the FACE, never fontWeight (the Android fake-bold gotcha).
-  cardTitle: { flex: 1, fontFamily: Face.bodySemiBold },
   // The sequence, set as its own block so it reads as a list to learn rather than body copy.
   acts: { gap: Spacing.half, paddingVertical: Spacing.one },
   // Tabular figures so the ordinals form a true column.
   act: { fontVariant: ['tabular-nums'] },
-  added: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 44 },
 });

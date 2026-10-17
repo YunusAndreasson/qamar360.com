@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, {
-  Easing,
   useAnimatedProps,
   useReducedMotion,
   useSharedValue,
@@ -14,7 +13,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
-import { Duration, PageEnter } from '@/constants/motion';
+import { Duration, Ease, PageEnter } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import type { RecordSeries, SeriesPoint } from '@/hooks/use-progress';
@@ -230,7 +229,7 @@ export function LifetimeCard({ series }: { series: RecordSeries }) {
     reveal.set(
       reduceMotion
         ? 1
-        : withDelay(PageEnter.second, withTiming(1, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) })),
+        : withDelay(PageEnter.second, withTiming(1, { duration: Duration.orbit, easing: Ease.draw })),
     );
   }, [width, reduceMotion, reveal]);
   const settledProps = useAnimatedProps(() => ({ strokeDashoffset: settledLength * (1 - reveal.get()) }));
@@ -302,9 +301,19 @@ export function LifetimeCard({ series }: { series: RecordSeries }) {
     onUpdate: (e) => moveTo(e.x),
     onFinalize: () => release(),
   });
-  // A tap reads one bucket. `maxDistance` is load-bearing: without it a vertical scroll drag still
-  // ends in a recognised tap, and flicking the page would take a reading on the way past.
-  const read = useTapGesture({ maxDistance: 8, onActivate: (e) => moveTo(e.x), onFinalize: () => release() });
+  // A tap reads one bucket, and the reading STAYS: a Tap only activates once the finger has lifted,
+  // so releasing on finalize (as the scrub does) took the reading down the frame it went up, and a
+  // tap read nothing. Tapping the same bucket again puts it away; a scrub moves it on and, lifting,
+  // returns to rest. The same parked-until-asked contract as the Year card's months.
+  // `maxDistance` is load-bearing: without it a vertical scroll drag still ends in a recognised
+  // tap, and flicking the page would take a reading on the way past.
+  const pick = (x: number) => {
+    'worklet';
+    const w = widthSV.get();
+    if (w > 0 && count > 0 && lastIndex.get() === slotAtX(x, total, w, BOX)) release();
+    else moveTo(x);
+  };
+  const read = useTapGesture({ maxDistance: 8, onActivate: (e) => pick(e.x) });
   const gesture = useCompetingGestures(scrub, read);
 
   // The reading above derives itself; the MARK cannot — `cursorX`/`cursorOn` are shared values, and

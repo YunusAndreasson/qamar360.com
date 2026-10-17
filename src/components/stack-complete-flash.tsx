@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -10,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Tick } from '@/constants/motion';
+import { Ease, Tick } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -59,9 +58,9 @@ export function StackCompleteFlash({
     flash.set(
       withSequence(
         // Bloom to full as the last ring closes and the haptic tail lands.
-        withTiming(1, { duration: Tick.sweep, easing: Easing.out(Easing.cubic) }),
+        withTiming(1, { duration: Tick.sweep, easing: Ease.draw }),
         // Hold through the check draw, then fade out on the ring's settle — lights, then rests.
-        withDelay(Tick.settleDelay - Tick.sweep, withTiming(0, { duration: Tick.settle, easing: Easing.inOut(Easing.quad) })),
+        withDelay(Tick.settleDelay - Tick.sweep, withTiming(0, { duration: Tick.settle, easing: Ease.settle })),
       ),
     );
   }, [complete, settling, reduceMotion, flash]);
