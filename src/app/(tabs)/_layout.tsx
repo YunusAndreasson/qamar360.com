@@ -121,7 +121,8 @@ function Tabs() {
       </Trigger>
       <Trigger name="progress">
         <Trigger.Label>Progress</Trigger.Label>
-        <Trigger.Icon sf="chart.xyaxis.line" md="show_chart" />
+        {/* The moon beside Today's sun: Progress is the month, and the month here is lunar. */}
+        <Trigger.Icon sf="moon.fill" md="dark_mode" />
       </Trigger>
       <Trigger name="settings">
         <Trigger.Label>Settings</Trigger.Label>

@@ -18,8 +18,6 @@ import { HeroGlow } from '@/components/ornament/hero-glow';
 import { MoonHalo } from '@/components/ornament/moon-halo';
 import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { TallyDegrees } from '@/components/tally-degrees';
-import { ThemedText } from '@/components/themed-text';
 import { Duration, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
 import { useOnStage } from '@/hooks/use-on-stage';
@@ -60,7 +58,7 @@ const RING_CENTER = SVG_SIZE / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /**
- * How this month is going against your usual — said in words, under the datum.
+ * How this month is going against your usual — said in words, on the sheet the card opens.
  *
  * This replaced a caret outside the ring's rim. A mark at your average position made the reader do
  * the work: find the tick, find the arc head, judge which is further round a circle, and remember
@@ -79,8 +77,8 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
  */
 function usualLabel(month: MonthProgress): string | null {
   if (month.monthsAveraged === 0) return null;
-  // Compared in DEGREES, the unit the card shows, so the sentence can never disagree with the
-  // number above it about which side of your usual you are on.
+  // Compared in DEGREES, the unit the sheet shows, so the sentence can never disagree with the
+  // figure beside it about which side of your usual you are on.
   const gap = toDegrees(month.thisRate) - toDegrees(month.averageRate);
   if (Math.abs(gap) <= 180 / month.monthLength) return 'About your usual';
   return gap > 0 ? 'Ahead of your usual' : 'Behind your usual';
@@ -112,22 +110,23 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   // `paceRate` is where the month itself stands — what it has asked of you so far, on the same orbit
   // scale; the one benchmark that exists on a first day, so the ring always has a mark to catch.
   const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, averageRate, monthsAveraged } = month;
-  // What "Day 11 of 29" was really for, said as the answer rather than the inputs: nobody wants the
-  // ordinal, they want to know how much month is left to fix it in. It moved off the header when
-  // the month's name took the caption slot, and it lands here because it belongs beside the
-  // verdict — where you stand, and how long you have.
-  const reading = [usualLabel(month), daysLeftLabel(month)].filter(Boolean).join(' · ');
+  // The verdict and how much month is left to act on it. Neither is on the card any more: the card
+  // is the instrument, and these are readings OF it, so they wait on the sheet a tap opens, beside
+  // the figures they are read from.
+  const usual = usualLabel(month);
+  const daysLeft = daysLeftLabel(month);
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = [
     `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
     `This month is at ${formatDegrees(thisRate)} of the orbit; the month itself has reached ${formatDegrees(paceRate)}.`,
-    // The figure and the count are said here and nowhere on screen. The card gives the verdict,
+    // The figure and the count are said here and nowhere on screen. The sheet gives the verdict,
     // which is what was asked for; this gives the measurement behind it, for anyone who wants to
     // know what "usual" was counted from.
     monthsAveraged > 0
       ? `Usually ${formatDegrees(averageRate)} by this day, averaged over ${monthsAveraged} previous ${monthsAveraged === 1 ? 'month' : 'months'}.`
       : '',
-    reading,
+    usual,
+    daysLeft,
   ]
     .filter(Boolean)
     .join(' ');
@@ -143,6 +142,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         year: String(year),
         currentRate: String(thisRate),
         paceRate: String(paceRate),
+        usual: usual ?? '',
+        daysLeft,
       },
     });
 
@@ -152,7 +153,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           screen's two scopes and now say so in the same voice; the hero used to lead with the date
           instead, so one card was headed by a category and the other by a datum, and only one of
           them told you what it was for. The month's NAME is the caption, which is where the app
-          says which Hijri month you are in — this header is the only place at rest that does.
+          says which Hijri month you are in — this header is the only place at rest that does. The
+          name alone: the year is the same all year, and the sheet still says it.
 
           The ⓘ sits in the card's own top-right corner, which is where a card keeps a button about
           itself in every app anyone already uses. It replaces a line of prose — "What am I looking
@@ -161,7 +163,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           still reach a screen reader and only leave the screen. */}
       <StatCardHeader
         title="This month"
-        trailing={`${monthName} ${year} H`}
+        trailing={monthName}
         accessory={
           <PressableScale
             onPress={openReading}
@@ -200,28 +202,12 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           <MoonHalo size={HALO_SIZE} />
           <ProgressOrbit current={thisRate} pace={paceRate} />
           {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
-              moonlight, still opaque) and lets the bright ring + the degrees readout lead,
+              moonlight, still opaque) and lets the bright ring lead,
               brightening to full only when the month is done (where the glow also lights). It
               breathes slowly — tonight's moon, alive. */}
           <Animated.View style={[styles.moon, moonBreath]}>
             <MoonPhase illumination={illumination} waxing={waxing} size={MOON_SIZE} brightness={thisRate >= 1 ? 1 : 0.8} />
           </Animated.View>
-        </View>
-
-        {/* The datum, and the one thing the ring cannot say. The benchmark readings that used to
-            sit here as glyph-and-number legends live in the sheet the ⓘ opens: three quiet lines
-            under a 232pt orbit read as a footnote to it rather than as the instrument's key.
-            What comes back is not a legend and not an affordance — it is a reading, the answer to
-            the question a benchmark is FOR ("am I doing better than I usually do?"), which the
-            ring used to pose as a triangle and leave you to work out. */}
-        <View style={styles.reading}>
-          {/* The figure carries no caption of its own. The card is titled "This month" on a screen
-              titled "Progress", so a "Monthly progress" label under it said the header a second
-              time; and what the figure is counted from is what the ⓘ sheet is for. */}
-          <TallyDegrees rate={thisRate} />
-          <ThemedText type="smallCompact" themeColor="textSecondary">
-            {reading}
-          </ThemedText>
         </View>
       </PressableScale>
     </StatCard>
@@ -338,9 +324,9 @@ function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
 }
 
 const styles = StyleSheet.create({
-  // One card gap across both Progress stat cards (this hero and OverTime) so their
-  // header→content rhythm reads identically down the screen.
-  hero: { alignItems: 'center', gap: Spacing.three },
+  // The orbit alone, so the card closes on it. The bottom inset is the halo's: its star rays reach
+  // 29pt past the rim, and the card's own 16pt padding would shear the lowest one off at the edge.
+  hero: { alignItems: 'center', paddingBottom: Spacing.three },
   orbit: {
     width: ORBIT_SIZE,
     height: ORBIT_SIZE,
@@ -349,7 +335,4 @@ const styles = StyleSheet.create({
   },
   ring: { position: 'absolute', top: -RIM_BLEED, left: -RIM_BLEED },
   moon: { alignItems: 'center', justifyContent: 'center' },
-  // The verdict belongs to the number, not to the card's rhythm — a tighter gap than the
-  // orbit→datum one above it, so the two read as one block.
-  reading: { alignItems: 'center', gap: Spacing.one },
 });

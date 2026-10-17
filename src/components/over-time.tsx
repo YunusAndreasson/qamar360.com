@@ -13,7 +13,6 @@ import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Stop } from 
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { StatCard, StatCardHeader } from '@/components/stat-card';
-import { StatReadout } from '@/components/stat-readout';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, PageEnter } from '@/constants/motion';
 import { Radius, Spacing } from '@/constants/theme';
@@ -97,6 +96,29 @@ function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod
   return from ? `${from.day} ${from.monthName} – ${end}` : end;
 }
 
+/**
+ * Which week, month or year a card covers, for the top right of its header.
+ *
+ * Short by construction, because it shares a row with the title. The two rolling windows say where
+ * they start ("Since 8 Ṣafar"), since both end today: a range naming both ends stops fitting the
+ * moment it crosses a month ("28 Rabīʿ al-Awwal – 4 Rabīʿ al-Thānī" is 239pt, and the caption gets
+ * about 210 on a 360dp phone). Month and year are calendar spans, so they are simply named. The
+ * year keeps its "H": a bare "1448" in a stats card reads as a count.
+ */
+function spanLabel({ period, points }: RecordSeries): string | null {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return null;
+  if (period === 'month' || period === 'year') {
+    const now = hijriParts(last.endISO);
+    if (!now) return null;
+    return period === 'month' ? now.monthName : `${now.year} H`;
+  }
+  const from = hijriParts(first.iso);
+  if (!from) return null;
+  return period === 'week' ? `Since ${from.day} ${from.monthName}` : `Since ${from.monthName} ${from.year}`;
+}
+
 /** How each period names its card. Narrowest first — the order they are shown in. */
 const PERIOD_LABEL: Record<SeriesPeriod, string> = {
   week: 'Week',
@@ -130,9 +152,10 @@ const PERIOD_LABEL: Record<SeriesPeriod, string> = {
  * flat and solid in a track tone: it is not a reading, it is the floor the readings are measured
  * against, and it is the only absolute reference the plot has.
  *
- * Nothing names a date until you ask — except the one you are standing on. At rest the line reads
- * the newest bucket; the rest of the calendar appears under your finger and leaves with it, because
- * a date printed on the axis is a label you read once and then have to keep ignoring.
+ * Nothing names a single date until you ask. At rest the header names the span the card covers and
+ * no figure is printed at all; a bucket's date and degrees appear under your finger, in that same
+ * corner, and leave with it, because a date printed on the axis is a label you read once and then
+ * have to keep ignoring.
  *
  * Which WAY you are going is the plot's job, not the line's: the dashed run ends in an arrowhead,
  * and a word repeating it is a caption on a picture that was already clear.
@@ -396,9 +419,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // ── The reading ──────────────────────────────────────────────────────────────────────────────
   const focusedPoint = focused != null ? (points[focused] ?? null) : null;
   /**
-   * One bucket, read aloud — the card's ONE grammar for a reading, at rest and under a finger
-   * alike, so scrubbing is visibly the same line moving back in time rather than a different kind
-   * of sentence appearing.
+   * One bucket, read: which span it is, and its figure.
    *
    * A span that asked nothing has no reading. "0°" would be a score for something that was never
    * yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
@@ -406,66 +427,37 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
    *
    * The span is always NAMED beside the figure, and that is load-bearing: a degree here is not the
    * degree on the hero. The hero's is a position on the month's orbit, where 360° is the month
-   * kept. A bucket's is that bucket's own rate — and the bucket rescales with the selector, so a
+   * kept. A bucket's is that bucket's own rate — and the bucket rescales with the period, so a
    * full orbit is one perfect day on Week and Month, one perfect Hijri month on Year, one perfect
    * span-of-N-days on Lifetime. Nothing else on screen says which. The label does.
-   *
-   * A bucket still running used to add " so far". It was a hedge, not a fact: every reading on this
-   * card is "so far" — a closed one is what a span came to, an open one is what it has come to —
-   * and the card already says which, twice, in the medium that can say it (the curve turns to a
-   * dash at the open bucket, and the dot on it is hollow). Four cards ending in the same three
-   * words down one screen read as an apology for the number above them.
    */
-  const readingFor = (p: SeriesPoint) =>
-    p.possible === 0
-      ? `${bucketLabel(p, period)} · nothing due`
-      : `${bucketLabel(p, period)} · ${formatDegrees(p.rate)}`;
+  const readingFor = (p: SeriesPoint) => ({
+    label: bucketLabel(p, period),
+    value: p.possible === 0 ? null : formatDegrees(p.rate),
+  });
+  const spoken = ({ label, value }: ReturnType<typeof readingFor>) => `${label} · ${value ?? 'nothing due'}`;
 
-  // At rest the line reads the newest bucket — where you are now, which is what you came for.
-  //
-  // It used to read the fitted slope's one-word direction ("Steady", "Easing"). That word was a
-  // caption for something the plot already draws: the dashed run continues the curve and ends in an
-  // ARROWHEAD, which is the direction, stated in the medium that can state it. And a lone adjective
-  // with no subject is a poor caption anyway — "Steady" says nothing about what is steady, or since
-  // when, or at what level. The one direction that survives is the multi-month sentence below,
-  // which no arrowhead can draw: it names the month the run began in. (The word is not lost for
-  // everyone — see the accessibility label, where an arrowhead is no use.)
-  // The newest bucket, or nothing at all. This read `points[count - 1]!` under a comment claiming
-  // "`count === 0` returned null long before here" — it does not: that guard is ~50 lines BELOW,
-  // and it has to be, because every hook in this component runs between here and there. So an
-  // empty series reached `readingFor(undefined)`, which dereferences `p.possible` on the first
-  // line, and took the whole Progress tab down.
-  //
-  // Not hypothetical: `seriesPeriods` returns `life` unconditionally ("the record itself is always
-  // readable"), and `computeProgress` hands back four EMPTY series whenever `live` is false — which
-  // includes a record whose only habits are optimistic rows with no `created_at` yet, and a device
-  // clock far enough ahead that `opened > today`. `habitsCount` is non-zero in both cases, so the
-  // screen's empty state does not fire and this card renders.
-  //
-  // A missing reading is already a state everything downstream handles (the readout renders only
-  // `readoutText ?` and the a11y value falls back to `''`), so the fix is to say there isn't one
-  // rather than to invent a guard the hook order can't support.
-  //
-  // The year card is the one exception, because its newest bucket is the month the hero above is
-  // about: "This month · 40%" under a card titled Year said the hero's own figure a second time,
-  // one card down. It reads the newest month that has CLOSED instead, which is the latest thing
-  // on this card the hero does not already say. The hollow dot still marks the open month.
+  // The figures wait for a touch. At rest the header says which span the card covers and the plot
+  // says the rest: the height of the line, and the average rule's own label. A resting reading
+  // ("Today · 212°") under the header repeated what the hollow dot and the rule already show, so it
+  // went; under a finger the header's caption BECOMES the reading, in the same corner, so the
+  // answer to "where am I" is always in one place and nothing below it moves while you scrub.
+  const covers = spanLabel(series);
+  const focusedReading = focusedPoint ? readingFor(focusedPoint) : null;
+  // The one sentence the plot cannot draw: it names the month the run began in. A claim about the
+  // whole record, so only the widest card is handed a trend (see OverTime).
+  const trendText = trend && trend.risingMonths >= 3 && trend.sinceMonthName ? `Rising since ${trend.sinceMonthName}` : null;
+  // What a screen reader hears as the plot's value: the bucket under the cursor, else the newest
+  // one, since the curve's height is no use to it.
   const latest = points[count - 1];
-  const resting = period === 'year' ? (closed[closed.length - 1]?.p ?? latest) : latest;
-  const restingText =
-    trend && trend.risingMonths >= 3 && trend.sinceMonthName
-      ? `Rising since ${trend.sinceMonthName}`
-      : resting
-        ? readingFor(resting)
-        : null;
-  const readoutText = focusedPoint ? readingFor(focusedPoint) : restingText;
+  const a11yValue = focusedReading ? spoken(focusedReading) : latest ? spoken(readingFor(latest)) : '';
 
   // "of N days each" only where the buckets have a width to name — a year's are calendar months.
   const grain = period === 'year' ? ' of one Hijri month each' : series.bucketDays > 1 ? ` of ${series.bucketDays} days each` : '';
   // What the plot IS — never what it currently reads. An `adjustable` announces its NAME and then
-  // its VALUE, and the value is `readoutText`, which at rest is `restingText`: naming the reading
-  // here too made every announcement say it twice in a row ("Easing · 26°, Easing · 26°"). The
-  // same rule the card follows on screen — one fact, said once, in the one place that owns it.
+  // its VALUE, and the value is `a11yValue`: naming the reading here too made every announcement
+  // say it twice in a row ("Easing · 26°, Easing · 26°"). One fact, said once, in the one place
+  // that owns it.
   const a11y = [
     `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.`,
     average !== null ? `Averaging ${formatDegrees(average)}.` : null,
@@ -488,10 +480,9 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // direction lands on it rather than stepping off. (It used to start at `count - 1` and add, so
   // the very first increment fell out of range and did nothing at all.)
   const step = (by: number) => {
-    // Stepping DOWN off the first bucket is how you put the chart back to rest — the readout
-    // returns to what the card says when nobody is touching it ("Rising since Rajab", the
-    // screen's one multi-month sentence). A finger gets that for free when it lifts; without
-    // this an assistive user who stepped once could never see the resting reading again.
+    // Stepping DOWN off the first bucket is how you put the chart back to rest — the header goes
+    // back to naming the span. A finger gets that for free when it lifts; without this an
+    // assistive user who stepped once could never get the resting card back.
     if (focused === 0 && by < 0) {
       haptics.selection();
       rest();
@@ -511,30 +502,46 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
 
   return (
     <StatCard>
-      {/* The period names the card, and nothing else does — the same four words the selector used
-          to carry, now sitting where a card says what it is.
+      {/* The period names the card; the caption says which one. Two of the four once carried a
+          span caption and two did not, so four cards of one kind wore two headers, and the dates
+          came off all of them. They are back on all four, in one form, because "Week" alone does
+          not say which week. Under a finger the caption is the reading instead: the date in the
+          caption's own quiet ink, the figure in the primary one, because it is the datum. */}
+      <StatCardHeader
+        title={PERIOD_LABEL[period]}
+        trailing={
+          focusedReading ? (
+            <View style={styles.caption}>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.captionLabel}>
+                {focusedReading.label}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {' · '}
+                {focusedReading.value ? (
+                  <ThemedText type="smallBold" style={styles.captionValue}>
+                    {focusedReading.value}
+                  </ThemedText>
+                ) : (
+                  'nothing due'
+                )}
+              </ThemedText>
+            </View>
+          ) : (
+            covers
+          )
+        }
+      />
 
-          Two of the four used to carry a trailing span caption as well ("from 6 Rabīʿ al-Awwal",
-          "since Dhū al-Qaʿdah 1447") while Month and Year carried none, so four cards of one kind
-          wore two different headers down one screen — and the reason the other two went without
-          (the hero above them is already captioned with the month) stays out of the chart. The
-          dates are not lost: this card's own rule is that nothing names a date until you ask, and
-          the reading below already names the bucket you are standing on. */}
-      <StatCardHeader title={PERIOD_LABEL[period]} />
-
-      {/* The reading and the plot are ONE unit, and the layout now says so: the readout is the
-          chart's caption, it changes with the finger scrubbing the chart, and nothing may come
-          between them. Grouped, so they carry the tight inner gap while the card's own rhythm
-          spaces the group from the control above. */}
+      {/* The claim and the plot are ONE unit: grouped, so they carry the tight inner gap while
+          the card's own rhythm spaces the group from the header. The claim is in the primary ink,
+          because it is a statement about you; the dates around it are reference, and quieter. */}
       <View style={styles.reading}>
-        {readoutText ? (
-          <StatReadout text={readoutText} refreshKey={`${period}:${focused ?? 'resting'}`} />
-        ) : null}
+        {trendText ? <ThemedText type="small">{trendText}</ThemedText> : null}
 
         <GestureDetector gesture={gesture}>
           <View style={styles.chart} onLayout={onLayout} accessible accessibilityRole="adjustable"
             accessibilityLabel={a11y}
-            accessibilityValue={{ text: readoutText ?? '' }}
+            accessibilityValue={{ text: a11yValue }}
             accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
             onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 1 : -1)}>
             {width > 0 ? (
@@ -729,9 +736,16 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 const styles = StyleSheet.create({
-  // The readout is the chart's caption, so it rides a tighter gap than the card's own rhythm —
-  // near enough to belong to the plot beneath it, not to the control above.
+  // The claim is the chart's caption, so it rides a tighter gap than the card's own rhythm —
+  // near enough to belong to the plot beneath it, not to the header above.
   reading: { gap: Spacing.two },
+  // The scrubbed reading. The date gives way first: a lifetime bucket across a month boundary
+  // ("26 Jumādā al-Awwal – 2 Jumādā al-Thānī") is wider than the caption's share of the row, and
+  // the figure is the thing you were scrubbing for.
+  caption: { flexDirection: 'row', alignItems: 'baseline', flexShrink: 1 },
+  captionLabel: { flexShrink: 1 },
+  // Tabular, so the date beside it does not shuffle sideways as the digits change under a finger.
+  captionValue: { fontVariant: ['tabular-nums'] },
   chart: { width: '100%', height: BOX.height },
   averageLabel: {
     position: 'absolute',

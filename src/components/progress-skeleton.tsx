@@ -11,16 +11,17 @@ import { Spacing } from '@/constants/theme';
  */
 
 /**
- * Progress: the lunar-orbit hero, then the Over-time chart (header + readout + period control +
- * plot). Sized for the settled state, where the record is long enough to offer a choice of period —
- * a first-week account has no control yet and its chart lands ~64pt shorter, which is a jump nobody
- * sees twice.
+ * Progress: the lunar-orbit hero, then the first period card. Both are the cards' real heights, which
+ * is what holds the page still when the data lands. The hero is padding, header and gap, then the
+ * 232pt orbit and its halo inset (16 + 24 + 16 + 232 + 16 + 16). A period card is the header over
+ * the 136pt plot (16 + 24 + 16 + 136 + 16). The widest card grows 28pt when it has a trend sentence,
+ * but that is the last card, so nothing above it moves.
  */
 export function ProgressSkeleton() {
   return (
     <View style={styles.root}>
-      <Skeleton height={392} />
-      <Skeleton height={368} />
+      <Skeleton height={320} />
+      <Skeleton height={208} />
     </View>
   );
 }

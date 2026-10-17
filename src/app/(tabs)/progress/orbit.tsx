@@ -40,8 +40,13 @@ const BOW_CY = CENTER + BOW_R * 0.82;
  * one datum the hero is supposed to hold.
  *
  * There were three rows. The third named a caret at your average position, and it went when the
- * caret did: how you are doing against your usual is now a sentence on the card itself, and a
- * sentence is its own legend. This sheet explains marks — nothing more belongs in it.
+ * caret did: how you are doing against your usual is a sentence, and a sentence is its own legend.
+ *
+ * It is also where the figures live now. The card is the orbit alone, so the degrees, your usual
+ * and the days left are read here, on the tap, beside the marks they are read off. In order of
+ * weight: the month and its days left are the calendar (the subtitle); the two figures are the
+ * reading (the rows); the verdict is what they come to, in the primary ink; the note is reference,
+ * and quietest.
  *
  * The closing line is the reason this sheet exists at all. The moon is the largest, brightest
  * thing on the screen and its SHAPE is the calendar — tonight's real phase for today's Hijri date,
@@ -50,24 +55,26 @@ const BOW_CY = CENTER + BOW_R * 0.82;
  * corrects a misreading of the object in the middle of it. So it is said, plainly, in words.
  *
  * A `fitToContents` sheet cannot scroll, so this must stay short enough to never need to. Three
- * rows and a sentence is the ceiling; if it ever grows past that it becomes a pushed screen like
+ * rows and two sentences is the ceiling; if it ever grows past that it becomes a pushed screen like
  * the stacking and exchange guides.
  */
 export default function OrbitReadingSheet() {
   const theme = useTheme();
   // A snapshot of the card that opened this, passed as params rather than re-derived — mounting
   // the progress hook here would fire a fetch to re-answer a question already on screen.
-  const { monthName, year, currentRate, paceRate } = useLocalSearchParams<{
+  const { monthName, year, currentRate, paceRate, usual, daysLeft } = useLocalSearchParams<{
     monthName: string;
     year: string;
     currentRate: string;
     paceRate: string;
+    /** Empty in a first month, which has no usual to be measured against. */
+    usual: string;
+    daysLeft: string;
   }>();
 
   return (
-    <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H`}>
-      {/* Ordered as the ring is read: you first, because that is the bright arc and the number
-          above it; then the mark you are chasing — "the month so far", not "on pace": the number
+    <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H · ${daysLeft}`}>
+      {/* Ordered as the ring is read: you first, because that is the bright arc; then the mark you are chasing — "the month so far", not "on pace": the number
           is where the month itself has got to, and catching it means the two arc heads meet. True
           on a first day, when there is no past self to race. */}
       <Surface>
@@ -76,6 +83,12 @@ export default function OrbitReadingSheet() {
           <LegendRow glyph={<ArcSwatch color={theme.orbitPace} />} label="The month so far" value={formatDegrees(Number(paceRate))} />
         </SeparatedRows>
       </Surface>
+
+      {usual ? (
+        <ThemedText type="default" style={styles.note}>
+          {usual}
+        </ThemedText>
+      ) : null}
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
         A full orbit is 360°: the whole month kept. The moon inside it shows tonight’s real phase for

@@ -32,6 +32,11 @@ export function StatCard({ style, pattern = false, ...rest }: ViewProps & { patt
  * adrift from the caption it belongs to. Pairing them in one centred sub-row fixes both ends: the
  * glyph is centred on the caption's own line, and the pair sits on the title's FIRST baseline
  * however many lines the title turns out to need.
+ *
+ * `trailing` is usually a string. A card whose caption changes under a finger passes its own node
+ * instead (Over time's span, which becomes the reading being scrubbed). Either way the caption gets
+ * at most 70% of the row, so a long reading truncates and the title keeps enough width to stay on
+ * one line.
  */
 export function StatCardHeader({
   title,
@@ -39,7 +44,7 @@ export function StatCardHeader({
   accessory,
 }: {
   title: string;
-  trailing?: string;
+  trailing?: ReactNode;
   accessory?: ReactNode;
 }) {
   return (
@@ -49,11 +54,13 @@ export function StatCardHeader({
       </ThemedText>
       {trailing || accessory ? (
         <View style={styles.meta}>
-          {trailing ? (
-            <ThemedText type="small" themeColor="textSecondary">
+          {typeof trailing === 'string' ? (
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.caption}>
               {trailing}
             </ThemedText>
-          ) : null}
+          ) : (
+            trailing
+          )}
           {accessory}
         </View>
       ) : null}
@@ -74,5 +81,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   title: { flex: 1 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, flexShrink: 1, maxWidth: '70%' },
+  caption: { flexShrink: 1 },
 });
