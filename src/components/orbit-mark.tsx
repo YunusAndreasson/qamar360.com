@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react';
-import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
 import { Duration, Tick } from '@/constants/motion';
@@ -9,12 +17,32 @@ import { clamp01, ringMetrics } from '@/lib/progress';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 /**
+ * The orbit at glyph size: a day in Today's week bar, a month in the Year card. One size for both,
+ * so the two read as the same mark.
+ *
+ * Sized from the number it holds, not from the room it has. The ring is the most legible thing in
+ * the mark (a closed or open circle reads at any size), so it needs no more than to clear two 14pt
+ * digits with a little air: at 28 "30" has about 3pt each side, where at 26 it touches the stroke.
+ * At 32 it was 2.3 times the number and nearly three times the moon beneath it, and read as the
+ * subject of a mark whose subject is the day. The stroke is about a text stem's weight at 14pt, so
+ * ring and numeral are drawn in the same line.
+ */
+export const ORBIT_GLYPH = 28;
+export const ORBIT_GLYPH_STROKE = 2;
+/**
+ * How far the number inside a glyph orbit may grow with the system text size. The ring is fixed, so
+ * the number's room is too: at the dense-label cap (1.3×) "30" is 22.7pt wide and its corners cut
+ * the stroke, where at 1.15× they clear it by about a point (measured on Inter's own advances).
+ */
+export const ORBIT_GLYPH_TEXT_SCALE = 1.15;
+
+/**
  * A span of days as the moon draws it, at glyph size: an orbit filled to how much of it was kept.
  *
  * The Progress hero's stripe in small, so it is read the same way wherever it appears: the groove
  * (`orbitTrack`) is the whole span, the accent arc is what was kept, running clockwise from the
  * top, and an orbit kept in full closes in the moon's warm light (`complete`), as the hero does at
- * 360°. A month wears one in the year card's scrub caption; a day wears one in Today's week bar.
+ * 360°. A day wears one in Today's week bar, and a month in the Year card.
  *
  * `rate` null draws no arc, and `groove` false no groove: a day that asked for nothing has no orbit
  * to keep, which is not the same as an empty one, and is drawn as nothing rather than as a miss.
@@ -22,6 +50,9 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  * `animate` is for the orbit that moves under your hand (the day you are ticking): the arc walks to
  * its new length on the tick's own sweep clock, and on closing turns warm as the sweep lands. Every
  * other orbit only ever lands, and a mount is always the settled state.
+ *
+ * `follow` hands the arc to a clock outside the mark: the year's running month follows the moon's
+ * own stripe, so the two fill on one sweep and close together.
  */
 export function OrbitMark({
   rate,
@@ -30,6 +61,7 @@ export function OrbitMark({
   groove = true,
   kept = rate !== null && rate >= 1,
   animate = false,
+  follow,
 }: {
   rate: number | null;
   size: number;
@@ -39,6 +71,8 @@ export function OrbitMark({
    *  degrees passes its own, so the mark agrees with the figure beside it. */
   kept?: boolean;
   animate?: boolean;
+  /** A 0–1 clock to draw the arc from instead of `rate`; warm once it closes the orbit. */
+  follow?: SharedValue<number>;
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
@@ -70,10 +104,11 @@ export function OrbitMark({
 
   // A zero-length dash can still paint a sliver, so the arc hides until it has any length.
   const arcProps = useAnimatedProps(() => {
-    const p = progress.get();
-    return { strokeDashoffset: circumference * (1 - p), opacity: p < 0.004 ? 0 : 1 - warm.get() };
+    const p = follow ? follow.get() : progress.get();
+    const w = follow ? (p >= 1 ? 1 : 0) : warm.get();
+    return { strokeDashoffset: circumference * (1 - p), opacity: p < 0.004 ? 0 : 1 - w };
   });
-  const warmProps = useAnimatedProps(() => ({ opacity: warm.get() }));
+  const warmProps = useAnimatedProps(() => ({ opacity: follow ? (follow.get() >= 1 ? 1 : 0) : warm.get() }));
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

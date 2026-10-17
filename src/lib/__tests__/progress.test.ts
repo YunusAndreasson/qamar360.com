@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { addDaysISO, daysBetweenISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, tallyDays, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
+import { addDaysISO, daysBetweenISO, HIJRI_MONTHS, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
+import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, tallyDays, toDegrees, withDoneToday, yearMonths, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -477,7 +477,6 @@ describe('computeProgress — the record series', () => {
 
   it('opens where the record does, and ends on today', () => {
     const { seriesByPeriod: { life: series } } = computeProgress([bornDaysAgo('h', 9)], [], today);
-    expect(series.sinceISO).toBe(addDaysISO(today, -9));
     expect(series.points).toHaveLength(10);
     expect(series.points[0]!.iso).toBe(addDaysISO(today, -9));
     expect(series.points[series.points.length - 1]!.endISO).toBe(today);
@@ -541,7 +540,6 @@ describe('computeProgress — the record series', () => {
     const { seriesByPeriod: { life: series } } = computeProgress([habit], [], addDaysISO(start, 20));
     expect(series.points[0]!.possible).toBeGreaterThan(0);
     expect(series.points[0]!.iso).toBe(addDaysISO(start, 12)); // the 13th
-    expect(series.sinceISO).toBe(addDaysISO(start, 12));
   });
 
   it('has nothing to draw when the record has not asked anything yet', () => {
@@ -549,7 +547,6 @@ describe('computeProgress — the record series', () => {
     const habit: ProgressHabit = { ...whiteDaysHabit('w'), created_at: `${start}T09:00:00.000Z` };
     const { seriesByPeriod: { life: series } } = computeProgress([habit], [], addDaysISO(start, 11)); // before the 13th
     expect(series.points).toHaveLength(0);
-    expect(series.sinceISO).toBeNull();
   });
 
   it('keeps a gap in the middle — a day nothing was due is not a miss', () => {
@@ -577,7 +574,6 @@ describe('computeProgress — the record series', () => {
   it('is empty before anything was ever scheduled', () => {
     const { seriesByPeriod: { life: series } } = computeProgress([], [], today);
     expect(series.points).toHaveLength(0);
-    expect(series.sinceISO).toBeNull();
   });
 
   it('agrees with the month above it — the same days, tallied the same way', () => {
@@ -601,13 +597,6 @@ describe('computeProgress — the record over each period', () => {
   });
   /** A record long enough for every period to be distinct: three Hijri years. */
   const mature = (id: string) => bornDaysAgo(id, 355 * 3);
-
-  it('names every line by the period it was read over', () => {
-    const { seriesByPeriod } = computeProgress([mature('h')], [], today);
-    for (const period of ['year', 'life'] as const) {
-      expect(seriesByPeriod[period].period).toBe(period);
-    }
-  });
 
   it('shows the year from the first day, beside the record', () => {
     // The year is the context for the moon above it, so it does not wait for months to compare.
@@ -658,6 +647,34 @@ describe('computeProgress — the record over each period', () => {
     const finished = year.points[year.points.length - 2]!;
     expect(finished.endISO).toBe(lastDay);
     expect(finished.rate).toBeCloseTo(closedOn, 10);
+  });
+
+  it('reads the year as twelve months: quiet before the record, this one running, the rest ahead', () => {
+    const day = addDaysISO(today, -200); // mid-year, so there are months on both sides of it
+    const habit: ProgressHabit = { ...dailyHabit('h'), created_at: `${monthShape(day).start}T09:00:00.000Z` };
+    const months = yearMonths(computeProgress([habit], [], day).seriesByPeriod.year);
+    const now = hijriParts(day)!.month - 1;
+    expect(now).toBeGreaterThan(0);
+    expect(now).toBeLessThan(11);
+    expect(months.map((m) => m.name)).toEqual([...HIJRI_MONTHS]);
+    expect(months[now]).toMatchObject({ phase: 'running', rate: 0, kept: false });
+    // The months before you began asked nothing: no orbit, not an empty one.
+    expect(months.slice(0, now).every((m) => m.phase === 'quiet' && m.rate === null)).toBe(true);
+    expect(months.slice(now + 1).every((m) => m.phase === 'ahead' && m.rate === null)).toBe(true);
+  });
+
+  it('reads a month kept in full as kept, and one owed but missed as closed at 0°, never as quiet', () => {
+    const { start } = monthShape(today);
+    const lastMonth = monthShape(addDaysISO(start, -1));
+    const habit: ProgressHabit = { ...dailyHabit('daily'), created_at: `${addDaysISO(start, -200)}T09:00:00.000Z` };
+    const comps: CompletionRow[] = [];
+    for (let d = lastMonth.start; d <= lastMonth.end; d = addDaysISO(d, 1)) comps.push(done('daily', d));
+    const months = yearMonths(computeProgress([habit], comps, today).seriesByPeriod.year);
+    const now = hijriParts(today)!.month - 1;
+    expect(now).toBeGreaterThan(1);
+    expect(months[now]!.phase).toBe('running');
+    expect(months[now - 1]).toMatchObject({ phase: 'closed', rate: 1, kept: true });
+    expect(months[now - 2]).toMatchObject({ phase: 'closed', rate: 0, kept: false });
   });
 
   it('reads a year as its Hijri months, tiled exactly and clipped at today', () => {
@@ -791,122 +808,6 @@ describe('computeProgress — count goals earn partial credit', () => {
     // Skip the count goal on a 2-act day → the day reads off the other (done) act only.
     const rate = rateToday([oneDayHabit('b', dom), countToday(4)], [done('b', today), skip('c', today)]);
     expect(rate).toBe(1); // 'c' excused → 1 of 1 remaining
-  });
-});
-
-// ── Trend: the "Rising since …" statement reads only COMPLETE months ─────────────────────────
-// These scenarios use the White-Days habit on purpose: it schedules exactly 3 acts per month
-// regardless of a month's 29/30-day length, so each month's rate is an exact k/3 — the
-// expectations are calendar-independent, where done-day counts on a daily habit would not be.
-
-describe('computeProgress — trend (rising complete months)', () => {
-  // Anchored mid-month so the current month is unambiguously incomplete.
-  const currentStart = monthShape('2026-06-15').start;
-  const today = addDaysISO(currentStart, 9); // day 10 of the current Hijri month
-
-  /** The Hijri month starting `back` whole months before the month containing `anchorISO`. */
-  function monthBack(anchorISO: string, back: number): { start: string; monthName: string } {
-    let cursor = monthShape(anchorISO).start;
-    for (let i = 0; i < back; i += 1) cursor = monthShape(addDaysISO(cursor, -1)).start;
-    const range = hijriMonthRange(cursor);
-    if (!range) throw new Error('Islamic calendar unavailable in this test environment');
-    return { start: range.start, monthName: range.monthName };
-  }
-
-  /** A White-Days habit that began tracking on `createdISO` (local noon → unambiguous day). */
-  const whiteDaysSince = (id: string, createdISO: string): ProgressHabit => ({
-    ...whiteDaysHabit(id),
-    created_at: `${createdISO}T12:00:00`,
-  });
-
-  /** `count` of the three White Days (13th–15th) done in the month starting at `monthStart`. */
-  function whiteDone(id: string, monthStart: string, count: number): CompletionRow[] {
-    return [13, 14, 15].slice(0, count).map((d) => done(id, addDaysISO(monthStart, d - 1)));
-  }
-
-  const noTrend: TrendSummary = { risingMonths: 0, sinceMonthName: null };
-
-  it('empty inputs → no trend (and the shape is the no-trend value, not null)', () => {
-    expect(computeProgress([], [], today).trend).toEqual(noTrend);
-  });
-
-  it('a habit with no completions at all → no trend (a flat zero line is not rising)', () => {
-    expect(computeProgress([dailyHabit('a')], [], today).trend).toEqual(noTrend);
-  });
-
-  it('the first month of tracking → no trend (no complete months behind it)', () => {
-    const h = whiteDaysSince('w', currentStart);
-    expect(computeProgress([h], [], today).trend).toEqual(noTrend);
-  });
-
-  it('two rising complete months → still no trend (one increase is noise, not a direction)', () => {
-    const h = whiteDaysSince('w', monthBack(today, 2).start);
-    const comps = [...whiteDone('w', monthBack(today, 2).start, 1), ...whiteDone('w', monthBack(today, 1).start, 2)];
-    expect(computeProgress([h], comps, today).trend).toEqual(noTrend);
-  });
-
-  it('three strictly rising complete months → risingMonths 3, since the run\'s first month', () => {
-    const base = monthBack(today, 3);
-    const h = whiteDaysSince('w', base.start);
-    const comps = [
-      ...whiteDone('w', base.start, 1), // 1/3
-      ...whiteDone('w', monthBack(today, 2).start, 2), // 2/3
-      ...whiteDone('w', monthBack(today, 1).start, 3), // 3/3
-    ];
-    expect(computeProgress([h], comps, today).trend).toEqual({ risingMonths: 3, sinceMonthName: base.monthName });
-  });
-
-  it('a plateau breaks the run (equal is not rising)', () => {
-    const h = whiteDaysSince('w', monthBack(today, 3).start);
-    const comps = [
-      ...whiteDone('w', monthBack(today, 3).start, 2), // 2/3 ─┐ plateau
-      ...whiteDone('w', monthBack(today, 2).start, 2), // 2/3 ─┘
-      ...whiteDone('w', monthBack(today, 1).start, 3), // 3/3 — one rise, then the plateau stops it
-    ];
-    expect(computeProgress([h], comps, today).trend).toEqual(noTrend);
-  });
-
-  it('a dip then a rise → the run counts from the dip, older history ignored', () => {
-    const h = whiteDaysSince('w', monthBack(today, 4).start);
-    const dip = monthBack(today, 3);
-    const comps = [
-      ...whiteDone('w', monthBack(today, 4).start, 3), // 3/3 — a strong month BEFORE the dip
-      ...whiteDone('w', dip.start, 1), // 1/3 — the dip: the run's base
-      ...whiteDone('w', monthBack(today, 2).start, 2), // 2/3
-      ...whiteDone('w', monthBack(today, 1).start, 3), // 3/3
-    ];
-    expect(computeProgress([h], comps, today).trend).toEqual({ risingMonths: 3, sinceMonthName: dip.monthName });
-  });
-
-  it('a perfect current month never fakes a rise (only complete months are read)', () => {
-    // Anchor on the month's LAST day so all three of its White Days are in the past and done —
-    // the strongest possible current month. If the walk wrongly included it (rate 3/3 = 1 above
-    // a 2/3, 1/3 pair), it would claim a 3-month rise; excluding it correctly leaves 1 increase.
-    const endToday = monthShape('2026-06-15').end;
-    const h = whiteDaysSince('w', monthBack(endToday, 2).start);
-    const comps = [
-      ...whiteDone('w', monthBack(endToday, 2).start, 1),
-      ...whiteDone('w', monthBack(endToday, 1).start, 2),
-      ...whiteDone('w', monthShape(endToday).start, 3), // the current month, complete
-    ];
-    expect(computeProgress([h], comps, endToday).trend).toEqual(noTrend);
-  });
-
-  it('the walk stops where tracking began (possible = 0), not at a phantom zero month', () => {
-    // Same rising 1/3 → 2/3 → 3/3 run, but with creation-unknown history the months BEFORE the
-    // run exist with rate 0, and 1/3 over 0 is a genuine rise — the run legitimately reaches
-    // back one more month. With `created_at` at the run's base (the test above), the walk breaks
-    // there instead. The two cases differing is exactly the boundary this test pins.
-    const base4 = monthBack(today, 4);
-    const h = whiteDaysHabit('w'); // created_at: null → existed forever, idle before the run
-    const comps = [
-      ...whiteDone('w', monthBack(today, 3).start, 1),
-      ...whiteDone('w', monthBack(today, 2).start, 2),
-      ...whiteDone('w', monthBack(today, 1).start, 3),
-    ];
-    // Rates newest-first: 1, 2/3, 1/3, 0(idle), 0(idle)… — the run is 4 long (0 → 1/3 counts),
-    // and the second idle-zero month is where the strictness stops it.
-    expect(computeProgress([h], comps, today).trend).toEqual({ risingMonths: 4, sinceMonthName: base4.monthName });
   });
 });
 

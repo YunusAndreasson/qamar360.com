@@ -12,6 +12,7 @@ import {
   addDaysISO,
   createdDayISO,
   daysBetweenISO,
+  HIJRI_MONTHS,
   hijriMonthRange,
   hijriParts,
   hijriYearRange,
@@ -199,9 +200,9 @@ export type MonthProgress = {
 export const SERIES_MAX_POINTS = 80;
 
 /**
- * How far back the two month-by-month walks look — the ring's average-by-this-day and the
- * rising-months trend. A Hijri year is the app's natural window, and both walks stop early at the
- * first month that was never tracked, so this is a ceiling rather than a cost.
+ * How far back the ring's average-by-this-day looks, month by month. A Hijri year is the app's
+ * natural window, and the walk stops early at the first month that was never tracked, so this is a
+ * ceiling rather than a cost.
  */
 const MONTHS_BACK = 12;
 
@@ -242,7 +243,7 @@ export type SeriesPoint = {
 export type SeriesPeriod = 'year' | 'life';
 
 /**
- * The record read over one period — the line the Progress chart draws.
+ * The record read over one period: the Year card's months, or the Lifetime card's line.
  *
  * A bucket is measured against its own schedule, exactly like every other figure on the screen,
  * so a point can never disagree with the month that contains it.
@@ -254,14 +255,9 @@ export type RecordSeries = {
    * Days per bucket, where the buckets have a fixed width: 1 when the line is drawn day by day,
    * and for `life` a width that grows continuously with the length of the record (2 at five
    * months, 10 after two years) so it thins by degrees rather than lurching at a threshold.
-   * **`0` means the buckets are calendar months** and have no single width — read {@link period}.
+   * **`0` means the buckets are calendar months** (the year's) and have no single width.
    */
   bucketDays: number;
-  /** The first day this line is drawn from. For `life` that is also where the record opens,
-   *  because there the window IS the record. `null` when nothing was ever scheduled. */
-  sinceISO: string | null;
-  /** The period this line was read over, so a card can name itself from the series alone. */
-  period: SeriesPeriod;
   /**
    * How many buckets the period holds when it is complete, which is the plot's width in slots. A
    * year is always its twelve months, so it is drawn as the whole year from its first day and a new
@@ -273,28 +269,11 @@ export type RecordSeries = {
 
 
 
-/**
- * The improvement trend, read off COMPLETE Hijri months only: how many consecutive closed
- * months (ending with the most recent one) rose strictly, whole-month rate over whole-month
- * rate. The current, in-progress month is excluded — its month-to-date rate measured against
- * closed months would read as a dip at every month's start. One increase is noise, not a
- * direction, so `risingMonths` is 0 or ≥ 3. There is deliberately no falling counterpart —
- * silence, not shame (the same negative space as {@link import('./celebration').celebrationCopy}).
- */
-export type TrendSummary = {
-  /** Consecutive complete Hijri months whose rates strictly rise; 0 (no trend) or ≥ 3. */
-  risingMonths: number;
-  /** Name of the Hijri month the ascent began (the run's first month), or null without a run. */
-  sinceMonthName: string | null;
-};
-
 /** Everything the Progress screen derives from the raw rows. */
 export type ProgressDerived = {
   habitsCount: number;
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
-  /** The rising-months statement ("Rising since …"), or `null` if the calendar is unavailable. */
-  trend: TrendSummary | null;
   /**
    * The record read over each period. `life` is the whole of it — it moves on a user's second day,
    * still reads after five years, and needs no calendar, so it is drawable even where `Intl` lacks
@@ -391,7 +370,6 @@ function monthlySpans(start: string, end: string): Span[] {
  */
 function buildSeries(
   spans: Span[],
-  period: SeriesPeriod,
   bucketDays: number,
   today: string,
   tally: (startISO: string, endISO: string) => { done: number; possible: number },
@@ -405,7 +383,7 @@ function buildSeries(
     const first = points.findIndex((p) => p.possible > 0);
     points = first < 0 ? [] : points.slice(first);
   }
-  return { points, bucketDays, sinceISO: points[0]?.iso ?? null, period, slots: points.length };
+  return { points, bucketDays, slots: points.length };
 }
 
 /** Narrowest first: the order the cards are shown in. */
@@ -484,19 +462,51 @@ export function tallyDays(
 }
 
 /**
- * The year card's line: the whole Hijri year as its frame, with this month on the moon's scale.
+ * The year card's months: the whole Hijri year as its frame, with this month on the moon's scale.
  *
  * A finished month's rate is where its orbit closed, so the year's settled points are the moons
  * behind this one. The month still running is different. Its own rate (done ÷ due so far) reads
- * 360° after a perfect fortnight while the moon above is half way round, and the card would say
- * "This month · 360°" under an orbit that plainly is not there. So it carries the moon's figure
- * instead, and climbs as the stripe does.
+ * 360° after a perfect fortnight while the moon above is half way round, and the card would draw a
+ * closed orbit beside one that plainly is not. So it carries the moon's figure instead, and climbs
+ * as the stripe does.
  */
 function yearSeries(series: RecordSeries, month: MonthProgress | null): RecordSeries {
   const last = series.points[series.points.length - 1];
   const points =
     month && last?.pending ? [...series.points.slice(0, -1), { ...last, rate: month.thisRate }] : series.points;
   return { ...series, points, slots: Math.max(MONTHS_IN_YEAR, points.length) };
+}
+
+/** One month of the Hijri year, as the Year card draws it. */
+export type YearMonth = {
+  /** The month's name, e.g. "Ṣafar". */
+  name: string;
+  /**
+   * - `running`: the month you are in. Its orbit is the moon's own stripe.
+   * - `closed`: a month behind you that asked something; `rate` is where its orbit closed.
+   * - `quiet`: a month behind you that asked nothing, before the record began or with nothing due.
+   * - `ahead`: still to come.
+   */
+  phase: 'running' | 'closed' | 'quiet' | 'ahead';
+  /** 0–1 for a `running` or `closed` month, else `null`: an orbit that was never owed is not 0°. */
+  rate: number | null;
+  /** Closed at a full 360°, in the unit it is read in, so the orbit agrees with the figure. */
+  kept: boolean;
+};
+
+/**
+ * The year series as its twelve months, Muḥarram first. The series opens at Muḥarram (see
+ * {@link yearSeries}), so a point's index is its month's.
+ */
+export function yearMonths(series: RecordSeries): YearMonth[] {
+  return Array.from({ length: Math.max(series.slots, series.points.length) }, (_, i): YearMonth => {
+    const name = HIJRI_MONTHS[i] ?? '';
+    const point = series.points[i];
+    if (!point) return { name, phase: 'ahead', rate: null, kept: false };
+    if (point.pending) return { name, phase: 'running', rate: point.rate, kept: toDegrees(point.rate) === 360 };
+    if (point.possible === 0) return { name, phase: 'quiet', rate: null, kept: false };
+    return { name, phase: 'closed', rate: point.rate, kept: toDegrees(point.rate) === 360 };
+  });
 }
 
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
@@ -513,8 +523,8 @@ export function computeProgress(
   // This Hijri month vs last, as a completion *rate* (done / scheduled). A rate
   // normalises across changing habit counts and month lengths, so 100% always
   // means a perfect month regardless of how many acts that is.
-  // Memoized per call by range: the ring, the year strip, and the trend walk each re-tally
-  // ranges another already swept (the previous whole month alone is asked for twice, and the
+  // Memoized per call by range: the ring and the year strip each re-tally ranges another already
+  // swept (the previous whole month alone is asked for twice, and the
   // current month's two tallies recur in the year strip) — each sweep is days × habits of
   // schedule checks, so the dedup roughly halves the recompute.
   const tallyCache = new Map<string, { done: number; possible: number }>();
@@ -597,32 +607,6 @@ export function computeProgress(
     return oldest === null || day < oldest ? day : oldest;
   }, null);
 
-  // The improvement trend: walk BACK from this month across closed months (crossing the Hijri
-  // year boundary — the year strip above can't power this, it restarts every Muḥarram), collecting
-  // each one's whole-month rate until the first month with nothing scheduled (before tracking
-  // began) or the window's honest capacity (the fetch pulls ~a year). Then count the strictly
-  // rising run from the most recent closed month backward.
-  let trend: TrendSummary | null = null;
-  if (thisRange) {
-    const rates: { rate: number; monthName: string }[] = []; // newest complete month first
-    let cursor = addDaysISO(thisRange.start, -1); // the last day of the previous month
-    for (let back = 0; back < MONTHS_BACK; back += 1) {
-      const range = hijriMonthRange(cursor);
-      if (!range) break;
-      const tally = tallyRange(range.start, range.end);
-      if (tally.possible === 0) break; // nothing was ever scheduled — before tracking began
-      rates.push({ rate: tally.done / tally.possible, monthName: range.monthName });
-      cursor = addDaysISO(range.start, -1);
-    }
-    // Strict `>` — rates are exact rationals, and a plateau is not a rise.
-    let increases = 0;
-    while (increases + 1 < rates.length && rates[increases]!.rate > rates[increases + 1]!.rate) increases += 1;
-    trend =
-      increases >= 2
-        ? { risingMonths: increases + 1, sinceMonthName: rates[increases]!.monthName }
-        : { risingMonths: 0, sinceMonthName: null };
-  }
-
   // The record as a line, over each period it can be read at. Every other figure on the screen is
   // a whole-PERIOD rate, so a bucket is measured the same way against its own schedule — a full
   // orbit is a span fully kept. Each bucket is a `tallyRange`, riding the same memo and the same
@@ -638,17 +622,17 @@ export function computeProgress(
   // months to walk, `monthlySpans` comes back empty, and the card is simply not shown.
   const yearStart = live ? hijriYearRange(today)?.start : undefined;
   const yearSpans = yearStart ? monthlySpans(yearStart, today) : [];
-  const empty = (period: SeriesPeriod): RecordSeries => ({ points: [], bucketDays: 1, sinceISO: null, period, slots: 0 });
+  const empty: RecordSeries = { points: [], bucketDays: 1, slots: 0 };
   const seriesByPeriod: Record<SeriesPeriod, RecordSeries> = live
     ? {
         // 0 bucketDays: a Hijri month is 29 or 30 days, so these have no single width.
-        year: yearSeries(buildSeries(yearSpans, 'year', 0, today, tallyRange, false), month),
-        life: buildSeries(uniformSpans(opened, today, lifeBucketDays), 'life', lifeBucketDays, today, tallyRange, true),
+        year: yearSeries(buildSeries(yearSpans, 0, today, tallyRange, false), month),
+        life: buildSeries(uniformSpans(opened, today, lifeBucketDays), lifeBucketDays, today, tallyRange, true),
       }
-    : { year: empty('year'), life: empty('life') };
+    : { year: empty, life: empty };
 
   // The year whenever there is a calendar to draw it on, and the record always.
   const seriesPeriods = PERIOD_ORDER.filter((period) => period === 'life' || seriesByPeriod[period].points.length > 0);
 
-  return { habitsCount: habits.length, month, trend, seriesByPeriod, seriesPeriods };
+  return { habitsCount: habits.length, month, seriesByPeriod, seriesPeriods };
 }

@@ -1,20 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
 import { MoonPhase } from '@/components/moon-phase';
-import { OrbitMark } from '@/components/orbit-mark';
+import { ORBIT_GLYPH, ORBIT_GLYPH_STROKE, ORBIT_GLYPH_TEXT_SCALE, OrbitMark } from '@/components/orbit-mark';
 import { ThemedText } from '@/components/themed-text';
 import { DenseLabelScale, FontWeight, Spacing } from '@/constants/theme';
 import { DATE_LOCALE, JUMUAH, WEEKDAY_NAMES, hijriMonthRange, hijriParts } from '@/lib/dates';
 import { phaseOf } from '@/lib/lunar-phase';
 import { formatDegrees } from '@/lib/progress-format';
 
-/** The day's orbit, round its number: big enough for two digits inside the stroke. */
-const DAY_ORBIT = 32;
-const DAY_ORBIT_STROKE = 2.5;
 /** The day's moon under its orbit: a glyph, with the rim, so a new moon still reads as one. */
 const DAY_MOON = 12;
 /** A {@link DayMark}'s height, for the rows that lay it out. */
-export const DAY_MARK_HEIGHT = DAY_ORBIT + Spacing.one + DAY_MOON;
+export const DAY_MARK_HEIGHT = ORBIT_GLYPH + Spacing.one + DAY_MOON;
 
 /** The day's moon, read off its Hijri date: the rule every moon in the app follows. */
 function moonOf(iso: string, hijriOffset: number) {
@@ -64,8 +61,8 @@ export function DayMark({
         <View style={StyleSheet.absoluteFill}>
           <OrbitMark
             rate={rate ?? null}
-            size={DAY_ORBIT}
-            strokeWidth={DAY_ORBIT_STROKE}
+            size={ORBIT_GLYPH}
+            strokeWidth={ORBIT_GLYPH_STROKE}
             groove={ahead || (rate !== null && rate !== undefined)}
             animate={animate}
           />
@@ -74,7 +71,7 @@ export function DayMark({
         <ThemedText
           type={selected ? 'smallCompactBold' : 'smallCompact'}
           themeColor={isToday ? 'accent' : 'text'}
-          maxFontSizeMultiplier={DenseLabelScale}>
+          maxFontSizeMultiplier={ORBIT_GLYPH_TEXT_SCALE}>
           {day}
         </ThemedText>
       </View>
@@ -122,6 +119,6 @@ export function dayAccessibilityLabel(
 
 const styles = StyleSheet.create({
   mark: { alignItems: 'center', gap: Spacing.one },
-  orbit: { width: DAY_ORBIT, height: DAY_ORBIT, alignItems: 'center', justifyContent: 'center' },
+  orbit: { width: ORBIT_GLYPH, height: ORBIT_GLYPH, alignItems: 'center', justifyContent: 'center' },
   strong: { fontWeight: FontWeight.semibold },
 });

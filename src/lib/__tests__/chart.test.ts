@@ -50,7 +50,7 @@ describe('pointAt', () => {
   });
 
   // `padBottom` exists so a chart that draws nothing under its baseline can stop reserving room
-  // there (OverTime). It must move the baseline WITHOUT squeezing the plot: shortening the box by
+  // there (the Lifetime card). It must move the baseline WITHOUT squeezing the plot: shortening the box by
   // exactly what comes off the bottom inset has to leave every reading at the y it already had.
   it('takes a separate bottom inset, keeping the top inset for headroom', () => {
     const cropped: PlotBox = { height: 108, padY: 12, padBottom: 0, padX: 12 };

@@ -6,11 +6,11 @@ import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { todayLocalISO } from '@/lib/dates';
 import { fetchProgressWindow } from '@/lib/load-progress';
-import { computeProgress, type CompletionRow, type MonthProgress, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
+import { computeProgress, type CompletionRow, type MonthProgress, type RecordSeries, type SeriesPeriod } from '@/lib/progress';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
-export type { MonthProgress, RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/lib/progress';
+export type { MonthProgress, RecordSeries, SeriesPoint } from '@/lib/progress';
 
 type ProgressData = {
   /** True only during the first load. */
@@ -22,12 +22,10 @@ type ProgressData = {
   habitsCount: number;
   /** This Hijri month's completion so far — the moon ring, or `null` if unavailable. */
   month: MonthProgress | null;
-  /** The rising-months statement for the Over-time card, or `null` if the calendar is unavailable. */
-  trend: TrendSummary | null;
-  /** The record read over each period — what the chart's selector switches between. `life` is the
-   *  whole of it, and the only reading that moves on a second day of use. */
+  /** The record read over each period: the year's twelve months, and the lifetime's line. `life`
+   *  is the whole of it, and the only reading that moves on a second day of use. */
   seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
-  /** The periods worth offering, narrowest first. `length === 1` means no selector. */
+  /** The periods with a card to show, narrowest first. Without a calendar, `life` alone. */
   seriesPeriods: SeriesPeriod[];
   /** The local day these figures describe. Owned here because it survives a midnight rollover,
    *  which a `todayLocalISO()` call in a screen's render would not. */

@@ -1,12 +1,15 @@
+import { useSharedValue } from 'react-native-reanimated';
+
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
+import { LifetimeCard } from '@/components/lifetime-card';
 import { MonthSummary } from '@/components/month-summary';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
-import { OverTime } from '@/components/over-time';
 import { ProgressSkeleton } from '@/components/progress-skeleton';
+import { YearCard } from '@/components/year-card';
 import { useProgress } from '@/hooks/use-progress';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
@@ -14,7 +17,10 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
  * Progress — where this month stands now, then the record over time.
  */
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, trend, seriesByPeriod, seriesPeriods } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, seriesByPeriod, seriesPeriods } = useProgress();
+  // Where the moon's stripe is drawn, frame by frame: the hero writes it, and the Year card's
+  // running month reads it, so this month fills in both places on one sweep.
+  const stripe = useSharedValue(0);
 
   const { refreshControl } = usePullToRefresh(refresh);
 
@@ -65,12 +71,13 @@ export default function ProgressScreen() {
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
-      <MonthSummary month={month} />
+      <MonthSummary month={month} stripe={stripe} />
 
-      {/* The zoom-out under the moon: this year month by month, then the whole record. Only one
+      {/* The zoom-out under the moon: this year as its twelve moons, then the whole record. Only one
           scale is ever *in* a card, so a figure is never set beside one measured against a
           different span. */}
-      <OverTime seriesByPeriod={seriesByPeriod} periods={seriesPeriods} trend={trend} />
+      {seriesPeriods.includes('year') ? <YearCard series={seriesByPeriod.year} stripe={stripe} /> : null}
+      <LifetimeCard series={seriesByPeriod.life} />
     </AppScreen>
   );
 }

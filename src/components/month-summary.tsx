@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   Easing,
+  useAnimatedReaction,
   useDerivedValue,
   useReducedMotion,
   useSharedValue,
@@ -65,8 +66,13 @@ function usualLabel(month: MonthProgress): string | null {
   return gap > 0 ? 'Ahead of your usual' : 'Behind your usual';
 }
 
-/** Month-to-date progress wrapped around the real moon for today's Hijri date. */
-export function MonthSummary({ month }: { month: MonthProgress | null }) {
+/**
+ * Month-to-date progress wrapped around the real moon for today's Hijri date.
+ *
+ * `stripe` carries the stripe's position out, 0–1 as it is drawn, so the Year card's running month
+ * can fill on the same sweep (see `YearCard`).
+ */
+export function MonthSummary({ month, stripe }: { month: MonthProgress | null; stripe: SharedValue<number> }) {
   // Tonight's moon breathes — a very slow, shallow luminance dip, like the calm of dhikr, so the
   // "you are here" moon reads as alive rather than merely lit. Reduce Motion holds it at full.
   //
@@ -183,6 +189,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
             illumination={illumination}
             waxing={waxing}
             breath={breath}
+            stripe={stripe}
           />
         </View>
       </PressableScale>
@@ -211,6 +218,7 @@ function OrbitCanvas({
   illumination,
   waxing,
   breath,
+  stripe,
 }: {
   current: number;
   seenKey: string;
@@ -218,6 +226,7 @@ function OrbitCanvas({
   illumination: number;
   waxing: boolean;
   breath: SharedValue<number>;
+  stripe: SharedValue<number>;
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
@@ -234,6 +243,11 @@ function OrbitCanvas({
   // there, rather than empty for the frame before the effect below could place it.
   const [lastSeen] = useState(() => readOrbitSeen(seenKey) ?? 0);
   const progress = useSharedValue(lastSeen);
+  // Out to the Year card, frame by frame, so this month's orbit there moves with this one.
+  useAnimatedReaction(
+    () => progress.get(),
+    (value) => stripe.set(value),
+  );
   // 0 → 1 once round the ring when the orbit closes; invisible at both ends, so it never resets.
   const glint = useSharedValue(1);
 
