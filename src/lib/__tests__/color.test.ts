@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { withAlpha } from '@/lib/color';
+import { mixHex, withAlpha } from '@/lib/color';
 
 describe('withAlpha', () => {
   it('appends the alpha as a two-digit hex byte', () => {
@@ -12,5 +12,14 @@ describe('withAlpha', () => {
   it('clamps an alpha outside 0–1', () => {
     expect(withAlpha('#000000', 2)).toBe('#000000ff');
     expect(withAlpha('#000000', -1)).toBe('#00000000');
+  });
+});
+
+describe('mixHex', () => {
+  it('runs from one colour to the other', () => {
+    expect(mixHex('#000000', '#ffffff', 0)).toBe('#000000');
+    expect(mixHex('#000000', '#ffffff', 1)).toBe('#ffffff');
+    expect(mixHex('#000000', '#ffffff', 0.5)).toBe('#808080');
+    expect(mixHex('#1E2B35', '#89C2E3', 0.5)).toBe('#54778c');
   });
 });

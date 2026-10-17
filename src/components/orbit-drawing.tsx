@@ -1,7 +1,7 @@
 import { BlurMask, Circle, Group, Path, RadialGradient, SweepGradient, vec, type AnimatedProp } from '@shopify/react-native-skia';
 
 import { MoonBloom, MoonBody } from '@/components/moon-body';
-import { withAlpha } from '@/lib/color';
+import { mixHex, withAlpha } from '@/lib/color';
 import { octagramStar } from '@/lib/geometry';
 
 // Exported for the reading sheet's legend, which redraws these marks at glyph scale. The legend
@@ -29,6 +29,9 @@ const GLOW_SIZE = 300;
 /** The ring's centre and radius on the canvas. */
 export const RING_CENTER = ORBIT_CANVAS / 2;
 export const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
+// The light at the stripe's head: a halo drawn OUTSIDE the cap only ("outer" blur), so it brightens
+// the dark around the front of the stripe without smudging the stripe itself.
+const HEAD_GLOW_BLUR = 6;
 // The glint that goes round a closed orbit once: a short stretch of moonlight, as a share of it.
 export const GLINT_SHARE = 0.09;
 
@@ -44,8 +47,6 @@ const FROM_TOP = [{ rotate: -Math.PI / 2 }];
 type OrbitColors = {
   /** The groove: the whole 360°. */
   track: string;
-  /** The stripe's start, a step down from its head. */
-  tail: string;
   /** The stripe's head: where the month has got to. */
   head: string;
   /** A closed orbit, and the moon's light. */
@@ -62,8 +63,6 @@ type OrbitDrawingProps = {
   colors: OrbitColors;
   /** The halo's line opacity, already dimmed for the light page. */
   haloOpacity: number;
-  /** From `useLimbShade`. */
-  limbShade: number;
   /** The month is kept whole (the target, not the sweep): the stripe is warm, and the bloom lights. */
   closed: boolean;
   illumination: number;
@@ -104,10 +103,15 @@ type OrbitDrawingProps = {
  * Every animated value arrives as a prop, already derived, so the drawing is a function of its
  * inputs and renders the same headless as on a device.
  */
+// The stripe's start, as a share of the way from the groove to the accent. Opaque and in the
+// accent's own hue, so the gradient deepens rather than greys (a desaturated track tone at the
+// tail read as muddy), and close enough to the head that it reads as one stripe gathering light,
+// not as a stripe fading in.
+const TAIL_SHARE = 0.72;
+
 export function OrbitDrawing({
   colors,
   haloOpacity,
-  limbShade,
   closed,
   illumination,
   waxing,
@@ -122,6 +126,7 @@ export function OrbitDrawing({
   glintOpacity,
   moonGlow,
 }: OrbitDrawingProps) {
+  const tail = mixHex(colors.track, colors.head, TAIL_SHARE);
   return (
     <Group>
       {closed ? <MoonBloom cx={C} cy={C} size={GLOW_SIZE} color={colors.glow} /> : null}
@@ -141,12 +146,12 @@ export function OrbitDrawing({
 
       {/* The stripe, trimmed to where it stands, so the last stretch of a closing month sweeps
           shut rather than snapping. Its caps are discs (see above), coloured as the ends they cap. */}
-      <Circle cx={C} cy={C - R} r={RING_STROKE / 2} color={closed ? colors.complete : colors.tail} opacity={capOpacity} />
+      <Circle cx={C} cy={C - R} r={RING_STROKE / 2} color={closed ? colors.complete : tail} opacity={capOpacity} />
       <Path path={RING_PATH} style="stroke" strokeWidth={RING_STROKE} start={0} end={progress} color={colors.complete}>
         {closed ? null : (
           <SweepGradient
             c={vec(C, C)}
-            colors={[colors.tail, colors.head]}
+            colors={[tail, colors.head]}
             start={0}
             end={sweepEnd}
             transform={FROM_TOP}
@@ -157,8 +162,8 @@ export function OrbitDrawing({
       {/* The light at the head, under its cap: the front of the stripe reads as the place the month
           has got to, not simply where the ink stops. A closed orbit has no front. */}
       {closed ? null : (
-        <Circle cx={headX} cy={headY} r={RING_STROKE * 0.75} color={colors.head} opacity={headGlowOpacity}>
-          <BlurMask blur={9} style="normal" />
+        <Circle cx={headX} cy={headY} r={RING_STROKE * 0.5} color={colors.head} opacity={headGlowOpacity}>
+          <BlurMask blur={HEAD_GLOW_BLUR} style="outer" />
         </Circle>
       )}
       <Circle cx={headX} cy={headY} r={RING_STROKE / 2} color={closed ? colors.complete : colors.head} opacity={capOpacity} />
@@ -202,7 +207,6 @@ export function OrbitDrawing({
         brightness={closed ? 1 : 0.8}
         light={colors.complete}
         base={colors.base}
-        limbShade={limbShade}
         glow={moonGlow}
       />
     </Group>

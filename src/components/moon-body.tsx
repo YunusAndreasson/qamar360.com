@@ -1,48 +1,53 @@
-import {
-  BlurMask,
-  Canvas,
-  Circle,
-  Group,
-  Path,
-  RadialGradient,
-  rect,
-  rrect,
-  vec,
-  type AnimatedProp,
-} from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, RadialGradient, Shader, Skia, vec, type AnimatedProp } from '@shopify/react-native-skia';
 
-import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
-import { withAlpha } from '@/lib/color';
-import { moonPhasePath } from '@/lib/moon';
+import { useTheme } from '@/hooks/use-theme';
+import { mixHex, withAlpha } from '@/lib/color';
+import { sunDirection } from '@/lib/moon';
 
-/** The unlit disc: the rest of the moon in shadow, a faint wash of the moon's own light. The same
- *  share `MoonPhase` uses, so a large moon and a small one read as the same body. */
+/** The unlit disc: the rest of the moon in shadow, a faint wash of the moon's own light (earthshine,
+ *  in effect). The same share `MoonPhase` uses, so a large moon and a small one read as one body. */
 const FAINT = 0.14;
-/**
- * How soft the terminator is, as a share of the diameter: the moon's day fades into its night over
- * a few points, as a real one does, instead of being cut along a line. About 2.6pt on the 184pt
- * Progress moon.
- */
-const SOFTNESS = 0.014;
-/** The moonlight lost at the very edge of the disc. A real moon is nearly as bright at its rim as
- *  at its centre; this is only enough to read as a sphere rather than a coin. */
-const LIMB_SHADE = 0.22;
-/** Where the limb's shading begins, as a share of the radius. */
-const LIMB_SHADE_FROM = 0.62;
 
 /**
- * How much of {@link LIMB_SHADE} a theme takes. On the light page the shading fades the moon toward
- * white, and at full strength that reads as a vignette rather than a sphere; the same light-mode
- * dimming the halo applies to its lines.
+ * How quickly the day side comes to full light past the terminator. The moon's own law keeps the
+ * disc nearly flat-bright, so this sets only the width of the dusk band: higher is a crisper
+ * terminator. At 7 the band is about a sixth of the radius at the quarter, which reads as a lit
+ * sphere without the softness turning into blur.
  */
-export function useLimbShade(): number {
-  return LIMB_SHADE * (useEffectiveScheme() === 'light' ? 0.55 : 1);
+const TERMINATOR_GAIN = 7;
+
+/**
+ * The moon, lit as a sphere by the sun, on the GPU.
+ *
+ * Lommel–Seeliger, the scattering law the moon's surface actually follows: its dust throws light
+ * back toward the sun, so the disc looks almost evenly bright out to its very rim (no darkening at
+ * the limb) and falls away only near the terminator, which is therefore soft by nature rather than
+ * by a blur. The light is `gain · μ₀ / (μ₀ + μ)`, μ₀ the sun's incidence and μ the view's, eased
+ * into full light with a smoothstep: a hard clamp leaves a kink where the band meets the day side,
+ * and the eye reads a kink in a gradient as a bright line (a Mach band). The night side keeps its
+ * faint earthshine.
+ */
+const MOON_SHADER = Skia.RuntimeEffect.Make(`
+uniform float2 center;
+uniform float radius;
+uniform float3 sun;
+uniform float gain;
+uniform float4 dayColor;
+uniform float4 nightColor;
+
+half4 main(float2 p) {
+  float2 d = (p - center) / radius;
+  float3 n = float3(d, sqrt(max(1.0 - dot(d, d), 0.0)));
+  float mu0 = dot(n, sun);
+  float mu = max(n.z, 0.0001);
+  float day = mu0 > 0.0 ? smoothstep(0.0, 1.0, clamp(gain * mu0 / (mu0 + mu), 0.0, 1.0)) : 0.0;
+  return half4(mix(nightColor, dayColor, day));
 }
+`)!;
 
-/** How far a large moon's canvas must run past its disc for the terminator's blur to find lit area
- *  beyond the limb (see {@link MoonBody}). */
-function moonBleed(size: number): number {
-  return Math.ceil(size * SOFTNESS * 3);
+/** A `#RRGGBB` as the shader's float4. */
+function rgba(hex: string): number[] {
+  return Array.from(Skia.Color(hex));
 }
 
 type MoonBodyProps = {
@@ -57,8 +62,6 @@ type MoonBodyProps = {
   light: string;
   /** The disc's own opaque backing, which hides whatever is drawn behind the moon. */
   base: string;
-  /** From {@link useLimbShade}. */
-  limbShade: number;
   /** A slow luminance dip for a moon that breathes. It dims the moonlight, never the backing, so
    *  the moon stays an opaque object while it does. */
   glow?: AnimatedProp<number>;
@@ -67,44 +70,32 @@ type MoonBodyProps = {
 /**
  * A large moon, drawn in Skia: the true phase for the date, as a lit sphere.
  *
- * The terminator is soft and the limb dims a little. The blur runs on the GPU, and only on the
- * terminator: the lit shape is carried past the limb (`moonPhasePath`'s bleed) and clipped to the
- * disc, so the edge of the moon stays crisp and fully bright.
+ * The phase is the same one `moonPhasePath` draws flat for the small moons (both read the sun's
+ * direction off the illumination), so a moon is the same moon at every size; only the large ones
+ * are lit, because below a few dozen points the shading is not visible and a canvas per list row
+ * costs more than it shows. The circle's own edge is antialiased by Skia, so the rim is crisp.
  *
  * Skia elements, not a canvas, so a moon can sit inside a larger composition (the Progress orbit)
- * or alone ({@link LargeMoon}). Small moons stay SVG (`MoonPhase`): there a blur would be a
- * fraction of a pixel, and a canvas per list row costs more than it shows. Both draw the same
- * `moonPhasePath`, so a moon is the same shape at every size.
+ * or alone ({@link LargeMoon}).
  */
-export function MoonBody({ cx, cy, size, illumination, waxing, brightness, light, base, limbShade, glow = 1 }: MoonBodyProps) {
+export function MoonBody({ cx, cy, size, illumination, waxing, brightness, light, base, glow = 1 }: MoonBodyProps) {
   const r = size / 2;
-  const blur = size * SOFTNESS;
-  const lit = illumination > 0.005;
   return (
     <Group>
       <Circle cx={cx} cy={cy} r={r} color={base} />
-      <Group opacity={glow}>
-        <Circle cx={cx} cy={cy} r={r} color={light} opacity={FAINT * brightness} />
-        {lit ? (
-          <Group clip={rrect(rect(cx - r, cy - r, size, size), r, r)}>
-            <Path path={moonPhasePath(cx, cy, r, illumination, waxing, moonBleed(size))} color={light} opacity={brightness}>
-              <BlurMask blur={blur} style="normal" />
-            </Path>
-          </Group>
-        ) : null}
-        {/* Toward the backing, which is what "less moonlight" means here: the same way
-            `brightness` dims, so the shading is the moon's own light falling off, not a grey film. */}
-        {lit ? (
-          <Circle cx={cx} cy={cy} r={r}>
-            <RadialGradient
-              c={vec(cx, cy)}
-              r={r}
-              colors={[withAlpha(base, 0), withAlpha(base, limbShade)]}
-              positions={[LIMB_SHADE_FROM, 1]}
-            />
-          </Circle>
-        ) : null}
-      </Group>
+      <Circle cx={cx} cy={cy} r={r} opacity={glow}>
+        <Shader
+          source={MOON_SHADER}
+          uniforms={{
+            center: vec(cx, cy),
+            radius: r,
+            sun: sunDirection(illumination, waxing),
+            gain: TERMINATOR_GAIN,
+            dayColor: rgba(mixHex(base, light, brightness)),
+            nightColor: rgba(mixHex(base, light, FAINT * brightness)),
+          }}
+        />
+      </Circle>
     </Group>
   );
 }
@@ -128,8 +119,7 @@ export function MoonBloom({ cx, cy, size, color }: { cx: number; cy: number; siz
 }
 
 /** {@link MoonBody} on its own canvas, for a large moon outside the Progress orbit (the
- *  day-complete celebration). The canvas runs past the disc by the bleed, and a negative margin
- *  keeps the moon's layout box exactly `size`. */
+ *  day-complete celebration). */
 export function LargeMoon({
   illumination,
   waxing,
@@ -142,21 +132,17 @@ export function LargeMoon({
   brightness?: number;
 }) {
   const theme = useTheme();
-  const limbShade = useLimbShade();
-  const pad = moonBleed(size);
-  const canvas = size + pad * 2;
   return (
-    <Canvas style={{ width: canvas, height: canvas, margin: -pad }} pointerEvents="none">
+    <Canvas style={{ width: size, height: size }} pointerEvents="none">
       <MoonBody
-        cx={canvas / 2}
-        cy={canvas / 2}
+        cx={size / 2}
+        cy={size / 2}
         size={size}
         illumination={illumination}
         waxing={waxing}
         brightness={brightness}
         light={theme.complete}
         base={theme.backgroundElement}
-        limbShade={limbShade}
       />
     </Canvas>
   );

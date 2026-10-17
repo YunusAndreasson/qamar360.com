@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { MILESTONE_ASSET_KEYS } from '@/lib/lunar-phase';
-import { moonIllumination, moonPhasePath } from '@/lib/moon';
+import { moonIllumination, moonPhasePath, sunDirection } from '@/lib/moon';
 
 describe('moonIllumination', () => {
   it('is dark and waxing at the start of the month', () => {
@@ -75,20 +75,24 @@ describe('the pre-rendered notification moons', () => {
   });
 });
 
-describe('moonPhasePath — bleed', () => {
-  // The shaded moon blurs this shape and clips it to the disc, so the bleed may move the LIMB and
-  // nothing else: the terminator, which is the one edge the blur is meant to soften, stays put.
-  const terminator = (path: string) => path.slice(path.lastIndexOf(' A '));
-
-  it.each([
-    [0.1, true],
-    [0.5, true],
-    [0.8, false],
-  ])('at %s lit (waxing %s) carries the limb out and leaves the terminator where it was', (illumination, waxing) => {
-    const plain = moonPhasePath(50, 50, 40, illumination, waxing);
-    const bled = moonPhasePath(50, 50, 40, illumination, waxing, 6);
-    expect(bled.startsWith('M 50 4 A 46 46')).toBe(true); // the limb, 6 further out
-    expect(bled).toContain(' L 50 90'); // dropped back to where the terminator begins
-    expect(terminator(bled)).toBe(terminator(plain));
+describe('sunDirection', () => {
+  const lit = (ill: number, waxing: boolean) => sunDirection(ill, waxing);
+  it('is behind the moon at new, behind the viewer at full', () => {
+    // Close, not equal: a waning full moon's x is −0, which is the same direction.
+    lit(0, true).forEach((v, i) => expect(v).toBeCloseTo([0, 0, -1][i]!, 10));
+    lit(1, false).forEach((v, i) => expect(v).toBeCloseTo([0, 0, 1][i]!, 10));
+  });
+  it('lights the side the flat drawing lights: the right while waxing, the left while waning', () => {
+    const [xWax, , zWax] = lit(0.5, true);
+    const [xWane] = lit(0.5, false);
+    expect(xWax).toBeCloseTo(1, 10);
+    expect(zWax).toBeCloseTo(0, 10);
+    expect(xWane).toBeCloseTo(-1, 10);
+  });
+  it('is a unit vector at every phase', () => {
+    for (const ill of [0, 0.1, 0.37, 0.5, 0.8, 1]) {
+      const [x, y, z] = lit(ill, true);
+      expect(Math.hypot(x, y, z)).toBeCloseTo(1, 10);
+    }
   });
 });

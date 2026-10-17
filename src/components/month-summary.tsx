@@ -13,7 +13,6 @@ import {
 } from 'react-native-reanimated';
 
 import { AppIcon } from '@/components/app-icon';
-import { useLimbShade } from '@/components/moon-body';
 import {
   GLINT_SHARE,
   ORBIT_CANVAS,
@@ -222,7 +221,6 @@ function OrbitCanvas({
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  const limbShade = useLimbShade();
   // Same light-mode dimming as the halo everywhere else: dark-steel lines on a white page read far
   // stronger than pale lines on deep space.
   const haloOpacity = HALO_OPACITY * (useEffectiveScheme() === 'light' ? 0.55 : 1);
@@ -296,7 +294,6 @@ function OrbitCanvas({
       <OrbitDrawing
         colors={{
           track: theme.orbitTrack,
-          tail: theme.accentTrackStrong,
           head: theme.accent,
           complete: theme.complete,
           glow: theme.glow,
@@ -304,7 +301,6 @@ function OrbitCanvas({
           base: theme.backgroundElement,
         }}
         haloOpacity={haloOpacity}
-        limbShade={limbShade}
         closed={currentRate >= 1}
         illumination={illumination}
         waxing={waxing}
