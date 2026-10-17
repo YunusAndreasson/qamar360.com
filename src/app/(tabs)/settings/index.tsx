@@ -7,7 +7,6 @@ import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { Avatar } from '@/components/avatar';
 import { SectionLabel } from '@/components/section-label';
-import { Segmented, type SegmentedOption } from '@/components/segmented';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SocialLinks } from '@/components/social-links';
@@ -28,16 +27,7 @@ import { deviceLocation } from '@/lib/geo';
 import { planLunarFires } from '@/lib/lunar-schedule';
 import { lunarUpdateCopy } from '@/lib/lunar-update';
 import { ensurePermission, notificationsAvailable, permissionGranted } from '@/lib/notifications';
-import { setPreference, usePreference, type WeekStart } from '@/lib/preferences';
-
-// Sunday (the app's own index origin and the US/Gulf convention), Monday (ISO and most of
-// Europe), Saturday (much of the Arab world). Values are stringified weekday indices because
-// `Segmented` is generic over strings — the index itself is what `weekOrder` wants back.
-const WEEK_STARTS: SegmentedOption<string>[] = [
-  { value: '0', label: 'Sunday' },
-  { value: '1', label: 'Monday' },
-  { value: '6', label: 'Saturday' },
-];
+import { setPreference, usePreference } from '@/lib/preferences';
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -51,7 +41,6 @@ export default function SettingsScreen() {
 
   // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
   // user who never opens this screen has made no choices, and one who does can undo any of them.
-  const weekStart = usePreference('weekStart');
   const hijriOffset = usePreference('hijriOffset');
   const dayBands = usePreference('dayBands');
   const lunarUpdatesOn = usePreference('lunarUpdates');
@@ -254,17 +243,6 @@ export default function SettingsScreen() {
           showChevron
         />
       </SettingsSection>
-
-      {/* Week start — the same bare-segmented shape as Appearance: three mutually-exclusive
-          options read better as one control than as a row that opens a list of three. */}
-      <View style={styles.controlGroup}>
-        <SectionLabel>Week starts on</SectionLabel>
-        <Segmented
-          options={WEEK_STARTS}
-          value={String(weekStart)}
-          onChange={(value) => setPreference('weekStart', Number(value) as WeekStart)}
-        />
-      </View>
 
       {/* Lunar updates — the app's only notifications. Four a month, at the quarters of the
           moon; the permission row appears only once they're wanted, since that's the only

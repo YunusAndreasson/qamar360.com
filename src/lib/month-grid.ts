@@ -1,7 +1,9 @@
+import { WEEK_ORDER } from '@/lib/dates';
+
 /**
  * A Gregorian month laid out as weeks, for a calendar the app draws itself.
  *
- * Each week is seven slots, starting on the user's week start; a slot is a day of the month or
+ * Each week is seven slots, Saturday to Jumuʿah ({@link WEEK_ORDER}); a slot is a day of the month or
  * `null` where the month has not begun or has already ended. Blank rather than the neighbouring
  * month's days, because every day here carries its moon, and a column of borrowed moons either side
  * would show the phases of days that are not in the month being read.
@@ -13,10 +15,10 @@ function isoOf(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** `month` is 0-based, as `Date` counts. `weekStart` is the weekday a row begins on (0 = Sunday). */
-export function monthGrid(year: number, month: number, weekStart: number): (GridDay | null)[][] {
+/** `month` is 0-based, as `Date` counts. */
+export function monthGrid(year: number, month: number): (GridDay | null)[][] {
   const length = new Date(year, month + 1, 0).getDate();
-  const lead = (new Date(year, month, 1).getDay() - weekStart + 7) % 7;
+  const lead = (new Date(year, month, 1).getDay() - WEEK_ORDER[0] + 7) % 7;
   const slots: (GridDay | null)[] = Array.from({ length: lead }, () => null);
   for (let day = 1; day <= length; day += 1) slots.push({ iso: isoOf(year, month, day), day });
   while (slots.length % 7 !== 0) slots.push(null);

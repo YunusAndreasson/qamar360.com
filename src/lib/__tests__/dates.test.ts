@@ -12,11 +12,14 @@ import {
   hijriMonthsBetween,
   hijriParts,
   hijriYearRange,
+  JUMUAH,
   scheduledOn,
   setHijriOffset,
   todayLocalISO,
+  WEEK_ORDER,
+  weekDaysFrom,
   weekdayIndex,
-  weekOrder,
+  weekStartISO,
 } from '@/lib/dates';
 
 // The Hijri offset is module state shared by every test in this file — always put it back.
@@ -139,17 +142,27 @@ describe('describeHijriSchedule', () => {
   });
 });
 
-describe('weekOrder', () => {
-  it('rotates the week to start on the chosen day', () => {
-    expect(weekOrder(0)).toEqual([0, 1, 2, 3, 4, 5, 6]); // Sunday
-    expect(weekOrder(1)).toEqual([1, 2, 3, 4, 5, 6, 0]); // Monday
-    expect(weekOrder(6)).toEqual([6, 0, 1, 2, 3, 4, 5]); // Saturday
+describe('the week', () => {
+  it('runs Saturday to Jumuʿah', () => {
+    expect([...WEEK_ORDER]).toEqual([6, 0, 1, 2, 3, 4, 5]);
+    expect(WEEK_ORDER[WEEK_ORDER.length - 1]).toBe(JUMUAH);
+    expect([...WEEK_ORDER].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 
-  it('always yields each weekday exactly once', () => {
-    for (const start of [0, 1, 6]) {
-      expect([...weekOrder(start)].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    }
+  it('opens on the Saturday on or before a day', () => {
+    // 2026-10-17 is a Saturday, 2026-10-23 the Friday that closes its week.
+    expect(weekStartISO('2026-10-17')).toBe('2026-10-17');
+    expect(weekStartISO('2026-10-20')).toBe('2026-10-17');
+    expect(weekStartISO('2026-10-23')).toBe('2026-10-17');
+    expect(weekStartISO('2026-10-24')).toBe('2026-10-24');
+    // Across a month and a year.
+    expect(weekStartISO('2027-01-01')).toBe('2026-12-26');
+  });
+
+  it('lists its seven days from the Saturday to the Friday', () => {
+    const days = weekDaysFrom('2026-10-17');
+    expect(days).toEqual(['2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+    expect(days.map(weekdayIndex)).toEqual([...WEEK_ORDER]);
   });
 });
 
@@ -268,29 +281,23 @@ describe('describeHijriOffset', () => {
 
 describe('describeWeekdays', () => {
   it('says "Every day" rather than listing all seven', () => {
-    expect(describeWeekdays([0, 1, 2, 3, 4, 5, 6], 1)).toBe('Every day');
+    expect(describeWeekdays([0, 1, 2, 3, 4, 5, 6])).toBe('Every day');
     // Order of the stored array is irrelevant — it's a set of days, not a sequence.
-    expect(describeWeekdays([3, 0, 6, 1, 5, 2, 4], 0)).toBe('Every day');
+    expect(describeWeekdays([3, 0, 6, 1, 5, 2, 4])).toBe('Every day');
   });
 
-  it('lists a subset in the user’s own week order', () => {
-    // Mon/Wed/Fri, read from a Monday-start week…
-    expect(describeWeekdays([1, 3, 5], 1)).toBe('Mon · Wed · Fri');
-    // …and the same days from a Saturday-start week put nothing in front of them (none is Sat/Sun).
-    expect(describeWeekdays([1, 3, 5], 6)).toBe('Mon · Wed · Fri');
-  });
-
-  it('reorders around the week start rather than always leading with Sunday', () => {
-    expect(describeWeekdays([0, 1], 0)).toBe('Sun · Mon'); // Sunday first
-    expect(describeWeekdays([0, 1], 1)).toBe('Mon · Sun'); // Monday first, Sunday last
+  it('lists a subset in the week’s own order, Saturday to Jumuʿah', () => {
+    expect(describeWeekdays([1, 3, 5])).toBe('Mon · Wed · Fri');
+    // Saturday leads and Friday closes, whatever order the days were stored in.
+    expect(describeWeekdays([5, 0, 6])).toBe('Sat · Sun · Fri');
   });
 
   it('names a single day', () => {
-    expect(describeWeekdays([5], 1)).toBe('Fri');
+    expect(describeWeekdays([5])).toBe('Fri');
   });
 
   it('never renders a blank, even for a schedule the editor can’t produce', () => {
-    expect(describeWeekdays([], 1)).toBe('No days');
+    expect(describeWeekdays([])).toBe('No days');
   });
 });
 

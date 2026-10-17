@@ -459,6 +459,37 @@ function creditOnDay(
 }
 
 /**
+ * Each day's own orbit: what it asked (`possible`) and what was kept of it (`done`), for every day
+ * from `startISO` to `endISO`.
+ *
+ * The same rule as every figure on Progress ({@link creditOnDay}): a day owes the acts scheduled on
+ * it from the day each was added, an excused act leaves both sides, a count goal earns its share.
+ * So a day kept in full here is a day the month's stripe moved a full day's worth for, and the week
+ * on Today and the moon on Progress can never disagree about it.
+ */
+export function tallyDays(
+  habits: ProgressHabit[],
+  completions: CompletionRow[],
+  startISO: string,
+  endISO: string,
+): Map<string, { done: number; possible: number }> {
+  const credit = creditOnDay(completions);
+  const days = new Map<string, { done: number; possible: number }>();
+  for (let day = startISO; day <= endISO; day = addDaysISO(day, 1)) {
+    let done = 0;
+    let possible = 0;
+    for (const h of habits) {
+      const earned = credit(h, day);
+      if (earned === undefined || earned === null) continue; // not due, or excused
+      possible += 1;
+      done += earned;
+    }
+    days.set(day, { done, possible });
+  }
+  return days;
+}
+
+/**
  * The year card's line: the whole Hijri year as its frame, with this month on the moon's scale.
  *
  * A finished month's rate is where its orbit closed, so the year's settled points are the moons

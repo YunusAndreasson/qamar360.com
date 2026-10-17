@@ -74,7 +74,6 @@ describe('habitMetaLine — the second line', () => {
       targetUnit: null,
       scheduleDays: DAILY_SCHEDULE,
       hijriSchedule: null,
-      weekStart: 0,
       ...over,
     });
 
@@ -90,10 +89,10 @@ describe('habitMetaLine — the second line', () => {
     expect(meta({ targetCount: 3 })).toBe('3');
   });
 
-  it('states a partial week on its own, in the user’s own week order', () => {
+  it('states a partial week on its own, Saturday to Jumuʿah', () => {
     expect(meta({ scheduleDays: [1, 3, 5] })).toBe('Mon · Wed · Fri');
-    // weekStart moves the reading order without touching the stored 0=Sunday indices.
-    expect(meta({ scheduleDays: [0, 1], weekStart: 1 })).toBe('Mon · Sun');
+    // The week's order, not the stored 0=Sunday one: Sunday follows Saturday.
+    expect(meta({ scheduleDays: [0, 6] })).toBe('Sat · Sun');
   });
 
   it('joins a goal and a schedule with the row middot', () => {

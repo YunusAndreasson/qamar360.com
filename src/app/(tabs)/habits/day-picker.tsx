@@ -10,15 +10,14 @@ import { useHabits } from '@/hooks/use-habits';
 import { DATE_LOCALE, hijriParts } from '@/lib/dates';
 
 /**
- * Which day the list is showing — a sheet, not a strip.
+ * Which day the list is showing, from the whole month: the calendar in Today's header.
  *
- * The day used to be switched from a permanent row at the top of Today: two chevrons, the date,
- * and a "Back to today" line under them, all of it standing above the practice on every single
- * day the user is simply on today. Backfilling is occasional, so it now costs one tap from the
- * calendar in the header and nothing at all the rest of the time.
+ * The week bar at the top of Today reaches this week and the few before it; this sheet is the
+ * month, drawn in the bar's own cells, so a row of it is a week of the bar.
  *
  * **The subtitle is the Hijri date, and only that.** The grid below counts in Gregorian, with each
- * day's moon beneath its number ({@link MoonCalendar}), so the two calendars meet on it. The
+ * day's orbit round its number and its moon beneath ({@link MoonCalendar}), so the two calendars
+ * meet on it. The
  * subtitle names the picked day in the one the rest of the app reckons in: the months Progress is
  * filed under, a habit scheduled on a Hijri day. It falls back to the full Gregorian date on a
  * runtime whose `Intl` has no Islamic calendar, so the line is never empty.

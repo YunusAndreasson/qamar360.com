@@ -3,13 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import { SelectablePill } from '@/components/selectable-pill';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
-import { WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
+import { WEEK_ORDER, WEEKDAY_LABELS, WEEKDAY_NAMES } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { usePreference } from '@/lib/preferences';
 
 /**
- * The seven-day row: which weekdays a habit is scheduled on, in the user's own week order
- * (`weekStart`). Shared by the act editor's REPEAT block and the exchange form, so the two can't
+ * The seven-day row: which weekdays a habit is scheduled on, Saturday to Jumuʿah as every week in
+ * the app runs ({@link WEEK_ORDER}). Shared by the act editor's REPEAT block and the exchange form, so the two can't
  * drift in shape, hit target, or the "pick at least one day" floor.
  *
  * `days` are weekday indices, 0=Sun … 6=Sat, matching `habits.schedule_days`. Controlled over the
@@ -17,8 +16,6 @@ import { usePreference } from '@/lib/preferences';
  * without the feedback.
  */
 export function WeekdayPicker({ days, onChange }: { days: Set<number>; onChange: (days: Set<number>) => void }) {
-  const weekStart = usePreference('weekStart');
-
   const toggle = (day: number) => {
     haptics.selection();
     const next = new Set(days);
@@ -30,7 +27,7 @@ export function WeekdayPicker({ days, onChange }: { days: Set<number>; onChange:
   return (
     <>
       <View style={styles.days}>
-        {weekOrder(weekStart).map((d) => (
+        {WEEK_ORDER.map((d) => (
           <SelectablePill
             key={d}
             selected={days.has(d)}

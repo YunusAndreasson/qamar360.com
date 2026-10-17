@@ -19,7 +19,6 @@ import { confirmDestructive } from '@/lib/alerts';
 import { describeCadence, hasCadence, latestBefore, readingLine } from '@/lib/check-ins';
 import { formatMeasure, goalSeries, type GoalReading } from '@/lib/goals';
 import { haptics } from '@/lib/haptics';
-import { usePreference } from '@/lib/preferences';
 
 /**
  * One goal, in full.
@@ -43,7 +42,6 @@ export default function GoalScreen() {
   const { checkIns, updateGoal, deleteGoal, error, dismissError, loading } = useGoals();
   const { updateHabit } = useHabits();
   const { today } = useHabitsNavigation();
-  const weekStart = usePreference('weekStart');
 
   const reading = readings.find((r) => r.goal.id === id) ?? null;
 
@@ -258,7 +256,7 @@ export default function GoalScreen() {
         }>
         <SettingsRow
           icon="checkIn"
-          label={asking ? describeCadence(goal, weekStart) : 'Not asking'}
+          label={asking ? describeCadence(goal) : 'Not asking'}
           sublabel={
             lastReading
               ? `Last ${readingLine(lastReading.value, goal.unit, lastReading.taken_on, today)}`

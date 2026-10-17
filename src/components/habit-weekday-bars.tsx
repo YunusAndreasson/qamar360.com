@@ -16,9 +16,8 @@ import { Duration, PageEnter } from '@/constants/motion';
 import { DenseLabelScale, Radius, Spacing } from '@/constants/theme';
 import type { WeekdayStat } from '@/hooks/use-habit-stats';
 import { useTheme } from '@/hooks/use-theme';
-import { WEEKDAY_LABELS, WEEKDAY_NAMES, weekOrder } from '@/lib/dates';
+import { WEEKDAY_LABELS, WEEKDAY_NAMES, WEEK_ORDER } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { usePreference } from '@/lib/preferences';
 import { clamp01 } from '@/lib/progress';
 import { formatDegrees } from '@/lib/progress-format';
 
@@ -108,8 +107,6 @@ export function HabitWeekdayBars({
   hijriNote?: string;
 }) {
   const [focused, setFocused] = useState<number | null>(null);
-  const weekStart = usePreference('weekStart');
-
   if (hijriNote) {
     return (
       <StatCard>
@@ -122,8 +119,8 @@ export function HabitWeekdayBars({
     );
   }
 
-  // Bars run left-to-right in the user's own week order, so the chart reads like their calendar.
-  const rank = new Map(weekOrder(weekStart).map((weekday, i) => [weekday, i]));
+  // Bars run left-to-right Saturday to Jumuʿah, so the chart reads like the week everywhere else.
+  const rank = new Map<number, number>(WEEK_ORDER.map((weekday, i) => [weekday, i]));
   const active = byWeekday
     .filter((w) => w.scheduledCount > 0)
     .sort((a, b) => (rank.get(a.weekday) ?? 0) - (rank.get(b.weekday) ?? 0));

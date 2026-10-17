@@ -334,15 +334,30 @@ export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
 /**
- * The seven weekday indices in *display* order for a week that begins on `weekStart`
- * (0=Sunday, 1=Monday, 6=Saturday) — e.g. Monday gives `[1,2,3,4,5,6,0]`.
+ * The week as the app keeps it: Saturday to Friday, closing on Jumuʿah. Weekday indices on the
+ * 0=Sunday scale, in the order they are shown everywhere a week is laid out: the week bar on
+ * Today, the month calendar, the schedule picker, the weekday bars.
  *
- * Display order only. Stored `schedule_days` stay on the 0=Sunday index everywhere (the DB
- * column, `weekdayIndex`, the notification layer's Expo conversion), so changing where the week
- * starts rearranges what the user sees and touches nothing that was saved.
+ * Not a setting. A week here is a cycle from one Jumuʿah to the next, the day the week is built
+ * around rather than the edge of a weekend, so there is one order and nowhere to change it (there
+ * was a "Week starts on" choice of Sunday, Monday or Saturday until 2026-10-17).
+ *
+ * Display order only. Stored `schedule_days` stay on the 0=Sunday index everywhere (the DB column,
+ * {@link weekdayIndex}, the notification layer's Expo conversion).
  */
-export function weekOrder(weekStart: number): number[] {
-  return [0, 1, 2, 3, 4, 5, 6].map((i) => (i + weekStart) % 7);
+export const WEEK_ORDER = [6, 0, 1, 2, 3, 4, 5] as const;
+
+/** Friday on the 0=Sunday index: Jumuʿah, the day each week ends on. */
+export const JUMUAH = 5;
+
+/** The Saturday that opens the week `iso` falls in (see {@link WEEK_ORDER}). */
+export function weekStartISO(iso: string): string {
+  return addDaysISO(iso, -((weekdayIndex(iso) - WEEK_ORDER[0] + 7) % 7));
+}
+
+/** The seven days of the week that opens on `startISO`, Saturday to Jumuʿah. */
+export function weekDaysFrom(startISO: string): string[] {
+  return WEEK_ORDER.map((_, i) => addDaysISO(startISO, i));
 }
 
 /** A new habit's default schedule: every day. */
@@ -350,7 +365,7 @@ export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
 
 /**
  * A human one-line summary of a weekday schedule — "Every day", or the days themselves in the
- * user's own week order ("Mon · Wed · Fri"). The Hijri sibling of this is
+ * week's order ("Mon · Wed · Fri"). The Hijri sibling of this is
  * {@link describeHijriSchedule}.
  *
  * Read where a habit's schedule is stated rather than edited — a loose habit's second line, via
@@ -358,17 +373,16 @@ export const DAILY_SCHEDULE = [0, 1, 2, 3, 4, 5, 6];
  * sentence: it sits under a title, in the same key as an exchange's "instead of" line, and a full
  * "Monday, Wednesday and Friday" would wrap at 360dp.
  *
- * Ordered by `weekStart` for the same reason the weekday bars are: a schedule should read like the
- * user's own calendar. Stored `schedule_days` stay on the 0=Sunday index — this only reorders what
- * is shown.
+ * In the week's own order ({@link WEEK_ORDER}), the same order the weekday bars and the calendar
+ * read in, so a schedule reads like the week it runs through. Stored `schedule_days` stay on the
+ * 0=Sunday index; this only orders what is shown.
  */
-export function describeWeekdays(scheduleDays: number[], weekStart: number): string {
+export function describeWeekdays(scheduleDays: number[]): string {
   const days = new Set(scheduleDays);
   if (days.size === 0) return 'No days'; // not reachable from the editor, but never render a blank
   if (days.size === 7) return 'Every day';
-  return weekOrder(weekStart)
-    .filter((d) => days.has(d))
-    .map((d) => WEEKDAY_NAMES[d]!.slice(0, 3))
+  return WEEK_ORDER.filter((d) => days.has(d))
+    .map((d) => WEEKDAY_NAMES[d].slice(0, 3))
     .join(' · ');
 }
 

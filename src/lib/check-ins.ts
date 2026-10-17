@@ -138,7 +138,7 @@ export function hasCadence(goal: Cadenced): boolean {
  * Falls through to the schedule describers habits already use, so a cadence stored by some future
  * surface — several weekdays, the White Days — still reads as something rather than as a blank.
  */
-export function describeCadence(goal: Cadenced, weekStart = 0): string {
+export function describeCadence(goal: Cadenced): string {
   if (!hasCadence(goal)) return 'Not asking';
   switch (cadenceOf(goal)) {
     case 'daily':
@@ -154,7 +154,7 @@ export function describeCadence(goal: Cadenced, weekStart = 0): string {
     default:
       return goal.check_in_hijri
         ? describeHijriSchedule(goal.check_in_hijri)
-        : describeWeekdays(goal.check_in_days, weekStart);
+        : describeWeekdays(goal.check_in_days);
   }
 }
 

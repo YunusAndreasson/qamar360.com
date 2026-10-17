@@ -65,17 +65,14 @@ export function habitMetaLine({
   targetUnit,
   scheduleDays,
   hijriSchedule,
-  weekStart,
 }: {
   targetCount: number | null;
   targetUnit: string | null;
   scheduleDays: number[];
   hijriSchedule: HijriSchedule | null;
-  /** The user's first day of the week, so the days read in their own calendar's order. */
-  weekStart: number;
 }): string {
   const goal = targetCount ? `${targetCount}${targetUnit ? ` ${targetUnit}` : ''}` : '';
-  const schedule = hijriSchedule ? describeHijriSchedule(hijriSchedule) : describeWeekdays(scheduleDays, weekStart);
+  const schedule = hijriSchedule ? describeHijriSchedule(hijriSchedule) : describeWeekdays(scheduleDays);
   const when = schedule === 'Every day' ? '' : schedule;
   return [goal, when].filter(Boolean).join(' · ');
 }

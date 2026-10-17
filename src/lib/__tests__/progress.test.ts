@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, daysBetweenISO, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
+import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, tallyDays, toDegrees, withDoneToday, type CompletionRow, type ProgressHabit, type TrendSummary } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -951,5 +951,57 @@ describe('withDoneToday (overlay optimistic-done overlay)', () => {
     const overlaid = computeProgress(habits, withDoneToday(stale, ['a', 'b'], DAY), DAY).month?.thisRate;
     expect(staleRate).toBeLessThan(full ?? 0); // proves the race undercounts
     expect(overlaid).toBe(full); // the overlay overlay closes it
+  });
+});
+
+// ── tallyDays: each day's own orbit, for the week bar and the calendar ──────
+
+describe('tallyDays', () => {
+  // 2026-10-17 is a Saturday: the week bar's first day.
+  const SAT = '2026-10-17';
+  const SUN = '2026-10-18';
+  const FRI = '2026-10-23';
+
+  it('owes each day its scheduled acts and credits what was kept', () => {
+    const days = tallyDays([dailyHabit('a'), dailyHabit('b')], [done('a', SAT), done('b', SAT), done('a', SUN)], SAT, SUN);
+    expect(days.get(SAT)).toEqual({ done: 2, possible: 2 });
+    expect(days.get(SUN)).toEqual({ done: 1, possible: 2 });
+  });
+
+  it('asks nothing of a day nothing is scheduled on', () => {
+    const jumuah: ProgressHabit = { id: 'j', created_at: null, schedule_days: [5], hijri_schedule: null };
+    const days = tallyDays([jumuah], [done('j', FRI)], SAT, FRI);
+    expect(days.get(SAT)).toEqual({ done: 0, possible: 0 });
+    expect(days.get(FRI)).toEqual({ done: 1, possible: 1 });
+    expect(days.size).toBe(7);
+  });
+
+  it('drops an excused act from both sides, and owes nothing before an act existed', () => {
+    const later: ProgressHabit = { ...dailyHabit('late'), created_at: `${SUN}T09:00:00Z` };
+    const days = tallyDays([dailyHabit('a'), later], [skip('a', SAT), done('late', SUN)], SAT, SUN);
+    expect(days.get(SAT)).toEqual({ done: 0, possible: 0 }); // excused, and `late` didn't exist yet
+    expect(days.get(SUN)).toEqual({ done: 1, possible: 2 });
+  });
+
+  it('gives a count goal its share of the day', () => {
+    const days = tallyDays([countHabit('pages', 4)], [countRow('pages', SAT, 1, 'partial')], SAT, SAT);
+    expect(days.get(SAT)).toEqual({ done: 0.25, possible: 1 });
+  });
+
+  it('adds up to the month the moon is filled with', () => {
+    // The week bar and the Progress orbit read the same rule, so a month of day orbits sums to the
+    // month's own: the days kept so far over everything the whole month asks.
+    const today = '2026-10-21';
+    const { start, end } = monthShape(today);
+    const habits = [dailyHabit('a'), countHabit('n', 3)];
+    const rows = [done('a', start), countRow('n', start, 2, 'partial'), done('a', addDaysISO(start, 1)), skip('n', addDaysISO(start, 1))];
+    const days = tallyDays(habits, rows, start, end);
+    let kept = 0;
+    let possible = 0;
+    for (const [day, tally] of days) {
+      possible += tally.possible;
+      if (day <= today) kept += tally.done;
+    }
+    expect(kept / possible).toBeCloseTo(computeProgress(habits, rows, today).month!.thisRate, 10);
   });
 });

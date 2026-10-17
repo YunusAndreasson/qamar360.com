@@ -5,6 +5,7 @@ import { AppState, Platform } from 'react-native';
 
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { DayRecordProvider } from '@/hooks/use-day-record';
 import { GoalsProvider, useGoalCheckInsSummary } from '@/hooks/use-goals';
 import {
   HabitsProvider,
@@ -35,6 +36,9 @@ export default function TabsLayout() {
   // no day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan
   // writes through `useTasks`, so it has to be able to see both.
   //
+  // `DayRecordProvider` sits right under it: each reachable day's completion, for the week bar on
+  // Today and the calendar sheet, read once and then kept current from the viewed day's own sets.
+  //
   // `GoalsProvider` nests innermost, for two reasons now. `useProgress` reads it — a goal's figures
   // are derived from the same habits and completions the month is, so
   // they are computed in one place rather than fetched twice. And a goal may put a check-in on the
@@ -42,13 +46,15 @@ export default function TabsLayout() {
   // same things `TasksProvider` came inside for.
   return (
     <HabitsProvider>
-      <TasksProvider>
-        <PlansProvider>
-          <GoalsProvider>
-            <Tabs />
-          </GoalsProvider>
-        </PlansProvider>
-      </TasksProvider>
+      <DayRecordProvider>
+        <TasksProvider>
+          <PlansProvider>
+            <GoalsProvider>
+              <Tabs />
+            </GoalsProvider>
+          </PlansProvider>
+        </TasksProvider>
+      </DayRecordProvider>
     </HabitsProvider>
   );
 }

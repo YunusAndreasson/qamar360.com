@@ -4,19 +4,17 @@ import { monthGrid, monthOf, stepMonth } from '@/lib/month-grid';
 
 describe('monthGrid', () => {
   // October 2026 begins on a Thursday and has 31 days.
-  it('starts the month under its own weekday, for a Sunday week', () => {
-    const weeks = monthGrid(2026, 9, 0);
-    expect(weeks[0]!.slice(0, 4)).toEqual([null, null, null, null]);
-    expect(weeks[0]![4]).toEqual({ iso: '2026-10-01', day: 1 });
-  });
-
-  it('follows the week start: Monday and Saturday weeks shift the lead', () => {
-    expect(monthGrid(2026, 9, 1)[0]!.findIndex(Boolean)).toBe(3);
-    expect(monthGrid(2026, 9, 6)[0]!.findIndex(Boolean)).toBe(5);
+  it('starts the month under its own weekday, in a week that runs Saturday to Jumuʿah', () => {
+    const weeks = monthGrid(2026, 9);
+    // Sat, Sun, Mon, Tue, Wed are blank; Thursday the 1st, Jumuʿah the 2nd closes the row.
+    expect(weeks[0]!.slice(0, 5)).toEqual([null, null, null, null, null]);
+    expect(weeks[0]![5]).toEqual({ iso: '2026-10-01', day: 1 });
+    expect(weeks[0]![6]).toEqual({ iso: '2026-10-02', day: 2 });
+    expect(weeks[1]![0]).toEqual({ iso: '2026-10-03', day: 3 }); // a Saturday opens the next
   });
 
   it('holds every day once, in whole weeks, blank at both ends', () => {
-    const weeks = monthGrid(2026, 9, 0);
+    const weeks = monthGrid(2026, 9);
     expect(weeks.every((w) => w.length === 7)).toBe(true);
     const days = weeks.flat().filter((d) => d !== null);
     expect(days.map((d) => d.day)).toEqual(Array.from({ length: 31 }, (_, i) => i + 1));
@@ -24,8 +22,8 @@ describe('monthGrid', () => {
   });
 
   it('knows February', () => {
-    expect(monthGrid(2028, 1, 0).flat().filter(Boolean)).toHaveLength(29); // a leap year
-    expect(monthGrid(2027, 1, 0).flat().filter(Boolean)).toHaveLength(28);
+    expect(monthGrid(2028, 1).flat().filter(Boolean)).toHaveLength(29); // a leap year
+    expect(monthGrid(2027, 1).flat().filter(Boolean)).toHaveLength(28);
   });
 });
 

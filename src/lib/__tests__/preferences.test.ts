@@ -29,7 +29,6 @@ describe('defaults', () => {
     expect(getPreference('celebrateDay')).toBe(true);
     expect(getPreference('skyMotion')).toBe(true);
     expect(getPreference('lunarUpdates')).toBe(true);
-    expect(getPreference('weekStart')).toBe(0);
     expect(getPreference('hijriOffset')).toBe(0);
     expect(getPreference('dayBands')).toBeNull(); // follow the sun
   });
@@ -39,7 +38,6 @@ describe('round trip', () => {
   it('persists and reads back each kind of value', () => {
     setPreference('appearance', 'dark');
     setPreference('haptics', false);
-    setPreference('weekStart', 1);
     setPreference('hijriOffset', -1);
     setPreference('lunarUpdates', false);
     setPreference('dayBands', { morning: 360, midday: 720, evening: 1080, night: 1320 });
@@ -48,7 +46,6 @@ describe('round trip', () => {
 
     expect(getPreference('appearance')).toBe('dark');
     expect(getPreference('haptics')).toBe(false);
-    expect(getPreference('weekStart')).toBe(1);
     expect(getPreference('hijriOffset')).toBe(-1);
     expect(getPreference('lunarUpdates')).toBe(false);
     expect(getPreference('dayBands')).toEqual({ morning: 360, midday: 720, evening: 1080, night: 1320 });
@@ -71,7 +68,6 @@ describe('a stored value that isn’t legal', () => {
   it.each([
     ['prefs.themePreference', 'sepia'],
     ['prefs.haptics', 'yes'],
-    ['prefs.weekStart', '3'], // a real weekday, but not one of the three offered
     ['prefs.hijriOffset', '5'], // beyond the ±2 any reckoning uses
     ['prefs.lunarUpdates', 'yes'],
     ['prefs.dayBands', '{"morning":100}'], // incomplete
@@ -81,7 +77,6 @@ describe('a stored value that isn’t legal', () => {
     resetPreferencesCache();
     expect(getPreference('appearance')).toBe('system');
     expect(getPreference('haptics')).toBe(true);
-    expect(getPreference('weekStart')).toBe(0);
     expect(getPreference('hijriOffset')).toBe(0);
     expect(getPreference('lunarUpdates')).toBe(true);
     expect(getPreference('dayBands')).toBeNull();

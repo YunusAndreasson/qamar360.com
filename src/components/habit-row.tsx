@@ -3,7 +3,6 @@ import { memo } from 'react';
 import { LooseRow } from '@/components/loose-row';
 import type { Habit } from '@/hooks/use-habits';
 import { habitMetaLine, habitRowContract } from '@/lib/loose-row';
-import { usePreference } from '@/lib/preferences';
 
 type Props = {
   habit: Habit;
@@ -34,8 +33,6 @@ type Props = {
  * forever while offering nothing to complete. Being tickable *is* the fix.
  */
 function HabitRowBase({ habit, done, skipped, settling, onToggle, onOptions }: Props) {
-  const weekStart = usePreference('weekStart');
-
   return (
     <LooseRow
       contract={habitRowContract({
@@ -45,7 +42,6 @@ function HabitRowBase({ habit, done, skipped, settling, onToggle, onOptions }: P
           targetUnit: habit.target_unit,
           scheduleDays: habit.schedule_days,
           hijriSchedule: habit.hijri_schedule,
-          weekStart,
         }),
         done,
         skipped,

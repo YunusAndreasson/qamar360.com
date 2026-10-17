@@ -12,6 +12,7 @@ import Animated, {
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { OrbitMark } from '@/components/orbit-mark';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, PageEnter } from '@/constants/motion';
@@ -22,7 +23,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { buildSmoothPaths, lineCrossesRect, mean, pointAt, polylineLength, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
-import { ringMetrics, toDegrees } from '@/lib/progress';
+import { toDegrees } from '@/lib/progress';
 import { formatDegrees } from '@/lib/progress-format';
 
 /** The dot on a point: the hollow one on the span still running, and the solid one under a finger.
@@ -679,27 +680,12 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
 
 /** A month as the moon draws it: a tiny orbit, filled to where that month's stripe closed. */
 function MonthRing({ rate }: { rate: number }) {
-  const theme = useTheme();
-  const { radius, ringRadius, circumference, arc: drawn } = ringMetrics(MONTH_RING, MONTH_RING_STROKE, rate);
-  // Closed in the unit it is read in, so the ring agrees with the "360°" beside it and the haptic.
-  const kept = toDegrees(rate) === 360;
-  const arc = kept ? circumference : drawn;
   return (
-    <Svg width={MONTH_RING} height={MONTH_RING} style={styles.monthRing}>
-      <Circle cx={radius} cy={radius} r={ringRadius} stroke={theme.orbitTrack} strokeWidth={MONTH_RING_STROKE} fill="none" />
-      {arc > 0 ? (
-        <Circle
-          cx={radius}
-          cy={radius}
-          r={ringRadius}
-          stroke={kept ? theme.complete : theme.accent}
-          strokeWidth={MONTH_RING_STROKE}
-          strokeDasharray={`${arc} ${circumference}`}
-          fill="none"
-          transform={`rotate(-90 ${radius} ${radius})`}
-        />
-      ) : null}
-    </Svg>
+    <View style={styles.monthRing}>
+      {/* Closed in the unit it is read in, so the ring agrees with the "360°" beside it and the
+          haptic. */}
+      <OrbitMark rate={rate} size={MONTH_RING} strokeWidth={MONTH_RING_STROKE} kept={toDegrees(rate) === 360} />
+    </View>
   );
 }
 

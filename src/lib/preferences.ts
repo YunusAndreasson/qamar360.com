@@ -31,8 +31,6 @@ import { getWebStorage } from '@/lib/web-storage';
 const storage = getWebStorage;
 
 export type ThemePreference = 'light' | 'dark' | 'system';
-/** 0 = Sunday, 1 = Monday, 6 = Saturday — the three starts in common use. */
-export type WeekStart = 0 | 1 | 6;
 
 const oneOf =
   <T extends string | number>(values: readonly T[]) =>
@@ -99,13 +97,6 @@ const SPEC = {
   celebrateDay: flag('prefs.celebrateDay', true),
   /** Tilt parallax, meteors, twinkle. OS Reduce Motion still wins — this can only turn motion off. */
   skyMotion: flag('prefs.skyMotion', true),
-  /** Which weekday leads the schedule picker and the weekday bars — display order only. */
-  weekStart: {
-    key: 'prefs.weekStart',
-    fallback: 0,
-    parse: oneOfNumber([0, 1, 6] as const),
-    serialize: String,
-  } satisfies Spec<WeekStart>,
   /** Days to shift the Umm al-Qura calendar by, for a locale that sights the moon differently. */
   hijriOffset: {
     key: 'prefs.hijriOffset',

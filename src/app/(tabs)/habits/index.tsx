@@ -24,9 +24,11 @@ import { Surface } from '@/components/surface';
 import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { WeekBar } from '@/components/week-bar';
 import { Icons } from '@/constants/icons';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
+import { useDayRecord } from '@/hooks/use-day-record';
 import { useGoals } from '@/hooks/use-goals';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePlans } from '@/hooks/use-plans';
@@ -239,6 +241,8 @@ export default function HabitsScreen() {
   // `useProgress`: whether a check-in is due needs a cadence and a list of readings, and pulling
   // in the whole completion record to answer that would make the day pay for the goals screen.
   const { goals, checkIns, refresh: refreshGoals, error: goalsError, dismissError: dismissGoalsError } = useGoals();
+  // Each day's completion, for the week bar. Re-read with the day itself, below.
+  const { refresh: refreshDays } = useDayRecord();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
   // you type, so the field is the row it becomes. Cleared the moment it is honoured.
   const { compose } = useLocalSearchParams<{ compose?: string }>();
@@ -259,7 +263,9 @@ export default function HabitsScreen() {
       // A cadence set from the "+" sheet lands while this screen is behind a modal, so the day has
       // to re-read on the way back: `useGoals` is a provider, but the modal's write does not pass through this render.
       void refreshGoals();
-    }, [refresh, refreshTasks, refreshGoals]),
+      // The week's orbits: a reset from Settings empties every day, not only this one.
+      void refreshDays();
+    }, [refresh, refreshTasks, refreshGoals, refreshDays]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -284,7 +290,7 @@ export default function HabitsScreen() {
   // blip at launch silently left Discover on a stale snapshot).
   const { refresh: refreshCatalog } = useCatalog();
   const { refreshControl } = usePullToRefresh(() => Promise.all([
-    refresh(), refreshTasks(), refreshGoals(), refreshCatalog(),
+    refresh(), refreshTasks(), refreshGoals(), refreshCatalog(), refreshDays(),
   ]));
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
@@ -695,9 +701,11 @@ export default function HabitsScreen() {
         options={{
           title: viewDateTitle(viewDate, today),
           headerLargeTitleEnabled: true,
-          // Which day you are looking at, one tap above the title. It used to be a permanent
-          // strip at the top of the list — two chevrons, the date and a "Back to today" line,
-          // charging every ordinary day for a backfill that happens occasionally.
+          // The month, one tap above the title. A permanent strip of chevrons, the date and a "Back
+          // to today" line used to stand at the top of the list, charging every ordinary day for a
+          // backfill that happens occasionally; it went (2026-09-05). The week bar that now opens
+          // the list earns its place differently: it shows the week's record every day, and taking
+          // you to a day in it is a by-product. This stays the door to the rest of the month.
           //
           // A calendar, not a moon (2026-10-17). The moon was the viewed day's phase, but the app
           // already has its moon, on Progress, and a second one up here read as the same thing
@@ -729,7 +737,10 @@ export default function HabitsScreen() {
       />
 
       {loading ? (
+        // The week is up before the day has loaded: it needs only the date, and its orbits fill in
+        // when the record lands, so the top of the screen holds still through the load.
         <AppScreen transparent>
+          <WeekBar />
           <HabitsSkeleton />
         </AppScreen>
       ) : loadFailed ? (
@@ -759,6 +770,10 @@ export default function HabitsScreen() {
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
           keyboardShouldPersistTaps="handled">
+          {/* The week, Saturday to Jumuʿah, each day with its orbit: where the day you are on sits
+              among the days around it, and the way to any of them. Above the errors, because it is
+              the header's own: it says which day everything under it belongs to. */}
+          <WeekBar style={styles.weekBar} />
           {/* Errors first: they are about the day you are looking at, and a line about tomorrow
               is the one thing on the screen that can wait. */}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
@@ -1054,6 +1069,9 @@ const styles = StyleSheet.create({
   // The list is transparent so the fixed sky (rendered behind the stack) shows through it.
   transparent: { backgroundColor: 'transparent' },
   banner: { marginHorizontal: Spacing.three, marginTop: Spacing.two, marginBottom: Spacing.one },
+  // On the cards' edges, so its seven columns span exactly the width of the cards below; 8 under
+  // the large title, the step AppScreen gives every screen's first content.
+  weekBar: { marginHorizontal: Spacing.three, marginTop: Spacing.two },
   // A read-only almanac whisper under the title — the tone and left edge the section captions
   // share, so the strip and the list read on one meridian.
   //
@@ -1067,9 +1085,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginLeft: Spacing.five,
     marginRight: Spacing.three,
-    // 16 above, not 4: the line used to hang under the day strip and only needed clearing from
-    // it. With the strip gone it is the first thing under the large title, so it takes the same
-    // lead a section's caption does.
+    // 16 above: it follows the week bar the way a section's caption follows what is above it, so
+    // it takes the same lead.
     marginTop: SECTION_LEAD,
     marginBottom: Spacing.one,
   },
