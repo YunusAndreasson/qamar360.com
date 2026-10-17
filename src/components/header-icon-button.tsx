@@ -1,7 +1,6 @@
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { GlyphIcon } from '@/components/app-icon';
-import { MoonPhase } from '@/components/moon-phase';
 import { PressableScale } from '@/components/pressable-scale';
 import type { IconGlyph } from '@/constants/icons';
 import { Scale } from '@/constants/motion';
@@ -42,50 +41,6 @@ export function HeaderIconButton({
       {/* Header glyphs run a step larger on Android (Material's 24dp toolbar convention vs the
           22pt SF Symbol) — the only thing this button adds over the shared fork. */}
       <GlyphIcon glyph={icon} size={Platform.OS === 'ios' ? 22 : 24} color={color} />
-    </PressableScale>
-  );
-}
-
-/**
- * A header button whose glyph is the moon itself, at a given phase.
- *
- * Today's day picker opened from a calendar glyph, which said only "there is a date behind this"
- * — a thing the large title beside it was already saying, in words. This app reckons its months
- * by the moon (the Hijri date, the four lunar updates, the month ring on Progress), so the shape the day *has* is a phase, and a phase is legible at 22pt in
- * a way a numeral is not: you can see from the header that the month is nearly out.
- *
- * Drawn `onSky` so it is a moon over the starfield rather than a white coin on it, and with the
- * {@link MoonPhase.rim} hairline so a new moon still reads as a moon and not as a glyph that
- * failed to load. It carries no `color`: the moon is the app's warm `complete` moonlight
- * wherever it appears, which is exactly why it is worth putting here.
- */
-export function HeaderMoonButton({
-  illumination,
-  waxing,
-  accessibilityLabel,
-  onPress,
-}: {
-  illumination: number;
-  waxing: boolean;
-  accessibilityLabel: string;
-  onPress: () => void;
-}) {
-  return (
-    <PressableScale
-      onPress={onPress}
-      scaleTo={Scale.glyph}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={styles.button}>
-      {/* The same size fork the glyph button takes, so the moon and the header's other marks sit
-          on one optical line. */}
-      <MoonPhase
-        illumination={illumination}
-        waxing={waxing}
-        size={Platform.OS === 'ios' ? 22 : 24}
-        rim
-        onSky
-      />
     </PressableScale>
   );
 }

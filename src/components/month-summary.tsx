@@ -159,9 +159,10 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
       {/* "Month", in the same voice as the "Year" and "Lifetime" cards below it: the screen is one
           zoom-out, and each card is titled by its period alone. (It was "This month" while the
           cards below were titled differently; the hero used to lead with the date, so one card was
-          headed by a category and another by a datum.) The month's NAME is the caption, which is
-          where the app says which Hijri month you are in — this header is the only place at rest
-          that does. The name alone: the year is the same all year, and the sheet still says it.
+          headed by a category and another by a datum.) The caption is today's Hijri date, the day
+          and the month: the moon's phase says how far the month has come only to someone who
+          reads phases, and the day says it to everyone. No year: it is the same all year, and the
+          sheet still says it.
 
           The ⓘ sits in the card's own top-right corner, which is where a card keeps a button about
           itself in every app anyone already uses. It replaces a line of prose — "What am I looking
@@ -170,7 +171,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           still reach a screen reader and only leave the screen. */}
       <StatCardHeader
         title="Month"
-        trailing={monthName}
+        trailing={`${dayOfMonth} ${monthName}`}
         accessory={
           <PressableScale
             onPress={openReading}
