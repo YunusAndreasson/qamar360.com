@@ -1,4 +1,3 @@
-import { Directory, Paths } from 'expo-file-system';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -28,26 +27,9 @@ void SplashScreen.preventAutoHideAsync();
 // anything renders — the very first date the app formats must already carry the user's choice.
 initPreferences();
 
-/**
- * Builds that shipped on-device reflections left a 2.7 GB model in the cache and a device-only
- * archive in Documents. Nothing reads either any more, so they go; a path that isn't there is a
- * no-op. (First sent as an OTA to build 36 only, on 2026-10-13; builds 37 and 38 install over
- * those devices, so the files can still be there.)
- */
-function clearReflectionLeftovers() {
-  for (const dir of [new Directory(Paths.cache, 'insight-gemma-e20831dd'), new Directory(Paths.document, 'local-insights')]) {
-    try {
-      if (dir.exists) dir.delete();
-    } catch {
-      // Best effort: the next launch tries again.
-    }
-  }
-}
-
 export default function RootLayout() {
   useEffect(() => {
     void configureNotifications();
-    clearReflectionLeftovers();
   }, []);
 
   return (
