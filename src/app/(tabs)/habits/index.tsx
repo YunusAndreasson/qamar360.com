@@ -15,7 +15,7 @@ import { ExchangeSection } from '@/components/exchange-section';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
 import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
-import { HeaderActions, HeaderIconButton, HeaderMoonButton } from '@/components/header-icon-button';
+import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
 import { ManageRow } from '@/components/manage-row';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
@@ -37,7 +37,7 @@ import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
 import { askingGoals, visibleCheckIns } from '@/lib/check-ins';
-import { addDaysISO, dayTitle, hijriMonthRange, hijriParts, localDate, scheduledOn } from '@/lib/dates';
+import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -49,7 +49,6 @@ import {
 } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
-import { phaseOf } from '@/lib/lunar-phase';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { type Plan, planPicks } from '@/lib/plans';
 import { usePreference } from '@/lib/preferences';
@@ -291,15 +290,6 @@ export default function HabitsScreen() {
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
   const loadFailed = !!error && habits.length === 0 && stacks.length === 0;
 
-  // The viewed day's moon, for the header button that opens the day picker. Read off the Hijri
-  // date rather than the ephemeris — the same rule `lunar-phase.ts` states and Progress's month
-  // grid keeps, so this moon and the thirty in the ring are the same moon. The offset is passed
-  // in rather than left to the module default so the memo has an honest dependency on the
-  // preference: moving the Hijri date moves which day of the month this is, and so the phase.
-  const moon = useMemo(() => {
-    const parts = hijriParts(viewDate, hijriOffset);
-    return phaseOf(parts?.day ?? 15, hijriMonthRange(viewDate)?.length ?? 30);
-  }, [viewDate, hijriOffset]);
   // Only the habits scheduled for the viewed day appear in the day's checklist.
   const visibleHabits = useMemo(
     () => habits.filter((h) => scheduledOn(h, viewDate, hijriOffset)),
@@ -707,16 +697,17 @@ export default function HabitsScreen() {
           headerLargeTitleEnabled: true,
           // Which day you are looking at, one tap above the title. It used to be a permanent
           // strip at the top of the list — two chevrons, the date and a "Back to today" line,
-          // charging every ordinary day for a backfill that happens occasionally. The mark is
-          // the viewed day's own moon: on today (which is nearly always) that is tonight's
-          // phase, and stepping back a fortnight visibly winds the moon back with it.
+          // charging every ordinary day for a backfill that happens occasionally.
+          //
+          // A calendar, not a moon (2026-10-17). The moon was the viewed day's phase, but the app
+          // already has its moon, on Progress, and a second one up here read as the same thing
+          // twice. The calendar says what the button does; the moons now live INSIDE it, one per
+          // day, where they map the Gregorian grid onto the month that matters here.
           headerLeft: () => (
-            <HeaderMoonButton
-              illumination={moon.illumination}
-              waxing={moon.waxing}
-              // The phase is the whole point of the mark and a screen reader can't see it, so it
-              // is named — the glyph it replaced could only ever have said "calendar".
-              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}, ${moon.label.toLowerCase()}`}
+            <HeaderIconButton
+              icon={Icons.calendar}
+              color={theme.text}
+              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}`}
               onPress={() => router.push('/habits/day-picker')}
             />
           ),

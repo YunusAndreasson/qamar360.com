@@ -42,7 +42,6 @@ export function MoonPhase({
   size,
   brightness = 1,
   rim = false,
-  onSky = false,
 }: {
   illumination: number;
   waxing: boolean;
@@ -67,18 +66,6 @@ export function MoonPhase({
    * a rim on it would simply be a fourth concentric circle in a composition already carrying three.
    */
   rim?: boolean;
-  /**
-   * Drop the opaque base disc, for a moon drawn straight onto the app's own sky rather than onto
-   * a card.
-   *
-   * The base exists to make the moon an *object* — it occludes the halo behind it so the shadowed
-   * side reads as shadow and not as glass. That backing is `backgroundElement`, which is the
-   * colour of a card: in light mode pure white. Over the transparent nav header (which shows the
-   * fixed starfield through it) that is a white coin, not a moon. With this on, the shadowed side
-   * is simply the sky — which is what a real dark limb looks like — and {@link rim} does the work
-   * of saying "there is a disc here" at the phases where almost nothing is lit.
-   */
-  onSky?: boolean;
 }) {
   const theme = useTheme();
   // On the light page the shading fades the moon toward white, and at full strength that reads as a
@@ -124,7 +111,7 @@ export function MoonPhase({
       {/* Solid base so the moon is an opaque object — it occludes the halo behind it, rather
           than the unlit limb letting the geometry shine through. Matches the card surface, so
           the shadowed side looks exactly as it did before the halo existed. */}
-      {onSky ? null : <Circle cx={r} cy={r} r={r} fill={theme.backgroundElement} />}
+      <Circle cx={r} cy={r} r={r} fill={theme.backgroundElement} />
       <Circle cx={r} cy={r} r={r} fill={theme.complete} fillOpacity={FAINT * brightness} />
       {lit && shaded ? (
         <G clipPath={`url(#${clipId})`}>
