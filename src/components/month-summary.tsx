@@ -1,21 +1,28 @@
+import { Canvas } from '@shopify/react-native-skia';
 import { useRouter } from 'expo-router';
-import { useEffect, useEffectEvent, useId, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
+import {
   Easing,
-  useAnimatedProps,
-  useAnimatedStyle,
+  useDerivedValue,
   useReducedMotion,
   useSharedValue,
   withRepeat,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { AppIcon } from '@/components/app-icon';
-import { MoonPhase } from '@/components/moon-phase';
-import { HeroGlow } from '@/components/ornament/hero-glow';
-import { MoonHalo } from '@/components/ornament/moon-halo';
+import { useLimbShade } from '@/components/moon-body';
+import {
+  GLINT_SHARE,
+  ORBIT_CANVAS,
+  ORBIT_CANVAS_OFFSET,
+  ORBIT_SIZE,
+  OrbitDrawing,
+  RING_CENTER,
+  RING_RADIUS,
+} from '@/components/orbit-drawing';
 import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { Duration, Scale } from '@/constants/motion';
@@ -23,49 +30,15 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useOnStage } from '@/hooks/use-on-stage';
 import type { MonthProgress } from '@/hooks/use-progress';
-import { useTheme } from '@/hooks/use-theme';
+import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { haptics } from '@/lib/haptics';
 import { moonIllumination } from '@/lib/moon';
 import { orbitArrival, readOrbitSeen, writeOrbitSeen, type OrbitArrival } from '@/lib/orbit-seen';
 import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
 import { formatDegrees } from '@/lib/progress-format';
 
-// Exported for the reading sheet's legend, which redraws these marks at glyph scale. The legend
-// quotes the instrument rather than approximating it — the last time a legend carried its own
-// numbers they drifted (an 8×7 CSS triangle against the ring's 10×10).
-export const ORBIT_SIZE = 232;
-// The band is the reading, so it is given enough ink to be one. Raising it also shrinks the moon,
-// because MOON_SIZE is derived from it below — which is the trade this card needed: at 12 the disc
-// carried 3.6x the ink of the whole band while being, by the sheet's own admission, not your
-// progress. At 16 that is 2.5x, and the gauge is legible without the moon leaving.
-export const RING_STROKE = 16;
-// The moon fills the orbit's interior exactly as a day-grid cell fills its ring
-// (ProgressCircle: disc = box − 3×stroke, leaving a stroke/2 gap to the ring), so the hero and
-// the "This month" moons read as one object at two scales — not a snug disc beside a floating
-// one. 232 − 3×16 = 184. (It was 196 while the stroke was 12; the size is DERIVED, so raising
-// RING_STROKE to give the band enough ink to read as a gauge is what shrank the disc.)
-const MOON_SIZE = ORBIT_SIZE - RING_STROKE * 3;
-// The halo radiates past the orbit into the card; sized to stay within the card's width.
-const HALO_SIZE = 330;
-// The completion bloom — a warm aura that blooms behind the moon and past the orbit when the
-// whole month is done. Smaller than the halo so it stays an aura, not a wash.
-const GLOW_SIZE = 300;
-const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
-// The light at the stripe's head: a soft bloom riding the leading cap, so the front of the stripe
-// reads as the place the month has got to rather than simply where the ink stops.
-const HEAD_GLOW_R = 20;
-// The glint that goes round a closed orbit once: a short stretch of moonlight, as a share of it,
-// carrying a bloom wider than the stroke. The bloom is what shows at night, where a closed stripe
-// is already the moon's own cream and a brighter dash on it is all but invisible.
-const GLINT_SHARE = 0.09;
-const GLINT_BLOOM_R = 28;
-// What is drawn past the rim is light: the head's, and the glint's bloom, which reaches furthest,
-// GLINT_BLOOM_R from the stroke's centre line. So the canvas runs that far out plus a hair (an SVG
-// clips to its bounds, which would shave the antialiasing off the light's edge).
-const RIM_BLEED = GLINT_BLOOM_R - RING_STROKE / 2 + 2;
-const SVG_SIZE = ORBIT_SIZE + RIM_BLEED * 2;
-const RING_CENTER = SVG_SIZE / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+/** The halo's hairlines, as everywhere else it is drawn (`MoonHalo`). */
+const HALO_OPACITY = 0.14;
 
 /**
  * How this month is going against your usual — said in words, on the sheet the card opens.
@@ -113,7 +86,6 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
       ? 0
       : withRepeat(withTiming(1, { duration: Duration.breath, easing: Easing.inOut(Easing.sin) }), -1, true));
   }, [reduceMotion, onStage, breath]);
-  const moonBreath = useAnimatedStyle(() => ({ opacity: 1 - breath.get() * 0.07 }));
 
   if (!month) return null;
 
@@ -198,30 +170,25 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         accessibilityLabel={a11y}
         accessibilityHint="Opens what each part of the orbit means">
         <View style={styles.orbit}>
-          {/* The month is done: the moon lights up. A warm aura blooms behind it and past the
-              orbit — the one moment the whole emblem glows. */}
-          {thisRate >= 1 ? <HeroGlow size={GLOW_SIZE} /> : null}
-          {/* The halo is ornament, and now says so. It used to fade in with the month's rate
-              (0.10 → 0.22 across a whole month), which is a data channel below the threshold
-              anyone can perceive — a fourth way of encoding progress that nobody could read, on
-              an emblem that already had three. Completion is carried by the arc, by the moon's
-              brightness, and by the bloom; the geometry just sits behind them. */}
-          <MoonHalo size={HALO_SIZE} rings={false} />
-          <ProgressOrbit current={thisRate} seenKey={`${user?.id ?? ''}|${year}|${monthName}`} onStage={onStage} />
-          {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
-              moonlight, still opaque) and lets the bright ring lead,
-              brightening to full only when the month is done (where the glow also lights). It
-              breathes slowly — tonight's moon, alive. */}
-          <Animated.View style={[styles.moon, moonBreath]}>
-            <MoonPhase illumination={illumination} waxing={waxing} size={MOON_SIZE} brightness={thisRate >= 1 ? 1 : 0.8} />
-          </Animated.View>
+          {/* The emblem, drawn in Skia as one picture (see OrbitDrawing): the halo, the stripe,
+              its light, the bloom and the moon. The halo is ornament and says so: it once faded in
+              with the month's rate, a fourth encoding of progress below anything perceptible. The
+              moon is the calendar and the stripe is the data, so the moon rests quiet (dimmer
+              moonlight, still opaque), lights to full only when the month is done, and breathes
+              slowly: tonight's moon, alive. */}
+          <OrbitCanvas
+            current={thisRate}
+            seenKey={`${user?.id ?? ''}|${year}|${monthName}`}
+            onStage={onStage}
+            illumination={illumination}
+            waxing={waxing}
+            breath={breath}
+          />
         </View>
       </PressableScale>
     </StatCard>
   );
 }
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 /**
  * The month as one stripe: a groove that is the whole 360°, and your stripe filling it.
@@ -237,16 +204,28 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  * to catch. It made the ring two stripes to anyone not told which was theirs, so the ring is now
  * yours alone, and the elapsed month is left to the moon's phase and the days-left line.
  */
-function ProgressOrbit({ current, seenKey, onStage }: { current: number; seenKey: string; onStage: boolean }) {
+function OrbitCanvas({
+  current,
+  seenKey,
+  onStage,
+  illumination,
+  waxing,
+  breath,
+}: {
+  current: number;
+  seenKey: string;
+  onStage: boolean;
+  illumination: number;
+  waxing: boolean;
+  breath: SharedValue<number>;
+}) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  const uid = useId();
-  const headGlowId = `orbit-head-${uid}`;
-  const glintBloomId = `orbit-glint-${uid}`;
+  const limbShade = useLimbShade();
+  // Same light-mode dimming as the halo everywhere else: dark-steel lines on a white page read far
+  // stronger than pale lines on deep space.
+  const haloOpacity = HALO_OPACITY * (useEffectiveScheme() === 'light' ? 0.55 : 1);
   const currentRate = clamp01(current);
-  // The orbit carries the two-temperature signal: cool steel while the month is in progress, warm
-  // `complete` moonlight the instant it's done — so a finished orbit reads warm, matching the moon.
-  const currentColor = currentRate >= 1 ? theme.complete : theme.accent;
 
   // The stripe moves when it is LOOKED AT, from where it was last seen (see lib/orbit-seen). The
   // tab is mounted from launch, so a sweep keyed to the data alone played off screen and was all
@@ -295,102 +274,51 @@ function ProgressOrbit({ current, seenKey, onStage }: { current: number; seenKey
     return () => clearTimeout(timer);
   }, [onStage, currentRate, seenKey, reduceMotion, progress]);
 
-  const arcProps = useAnimatedProps(() => ({
-    strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.get()),
-  }));
-  // The head's light follows the arc's head exactly, computed from the same value on the UI thread.
-  // Out on an empty ring and on a closed one: there is no front before the first act, and a closed
-  // orbit has none either (its moment is the glint's).
-  const headProps = useAnimatedProps(() => {
+  // Everything the drawing animates, derived here on the UI thread from the two values above, so
+  // the drawing itself is a plain function of its props.
+  const sweepEnd = useDerivedValue(() => Math.max(progress.get() * 360, 0.5));
+  const headX = useDerivedValue(() => RING_CENTER + RING_RADIUS * Math.cos(2 * Math.PI * progress.get() - Math.PI / 2));
+  const headY = useDerivedValue(() => RING_CENTER + RING_RADIUS * Math.sin(2 * Math.PI * progress.get() - Math.PI / 2));
+  // No caps on an empty ring: a round cap with nothing behind it reads as the first sliver of
+  // progress, which is the one thing it cannot be.
+  const capOpacity = useDerivedValue(() => (progress.get() > 0.002 ? 1 : 0));
+  const headGlowOpacity = useDerivedValue(() => {
     const p = progress.get();
-    const angle = 2 * Math.PI * p - Math.PI / 2;
-    return {
-      cx: RING_CENTER + RING_RADIUS * Math.cos(angle),
-      cy: RING_CENTER + RING_RADIUS * Math.sin(angle),
-      opacity: p > 0.002 && p < 0.998 ? 1 : 0,
-    };
+    return p > 0.002 && p < 0.998 ? 1 : 0;
   });
-  // A dash a little under a tenth of the ring, carried round once and faded in and out with the
-  // trip, so it is gone at both ends and never needs hiding.
-  const glintProps = useAnimatedProps(() => ({
-    strokeDashoffset: -RING_CIRCUMFERENCE * glint.get(),
-    strokeOpacity: Math.sin(Math.PI * glint.get()),
-  }));
-  const glintBloomProps = useAnimatedProps(() => {
-    const t = glint.get();
-    const angle = 2 * Math.PI * (t + GLINT_SHARE / 2) - Math.PI / 2;
-    return {
-      cx: RING_CENTER + RING_RADIUS * Math.cos(angle),
-      cy: RING_CENTER + RING_RADIUS * Math.sin(angle),
-      opacity: Math.sin(Math.PI * t),
-    };
-  });
+  const glintEnd = useDerivedValue(() => glint.get() + GLINT_SHARE);
+  const glintOpacity = useDerivedValue(() => Math.sin(Math.PI * glint.get()));
+  const moonGlow = useDerivedValue(() => 1 - breath.get() * 0.07);
 
   return (
-    <Svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={styles.ring}>
-      <Defs>
-        {/* A radial gradient, not a blur: it costs nothing to move every frame of the sweep, where
-            a filter would be recomputed under it. */}
-        <RadialGradient id={headGlowId} cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={theme.accent} stopOpacity={0.55} />
-          <Stop offset="0.5" stopColor={theme.accent} stopOpacity={0.22} />
-          <Stop offset="1" stopColor={theme.accent} stopOpacity={0} />
-        </RadialGradient>
-        <RadialGradient id={glintBloomId} cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor={theme.glow} stopOpacity={0.7} />
-          <Stop offset="0.5" stopColor={theme.glow} stopOpacity={0.25} />
-          <Stop offset="1" stopColor={theme.glow} stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      {/* The groove: the whole 360°, so an empty month still shows the circle there is to fill. */}
-      <Circle
-        cx={RING_CENTER}
-        cy={RING_CENTER}
-        r={RING_RADIUS}
-        stroke={theme.orbitTrack}
-        strokeWidth={RING_STROKE}
-        fill="none"
+    <Canvas style={styles.canvas} pointerEvents="none">
+      <OrbitDrawing
+        colors={{
+          track: theme.orbitTrack,
+          tail: theme.accentTrackStrong,
+          head: theme.accent,
+          complete: theme.complete,
+          glow: theme.glow,
+          pattern: theme.pattern,
+          base: theme.backgroundElement,
+        }}
+        haloOpacity={haloOpacity}
+        limbShade={limbShade}
+        closed={currentRate >= 1}
+        illumination={illumination}
+        waxing={waxing}
+        progress={progress}
+        sweepEnd={sweepEnd}
+        headX={headX}
+        headY={headY}
+        capOpacity={capOpacity}
+        headGlowOpacity={headGlowOpacity}
+        glintStart={glint}
+        glintEnd={glintEnd}
+        glintOpacity={glintOpacity}
+        moonGlow={moonGlow}
       />
-      {/* Butt-capped at exactly zero, round once there is an arc to cap. A round cap on a
-          ZERO-length dash is still drawn — SVG renders it as a full dot — so a month you have not
-          started put a bright accent mark at the top of the ring above a reading of 0°. It looked
-          like the first sliver of progress, which is the one thing it could not be. (The forecast
-          arrowhead had the same fault and the same fix: draw the mark only where the thing it
-          marks exists.) The cap follows the target rate, not the animated value, so a sweep that
-          starts from zero still rounds off the whole way up. */}
-      <AnimatedCircle
-        cx={RING_CENTER}
-        cy={RING_CENTER}
-        r={RING_RADIUS}
-        stroke={currentColor}
-        strokeWidth={RING_STROKE}
-        strokeLinecap={currentRate > 0 ? 'round' : 'butt'}
-        strokeDasharray={RING_CIRCUMFERENCE}
-        animatedProps={arcProps}
-        fill="none"
-        transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
-      />
-      {currentRate > 0 && currentRate < 1 ? (
-        <AnimatedCircle r={HEAD_GLOW_R} fill={`url(#${headGlowId})`} animatedProps={headProps} />
-      ) : null}
-      {currentRate >= 1 ? (
-        <>
-          <AnimatedCircle r={GLINT_BLOOM_R} fill={`url(#${glintBloomId})`} animatedProps={glintBloomProps} />
-          <AnimatedCircle
-            cx={RING_CENTER}
-            cy={RING_CENTER}
-            r={RING_RADIUS}
-            stroke={theme.glow}
-            strokeWidth={RING_STROKE * 0.45}
-            strokeLinecap="round"
-            strokeDasharray={`${RING_CIRCUMFERENCE * GLINT_SHARE} ${RING_CIRCUMFERENCE}`}
-            animatedProps={glintProps}
-            fill="none"
-            transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
-          />
-        </>
-      ) : null}
-    </Svg>
+    </Canvas>
   );
 }
 
@@ -404,6 +332,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ring: { position: 'absolute', top: -RIM_BLEED, left: -RIM_BLEED },
-  moon: { alignItems: 'center', justifyContent: 'center' },
+  // The canvas is the halo's square, centred on the orbit's box and running past it on every side.
+  canvas: {
+    position: 'absolute',
+    top: ORBIT_CANVAS_OFFSET,
+    left: ORBIT_CANVAS_OFFSET,
+    width: ORBIT_CANVAS,
+    height: ORBIT_CANVAS,
+  },
 });

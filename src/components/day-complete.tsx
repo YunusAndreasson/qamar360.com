@@ -12,9 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { FadeInView } from '@/components/fade-in-view';
-import { MoonPhase } from '@/components/moon-phase';
+import { LargeMoon, MoonBloomCanvas } from '@/components/moon-body';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
-import { HeroGlow } from '@/components/ornament/hero-glow';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, Scale, Tick } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
@@ -224,9 +223,10 @@ function DayCompleteOverlay({ day, doneToday, onDismiss }: { day: string; doneTo
 
         <View style={styles.moon}>
           <Animated.View style={[StyleSheet.absoluteFill, styles.center, glowStyle]} pointerEvents="none">
-            <HeroGlow size={GLOW_SIZE} />
+            <MoonBloomCanvas size={GLOW_SIZE} />
           </Animated.View>
-          <MoonPhase illumination={illumination} waxing={waxing} size={MOON_SIZE} brightness={lit ? 1 : 0.8} />
+          {/* The same Skia moon as the Progress orbit's, so the app's two large moons are one body. */}
+          <LargeMoon illumination={illumination} waxing={waxing} size={MOON_SIZE} brightness={lit ? 1 : 0.8} />
         </View>
 
         <ThemedText type="subtitle" themeColor="complete" style={styles.headline}>

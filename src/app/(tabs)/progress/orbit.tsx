@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { FormSheet } from '@/components/form-sheet';
-import { ORBIT_SIZE, RING_STROKE } from '@/components/month-summary';
+import { ORBIT_SIZE, RING_STROKE } from '@/components/orbit-drawing';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
