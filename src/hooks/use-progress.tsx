@@ -1,12 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
-import { useGoals } from '@/hooks/use-goals';
 import type { Habit } from '@/hooks/use-habits';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
 import { todayLocalISO } from '@/lib/dates';
-import { computeGoals, type GoalReading } from '@/lib/goals';
 import { fetchProgressWindow } from '@/lib/load-progress';
 import { computeProgress, type CompletionRow, type MonthProgress, type RecordSeries, type SeriesPeriod, type TrendSummary } from '@/lib/progress';
 
@@ -31,13 +29,6 @@ type ProgressData = {
   seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
   /** The periods worth offering, narrowest first. `length === 1` means no selector. */
   seriesPeriods: SeriesPeriod[];
-  /**
-   * Every goal, read against this same record. Derived here rather than in `computeProgress`
-   * because a goal is stored — it needs `useGoals` — while `computeProgress` is a pure function
-   * of habits and completions, and {@link loadProgress} calls it from outside the navigator
-   * where no provider is mounted.
-   */
-  goals: GoalReading[];
   /** The local day these figures describe. Owned here because it survives a midnight rollover,
    *  which a `todayLocalISO()` call in a screen's render would not. */
   today: string;
@@ -52,7 +43,6 @@ type ProgressData = {
 export function useProgress(): ProgressData {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const { goals: goalRows, goalActs, checkIns } = useGoals();
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [completions, setCompletions] = useState<CompletionRow[]>([]);
@@ -100,12 +90,5 @@ export function useProgress(): ProgressData {
 
   const derived = useMemo(() => computeProgress(habits, completions, today), [habits, completions, today]);
 
-  // The goals ride on the same fetch. `computeGoals` walks only the rows of acts some goal
-  // actually drives, so a user with none pays for one `Set` and nothing else.
-  const goals = useMemo(
-    () => computeGoals(goalRows, goalActs, habits, completions, checkIns, today),
-    [goalRows, goalActs, habits, completions, checkIns, today],
-  );
-
-  return { loading, error, dismissError, refresh: fetchData, today, goals, ...derived };
+  return { loading, error, dismissError, refresh: fetchData, today, ...derived };
 }

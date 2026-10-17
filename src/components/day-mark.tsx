@@ -8,7 +8,7 @@ import { DATE_LOCALE, JUMUAH, WEEKDAY_NAMES, hijriMonthRange, hijriParts } from 
 import { phaseOf } from '@/lib/lunar-phase';
 import { formatDegrees } from '@/lib/progress-format';
 
-/** The day's orbit, round its date: big enough for a two-digit date inside the stroke. */
+/** The day's orbit, round its number: big enough for two digits inside the stroke. */
 const DAY_ORBIT = 32;
 const DAY_ORBIT_STROKE = 2.5;
 /** The day's moon under its orbit: a glyph, with the rim, so a new moon still reads as one. */
@@ -22,15 +22,18 @@ function moonOf(iso: string, hijriOffset: number) {
 }
 
 /**
- * One day as Today's week bar and the calendar both draw it: its date inside its orbit, its moon
+ * One day as Today's week bar draws it: its day of the Hijri month inside its orbit, its moon
  * beneath.
+ *
+ * The number is the Hijri day, not the Gregorian date: the app reckons in the moon's month, the
+ * moon under the number is drawn from that same day, and the two can be read as one fact (the 14th
+ * is a nearly full moon) where a Gregorian date beside a phase is two unrelated ones. Where the
+ * runtime has no Islamic calendar it falls back to the Gregorian date, so a day is never blank.
  *
  * The orbit is the day's own completion, drawn the way Progress draws the month ({@link OrbitMark}):
  * blue as far as it was kept, closed and warm when it was kept in full, absent when the day asked
- * for nothing. The moon is the calendar, the same phase the calendar has always shown under each
- * date. The two are kept apart (the date in the ring, the moon outside it) because a lit moon
- * inside a warm closed orbit is the same colour as it and, at this size, merges into one bright
- * disc.
+ * for nothing. The number sits in the ring and the moon outside it because a lit moon inside a
+ * warm closed orbit is the same colour as it and, at this size, merges into one bright disc.
  *
  * `ahead` is a day still to come: an empty orbit, the day it will be. `animate` belongs to the day
  * being worked on, whose orbit fills as its acts are ticked.
@@ -54,6 +57,7 @@ export function DayMark({
   hijriOffset: number;
 }) {
   const moon = moonOf(iso, hijriOffset);
+  const day = hijriParts(iso, hijriOffset)?.day ?? Number(iso.slice(8));
   return (
     <View style={styles.mark}>
       <View style={styles.orbit}>
@@ -66,12 +70,12 @@ export function DayMark({
             animate={animate}
           />
         </View>
-        {/* Today's date in the accent, the way every calendar marks it. */}
+        {/* Today's number in the accent, the way every calendar marks it. */}
         <ThemedText
           type={selected ? 'smallCompactBold' : 'smallCompact'}
           themeColor={isToday ? 'accent' : 'text'}
           maxFontSizeMultiplier={DenseLabelScale}>
-          {Number(iso.slice(8))}
+          {day}
         </ThemedText>
       </View>
       <MoonPhase illumination={moon.illumination} waxing={moon.waxing} size={DAY_MOON} rim />

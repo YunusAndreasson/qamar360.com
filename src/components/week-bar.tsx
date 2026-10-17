@@ -24,16 +24,15 @@ const TILE_INSET = Spacing.half;
 /**
  * The week on Today: seven days, Saturday to Jumuʿah, each with how much of it was kept.
  *
- * Each day is the calendar's own cell ({@link DayMark}): its date inside its orbit, its moon
- * beneath. So the bar is one row of the calendar the header opens, lifted onto the page, and the
- * orbits are Progress's month drawn at the size of a day: blue as far as a day went, warm when it
- * closed. The day you are on stands on a tile of the cards' own material, the day the cards below
+ * Each day ({@link DayMark}) is its day of the Hijri month inside its orbit, its moon beneath:
+ * the orbits are Progress's month drawn at the size of a day, blue as far as a day went, warm when
+ * it closed. The day you are on stands on a tile of the cards' own material, the day the cards below
  * belong to, and slides across when you pick another.
  *
- * Tap a day to go to it; swipe for the weeks before, as far back as the day picker reaches. Days
- * ahead are drawn (an empty orbit and the moon they will have) but can't be picked, as in the
- * calendar. When the day moves from elsewhere (the calendar, midnight turning the week), the bar
- * follows it to its week.
+ * It is the only way to another day (the calendar it once sat under is gone): tap a day to go to
+ * it; swipe for the weeks before, as far back as a day can be backfilled. Days ahead are drawn (an
+ * empty orbit and the moon they will have) but can't be picked. When the day moves from elsewhere
+ * (the header's "Today", midnight turning the week), the bar follows it to its week.
  *
  * The orbits read from `useDayRecord`, which writes the viewed day's ticks straight into the
  * record, so the orbit above the day you are ticking fills with its stack rings.

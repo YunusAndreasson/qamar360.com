@@ -69,8 +69,7 @@ export default function RootLayout() {
  * `isUpdatePending`, not `isUpdateAvailable` — pending means the bundle is already on the device,
  * so the restart is instant and works with the network gone. Available only means one exists.
  *
- * Offered rather than applied. Reloading is a cold start: it would take a half-typed to-do or
- * unsaved plan notes with it, and an app that restarts itself under the user's hands to install
+ * Offered rather than applied. Reloading is a cold start: it would take a half-typed to-do with it, and an app that restarts itself under the user's hands to install
  * something they never asked about is the behaviour people turn updates off over. The toast
  * carries the app's own action affordance and self-dismisses; declining costs nothing, because the
  * update applies on the next launch anyway.

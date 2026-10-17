@@ -2,9 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   dayCloseAfter,
-  openCheckInsOn,
   openTasksOn,
-  setOpenCheckInsProbe,
   setOpenTasksProbe,
   type ClosableHabit,
 } from '@/lib/day-close';
@@ -60,30 +58,6 @@ describe('dayCloseAfter', () => {
   it('reports no done ids while the day is open', () => {
     expect(dayCloseAfter([habit('a')], none, none, none, DAY, 0).doneIds).toEqual([]);
   });
-
-  // A goal still waiting to be told where it stands is something left on the day, exactly as an
-  // unfinished to-do is.
-  it('is held back by a check-in nobody has answered', () => {
-    expect(dayCloseAfter([habit('a')], none, none, new Set(['a']), DAY, 0, 1).dayComplete).toBe(false);
-  });
-
-  it('closes once the check-in is answered too', () => {
-    expect(dayCloseAfter([habit('a')], none, none, new Set(['a']), DAY, 0, 0).dayComplete).toBe(true);
-  });
-
-  it('never closes a day on a check-in alone', () => {
-    expect(dayCloseAfter([], none, none, none, DAY, 0, 0).dayComplete).toBe(false);
-  });
-
-  // Every call site that predates check-ins passes six arguments and must keep behaving.
-  it('treats an omitted check-in count as none waiting', () => {
-    expect(dayCloseAfter([habit('a')], none, none, new Set(['a']), DAY, 0).dayComplete).toBe(true);
-  });
-
-  // A check-in earns no degrees, for the reason a task does not: it is outside the lunar currency.
-  it('leaves check-ins out of the degrees the overlay counts', () => {
-    expect(dayCloseAfter([habit('a')], none, none, new Set(['a']), DAY, 0, 0).doneIds).toEqual(['a']);
-  });
 });
 
 describe('the open-tasks probe', () => {
@@ -130,32 +104,5 @@ describe('dayCloseAfter — a habit that belongs to no stack', () => {
   it('can close a day made only of loose habits', () => {
     const close = dayCloseAfter([habit('x'), habit('y')], none, new Set(['x', 'y']), none, DAY, 0);
     expect(close.dayComplete).toBe(true);
-  });
-});
-
-describe('the open-check-ins probe', () => {
-  it('reads as nothing waiting with nothing registered', () => {
-    expect(openCheckInsOn(DAY)).toBe(0);
-  });
-
-  // Its own slot, not one shared with tasks: unmounting either provider must not blind the app to
-  // what the other is publishing.
-  it('is independent of the tasks probe', () => {
-    const offTasks = setOpenTasksProbe(() => 2);
-    const offCheckIns = setOpenCheckInsProbe(() => 3);
-    expect(openTasksOn(DAY)).toBe(2);
-    expect(openCheckInsOn(DAY)).toBe(3);
-    offTasks();
-    expect(openCheckInsOn(DAY)).toBe(3);
-    offCheckIns();
-    expect(openCheckInsOn(DAY)).toBe(0);
-  });
-
-  it('keeps a newer probe when a stale cleanup fires', () => {
-    const offFirst = setOpenCheckInsProbe(() => 1);
-    setOpenCheckInsProbe(() => 3);
-    offFirst();
-    expect(openCheckInsOn(DAY)).toBe(3);
-    setOpenCheckInsProbe(() => 0)();
   });
 });

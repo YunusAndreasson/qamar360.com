@@ -4,7 +4,6 @@ import { act, renderHook, type RenderHookResult } from '@testing-library/react-n
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 
 const mockLoadProgress = jest.fn<(...args: unknown[]) => Promise<unknown>>();
-const mockLoadGoals = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSchedule = jest.fn((_updates: unknown) => Promise.resolve());
 const mockCopy = jest.fn((..._args: unknown[]) => ({ title: 'Moon', body: 'Landmark', assetKey: 'moon' }));
 let mockEnabled = true;
@@ -22,7 +21,6 @@ jest.mock('react-native/Libraries/AppState/AppState', () => ({
 }));
 jest.mock('@/lib/geo', () => ({ deviceLocation: () => ({ lat: 0, lon: 0 }) }));
 jest.mock('@/lib/load-progress', () => ({ loadProgress: (...args: unknown[]) => mockLoadProgress(...args) }));
-jest.mock('@/lib/goal-readings', () => ({ loadGoalReadings: (...args: unknown[]) => mockLoadGoals(...args) }));
 jest.mock('@/lib/lunar-schedule', () => ({ planLunarFires: () => [{ at: new Date('2027-01-01') }] }));
 jest.mock('@/lib/lunar-update', () => ({ lunarUpdateCopy: (...args: unknown[]) => mockCopy(...args) }));
 jest.mock('@/lib/notifications', () => ({
@@ -49,7 +47,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockEnabled = true;
   mockOffset = 0;
-  mockLoadGoals.mockResolvedValue([]);
 });
 
 async function mount() {
@@ -80,13 +77,11 @@ it.each(['disabled', 'signed out', 'user changed', 'day changed', 'offset change
   },
 );
 
-it('starts independent reads together and only schedules the newest overlapping rearm', async () => {
+it('only schedules the newest overlapping rearm', async () => {
   const old = deferred();
   const fresh = deferred();
   mockLoadProgress.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
   await mount();
-  // Goals are already loading even though progress has not settled.
-  expect(mockLoadGoals).toHaveBeenCalledTimes(1);
   await hook.rerender({ ...initial, progressKey: '1' });
   await act(async () => { mockBackground?.('background'); });
   await act(async () => { fresh.resolve({ month: null }); });
@@ -95,10 +90,9 @@ it('starts independent reads together and only schedules the newest overlapping 
   expect(mockSchedule).toHaveBeenCalledTimes(1);
 });
 
-it('still schedules landmark copy when either independent read fails', async () => {
+it('still schedules landmark copy when the progress read fails', async () => {
   mockLoadProgress.mockRejectedValue(new Error('Offline'));
-  mockLoadGoals.mockRejectedValue(new Error('Offline'));
   await mount();
-  expect(mockCopy).toHaveBeenCalledWith(expect.anything(), null, null);
+  expect(mockCopy).toHaveBeenCalledWith(expect.anything(), null);
   expect(mockSchedule).toHaveBeenCalledWith([expect.objectContaining({ body: 'Landmark' })]);
 });

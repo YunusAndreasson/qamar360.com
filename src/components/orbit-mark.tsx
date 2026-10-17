@@ -14,8 +14,7 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  * The Progress hero's stripe in small, so it is read the same way wherever it appears: the groove
  * (`orbitTrack`) is the whole span, the accent arc is what was kept, running clockwise from the
  * top, and an orbit kept in full closes in the moon's warm light (`complete`), as the hero does at
- * 360°. A month wears one in the year card's scrub caption; a day wears one in Today's week bar and
- * in the calendar.
+ * 360°. A month wears one in the year card's scrub caption; a day wears one in Today's week bar.
  *
  * `rate` null draws no arc, and `groove` false no groove: a day that asked for nothing has no orbit
  * to keep, which is not the same as an empty one, and is drawn as nothing rather than as a miss.

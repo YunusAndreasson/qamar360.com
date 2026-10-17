@@ -2,9 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { FormSheet, SheetActions } from '@/components/form-sheet';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
-import { useGoals } from '@/hooks/use-goals';
 import { useHabits } from '@/hooks/use-habits';
-import { confirmAgainstPlan, confirmDestructive } from '@/lib/alerts';
+import { confirmDestructive } from '@/lib/alerts';
 import { dayInSentence } from '@/lib/dates';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
@@ -30,9 +29,6 @@ export default function ActActionsScreen() {
   const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
   const { habits, skipped, skipHabit, deleteHabit, today, viewDate } = useHabits();
-  // The stored rows only — not `useProgress`, which would pull the whole record to raise a sheet.
-  // All this needs is which goal an act drives and what its owner wrote about slipping.
-  const { goals, goalActs } = useGoals();
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
 
@@ -48,29 +44,7 @@ export default function ActActionsScreen() {
   // and what the row's own "Manage habit" promised. An exchange is neither.
   const noun = exchange ? 'exchange' : habit.stack_id ? 'act' : 'habit';
 
-  // The goal this act drives, if any. A goal that has been set aside or reached asks nothing of
-  // the day, so it neither interrupts a skip nor offers a row.
-  //
-  // Resolved from the OPEN goals rather than from the first engine row that names this habit: an
-  // act can drive more than one goal, and taking whichever row came first meant a single released
-  // goal could hide a live one — the row and the if-then prompt would both vanish while a real
-  // goal still depended on the act.
-  const openGoalIds = new Set(goals.filter((g) => g.status === 'open').map((g) => g.id));
-  const goalAct = goalActs.find((a) => a.habit_id === habit.id && openGoalIds.has(a.goal_id)) ?? null;
-  const goal = goalAct ? (goals.find((g) => g.id === goalAct.goal_id) ?? null) : null;
-
   const toggleSkip = () => {
-    // Un-skipping is putting the act back; there is nothing to talk anyone out of.
-    if (!isSkipped && goal?.if_then) {
-      confirmAgainstPlan({
-        plan: goal.if_then,
-        onSkip: () => {
-          void skipHabit(habit.id);
-          router.back();
-        },
-      });
-      return;
-    }
     void skipHabit(habit.id);
     router.back();
   };
@@ -117,33 +91,6 @@ export default function ActActionsScreen() {
             onPress: toggleSkip,
           },
           { icon: 'stats', label: 'Stats', onPress: openStats },
-          // Where this act is going, for the acts that are going somewhere. It reads as part of
-          // the act rather than as a separate feature, which is the whole arrangement: the goal
-          // has no daily surface of its own and does not need one.
-          goal
-            ? {
-                icon: 'goal',
-                label: goal.title,
-                // A falling measure takes no act credit at all — nothing you tick subtracts — so
-                // "counts toward it" would be a claim the engine provably does not honour. Such a
-                // goal is moved by its check-ins, and this act is the practice behind it.
-                sublabel:
-                  goal.direction === 'down'
-                    ? 'The practice behind it'
-                    : goalAct?.contributes
-                      ? 'This act counts toward it'
-                      : 'This act holds it in place',
-                // Close the sheet, then navigate — not `replace`. Every other action here swaps
-                // one screen of the *habits* stack for another, while this one leaves for the
-                // Progress tab, whose stack declares the goal route's options. Replacing across
-                // the two would leave this sheet's slot holding a route its own navigator does
-                // not know about.
-                onPress: () => {
-                  router.back();
-                  router.push({ pathname: '/(tabs)/progress/goal/[id]', params: { id: goal.id } });
-                },
-              }
-            : null,
           { icon: 'edit', label: `Edit ${noun}`, onPress: edit },
           // An exchange has no stack to move between — its anchor is the urge, not a moment. A
           // habit that has none yet is moving to *a* stack, not to another one.

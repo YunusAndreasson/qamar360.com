@@ -14,10 +14,9 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { deviceLocation } from '@/lib/geo';
-import { loadGoalReadings } from '@/lib/goal-readings';
 import { loadProgress } from '@/lib/load-progress';
 import { planLunarFires } from '@/lib/lunar-schedule';
-import { lunarUpdateCopy, type GoalAsk } from '@/lib/lunar-update';
+import { lunarUpdateCopy } from '@/lib/lunar-update';
 import { notificationsAvailable, scheduleLunarUpdates } from '@/lib/notifications';
 import { usePreference } from '@/lib/preferences';
 import type { MonthProgress } from '@/lib/progress';
@@ -46,41 +45,17 @@ async function arm(userId: string, today: string, doneToday: string[], signal: A
     await scheduleLunarUpdates([]); // no Islamic calendar on this runtime — nothing to say
     return;
   }
-  // These reads are independent; let a missing figure fall back without delaying the other.
-  const [progress, goalReadings] = await Promise.allSettled([
-    loadProgress(userId, today, doneToday),
-    loadGoalReadings(userId, today),
-  ]);
-  // Cancellation must cover the reads too: the scheduler's own epoch only starts when called.
+  // A failed read still sends the updates, only without a figure.
+  const month: MonthProgress | null = await loadProgress(userId, today, doneToday).then(
+    (progress) => progress.month,
+    () => null,
+  );
+  // Cancellation must cover the read too: the scheduler's own epoch only starts when called.
   if (signal.aborted) return;
-  const month: MonthProgress | null = progress.status === 'fulfilled' ? progress.value.month : null;
-
-  // The goal a new moon speaks for: the nearest horizon among those still asking for something.
-  // Read separately from the progress window on purpose — a goal's measure is a lifetime sum, and
-  // a windowed one would put a wrong number on a lock screen (see `loadGoalReadings`).
-  //
-  // The figure is the CLOSING month's ask, since the update is armed before the month it fires in
-  // opens. Arming re-runs on every trip to the background, so the number is refreshed right up to
-  // the night itself. It
-  // errs low rather than high: a month you kept pace with leaves next month's ask about where
-  // this one's was, and a month you did not raises it. Understating what is asked is the side to
-  // be wrong on.
-  let goalAsk: GoalAsk | null = null;
-  if (goalReadings.status === 'fulfilled') {
-    const goals = goalReadings.value;
-    // `overdue` is excluded, and it has to be: `computeGoals` pins a passed horizon's `monthsLeft`
-    // to 0 and makes its quota the WHOLE outstanding remainder, so a lapsed goal would both sort
-    // ahead of every live one and put its entire nine thousand lines on the lock screen as the
-    // month's ask. A goal whose by-when has gone needs a new horizon, not a louder number.
-    const nearest = goals
-      .filter((reading) => !reading.met && !reading.overdue && reading.quota !== null && reading.quota > 0)
-      .sort((a, b) => a.monthsLeft - b.monthsLeft)[0];
-    if (nearest?.quota != null) goalAsk = { title: nearest.goal.title, quota: nearest.quota, unit: nearest.goal.unit };
-  }
 
   await scheduleLunarUpdates(
     fires.map((fire) => {
-      const { title, body, assetKey } = lunarUpdateCopy(fire, month, goalAsk);
+      const { title, body, assetKey } = lunarUpdateCopy(fire, month);
       return { at: fire.at, title, body, assetKey };
     }),
   );

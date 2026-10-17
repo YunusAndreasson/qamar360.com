@@ -3,10 +3,8 @@
  *
  * This is the data layer under {@link import('@/hooks/use-progress').useProgress}, and it lives
  * apart from that hook because two callers need it from **outside** the navigator — the
- * day-complete overlay and the lunar-update arming — and importing a hook module to reach them
- * put `use-goals` (which both of those paths lead back to) into a require cycle. A provider-free
- * loader was never a hook's to own; it is here now, where `lib/notifications` and
- * `lib/preferences` already sit.
+ * day-complete overlay and the lunar-update arming. A provider-free loader was never a hook's to
+ * own; it is here, where `lib/notifications` and `lib/preferences` already sit.
  */
 
 import type { Habit } from '@/hooks/use-habits';

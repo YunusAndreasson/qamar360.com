@@ -11,7 +11,6 @@ import {
   ChartLine,
   CircleCheckBig,
   Compass,
-  ListTodo,
   LogOut,
   Repeat2,
 } from 'lucide-react'
@@ -64,7 +63,6 @@ export const Route = createFileRoute('/_authed')({
 const NAV = [
   { to: '/habits', label: 'Habits', icon: CircleCheckBig },
   { to: '/routines', label: 'Routines', icon: Repeat2 },
-  { to: '/plans', label: 'Plans', icon: ListTodo },
   { to: '/progress', label: 'Progress', icon: ChartLine },
   { to: '/discover', label: 'Discover', icon: Compass },
 ] as const
@@ -81,8 +79,7 @@ function AuthedLayout() {
     await navigate({ to: '/login' })
   }
 
-  // `fuzzy` is what keeps the parent section lit on a detail route — /plans/$id must not
-  // un-highlight Plans.
+  // `fuzzy` is what keeps the parent section lit on a route nested under it.
   const section = NAV.find((item) => matchRoute({ to: item.to, fuzzy: true }))
   const initial = (user.email ?? '?').charAt(0).toUpperCase()
 

@@ -256,15 +256,6 @@ export const Typography = {
     fontSize: 18,
     lineHeight: 24,
   },
-  // A claim — the one sentence a card exists to say, like a goal screen's "420 lines to go." The
-  // ladder had nothing between `heading` 18 and `subtitle` 32, so such a sentence sat at the size
-  // of the labels around it, a rung the eye cannot separate. A claim outranks a card's label, and
-  // says so. Prose, not an instrument readout — so no `heroCap` entry and no tabular figures.
-  claim: {
-    fontFamily: Face.bodySemiBold,
-    fontSize: 22,
-    lineHeight: 28,
-  },
   // The almanac voice — the Hijri date lines ("15 Muḥarram 1448"), read not scanned: one quiet
   // step above `small`, regular weight. Never use this for values that change under scrub/tally —
   // instrument readouts stay `smallCompact` (tabular).

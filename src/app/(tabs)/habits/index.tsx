@@ -8,14 +8,13 @@ import { AppButton } from '@/components/app-button';
 import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
-import { CheckInSection } from '@/components/check-in-section';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
 import { DragGhost, DragGrid, DraggableEntry, HabitDragProvider } from '@/components/habit-drag';
 import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
-import { HeaderActions, HeaderIconButton } from '@/components/header-icon-button';
+import { HeaderActions, HeaderIconButton, HeaderTextButton } from '@/components/header-icon-button';
 import { ManageRow } from '@/components/manage-row';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
@@ -29,16 +28,13 @@ import { Icons } from '@/constants/icons';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useDayRecord } from '@/hooks/use-day-record';
-import { useGoals } from '@/hooks/use-goals';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
-import { usePlans } from '@/hooks/use-plans';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
 import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
-import { askingGoals, visibleCheckIns } from '@/lib/check-ins';
 import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -52,11 +48,10 @@ import {
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
-import { type Plan, planPicks } from '@/lib/plans';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
-import { openTitlesOn, type Task } from '@/lib/tasks';
+import type { Task } from '@/lib/tasks';
 
 // The scroll's bottom inset — one constant shared by the layout and the drag layer's
 // auto-scroll clamp, so the two can never drift apart. Spacing.five (not four): the list
@@ -209,6 +204,7 @@ export default function HabitsScreen() {
     today,
     viewDate,
     isToday,
+    setViewDate,
     sealStack,
     unsealStack,
     toggleAct,
@@ -231,16 +227,7 @@ export default function HabitsScreen() {
     error: taskError,
     dismissError: dismissTaskError,
     refresh: refreshTasks,
-    scheduledPlans,
-    openTasks,
   } = useTasks();
-  // What you meant to do before it had a day. Read here only for the shortcut inside the to-do
-  // field; the list itself is a place you go, behind the "+".
-  const { plans } = usePlans();
-  // The goals, only for what they are asking today. Deliberately the raw rows and not
-  // `useProgress`: whether a check-in is due needs a cadence and a list of readings, and pulling
-  // in the whole completion record to answer that would make the day pay for the goals screen.
-  const { goals, checkIns, refresh: refreshGoals, error: goalsError, dismissError: dismissGoalsError } = useGoals();
   // Each day's completion, for the week bar. Re-read with the day itself, below.
   const { refresh: refreshDays } = useDayRecord();
   // "+ → Task" lands back here with this set, rather than pushing another form: a task is a line
@@ -260,12 +247,9 @@ export default function HabitsScreen() {
       }
       void refresh();
       void refreshTasks();
-      // A cadence set from the "+" sheet lands while this screen is behind a modal, so the day has
-      // to re-read on the way back: `useGoals` is a provider, but the modal's write does not pass through this render.
-      void refreshGoals();
       // The week's orbits: a reset from Settings empties every day, not only this one.
       void refreshDays();
-    }, [refresh, refreshTasks, refreshGoals, refreshDays]),
+    }, [refresh, refreshTasks, refreshDays]),
   );
 
   // The scroll container ref hands auto-scroll-while-dragging to the drag layer.
@@ -290,7 +274,7 @@ export default function HabitsScreen() {
   // blip at launch silently left Discover on a stale snapshot).
   const { refresh: refreshCatalog } = useCatalog();
   const { refreshControl } = usePullToRefresh(() => Promise.all([
-    refresh(), refreshTasks(), refreshGoals(), refreshCatalog(), refreshDays(),
+    refresh(), refreshTasks(), refreshCatalog(), refreshDays(),
   ]));
 
   // The first load failed with nothing to show — offer a retry rather than a stuck screen.
@@ -317,12 +301,8 @@ export default function HabitsScreen() {
     [habits, tomorrow, today, hijriOffset],
   );
 
-  // What tomorrow is holding: the acts whose schedule begins then, and the to-dos deliberately put
-  // there from a plan. The second is the only place one of those can be seen before it arrives.
-  const tomorrowHint = useMemo(
-    () => tomorrowLine(upcomingTomorrow.map((h) => h.name), openTitlesOn(openTasks, tomorrow)),
-    [upcomingTomorrow, openTasks, tomorrow],
-  );
+  // What tomorrow is holding: the acts whose schedule begins then.
+  const tomorrowHint = useMemo(() => tomorrowLine(upcomingTomorrow.map((h) => h.name)), [upcomingTomorrow]);
 
   // The day's habits that belong to no stack — their own section, ticked one at a time.
   //
@@ -437,22 +417,12 @@ export default function HabitsScreen() {
   // to-dos there is nothing to edit and nothing to type into until this param opens the field, and
   // `onComposeHandled` returns it to undefined the moment the field closes.
   const taskCardShowing = tasks.length > 0 || (isToday && compose === 'task');
-  // What the day's goals are asking. Read straight from `useGoals` rather than through
-  // `useProgress`: the visibility rule needs only the cadence and the readings, and Today has no
-  // business fetching every completion ever written to find out whether to draw one row.
-  // `askingGoals` is not optional here: a goal that has been set aside or reached asks nothing,
-  // and `showsOn` cannot know that — its `Cadenced` shape has no status in it.
-  const checkInEntries = useMemo(
-    () => visibleCheckIns(askingGoals(goals), checkIns, viewDate, today),
-    [goals, checkIns, viewDate, today],
-  );
   // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks
   // alone, so a day with to-dos but no stacks got 8pt of top padding that a day with stacks
   // didn't, while the empty state below correctly stayed away. One predicate, both readers.
   const showEmptyState =
     entries.length === 0 &&
     !taskCardShowing &&
-    checkInEntries.length === 0 &&
     looseHabits.length === 0 &&
     exchanges.length === 0;
   // An account that has never made a practice, on a day that is nonetheless not empty.
@@ -463,11 +433,8 @@ export default function HabitsScreen() {
   // "Anchor your first stack" invitation for good — so the account never met a stack, and never
   // met the guide the stack library opens with, which is where the one rule that makes this app
   // legible ("one tap seals the whole stack") is taught. Since there are no habits and no stacks,
-  // the only things the day can be holding here are to-dos and check-ins.
+  // the only things the day can be holding here are to-dos.
   const neverStarted = !showEmptyState && habits.length === 0 && stacks.length === 0;
-  // Everything the check-in section has to step down from, and everything below it has to step
-  // down from in turn.
-  const checkInCardShowing = checkInEntries.length > 0;
   // Whether anything at all precedes a given section, so each one takes the same step from what
   // is above it. Spelled once and threaded down the list rather than restated per section with
   // one more clause each time — which is how the fourth section would have got it wrong.
@@ -486,14 +453,6 @@ export default function HabitsScreen() {
   // memo comparator would fail on each of the screen's many re-renders.
   const tickAct = useCallback((habit: Habit) => void toggleAct(habit.id), [toggleAct]);
 
-  // A check-in is answered with a number, so the row opens a field rather than ticking. The viewed
-  // day rides along: stepping back to a day and correcting what was recorded then has to write to
-  // that day, not to today.
-  const openCheckIn = useCallback(
-    (goalId: string) => router.push({ pathname: '/habits/check-in', params: { goalId, day: viewDate } }),
-    [router, viewDate],
-  );
-
   // One tick for both stackless sections — a habit with no stack and an exchange are the same
   // gesture over the same write. Stable across renders so their rows' memo comparators hold; a
   // fresh arrow each render would defeat them on every day-step and every drag settle.
@@ -501,15 +460,7 @@ export default function HabitsScreen() {
 
   // The same discipline for the task rows: the composer re-renders this screen on every keystroke,
   // and an arrow minted here would rebuild every row in the card behind it.
-  // Three is a shortcut; a fourth would be the list, which is a place you go rather than a strip
-  // under a field.
-  const offeredPlans = useMemo(() => planPicks(plans, scheduledPlans, today, 3), [plans, scheduledPlans, today]);
-
   const addTask = useCallback((title: string) => void createTask(title), [createTask]);
-  // A plan writes its title onto the viewed day and keeps its id on the row, so the plan can say
-  // afterwards where the to-do went. The field stays open, the way it does after Return — and the
-  // plan drops out of the strip on its own, since `planPicks` stops offering one already on today.
-  const addFromPlan = useCallback((plan: Plan) => void createTask(plan.title, { planId: plan.id }), [createTask]);
   const tickTask = useCallback((task: Task) => void toggleTask(task.id), [toggleTask]);
   const rewriteTask = useCallback((task: Task, title: string) => void renameTask(task.id, title), [renameTask]);
   const removeTask = useCallback((task: Task) => void deleteTask(task.id), [deleteTask]);
@@ -537,7 +488,7 @@ export default function HabitsScreen() {
   // measured from the original at lift).
   //
   // Scoped to `viewDate` and *derived* rather than reset: the day can advance without going
-  // through the picker — the midnight rollover in use-habits calls `setViewDateState` itself —
+  // through the week bar — the midnight rollover in use-habits calls `setViewDateState` itself —
   // and an imperative reset would miss that. Deliberately not persisted: born folded is the design.
   const [expandedState, setExpandedState] = useState<{ day: string; ids: ReadonlySet<string> }>(() => ({
     day: viewDate,
@@ -701,26 +652,22 @@ export default function HabitsScreen() {
         options={{
           title: viewDateTitle(viewDate, today),
           headerLargeTitleEnabled: true,
-          // The month, one tap above the title. A permanent strip of chevrons, the date and a "Back
-          // to today" line used to stand at the top of the list, charging every ordinary day for a
-          // backfill that happens occasionally; it went (2026-09-05). The week bar that now opens
-          // the list earns its place differently: it shows the week's record every day, and taking
-          // you to a day in it is a by-product. This stays the door to the rest of the month.
-          //
-          // A calendar, not a moon (2026-10-17). The moon was the viewed day's phase, but the app
-          // already has its moon, on Progress, and a second one up here read as the same thing
-          // twice. The calendar says what the button does; the moons now live INSIDE it, one per
-          // day, where they map the Gregorian grid onto the month that matters here.
-          headerLeft: () => (
-            <HeaderIconButton
-              icon={Icons.calendar}
-              // The same accent as Add on the other side, so the header's two controls read as a
-              // matched pair rather than one control and one label.
-              color={theme.accent}
-              accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}`}
-              onPress={() => router.push('/habits/day-picker')}
-            />
-          ),
+          // Days are picked from the week bar at the top of the list, which swipes back as far as
+          // a day can be reached; there is no calendar (2026-10-17). What the header keeps is the
+          // way home: off today, one tap back to it, where it can't be scrolled away — the job the
+          // calendar sheet's "Back to today" line did.
+          headerLeft: isToday
+            ? undefined
+            : () => (
+                <HeaderTextButton
+                  label="Today"
+                  accessibilityLabel={`Back to today, showing ${viewDateTitle(viewDate, today)}`}
+                  onPress={() => {
+                    haptics.selection();
+                    setViewDate(today);
+                  }}
+                />
+              ),
           headerRight: () => (
             <HeaderActions>
               {/* One door to add: the sheet forks to six things you can start, repeating or
@@ -778,7 +725,6 @@ export default function HabitsScreen() {
               is the one thing on the screen that can wait. */}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
-          <ErrorBanner message={goalsError} onDismiss={dismissGoalsError} style={styles.banner} />
           {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
@@ -792,20 +738,9 @@ export default function HabitsScreen() {
             composeRequested={compose === 'task'}
             onComposeHandled={clearCompose}
             onCreate={addTask}
-            planPicks={offeredPlans}
-            onPick={addFromPlan}
             onToggle={tickTask}
             onRename={rewriteTask}
             onDelete={removeTask}
-          />
-          {/* What the goals are asking. Under the errands that expire and above the practice that
-              comes round again: a check-in is an ask like a to-do, but it reports on the acts
-              rather than competing with them. */}
-          <CheckInSection
-            entries={checkInEntries}
-            topGap={gapAfter(taskCardShowing)}
-            today={today}
-            onPress={openCheckIn}
           />
           {entries.length === 0 ? (
             // The empty state is for a day with nothing on it at all. Exchanges and tasks count as
@@ -825,7 +760,7 @@ export default function HabitsScreen() {
                   was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
-                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing || checkInCardShowing) }]}>
+                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing) }]}>
                 Stacks
               </SectionLabel>
               <HabitDragProvider
@@ -883,7 +818,7 @@ export default function HabitsScreen() {
               the two because it is the ordinary case — an exchange is the special one. */}
           <HabitSection
             habits={looseHabits}
-            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -895,7 +830,7 @@ export default function HabitsScreen() {
           <ExchangeSection
             exchanges={exchanges}
             // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={gapAfter(entries.length > 0 || taskCardShowing || checkInCardShowing || looseHabits.length > 0)}
+            topGap={gapAfter(entries.length > 0 || taskCardShowing || looseHabits.length > 0)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -983,8 +918,7 @@ function HabitsDragGhost({
 const noop = () => {};
 
 /**
- * A quiet "the night before" line: the Hijri acts that begin tomorrow, and any to-do put there
- * from a plan. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
+ * A quiet "the night before" line: the Hijri acts that begin tomorrow. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
  * the accent-pill costume — that dress is the checklist's "tappable" vocabulary, and a notice must
  * not promise a tap. What it says is resolved in {@link tomorrowLine}, where the rule has a test.
  */

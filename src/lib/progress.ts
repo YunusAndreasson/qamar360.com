@@ -136,12 +136,6 @@ export type ProgressHabit = {
   hijri_schedule?: HijriSchedule | null;
   /** A count-goal target (e.g. 5 pages); a scheduled day earns `count ÷ target` credit. Null = binary. */
   target_count?: number | null;
-  /**
-   * Optional, because none of the arithmetic here needs one — a rate is a rate whatever the act
-   * is called. The goals do (they name the acts that feed them), and they run off this same
-   * habit shape, so it rides along rather than forcing a second one.
-   */
-  name?: string | null;
 };
 
 /** The completion-row fields the progress math reads. */

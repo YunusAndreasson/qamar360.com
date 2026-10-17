@@ -85,22 +85,6 @@ export function carriedLabel(dueOn: string, today: string): string | null {
   return dayTitle(dueOn, today, { weekday: 'long' });
 }
 
-/**
- * The names of the open to-dos waiting on `day` — what tomorrow already has on it.
- *
- * `showsOn` deliberately answers `false` for a to-do dated ahead: it belongs to that day and to no
- * other, which is why it does not clutter today and cannot hold today's close back. But the day
- * view only ever reaches backwards, so between writing one and midnight there would be nowhere at
- * all to see it. This is that place — the almanac line at the head of Today, which already says
- * what tomorrow is asking of you.
- */
-export function openTitlesOn(tasks: readonly Task[], day: string): string[] {
-  return tasks
-    .filter((task) => isOpen(task) && task.due_on === day)
-    .sort((a, b) => a.position - b.position)
-    .map((task) => task.title);
-}
-
 export type TaskRowContract = {
   /** `'open'` — the tap ticks it; `'done'` — the tap takes it back. */
   mode: 'open' | 'done';

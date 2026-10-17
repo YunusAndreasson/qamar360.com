@@ -237,9 +237,8 @@ export function HabitEditorForm({
       />
 
       {/* Target — a single daily act, or counting toward a numeric target (e.g. 5 pages). Not
-          "Goal": that word belongs to the Goals feature, a horizon over many days, and one field
-          here wearing it made the two read as the same thing. The shared Segmented control, so
-          this mode choice reads exactly like Settings'. */}
+          "Goal": a goal reads as a horizon over many days, and this is one day's amount. The
+          shared Segmented control, so this mode choice reads exactly like Settings'. */}
       <FieldLabel>Target</FieldLabel>
       <Segmented
         options={[

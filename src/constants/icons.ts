@@ -42,23 +42,9 @@ export const Icons = {
   // A one-off task: a written list with things struck off it. Not a checkmark — that glyph is
   // "done" everywhere else in the app, and this names the kind of thing, not its state.
   task: { sf: 'checklist', md: 'checklist' },
-  // A plan: something written down that has no day yet. A map, because the noun this names is a
-  // route you have worked out but not set off on — and because every calendar glyph would promise
-  // exactly the date a plan is defined by not having.
-  plan: { sf: 'map', md: 'map' },
   // A habit that belongs to no stack: the thing that recurs, with nothing it hangs off. A cycle is
   // right here where it would be wrong for an exchange — this one genuinely comes round again.
   repeat: { sf: 'repeat', md: 'repeat' },
-  // A check-in: a goal asking where you are. A gauge, because what it wants is a *reading* — where
-  // a number currently sits, not whether something was done. Deliberately not `checklist` (that is
-  // the to-do's, and this is not a list), not a checkmark (the app's "done" everywhere) and not a
-  // chart (the graph a goal draws FROM these, which is a different thing from the asking).
-  checkIn: { sf: 'gauge.with.dots.needle.bottom.50percent', md: 'speed' },
-  // A goal: a horizon over acts you already keep. A flag — a marker planted where you mean to
-  // arrive — rather than a target or a bullseye, which would make a twenty-year practice sound
-  // like something you aim at and hit. Distinct from `checkIn`'s gauge: that one is the goal
-  // ASKING, this one is the goal itself.
-  goal: { sf: 'flag', md: 'flag' },
   openInNew: { sf: 'arrow.up.right', md: 'open_in_new' },
   globe: { sf: 'globe', md: 'public' },
   // ── Habit actions ──────────────────────────────────────────────────────

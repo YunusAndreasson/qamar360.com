@@ -16,8 +16,6 @@ import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
 import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
 import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
 import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
-import { Route as AuthedPlansIndexRouteImport } from './routes/_authed/plans/index'
-import { Route as AuthedPlansIdRouteImport } from './routes/_authed/plans/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,16 +51,6 @@ const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
   path: '/routines',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedPlansIndexRoute = AuthedPlansIndexRouteImport.update({
-  id: '/plans/',
-  path: '/plans/',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedPlansIdRoute = AuthedPlansIdRouteImport.update({
-  id: '/plans/$id',
-  path: '/plans/$id',
-  getParentRoute: () => AuthedRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -71,8 +59,6 @@ export interface FileRoutesByFullPath {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
-  '/plans/$id': typeof AuthedPlansIdRoute
-  '/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -81,8 +67,6 @@ export interface FileRoutesByTo {
   '/habits': typeof AuthedHabitsRoute
   '/progress': typeof AuthedProgressRoute
   '/routines': typeof AuthedRoutinesRoute
-  '/plans/$id': typeof AuthedPlansIdRoute
-  '/plans': typeof AuthedPlansIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,30 +77,13 @@ export interface FileRoutesById {
   '/_authed/habits': typeof AuthedHabitsRoute
   '/_authed/progress': typeof AuthedProgressRoute
   '/_authed/routines': typeof AuthedRoutinesRoute
-  '/_authed/plans/$id': typeof AuthedPlansIdRoute
-  '/_authed/plans/': typeof AuthedPlansIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/login'
-    | '/discover'
-    | '/habits'
-    | '/progress'
-    | '/routines'
-    | '/plans/$id'
-    | '/plans/'
+    '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/login'
-    | '/discover'
-    | '/habits'
-    | '/progress'
-    | '/routines'
-    | '/plans/$id'
-    | '/plans'
+  to: '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
   id:
     | '__root__'
     | '/'
@@ -126,8 +93,6 @@ export interface FileRouteTypes {
     | '/_authed/habits'
     | '/_authed/progress'
     | '/_authed/routines'
-    | '/_authed/plans/$id'
-    | '/_authed/plans/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -187,20 +152,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRoutinesRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/plans/': {
-      id: '/_authed/plans/'
-      path: '/plans'
-      fullPath: '/plans/'
-      preLoaderRoute: typeof AuthedPlansIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/plans/$id': {
-      id: '/_authed/plans/$id'
-      path: '/plans/$id'
-      fullPath: '/plans/$id'
-      preLoaderRoute: typeof AuthedPlansIdRouteImport
-      parentRoute: typeof AuthedRoute
-    }
   }
 }
 
@@ -209,8 +160,6 @@ interface AuthedRouteChildren {
   AuthedHabitsRoute: typeof AuthedHabitsRoute
   AuthedProgressRoute: typeof AuthedProgressRoute
   AuthedRoutinesRoute: typeof AuthedRoutinesRoute
-  AuthedPlansIdRoute: typeof AuthedPlansIdRoute
-  AuthedPlansIndexRoute: typeof AuthedPlansIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -218,8 +167,6 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedHabitsRoute: AuthedHabitsRoute,
   AuthedProgressRoute: AuthedProgressRoute,
   AuthedRoutinesRoute: AuthedRoutinesRoute,
-  AuthedPlansIdRoute: AuthedPlansIdRoute,
-  AuthedPlansIndexRoute: AuthedPlansIndexRoute,
 }
 
 const AuthedRouteWithChildren =

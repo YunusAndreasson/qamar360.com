@@ -72,8 +72,8 @@ function TaskRowBase({ task, today, onToggle, onEdit, onDelete }: Props) {
           <CompletionRing complete={done} size={24} strokeWidth={2} />
         </View>
         <View style={styles.text}>
-          {/* Done wears `textDisabled`, the day's one "done" tone — the acts, the stackless habits
-              and the check-ins already do. Clamped at two lines like every other free-text row. */}
+          {/* Done wears `textDisabled`, the day's one "done" tone, as the acts and the stackless
+              habits already do. Clamped at two lines like every other free-text row. */}
           <ThemedText type="rowTitle" numberOfLines={2} style={{ color: done ? theme.textDisabled : theme.text }}>
             {task.title}
           </ThemedText>

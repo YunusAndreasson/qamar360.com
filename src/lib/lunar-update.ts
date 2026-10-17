@@ -18,24 +18,10 @@
  * - **Never claim a sky we didn't check.** The "up now" clause needs a verified altitude
  *   ({@link VISIBLE_ALT}), which is why the schedule bothers to compute one.
  */
-import { formatMeasure } from '@/lib/goals';
 import { milestoneAssetKey } from '@/lib/lunar-phase';
 import { type LunarFire, VISIBLE_ALT } from '@/lib/lunar-schedule';
 import { type MonthProgress, toDegrees } from '@/lib/progress';
 import { orbitDegrees } from '@/lib/progress-format';
-
-/**
- * The one goal a new moon may speak for: the nearest horizon among the open ones, and what the
- * month it is opening asks of it. Only ever set on day 1 — see the `case 1` note below.
- */
-export type GoalAsk = {
-  title: string;
-  /** This month's ask. Printed through `formatMeasure`, like every in-app surface — a four-figure
-   *  ask reaching a lock screen as "1510" beside a goal screen saying "1,510" is one measure
-   *  wearing two faces. */
-  quota: number;
-  unit: string;
-};
 
 export type LunarUpdateCopy = {
   title: string;
@@ -71,16 +57,9 @@ function skySentence(fire: LunarFire): string | null {
  * {@link LunarFire.future}, and also whenever the progress fetch failed, in which case the update
  * still goes out without a figure.
  */
-export function lunarUpdateCopy(
-  fire: LunarFire,
-  month: MonthProgress | null,
-  goalAsk: GoalAsk | null = null,
-): LunarUpdateCopy {
+export function lunarUpdateCopy(fire: LunarFire, month: MonthProgress | null): LunarUpdateCopy {
   const { hijriDay, monthName, monthLength } = fire;
-  // The new moon's goal ask displaces the month's degrees as well as the landmark's second half:
-  // "replaces, not joins" has to hold against BOTH halves or the body grows to three sentences,
-  // which is the one thing this copy has never allowed. The other milestones keep their figure.
-  const degrees = fire.future || (hijriDay === 1 && goalAsk) ? null : degreesSentence(month);
+  const degrees = fire.future ? null : degreesSentence(month);
   const sky = skySentence(fire);
 
   let title: string;
@@ -91,16 +70,8 @@ export function lunarUpdateCopy(
       // A fresh cycle is the strongest moment there is to restart something, and it is the one
       // line that stays true however long the app has gone unopened — so it is also the only
       // update armed a whole month ahead.
-      //
-      // It is also the only night a goal speaks. A temporal landmark is when an aspiration is
-      // most likely to be taken up, the month's quota is recomputed at exactly this boundary, and
-      // this is the update that reaches you whether or not you opened the app — so the ask
-      // displaces the degrees rather than joining them. Three sentences on a lock screen is one
-      // too many.
       title = `New moon · 1 ${monthName}`;
-      lead = goalAsk
-        ? `${monthName} begins. ${formatMeasure(goalAsk.quota)} ${goalAsk.unit} toward ${goalAsk.title}.`
-        : `${monthName} begins. 360° ahead of you.`;
+      lead = `${monthName} begins. 360° ahead of you.`;
       break;
     case 8:
       // The title already names the phase; the body's job is the landmark, not a second

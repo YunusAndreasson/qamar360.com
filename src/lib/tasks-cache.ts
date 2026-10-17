@@ -24,9 +24,8 @@ export type TasksSnapshot = {
   tasks: Task[];
 };
 
-// v2: rows gained `plan_id`. A v1 snapshot's rows have no such field, and the map a plan's label
-// is read from is derived straight off these seeded rows — so a stale snapshot would paint every
-// plan as unscheduled for one frame after a cold start. Cheaper to drop it than to migrate it.
+// v2: rows gained `plan_id` for plans, which went again on 2026-10-17. A v2 snapshot still carrying
+// the field is harmless (nothing reads it), so the key stays rather than dropping everyone's seed.
 const CACHE_KEY = 'tasks.snapshot.v2';
 
 const storage = getWebStorage();

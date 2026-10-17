@@ -21,10 +21,9 @@ type DayRecord = {
 const DayRecordContext = createContext<DayRecord | null>(null);
 
 /**
- * Every day you can reach from Today, with how much of each was kept: the week bar's orbits and the
- * calendar's.
+ * Every day you can reach from Today, with how much of each was kept: the week bar's orbits.
  *
- * The window is the days the day picker reaches, widened back to the Saturday that opens their
+ * The window is the days that can be backfilled, widened back to the Saturday that opens their
  * first week, so the earliest week in the bar is whole. One read of it, then kept current from the
  * day itself: whatever the viewed day's list shows (a tick still on its way to the server
  * included) is written into the record as it changes, so the orbit above a day moves with the

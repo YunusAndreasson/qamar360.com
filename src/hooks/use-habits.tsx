@@ -17,7 +17,7 @@ import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
-import { dayCloseAfter, moonLitFor, openCheckInsOn, openTasksOn, type DayClose } from '@/lib/day-close';
+import { dayCloseAfter, moonLitFor, openTasksOn, type DayClose } from '@/lib/day-close';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
@@ -82,7 +82,7 @@ export type HabitCreate = {
   cue?: string | null;
 };
 
-/** How far back the day picker lets you backfill a missed completion. */
+/** How far back the week bar lets you backfill a missed completion. */
 const BACKFILL_DAYS = 30;
 
 // Plain-language messages for the failed actions, spelled once so the copy stays consistent
@@ -152,11 +152,11 @@ type HabitsContextValue = {
   completionsLoading: boolean;
   /** Plain-language message for the last failed action, or null. */
   error: string | null;
-  /** The real local `YYYY-MM-DD` today (upper bound of the day picker). */
+  /** The real local `YYYY-MM-DD` today (the last day the week bar can pick). */
   today: string;
   /** The day currently shown/edited — `today`, or up to `BACKFILL_DAYS` earlier. */
   viewDate: string;
-  /** The earliest day the picker may reach (`today − BACKFILL_DAYS`). */
+  /** The earliest day the week bar may pick (`today − BACKFILL_DAYS`). */
   minViewDate: string;
   /** Whether `viewDate` is today. */
   isToday: boolean;
@@ -350,7 +350,7 @@ function celebrateSeal(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day), openCheckInsOn(day));
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
   if (close.dayComplete) {
     haptics.celebrate(moonLitFor(day));
   } else {
@@ -375,7 +375,7 @@ function celebrateHold(
   justDoneIds: Set<string>,
   day: string,
 ): DayClose {
-  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day), openCheckInsOn(day));
+  const close = dayCloseAfter(habits, skipped, completed, justDoneIds, day, openTasksOn(day));
   if (close.dayComplete) haptics.celebrate(moonLitFor(day));
   else haptics.completed();
   return close;
@@ -640,8 +640,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [loading, userId, error, viewDate, habits, stacks, completed, skipped, counts]);
 
   /**
-   * Move the view to another day — the ONE way `viewDate` changes (the day picker and the midnight
-   * rollover both come through here).
+   * Move the view to another day — the ONE way `viewDate` changes (the week bar, the header's
+   * Today and the midnight rollover all come through here).
    *
    * The day's ticks/skips/counts are blanked in this same commit, not in an effect keyed on
    * `viewDate` afterwards, and that ordering is load-bearing rather than tidiness. With the
@@ -1279,7 +1279,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // the clamp) — and raising it left a 'done' row below its new target. Mirrors
       // adjustHabitCount's write; silent (an edit, not a tick — no haptics, no celebration).
       if (patch.target_count === undefined) return;
-      // The reconcile below rewrites the VIEWED day, which the day picker can have parked up to
+      // The reconcile below rewrites the VIEWED day, which the week bar can have parked up to
       // a month back. That is what you want from the habit editor on the day you are looking at,
       // and data loss anywhere else: a goal accepting its monthly target from another tab
       // has no view of the day at all, and would silently turn a closed day's 'done' row into a

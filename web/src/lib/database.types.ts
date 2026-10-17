@@ -63,74 +63,6 @@ export type Database = {
         Update: { body?: string; created_at?: string | null; id?: string; note_date?: string; updated_at?: string | null; user_id?: string }
         Relationships: [{ foreignKeyName: "daily_notes_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] }]
       }
-      goals: {
-        Row: {
-          check_in_days: number[]
-          check_in_from: string | null
-          check_in_hijri: Json | null
-          created_at: string | null
-          direction: string
-          horizon_on: string
-          id: string
-          if_then: string
-          milestone_step: number | null
-          obstacle: string
-          position: number
-          status: string
-          target_value: number
-          title: string
-          unit: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          check_in_days?: number[]
-          check_in_from?: string | null
-          check_in_hijri?: Json | null
-          created_at?: string | null
-          direction?: string
-          horizon_on: string
-          id?: string
-          if_then?: string
-          milestone_step?: number | null
-          obstacle?: string
-          position?: number
-          status?: string
-          target_value: number
-          title: string
-          unit: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          check_in_days?: number[]
-          check_in_from?: string | null
-          check_in_hijri?: Json | null
-          created_at?: string | null
-          direction?: string
-          horizon_on?: string
-          id?: string
-          if_then?: string
-          milestone_step?: number | null
-          obstacle?: string
-          position?: number
-          status?: string
-          target_value?: number
-          title?: string
-          unit?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goals_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       habit_completions: {
         Row: {
           completed_at: string
@@ -293,44 +225,6 @@ export type Database = {
         }
         Relationships: []
       }
-      plans: {
-        Row: {
-          body: string
-          created_at: string | null
-          id: string
-          position: number
-          title: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          body?: string
-          created_at?: string | null
-          id?: string
-          position?: number
-          title: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          body?: string
-          created_at?: string | null
-          id?: string
-          position?: number
-          title?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "plans_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       presets: {
         Row: {
           category_id: string
@@ -441,7 +335,6 @@ export type Database = {
           done_on: string | null
           due_on: string
           id: string
-          plan_id: string | null
           position: number
           title: string
           updated_at: string | null
@@ -452,7 +345,6 @@ export type Database = {
           done_on?: string | null
           due_on: string
           id?: string
-          plan_id?: string | null
           position?: number
           title: string
           updated_at?: string | null
@@ -463,20 +355,12 @@ export type Database = {
           done_on?: string | null
           due_on?: string
           id?: string
-          plan_id?: string | null
           position?: number
           title?: string
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "tasks_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "plans"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tasks_user_id_fkey"
             columns: ["user_id"]

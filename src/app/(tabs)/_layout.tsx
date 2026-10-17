@@ -6,13 +6,11 @@ import { AppState, Platform } from 'react-native';
 import { FontWeight } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { DayRecordProvider } from '@/hooks/use-day-record';
-import { GoalsProvider, useGoalCheckInsSummary } from '@/hooks/use-goals';
 import {
   HabitsProvider,
   useHabitsNavigation,
   useHabitsSummary,
 } from '@/hooks/use-habits';
-import { PlansProvider } from '@/hooks/use-plans';
 import { TasksProvider, useTasksSummary } from '@/hooks/use-tasks';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { setAppBadgeCount } from '@/lib/notifications';
@@ -32,27 +30,13 @@ export default function TabsLayout() {
   // the habits state a closing day is judged against both live in the habits provider, so tasks
   // has to sit underneath to read them.
   //
-  // `PlansProvider` nests inside those. It needs nothing from either of the others — a plan is on
-  // no day — but the to-do field offers your plans as a shortcut, and pulling one out of a plan
-  // writes through `useTasks`, so it has to be able to see both.
-  //
-  // `DayRecordProvider` sits right under it: each reachable day's completion, for the week bar on
-  // Today and the calendar sheet, read once and then kept current from the viewed day's own sets.
-  //
-  // `GoalsProvider` nests innermost, for two reasons now. `useProgress` reads it — a goal's figures
-  // are derived from the same habits and completions the month is, so
-  // they are computed in one place rather than fetched twice. And a goal may put a check-in on the
-  // day, which means it needs the day and the habits state a closing day is judged against, the
-  // same things `TasksProvider` came inside for.
+  // `DayRecordProvider` sits right under the habits one: each reachable day's completion, for the
+  // week bar on Today, read once and then kept current from the viewed day's own sets.
   return (
     <HabitsProvider>
       <DayRecordProvider>
         <TasksProvider>
-          <PlansProvider>
-            <GoalsProvider>
-              <Tabs />
-            </GoalsProvider>
-          </PlansProvider>
+          <Tabs />
         </TasksProvider>
       </DayRecordProvider>
     </HabitsProvider>
@@ -141,13 +125,11 @@ function Tabs() {
 /** The completion-sensitive part of the tab tree. A tick updates this leaf, not NativeTabs. */
 function TodayBadge() {
   // What the day still asks of you, counted in **units**: one per unsealed stack, one per open
-  // exchange, one per open task, and one per goal still waiting to be told where it stands. This
-  // is the one leaf where all three providers are in view.
+  // exchange, one per open task. This is the one leaf where both providers are in view.
   const { remainingToday } = useHabitsSummary();
   const { openToday } = useTasksSummary();
-  const { openToday: openCheckIns } = useGoalCheckInsSummary();
   const { user } = useAuth();
-  const remaining = remainingToday + openToday + openCheckIns;
+  const remaining = remainingToday + openToday;
 
   // Keep the home-screen app-icon badge on the same number as the tab badge. Nothing else writes
   // it. Zeroed on unmount so sign-out cannot leave the previous user's count on the icon.
