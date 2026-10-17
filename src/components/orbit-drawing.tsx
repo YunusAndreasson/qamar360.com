@@ -49,14 +49,16 @@ type OrbitColors = {
   track: string;
   /** The stripe's head: where the month has got to. */
   head: string;
-  /** A closed orbit, and the moon's light. */
+  /** A closed orbit. */
   complete: string;
+  /** Sunlight on the moon. */
+  moonlight: string;
+  /** The moon's unlit backing. */
+  moonNight: string;
   /** The completion bloom and the glint. */
   glow: string;
   /** The halo's hairlines. */
   pattern: string;
-  /** The card, which backs the moon. */
-  base: string;
 };
 
 type OrbitDrawingProps = {
@@ -205,8 +207,9 @@ export function OrbitDrawing({
         illumination={illumination}
         waxing={waxing}
         brightness={closed ? 1 : 0.8}
-        light={colors.complete}
-        base={colors.base}
+        light={colors.moonlight}
+        night={colors.moonNight}
+        aura
         glow={moonGlow}
       />
     </Group>

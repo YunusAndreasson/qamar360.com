@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 
 // "Mission control under a night sky" — an instrument panel lit by one moon. The values live
 // in generated Radix-style 12-step scales (src/constants/palette.ts, authored in OKLCH by
-// scripts/gen-palette.mjs); this block is the app's public vocabulary — 26 semantic roles
+// scripts/gen-palette.mjs); this block is the app's public vocabulary — 27 semantic roles
 // aliased onto scale steps. Components read ONLY these roles via `useTheme()`, never raw steps.
 // The panel neutrals carry a deliberate indigo night-sky cast. A single steel `accent` — deep
 // lapis on the light page, luminous ice against the dark sky — is spent sparingly on what's
@@ -79,6 +79,14 @@ export const Colors = {
     complete: palette.light.moon[9],
     // The bloom behind a lit moon / a done check — used at low opacity in a radial gradient.
     glow: palette.light.moon[6],
+    // The large moons are the real moon (moon-body.tsx), and the real moon is seen at night: so on
+    // the light page too it sits in a disc of night sky, a window rather than ink. `moonlight` is
+    // the sun on its surface, the same pale champagne both sides; `moonNight` is the sky its unlit
+    // side shows. By day that is the deepest lapis, the evening the accent belongs to; near-black
+    // read as a hole punched in the page. A disc of the page's own white cannot work at all: a lit
+    // surface can't be drawn brighter than the white around it.
+    moonlight: palette.dark.moon[12],
+    moonNight: palette.light.steel[12],
     danger: palette.light.ember[9],
     dangerSubtle: palette.light.ember[3],
     rippleOnFill: palette.light.whiteA[7],
@@ -125,6 +133,9 @@ export const Colors = {
     // both brightness AND temperature (warm gold vs the cold steel of in-progress).
     complete: palette.dark.moon[9],
     glow: palette.dark.moon[10],
+    // See light note. At night the moon's dark side is the card itself: the sky it hides.
+    moonlight: palette.dark.moon[12],
+    moonNight: palette.dark.night[2],
     danger: palette.dark.ember[9],
     dangerSubtle: palette.dark.ember[3],
     rippleOnFill: palette.dark.whiteA[7],

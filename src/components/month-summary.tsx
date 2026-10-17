@@ -298,7 +298,8 @@ function OrbitCanvas({
           complete: theme.complete,
           glow: theme.glow,
           pattern: theme.pattern,
-          base: theme.backgroundElement,
+          moonlight: theme.moonlight,
+          moonNight: theme.moonNight,
         }}
         haloOpacity={haloOpacity}
         closed={currentRate >= 1}
