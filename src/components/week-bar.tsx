@@ -54,6 +54,9 @@ export function WeekBar({ style }: { style?: StyleProp<ViewStyle> }) {
   // it left, so the moment the day moves to another week the bar is back on the day's own.
   const [swiped, setSwiped] = useState<{ from: number; to: number } | null>(null);
   const shown = swiped && swiped.from === page ? swiped.to : page;
+  // Whether the scroll now settling began under a finger. The bar also travels on its own when the
+  // day moves elsewhere (the header's "Today"), and arriving there is not a swipe to be felt.
+  const dragged = useRef(false);
 
   useEffect(() => {
     if (width === 0 || !placed.current) return;
@@ -80,7 +83,17 @@ export function WeekBar({ style }: { style?: StyleProp<ViewStyle> }) {
             pager.current?.scrollTo({ x: page * width, animated: false });
             placed.current = true;
           }}
-          onMomentumScrollEnd={(e) => setSwiped({ from: page, to: Math.round(e.nativeEvent.contentOffset.x / width) })}>
+          onScrollBeginDrag={() => {
+            dragged.current = true;
+          }}
+          onMomentumScrollEnd={(e) => {
+            const to = Math.round(e.nativeEvent.contentOffset.x / width);
+            // A week locking into place is felt once, as it lands: the lightest tick, the same as
+            // picking a day. A swipe that springs back to the week it left has nothing to report.
+            if (dragged.current && to !== shown) haptics.selection();
+            dragged.current = false;
+            setSwiped({ from: page, to });
+          }}>
           {weeks.map((start, index) =>
             // Only the week in view and the two a swipe can reach are drawn; the rest hold their
             // width. Every tick re-renders the bar, and six weeks of orbits and moons is a cost the
