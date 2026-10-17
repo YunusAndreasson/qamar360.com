@@ -156,12 +156,12 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
   return (
     <StatCard pattern>
-      {/* "This month" — a title, the way the card below is titled "Over time". The two are the
-          screen's two scopes and now say so in the same voice; the hero used to lead with the date
-          instead, so one card was headed by a category and the other by a datum, and only one of
-          them told you what it was for. The month's NAME is the caption, which is where the app
-          says which Hijri month you are in — this header is the only place at rest that does. The
-          name alone: the year is the same all year, and the sheet still says it.
+      {/* "Month", in the same voice as the "Year" and "Lifetime" cards below it: the screen is one
+          zoom-out, and each card is titled by its period alone. (It was "This month" while the
+          cards below were titled differently; the hero used to lead with the date, so one card was
+          headed by a category and another by a datum.) The month's NAME is the caption, which is
+          where the app says which Hijri month you are in — this header is the only place at rest
+          that does. The name alone: the year is the same all year, and the sheet still says it.
 
           The ⓘ sits in the card's own top-right corner, which is where a card keeps a button about
           itself in every app anyone already uses. It replaces a line of prose — "What am I looking
@@ -169,7 +169,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
           glyph says. The sentence is not lost: it is the button's accessible NAME, so the words
           still reach a screen reader and only leave the screen. */}
       <StatCardHeader
-        title="This month"
+        title="Month"
         trailing={monthName}
         accessory={
           <PressableScale
