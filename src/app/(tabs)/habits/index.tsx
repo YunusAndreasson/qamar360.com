@@ -5,9 +5,10 @@ import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { ActRow } from '@/components/act-row';
 import { AppButton } from '@/components/app-button';
-import { AppIcon } from '@/components/app-icon';
 import { AppScreen } from '@/components/app-screen';
 import { BrowseHabitsButton } from '@/components/browse-habits-button';
+import { SECTION_BREAK } from '@/components/card-section';
+import { DAY_MOON } from '@/components/day-mark';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
 import { ExchangeSection } from '@/components/exchange-section';
@@ -16,6 +17,7 @@ import { HabitSection } from '@/components/habit-section';
 import { HabitsSkeleton } from '@/components/habits-skeleton';
 import { HeaderActions, HeaderIconButton, HeaderTextButton } from '@/components/header-icon-button';
 import { ManageRow } from '@/components/manage-row';
+import { MoonPhase } from '@/components/moon-phase';
 import { MoonEmblem } from '@/components/ornament/moon-emblem';
 import { SectionLabel } from '@/components/section-label';
 import { StackCard } from '@/components/stack-card';
@@ -47,6 +49,7 @@ import {
 } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
+import { phaseOn } from '@/lib/lunar-phase';
 import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
 import { usePreference } from '@/lib/preferences';
 import { isStackComplete } from '@/lib/progress';
@@ -59,20 +62,8 @@ import type { Task } from '@/lib/tasks';
 // (card gap 8 → zone break 16 → closing exhale 32).
 const LIST_BOTTOM_INSET = ScrollBottomInset + Spacing.five;
 
-// The day's vertical rhythm, in two numbers — every section caption takes one of them, so no
-// section can drift from its neighbours.
-//
-//   LEAD  — the first section under the header. It follows the title (and, once, the anchoring
-//           card), not another unit, so it takes the middle step.
-//   BREAK — between two sections. The widest step in the 8/16/32 scale, because what follows is
-//           not another card in the same sequence but a different unit of tracking, with its own
-//           caption. (EXCHANGES already claimed this; TO DO and STACKS were on 8 and 16, which is
-//           what made the day read as three loosely-related lists rather than one.)
-const SECTION_LEAD = Spacing.three;
-const SECTION_BREAK = Spacing.five;
-
-/** The header names one day at a time, picked from a month grid — so it takes the bare weekday for
- *  the last week and no year (the picker only reaches thirty days back, so there is never another
+/** The header names one day at a time, picked from the week bar — so it takes the bare weekday for
+ *  the last week and no year (the bar only reaches thirty days back, so there is never another
  *  year to tell this one from). */
 function viewDateTitle(viewDate: string, today: string): string {
   return dayTitle(viewDate, today, { weekday: 'long' });
@@ -417,9 +408,8 @@ export default function HabitsScreen() {
   // to-dos there is nothing to edit and nothing to type into until this param opens the field, and
   // `onComposeHandled` returns it to undefined the moment the field closes.
   const taskCardShowing = tasks.length > 0 || (isToday && compose === 'task');
-  // Whether the day holds anything at all. The scroll's `emptyTop` used to key off the stacks
-  // alone, so a day with to-dos but no stacks got 8pt of top padding that a day with stacks
-  // didn't, while the empty state below correctly stayed away. One predicate, both readers.
+  // Whether the day holds anything at all. The scroll's top doesn't follow it: the week bar sits
+  // there, and holds still from a rest day to a full one.
   const showEmptyState =
     entries.length === 0 &&
     !taskCardShowing &&
@@ -435,11 +425,6 @@ export default function HabitsScreen() {
   // legible ("one tap seals the whole stack") is taught. Since there are no habits and no stacks,
   // the only things the day can be holding here are to-dos.
   const neverStarted = !showEmptyState && habits.length === 0 && stacks.length === 0;
-  // Whether anything at all precedes a given section, so each one takes the same step from what
-  // is above it. Spelled once and threaded down the list rather than restated per section with
-  // one more clause each time — which is how the fourth section would have got it wrong.
-  const gapAfter = (anythingAbove: boolean) => (anythingAbove ? SECTION_BREAK : SECTION_LEAD);
-
 
   // An act's `⋯` opens its sheet — skip today, stats, edit, move. Its *tap* ticks it (below):
   // the row is a checkbox, so the things you can do TO an act live behind the trailing door the
@@ -712,7 +697,7 @@ export default function HabitsScreen() {
         <Animated.ScrollView
           ref={scrollRef}
           style={[styles.list, styles.transparent]}
-          contentContainerStyle={[styles.listContent, showEmptyState && styles.emptyTop]}
+          contentContainerStyle={styles.listContent}
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={refreshControl}
           scrollEnabled={!isDragging}
@@ -725,13 +710,12 @@ export default function HabitsScreen() {
               is the one thing on the screen that can wait. */}
           <ErrorBanner message={error} onDismiss={dismissError} style={styles.banner} />
           <ErrorBanner message={taskError} onDismiss={dismissTaskError} style={styles.banner} />
-          {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} /> : null}
+          {isToday && tomorrowHint ? <UpcomingHint label={tomorrowHint} moon={phaseOn(tomorrow, hijriOffset)} /> : null}
           {/* The day's one-off things, above the practice: a stack missed today comes round again
               tomorrow, and a prescription not collected simply doesn't. Renders nothing at all
               until there is a list — the way in is the header "+". */}
           <TaskSection
             tasks={tasks}
-            topGap={SECTION_LEAD}
             today={today}
             viewDate={viewDate}
             isToday={isToday}
@@ -760,7 +744,7 @@ export default function HabitsScreen() {
                   was captioned — which read as if the list were the day and the exchanges an
                   appendix to it. */}
               <SectionLabel
-                style={[styles.stacksLabel, { paddingTop: gapAfter(taskCardShowing) }]}>
+                style={styles.stacksLabel}>
                 Stacks
               </SectionLabel>
               <HabitDragProvider
@@ -818,7 +802,6 @@ export default function HabitsScreen() {
               the two because it is the ordinary case — an exchange is the special one. */}
           <HabitSection
             habits={looseHabits}
-            topGap={gapAfter(entries.length > 0 || taskCardShowing)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -829,8 +812,6 @@ export default function HabitsScreen() {
               order to be dragged into, so it is not a unit the grid knows about. */}
           <ExchangeSection
             exchanges={exchanges}
-            // A break when something precedes it, the lead when the day is exchanges only.
-            topGap={gapAfter(entries.length > 0 || taskCardShowing || looseHabits.length > 0)}
             completed={completed}
             skipped={skipped}
             settling={completionsLoading}
@@ -839,7 +820,7 @@ export default function HabitsScreen() {
           />
           {/* Last of all, under whatever the day is holding — an offer, not a section of the day,
               so it carries no caption. */}
-          {neverStarted ? <AnchorOffer topGap={SECTION_BREAK} /> : null}
+          {neverStarted ? <AnchorOffer /> : null}
         </Animated.ScrollView>
       )}
     </>
@@ -921,12 +902,15 @@ const noop = () => {};
  * A quiet "the night before" line: the Hijri acts that begin tomorrow. Read-only, so it wears the almanac's reading tone (the Hijri line's family), not
  * the accent-pill costume — that dress is the checklist's "tappable" vocabulary, and a notice must
  * not promise a tap. What it says is resolved in {@link tomorrowLine}, where the rule has a test.
+ *
+ * Its moon is tomorrow's, drawn as the week bar above draws it, at the same size. A generic
+ * crescent stood here, and the night it shows most, before the White Days, it sat under a moon in
+ * the bar that is nearly full.
  */
-function UpcomingHint({ label }: { label: string }) {
-  const theme = useTheme();
+function UpcomingHint({ label, moon }: { label: string; moon: { illumination: number; waxing: boolean } }) {
   return (
     <View accessibilityRole="text" accessibilityLabel={`Tomorrow: ${label}`} style={styles.almanacLine}>
-      <AppIcon name="moon" size={14} color={theme.textSecondary} />
+      <MoonPhase illumination={moon.illumination} waxing={moon.waxing} size={DAY_MOON} rim />
       <ThemedText type="small" numberOfLines={1} themeColor="textSecondary" style={styles.hintText}>
         Tomorrow · {label}
       </ThemedText>
@@ -943,10 +927,10 @@ function UpcomingHint({ label }: { label: string }) {
  * It points at the ready-made stacks rather than at both doors: a second button would make it a
  * decision, and the whole reason it exists is that the library is where anchoring is explained.
  */
-function AnchorOffer({ topGap }: { topGap: number }) {
+function AnchorOffer() {
   const router = useRouter();
   return (
-    <View style={[styles.offer, { paddingTop: topGap }]}>
+    <View style={styles.offer}>
       <Surface>
         <ManageRow
           icon="stack"
@@ -1019,10 +1003,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginLeft: Spacing.five,
     marginRight: Spacing.three,
-    // 16 above: it follows the week bar the way a section's caption follows what is above it, so
-    // it takes the same lead.
-    marginTop: SECTION_LEAD,
-    marginBottom: Spacing.one,
+    // 16 under the week, half the break the first section keeps below it: tomorrow is a day in
+    // the bar above, so the line is the week's footnote and not the head of the list.
+    marginTop: Spacing.three,
   },
   hintText: { flex: 1 },
   listContent: {
@@ -1035,8 +1018,8 @@ const styles = StyleSheet.create({
   // drag grid, which insets its cards itself. Without this padding the caption hung 16 in from the
   // screen edge while TO DO and EXCHANGES hung 32, so the three captions stepped in and out down
   // the day. (Its own `marginLeft: 16` from SectionLabel plus this 16 = the 32 every caption in
-  // the app keeps from the card edge.) The top space is set inline, from the day's two constants.
-  stacksLabel: { paddingHorizontal: Spacing.three },
+  // the app keeps from the card edge.) Above it, the break every section on the day keeps.
+  stacksLabel: { paddingTop: SECTION_BREAK, paddingHorizontal: Spacing.three },
   // 8 from the caption to the first card: the same label→card beat the exchanges' section uses,
   // so both captions sit the same distance above what they name.
   //
@@ -1045,11 +1028,7 @@ const styles = StyleSheet.create({
   // was 36 where every other section break is 32, and the day's one visibly odd interval was the
   // one nobody could see the source of.
   gridBreath: { paddingTop: Spacing.two, paddingBottom: 0 },
-  // Only when the list is empty: match the top offset AppScreen gives the Progress empty state
-  // (its content has paddingTop: Spacing.two), so the two tabs' empty moons align pixel-for-pixel
-  // instead of jumping a notch when you switch between them. The populated list keeps its flush top.
-  emptyTop: { paddingTop: Spacing.two },
   // The same 16pt gutter `CardSection` reproduces for the sections that sit outside the drag
   // layer, so the offer's card edge lines up with the to-do card it follows.
-  offer: { paddingHorizontal: Spacing.three },
+  offer: { paddingTop: SECTION_BREAK, paddingHorizontal: Spacing.three },
 });

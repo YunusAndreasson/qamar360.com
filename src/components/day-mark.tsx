@@ -4,19 +4,14 @@ import { MoonPhase } from '@/components/moon-phase';
 import { ORBIT_GLYPH, ORBIT_GLYPH_STROKE, ORBIT_GLYPH_TEXT_SCALE, OrbitMark } from '@/components/orbit-mark';
 import { ThemedText } from '@/components/themed-text';
 import { DenseLabelScale, FontWeight, Spacing } from '@/constants/theme';
-import { DATE_LOCALE, JUMUAH, WEEKDAY_NAMES, hijriMonthRange, hijriParts } from '@/lib/dates';
-import { phaseOf } from '@/lib/lunar-phase';
+import { DATE_LOCALE, JUMUAH, WEEKDAY_NAMES, hijriParts } from '@/lib/dates';
+import { phaseOn } from '@/lib/lunar-phase';
 import { formatDegrees } from '@/lib/progress-format';
 
 /** The day's moon under its orbit: a glyph, with the rim, so a new moon still reads as one. */
-const DAY_MOON = 12;
+export const DAY_MOON = 12;
 /** A {@link DayMark}'s height, for the rows that lay it out. */
 export const DAY_MARK_HEIGHT = ORBIT_GLYPH + Spacing.one + DAY_MOON;
-
-/** The day's moon, read off its Hijri date: the rule every moon in the app follows. */
-function moonOf(iso: string, hijriOffset: number) {
-  return phaseOf(hijriParts(iso, hijriOffset)?.day ?? 15, hijriMonthRange(iso)?.length ?? 30);
-}
 
 /**
  * One day as Today's week bar draws it: its day of the Hijri month inside its orbit, its moon
@@ -53,7 +48,7 @@ export function DayMark({
   animate?: boolean;
   hijriOffset: number;
 }) {
-  const moon = moonOf(iso, hijriOffset);
+  const moon = phaseOn(iso, hijriOffset);
   const day = hijriParts(iso, hijriOffset)?.day ?? Number(iso.slice(8));
   return (
     <View style={styles.mark}>
@@ -112,7 +107,7 @@ export function dayAccessibilityLabel(
   const hijri = hijriParts(iso, hijriOffset);
   const kept =
     rate === undefined ? null : rate === null ? 'nothing due' : rate >= 1 ? 'kept in full' : `${formatDegrees(rate)} kept`;
-  return [iso === today ? 'Today' : null, date, hijri ? `${hijri.day} ${hijri.monthName}` : null, moonOf(iso, hijriOffset).label, kept]
+  return [iso === today ? 'Today' : null, date, hijri ? `${hijri.day} ${hijri.monthName}` : null, phaseOn(iso, hijriOffset).label, kept]
     .filter(Boolean)
     .join(', ');
 }

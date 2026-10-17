@@ -10,6 +10,7 @@
  * with the ring on the Progress tab, and that ring is calendar-driven. The real sky is
  * consulted only to choose *when* to speak (see {@link lunar-schedule.ts}), never what to say.
  */
+import { hijriMonthRange, hijriParts } from '@/lib/dates';
 import { moonIllumination } from '@/lib/moon';
 
 /** The eight phases of a lunar month, in cycle order from the new moon. */
@@ -73,6 +74,15 @@ export function phaseOf(
   const phase = LUNAR_PHASES[index] as LunarPhase;
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   return { phase, label: PHASE_LABELS[phase], illumination, waxing };
+}
+
+/**
+ * The moon on a calendar day, read off its Hijri date: the rule every moon in the app follows, so
+ * any two drawn for the same day are the same moon. Without an Islamic calendar, a full moon, so a
+ * day is never drawn blank.
+ */
+export function phaseOn(iso: string, hijriOffset?: number): ReturnType<typeof phaseOf> {
+  return phaseOf(hijriParts(iso, hijriOffset)?.day ?? 15, hijriMonthRange(iso)?.length ?? 30);
 }
 
 /**

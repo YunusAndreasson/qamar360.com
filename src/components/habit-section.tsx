@@ -13,8 +13,6 @@ import { normalizeName } from '@/lib/names';
 type Props = {
   /** The day's stackless habits, in position order. */
   habits: Habit[];
-  /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
-  topGap: number;
   completed: Set<string>;
   skipped: Set<string>;
   /** The viewed day's completions are being (re)fetched after a day-step. */
@@ -43,7 +41,7 @@ type Props = {
  * special one, so it reads first. Outside the drag layer for the same reason the exchanges are:
  * there is no slot in the day's order to drag it into.
  */
-export function HabitSection({ habits: loose, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
+export function HabitSection({ habits: loose, completed, skipped, settling, onToggle, onOptions }: Props) {
   const { show } = useToast();
   const { presets } = useCatalog();
   const { habits, stacks, createStack, updateStack, moveHabit, reorderHabits } = useHabits();
@@ -108,7 +106,6 @@ export function HabitSection({ habits: loose, topGap, completed, skipped, settli
   return (
     <CardSection
       label="Habits"
-      topGap={topGap}
       // The offer, not the premise: only when the library recognises something here, and phrased
       // as a shortcut past the per-habit "Move to a stack" rather than as a chore to clear.
       //

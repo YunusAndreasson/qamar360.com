@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { addDaysISO, hijriMonthRange } from '@/lib/dates';
 import {
   asMonthLength,
   LUNAR_PHASES,
@@ -7,6 +8,7 @@ import {
   MILESTONE_DAYS,
   milestoneAssetKey,
   phaseOf,
+  phaseOn,
 } from '@/lib/lunar-phase';
 
 // A Hijri month is 29 or 30 days, and the milestone days have to land in the right quarter in
@@ -73,5 +75,20 @@ describe('asset keys', () => {
     expect(milestoneAssetKey(22, 29)).toBe('d22-l29');
     expect(MILESTONE_ASSET_KEYS).toHaveLength(MILESTONE_DAYS.length * MONTH_LENGTHS.length);
     expect(new Set(MILESTONE_ASSET_KEYS).size).toBe(MILESTONE_ASSET_KEYS.length);
+  });
+});
+
+describe('phaseOn', () => {
+  // 6 Jumādā al-Awwal 1448 (Umm al-Qura), in a 30-day month.
+  const range = hijriMonthRange('2026-10-17');
+  if (!range) throw new Error('Islamic calendar unavailable in this test environment');
+
+  it("reads a day's moon off its Hijri date, as every moon in the app does", () => {
+    expect(phaseOn(range.start)).toEqual(phaseOf(1, range.length));
+    expect(phaseOn(addDaysISO(range.start, 12))).toEqual(phaseOf(13, range.length));
+  });
+
+  it('moves with the Hijri offset, so a month sighted a day later shows the earlier moon', () => {
+    expect(phaseOn(addDaysISO(range.start, 12), -1)).toEqual(phaseOf(12, range.length));
   });
 });

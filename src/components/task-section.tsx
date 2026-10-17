@@ -19,8 +19,6 @@ import { splitTasks, type Task, type TaskPlace } from '@/lib/tasks';
 type Props = {
   /** The viewed day's tasks, in position order (`lib/tasks.visibleTasks`). */
   tasks: Task[];
-  /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
-  topGap: number;
   /** The real today, so a task carried forward can say where it came from. */
   today: string;
   /** The day being viewed — what the done fold and the held rows are scoped to. */
@@ -60,7 +58,6 @@ const NO_HOLDS: ReadonlyMap<string, TaskPlace> = new Map();
  */
 export function TaskSection({
   tasks,
-  topGap,
   today,
   viewDate,
   isToday,
@@ -191,7 +188,6 @@ export function TaskSection({
   return (
     <CardSection
       label="To do"
-      topGap={topGap}
       // The way in, once there is a list. Suppressed on a past day: writing something down "for
       // last Tuesday" is not a thing anyone means to do — and while an edit is open, since the
       // field for that is up in the list and two live fields would fight for the keyboard.

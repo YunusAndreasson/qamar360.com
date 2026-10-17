@@ -16,7 +16,7 @@ export function HabitsSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  // paddingTop mirrors the loaded list's zone break above its first card (gridBreath), so
-  // the swap from skeleton to content doesn't jump the column.
+  // 16 here and AppScreen's own 16 between children: the 32 the loaded day's first section keeps
+  // under the week bar, so the column starts where the list will.
   root: { gap: Spacing.two, paddingTop: Spacing.three },
 });

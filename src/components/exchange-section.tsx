@@ -7,8 +7,6 @@ import type { Habit } from '@/hooks/use-habits';
 type Props = {
   /** The day's exchanges, in position order. */
   exchanges: Habit[];
-  /** Space above the caption — the screen owns it, so the day's sections break on one rhythm. */
-  topGap: number;
   completed: Set<string>;
   skipped: Set<string>;
   /** The viewed day's completions are being (re)fetched after a day-step — see `CompletionRing`'s
@@ -36,7 +34,7 @@ type Props = {
  * opened onto did not justify the chevron (see {@link ExchangeRow}). Each row's `⋯` goes straight
  * to the sheet instead.
  */
-function ExchangeSectionBase({ exchanges, topGap, completed, skipped, settling, onToggle, onOptions }: Props) {
+function ExchangeSectionBase({ exchanges, completed, skipped, settling, onToggle, onOptions }: Props) {
   if (exchanges.length === 0) return null;
 
   return (
@@ -45,7 +43,7 @@ function ExchangeSectionBase({ exchanges, topGap, completed, skipped, settling, 
     // drinks"), and using it here made one wording mean the whole feature on the day and one field
     // of one item in the editor. Every other way in — the "+" menu, the act sheet, the library,
     // the guide — already says exchange; the day was the last screen that didn't.
-    <CardSection label="Exchanges" topGap={topGap}>
+    <CardSection label="Exchanges">
       {exchanges.map((habit) => (
         <ExchangeRow
           key={habit.id}
@@ -65,7 +63,6 @@ function ExchangeSectionBase({ exchanges, topGap, completed, skipped, settling, 
 export const ExchangeSection = memo(ExchangeSectionBase, (prev, next) => {
   if (
     prev.exchanges !== next.exchanges ||
-    prev.topGap !== next.topGap ||
     prev.settling !== next.settling ||
     prev.onToggle !== next.onToggle ||
     prev.onOptions !== next.onOptions
