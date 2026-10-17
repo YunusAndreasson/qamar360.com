@@ -3,13 +3,10 @@ import { describe, expect, it } from '@jest/globals';
 import {
   buildPaths,
   columnBounds,
-  DIRECTION_THRESHOLD,
   lineCrossesRect,
-  linearFit,
   mean,
   pointAt,
   polylineLength,
-  project,
   slotAtX,
   slotX,
   buildSmoothPaths,
@@ -18,8 +15,8 @@ import {
   type PlotBox,
 } from '@/lib/chart';
 
-// Expectations are derived from intended behaviour ("a lone point is centred", "a projection can
-// never leave the plot"), never copied from output — a red test means the geometry is wrong.
+// Expectations are derived from intended behaviour ("a lone point is centred"), never copied from
+// output — a red test means the geometry is wrong.
 
 const BOX: PlotBox = { height: 120, padY: 12, padX: 12 };
 const WIDTH = 300;
@@ -221,78 +218,6 @@ describe('mean', () => {
   it('holds at the ends of the scale, where a full period and an empty one both live', () => {
     expect(mean([1, 1, 1])).toBeCloseTo(1, 10);
     expect(mean([0, 0, 0])).toBeCloseTo(0, 10);
-  });
-});
-
-describe('linearFit', () => {
-  it('has no direction below two points — the whole failure mode a projection must avoid', () => {
-    expect(linearFit([])).toBeNull();
-    expect(linearFit([0.5])).toBeNull();
-  });
-
-  it('recovers the slope and intercept of a straight run', () => {
-    const fit = linearFit([0.1, 0.2, 0.3, 0.4])!;
-    expect(fit.slope).toBeCloseTo(0.1, 10);
-    expect(fit.intercept).toBeCloseTo(0.1, 10);
-  });
-
-  it('reads a flat run as flat, and a falling one as negative', () => {
-    expect(linearFit([0.5, 0.5, 0.5])!.slope).toBeCloseTo(0, 10);
-    expect(linearFit([0.9, 0.6, 0.3])!.slope).toBeCloseTo(-0.3, 10);
-  });
-});
-
-describe('project', () => {
-  const opts = { horizon: 7, fitWindow: 14 };
-
-  it('projects nothing from a single point', () => {
-    expect(project([0.5], opts)).toBeNull();
-    expect(project([], opts)).toBeNull();
-  });
-
-  it('carries a rising run forward one step at a time', () => {
-    const p = project([0.1, 0.2, 0.3], { horizon: 2, fitWindow: 14 })!;
-    expect(p.values[0]).toBeCloseTo(0.4, 10);
-    expect(p.values[1]).toBeCloseTo(0.5, 10);
-  });
-
-  it('emits exactly `horizon` values', () => {
-    expect(project([0.4, 0.5], opts)!.values).toHaveLength(7);
-  });
-
-  it('never leaves the plot — an extrapolation is a straight line, and a promise it cannot keep', () => {
-    const rising = project([0.5, 0.9], opts)!; // slope 0.4/step would pass 1 within two steps
-    expect(Math.max(...rising.values)).toBeLessThanOrEqual(1);
-    const falling = project([0.5, 0.1], opts)!;
-    expect(Math.min(...falling.values)).toBeGreaterThanOrEqual(0);
-  });
-
-  it('fits the tail only, so an old rhythm cannot hold the direction back', () => {
-    // Long flat history, then a clear recent climb: fitting everything would read as barely moving.
-    const values = [...Array<number>(20).fill(0.2), 0.4, 0.6, 0.8];
-    expect(project(values, { horizon: 1, fitWindow: 3 })!.direction).toBe('Rising');
-    expect(project(values, { horizon: 1, fitWindow: 23 })!.weeklySlope).toBeLessThan(
-      project(values, { horizon: 1, fitWindow: 3 })!.weeklySlope,
-    );
-  });
-
-  describe('the direction word', () => {
-    /** A run whose per-step slope is exactly `weekly / 7`. */
-    const runAt = (weekly: number) => [0.5, 0.5 + weekly / 7, 0.5 + (2 * weekly) / 7];
-
-    it('names a rise only past the noise threshold', () => {
-      expect(project(runAt(DIRECTION_THRESHOLD * 2), { horizon: 1, fitWindow: 14 })!.direction).toBe('Rising');
-      expect(project(runAt(DIRECTION_THRESHOLD / 2), { horizon: 1, fitWindow: 14 })!.direction).toBe('Steady');
-    });
-
-    it('names an easing only past the same threshold, symmetrically', () => {
-      expect(project(runAt(-DIRECTION_THRESHOLD * 2), { horizon: 1, fitWindow: 14 })!.direction).toBe('Easing');
-      expect(project(runAt(-DIRECTION_THRESHOLD / 2), { horizon: 1, fitWindow: 14 })!.direction).toBe('Steady');
-    });
-
-    it('calls a flat run steady', () => {
-      expect(project([0.6, 0.6, 0.6], { horizon: 1, fitWindow: 14 })!.direction).toBe('Steady');
-    });
   });
 });
 

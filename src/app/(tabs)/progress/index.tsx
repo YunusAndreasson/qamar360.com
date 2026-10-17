@@ -23,9 +23,9 @@ import { goalMeta, goalSeries, type GoalReading } from '@/lib/goals';
  * The goals, under the record.
  *
  * They are on this screen because a goal is a thing you FOLLOW, and this is the screen for
- * following things: the same card, the same plot, the same resting-reading line as the four period
- * cards above. What they are not is a thing you do — the doing is on Today, where the check-in
- * asks — so nothing here is tickable and nothing here is a control.
+ * following things: the same card and the same plot as the period cards above. What they are not
+ * is a thing you do — the doing is on Today, where the check-in asks — so nothing here is tickable
+ * and nothing here is a control.
  *
  * They sit BELOW the period cards as their own region rather than among them: every card above
  * is drawn in one unit, a share of what the span asked for, and a goal counts in its own.
@@ -140,9 +140,9 @@ export default function ProgressScreen() {
 
       <MonthSummary month={month} />
 
-      {/* One card per period the record can be read at — Week, Month, Year, Lifetime — and only
-          the ones a wider period doesn't already draw. Only one scale is ever *in* a card, so a
-          figure is never set beside one measured against a different span. */}
+      {/* The zoom-out under the moon: this year month by month, then the whole record. Only one
+          scale is ever *in* a card, so a figure is never set beside one measured against a
+          different span. */}
       <OverTime seriesByPeriod={seriesByPeriod} periods={seriesPeriods} trend={trend} />
 
       {/* A goal you have put down keeps its record but leaves this list: it is asking nothing of

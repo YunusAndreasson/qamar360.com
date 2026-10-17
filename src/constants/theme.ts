@@ -55,16 +55,13 @@ export const Colors = {
     accentTrack: palette.light.steel[6],
     accentTrackMuted: palette.light.steel[4],
     accentTrackStrong: palette.light.steel[8],
-    // The month orbit's own three-step ladder. It is the one place a track is not furniture: the
-    // ring IS the reading, so its steps must be told apart at a glance and are spaced to be. Kept
-    // off `accentTrack*` deliberately — those are single furniture tones shared by four charts, and
-    // widening the ring's ladder through them would have pushed Over Time's baseline onto the same
-    // step as its average rule. Measured on the card (#12161D dark): track 1.25:1, track→pace
-    // 2.01:1, pace→you 3.73:1 — a spread ladder that still keeps both tracks well under the 3:1 a
-    // *text* tone would owe, because they are informational. It replaces 1.09 / 1.40 / 6.17, where
-    // the bottom two rungs had collapsed into the card and an empty month showed no gauge at all.
+    // The month orbit's groove: the full 360° your stripe fills. Kept off `accentTrack*`
+    // deliberately — those are furniture tones shared by four charts, and the ring IS the reading.
+    // Measured on the card (#12161D dark) at 1.25:1, so an empty month still shows its whole
+    // circle; it once sat at 1.09 and collapsed into the card. Informational, so it owes no 3:1.
+    // There was a second, brighter step for the month elapsed, laid over this one; it went when the
+    // ring became a single stripe (2026-10-17).
     orbitTrack: palette.light.steel[5],
-    orbitPace: palette.light.steel[7],
     // Outline for interactive hollow controls — the checklist's tap-to-complete ring, the count
     // stepper buttons. Night step 8 is the Radix "strong border" slot: clears ≥3:1 on the card so
     // the affordance reads (the faint data-viz tracks above don't, and shouldn't be reused here).
@@ -116,9 +113,8 @@ export const Colors = {
     accentTrack: palette.dark.steel[6],
     accentTrackMuted: palette.dark.steel[4],
     accentTrackStrong: palette.dark.steel[8],
-    /** See the light-theme note: the orbit's own ladder, spaced so the ring reads as a gauge. */
+    /** See the light-theme note: the orbit's groove, the 360° the stripe fills. */
     orbitTrack: palette.dark.steel[5],
-    orbitPace: palette.dark.steel[7],
     // See light note — an interactive control outline that clears ≥3:1 on the dark card.
     controlTrack: palette.dark.night[8],
     // Faint etched-telemetry lines against deep space. See light note.

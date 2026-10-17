@@ -9,7 +9,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { StatCard, StatCardHeader } from '@/components/stat-card';
@@ -19,9 +19,10 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import type { RecordSeries, SeriesPeriod, SeriesPoint, TrendSummary } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
-import { buildSmoothPaths, lineCrossesRect, mean, pointAt, polylineLength, project, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
+import { buildSmoothPaths, lineCrossesRect, mean, pointAt, polylineLength, slotAtX, slotX, spanFor, type PlotBox, type Pt } from '@/lib/chart';
 import { hijriParts } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
+import { ringMetrics, toDegrees } from '@/lib/progress';
 import { formatDegrees } from '@/lib/progress-format';
 
 /** The dot on a point: the hollow one on the span still running, and the solid one under a finger.
@@ -65,20 +66,20 @@ const AVERAGE_LABEL_WIDTH = 72;
 /** How far in from the rule's end the label sits, at either end. */
 const AVERAGE_LABEL_INSET = 2;
 
-/** How far back the projection is fitted — recent shape only, so an old rhythm can't anchor it. */
-const FIT_WINDOW = 14;
-/** The furthest ahead the line ever looks, in buckets. */
-const MAX_HORIZON = 6;
+/** The year's month stops along its floor: small enough to be the ruler, not a reading. */
+const MONTH_STOP_R = 1.75;
+/** The month's own orbit beside its name under a finger, at caption scale. */
+const MONTH_RING = 14;
+const MONTH_RING_STROKE = 2.5;
 
 /** A bucket as a reading. One day says its date; a wider span says the day it ends on, which is the
  *  most recent thing in it and so the one you were looking for. */
 function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod): string {
   // A pending bucket is named for the span it MEASURES, not for the day you happen to read it on.
-  // Week and month bucket by the day, so "Today" is exactly right; a year buckets by the Hijri
-  // month. A lifetime buckets by however many days it takes to fit the whole record on one line
-  // (`lifeBucketDays`), so its last bucket is usually several days wide — and calling that "Today"
-  // hung a one-day label on a multi-day number, on the one card whose reading nothing else on the
-  // screen repeats. Anything wider than a day falls through and names its own range instead.
+  // A year buckets by the Hijri month. A lifetime buckets by however many days it takes to fit the
+  // whole record on one line (`lifeBucketDays`): single days while the record is young, so "Today"
+  // is exactly right, and usually several days once it is not — calling that "Today" would hang a
+  // one-day label on a multi-day number. Anything wider than a day names its own range instead.
   if (pending) {
     if (period === 'year') return 'This month';
     if (iso === endISO) return 'Today';
@@ -97,68 +98,55 @@ function bucketLabel({ iso, endISO, pending }: SeriesPoint, period: SeriesPeriod
 }
 
 /**
- * Which week, month or year a card covers, for the top right of its header.
+ * Which year, or how much of the record, a card covers, for the top right of its header.
  *
- * Short by construction, because it shares a row with the title. The two rolling windows say where
- * they start ("Since 8 Ṣafar"), since both end today: a range naming both ends stops fitting the
- * moment it crosses a month ("28 Rabīʿ al-Awwal – 4 Rabīʿ al-Thānī" is 239pt, and the caption gets
- * about 210 on a 360dp phone). Month and year are calendar spans, so they are simply named. The
- * year keeps its "H": a bare "1448" in a stats card reads as a count.
+ * Short by construction, because it shares a row with the title. The year is a calendar span, so
+ * it is simply named, and keeps its "H": a bare "1448" in a stats card reads as a count. The record
+ * ends today, so it says where it starts: a range naming both ends stops fitting the moment it
+ * crosses a month, and the caption gets about 210pt on a 360dp phone.
  */
 function spanLabel({ period, points }: RecordSeries): string | null {
   const first = points[0];
   const last = points[points.length - 1];
   if (!first || !last) return null;
-  if (period === 'month' || period === 'year') {
+  if (period === 'year') {
     const now = hijriParts(last.endISO);
-    if (!now) return null;
-    return period === 'month' ? now.monthName : `${now.year} H`;
+    return now ? `${now.year} H` : null;
   }
   const from = hijriParts(first.iso);
-  if (!from) return null;
-  return period === 'week' ? `Since ${from.day} ${from.monthName}` : `Since ${from.monthName} ${from.year}`;
+  return from ? `Since ${from.monthName} ${from.year}` : null;
 }
 
 /** How each period names its card. Narrowest first — the order they are shown in. */
 const PERIOD_LABEL: Record<SeriesPeriod, string> = {
-  week: 'Week',
-  month: 'Month',
   year: 'Year',
   life: 'Lifetime',
 };
 
 /**
- * The record over time — one card per period, narrowest first.
+ * The record over time: the year, then the whole record.
  *
- * The screen's second instrument, and the only one that moves on a second day of use: the hero
- * measures the month you are in, these measure whether you are becoming someone who keeps it.
+ * The screen reads as one zoom-out under the moon: this month, this year month by month, then
+ * everything. The year is shown from the first day, framed as all twelve of its months, so a new
+ * account sees where in the year it stands before it has a line to draw; its finished months are
+ * where each month's orbit closed, and the month still running sits on the moon's own figure. The
+ * record measures whether you are becoming someone who keeps it.
  *
- * **A period names a span, and its resolution follows from it** — a week is seven days, a month is
- * its own days, a year is its twelve months, a lifetime is bucketed only as far as it must be to
- * fit. So a card says what it covers and no card can land on a line too dense to read. A period
- * gets a card only once the record can fill it with something a wider one doesn't already say, so
- * a new account sees one card and gains the others as its history earns them. (That rule was
- * written for a selector, and it carries over unchanged: what was "don't offer a setting that
- * draws the same line" is now "don't stack a card that draws the same line".)
- *
- * Every card is the same component. Nothing about a week's line differs from a lifetime's except
- * the buckets underneath it, so the chart is written once and given a series — which is also what
- * keeps four scrubbers, four projections and four averages honest with one another.
+ * Both cards are the same component. Nothing about the year's line differs from the lifetime's
+ * except the buckets underneath it, so the chart is written once and given a series — which is also
+ * what keeps the two scrubbers and the two averages honest with one another.
  *
  * The line's grammar is one rule: **solid is settled, dashed is not.** A solid curve runs through
- * what is closed; a dashed one carries on through the span still being lived and out to where the
- * fitted slope is heading, ending in a caret. The future is drawn in the same ink as the present
- * and marked as provisional — direction without a promise. The average is the one exception drawn
- * flat and solid in a track tone: it is not a reading, it is the floor the readings are measured
- * against, and it is the only absolute reference the plot has.
+ * what is closed, and a dashed one carries on to the span still being lived. Nothing is drawn past
+ * today: a forecast (a dashed run out to a fitted slope, an arrowhead, a "now" divider) was cut on
+ * 2026-10-17 as three guesses on a screen about one stripe. The average is drawn flat and solid in a
+ * track tone: it is not a reading, it is the floor the readings are measured against, and it is the
+ * only absolute reference the plot has.
  *
  * Nothing names a single date until you ask. At rest the header names the span the card covers and
  * no figure is printed at all; a bucket's date and degrees appear under your finger, in that same
  * corner, and leave with it, because a date printed on the axis is a label you read once and then
  * have to keep ignoring.
- *
- * Which WAY you are going is the plot's job, not the line's: the dashed run ends in an arrowhead,
- * and a word repeating it is a caption on a picture that was already clear.
  */
 export function OverTime({
   seriesByPeriod,
@@ -176,8 +164,7 @@ export function OverTime({
           key={period}
           series={seriesByPeriod[period]}
           // The rising-months sentence is a claim about the whole record, so it belongs to the
-          // widest card on screen and to no other. Handed to every card it would print four times
-          // down the page, which turns the screen's one multi-month statement into wallpaper.
+          // widest card on screen and to no other.
           trend={i === periods.length - 1 ? trend : null}
         />
       ))}
@@ -189,14 +176,14 @@ export function OverTime({
 function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSummary | null }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
-  // Per instance, so four stacked charts cannot share one gradient id and paint each other's fill.
+  // Per instance, so stacked charts cannot share one gradient id and paint each other's fill.
   const areaFillId = `overTimeArea-${useId()}`;
 
   const period = series.period;
   const points = series.points;
   const count = points.length;
 
-  // Closed buckets carry the settled curve; the one still running and the projection carry the dash.
+  // Closed buckets carry the settled curve; the one still running carries the dash.
   //
   // **A bucket's own rate is the value — there is no second, smoothed series.** The curve used to be
   // drawn through a trailing mean while the scrub dot and the readout used the raw rate, so the two
@@ -206,19 +193,9 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // scrub is what is drawn is what is said.
   const closed = useMemo(() => points.map((p, i) => ({ p, i })).filter((x) => x.p.possible > 0 && !x.p.pending), [points]);
 
-  // Room ahead grows with what is behind: a quarter of the record, capped. A fixed horizon would
-  // swallow half the plot on a two-day chart and read as mostly speculation.
-  const horizon = count > 0 ? Math.min(MAX_HORIZON, Math.max(1, Math.round(count / 4))) : 0;
-  const projection = useMemo(
-    // Fitted on closed buckets only. A day still being lived reads near zero in the morning, and a
-    // forecast that dives at breakfast and recovers by night is noise wearing the clothes of a trend.
-    () => (horizon > 0 ? project(closed.map((x) => x.p.rate), { horizon, fitWindow: FIT_WINDOW }) : null),
-    [horizon, closed],
-  );
-
-  // The room ahead is only real if something is drawn in it — otherwise a lone first day would sit
-  // pinned to the left edge with empty space beside it.
-  const total = count + (projection ? horizon : 0);
+  // The plot's width in slots: the year's twelve months whatever has been lived of it, so the
+  // months still to come are room on the right rather than a line stretched to fill the card.
+  const total = Math.max(count, series.slots);
 
   const [width, setWidth] = useState(0);
   const widthSV = useSharedValue(0);
@@ -233,16 +210,12 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   const settled: Pt[] = width > 0 ? closed.map((x) => at(x.i, x.p.rate)) : [];
   const nowIndex = points.findIndex((p) => p.pending);
   const nowPoint = width > 0 && nowIndex >= 0 && points[nowIndex]!.possible > 0 ? at(nowIndex, points[nowIndex]!.rate) : null;
-  // The dashed run: on from the settled curve, through the span still open, out to where the slope
-  // points. It starts at the last settled point so the two read as one stroke.
+  // The dashed run: on from the settled curve to the span still open, starting at the last settled
+  // point so the two read as one stroke. Not on the year. Its running month is on the moon's scale
+  // and climbs from the floor every month, so joined to last month's closed figure the run would
+  // plunge at each month's start and read as a collapse. There the hollow dot stands on its own.
   const unsettled: Pt[] =
-    width > 0
-      ? [
-          ...(settled.length > 0 ? [settled[settled.length - 1]!] : []),
-          ...(nowPoint ? [nowPoint] : []),
-          ...(projection?.values ?? []).map((v, k) => at(count + k, v)),
-        ]
-      : [];
+    period === 'life' && nowPoint && settled.length > 0 ? [settled[settled.length - 1]!, nowPoint] : [];
 
   // The plot's one absolute reference. Without it a curve sitting at mid-height says only "some
   // middling amount" — the line has no axis, no gridline and no ceiling, so height alone means
@@ -251,6 +224,9 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   // the reader just made.
   const average = useMemo(() => mean(closed.map((x) => x.p.rate)), [closed]);
   const averageY = width > 0 && average !== null ? pointAt(0, average, width, BOX).y : null;
+  // Under what it averages and nowhere else: the year's months before the record began are slots
+  // with nothing in them, and a rule over them would claim they had a usual.
+  const averageStartX = settled[0]?.x ?? BOX.padX;
   const averageEndX = settled.length > 0 ? settled[settled.length - 1]!.x : 0;
 
   // Where the rule's label sits. Its plate is opaque — it has to be, to stay legible over the area
@@ -285,7 +261,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
     const below = averageY + AVERAGE_LABEL_GAP;
     const belowFits = below + AVERAGE_LABEL_HEIGHT <= BASELINE_Y;
     const startTop = settled[0] && settled[0].y < averageY && belowFits ? below : above;
-    const startLeft = BOX.padX + AVERAGE_LABEL_INSET;
+    const startLeft = averageStartX + AVERAGE_LABEL_INSET;
     const endLeft = averageEndX - AVERAGE_LABEL_INSET - AVERAGE_LABEL_WIDTH;
     const spots = [
       { atEnd: false, top: startTop },
@@ -355,14 +331,19 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   const cursorOn = useSharedValue(0);
   const lastIndex = useSharedValue(-1);
 
-  const tick = () => haptics.selection();
+  // One beat per bucket crossed. On the year a month that closed its whole orbit is felt as one
+  // (the commit texture); every other bucket gives the plain selection tick.
+  const tickAt = (index: number) => {
+    const p = points[index];
+    if (period === 'year' && p && p.possible > 0 && toDegrees(p.rate) === 360) haptics.keptMonth();
+    else haptics.selection();
+  };
   const moveTo = (x: number) => {
     'worklet';
     const w = widthSV.get();
     if (w <= 0 || count === 0) return;
     const raw = slotAtX(x, total, w, BOX);
-    // Never past the last real bucket: the projection is where you are heading, not somewhere you
-    // can stand and take a reading.
+    // Never past the last real bucket: the year's months still to come have nothing to read.
     const i = raw > count - 1 ? count - 1 : raw;
     // The cursor is placed by the same function that places the curve's points, so the two cannot
     // drift apart — the hairline lands exactly on the slot whose reading is being shown.
@@ -371,7 +352,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
     if (lastIndex.get() === i) return; // ratchet: one beat per bucket crossed, never per frame
     lastIndex.set(i);
     scheduleOnRN(setFocused, i);
-    scheduleOnRN(tick);
+    scheduleOnRN(tickAt, i);
   };
   const release = () => {
     'worklet';
@@ -425,11 +406,10 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
    * yours to keep — the same reason the curve leaves its slot empty rather than dropping to the
    * floor, said in words.
    *
-   * The span is always NAMED beside the figure, and that is load-bearing: a degree here is not the
-   * degree on the hero. The hero's is a position on the month's orbit, where 360° is the month
-   * kept. A bucket's is that bucket's own rate — and the bucket rescales with the period, so a
-   * full orbit is one perfect day on Week and Month, one perfect Hijri month on Year, one perfect
-   * span-of-N-days on Lifetime. Nothing else on screen says which. The label does.
+   * The span is always NAMED beside the figure, and that is load-bearing. On the year a degree IS
+   * the moon's: each month is where its orbit closed, and "This month" is the moon's own figure,
+   * where 360° is the month kept. On the lifetime a bucket is its own span's rate, and the span
+   * widens with the record: a day while it is young, several once it is not. The label says which.
    */
   const readingFor = (p: SeriesPoint) => ({
     label: bucketLabel(p, period),
@@ -461,10 +441,6 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   const a11y = [
     `Your record over the ${PERIOD_LABEL[period].toLowerCase()}, ${count} points${grain}.`,
     average !== null ? `Averaging ${formatDegrees(average)}.` : null,
-    // The shape of the thing, for whoever cannot see its shape. This is where the direction word
-    // went when it came off the card: sighted readers get it from the arrowhead on the dashed run,
-    // and an arrowhead is no use here. It belongs to the plot's DESCRIPTION, never to its value.
-    projection ? `Trending ${projection.direction.toLowerCase()}.` : null,
   ]
     .filter(Boolean)
     .join(' ');
@@ -490,7 +466,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
     }
     const next = focused === null ? count - 1 : focused + by;
     if (next < 0 || next > count - 1) return;
-    haptics.selection();
+    tickAt(next);
     setFocused(next);
     if (width > 0) {
       cursorX.set(slotX(next, total, width, BOX));
@@ -502,16 +478,18 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
 
   return (
     <StatCard>
-      {/* The period names the card; the caption says which one. Two of the four once carried a
-          span caption and two did not, so four cards of one kind wore two headers, and the dates
-          came off all of them. They are back on all four, in one form, because "Week" alone does
-          not say which week. Under a finger the caption is the reading instead: the date in the
-          caption's own quiet ink, the figure in the primary one, because it is the datum. */}
+      {/* The period names the card; the caption says which one, because "Year" alone does not say
+          which year. Under a finger the caption is the reading instead: the date in the caption's
+          own quiet ink, the figure in the primary one, because it is the datum. */}
       <StatCardHeader
         title={PERIOD_LABEL[period]}
         trailing={
           focusedReading ? (
             <View style={styles.caption}>
+              {/* Scrubbing the year flicks through the moons behind this one: each month wears a
+                  small orbit filled to where its stripe closed (the running month, to where the
+                  moon's is now). Only the year's buckets are months; a lifetime's are not. */}
+              {period === 'year' && focusedPoint && focusedPoint.possible > 0 ? <MonthRing rate={focusedPoint.rate} /> : null}
               <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.captionLabel}>
                 {focusedReading.label}
               </ThemedText>
@@ -564,31 +542,30 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
                   strokeWidth={1}
                 />
 
-                {/* Now — the divide between what is settled and what is not. Dashed, so it reads apart
-                    from the solid baseline by pattern rather than by a third grey. Unlabelled: it is
-                    a structural mark, and the date belongs to the scrubber. */}
-                {nowIndex >= 0 && projection ? (
-                  <Line
-                    x1={at(nowIndex, 0).x}
-                    y1={BOX.padY * 0.5}
-                    x2={at(nowIndex, 0).x}
-                    y2={BASELINE_Y}
-                    stroke={theme.accentTrackMuted}
-                    strokeWidth={1}
-                    strokeDasharray="2 5"
-                  />
-                ) : null}
+                {/* The year's twelve months as stops along the floor: the frame a new account reads
+                    before it has a line, and the months still to come once it does. Only where the
+                    period has a fixed length; the record has no end to mark. */}
+                {period === 'year'
+                  ? Array.from({ length: total }, (_, i) => (
+                      <Circle
+                        key={i}
+                        cx={slotX(i, total, width, BOX)}
+                        cy={BASELINE_Y}
+                        r={MONTH_STOP_R}
+                        fill={theme.accentTrackStrong}
+                      />
+                    ))
+                  : null}
 
                 {settledPaths.area ? <Path d={settledPaths.area} fill={`url(#${areaFillId})`} /> : null}
 
                 {/* The average of what is drawn — solid, and in a track tone, because it is furniture
-                    rather than a reading. A DASHED rule would be read as a projection: this chart
-                    spends its dashes on "not settled yet" and can't spend them twice. It stops at the
-                    last settled point for the same reason — it describes closed buckets, so running
-                    it out under the forecast would claim it covers that too. */}
+                    rather than a reading. A DASHED rule would read as unsettled: this chart spends
+                    its dashes on "not settled yet" and can't spend them twice. It spans the settled
+                    points and no further, because those are what it describes. */}
                 {averageY !== null ? (
                   <Line
-                    x1={BOX.padX}
+                    x1={averageStartX}
                     y1={averageY}
                     x2={averageEndX}
                     y2={averageY}
@@ -611,21 +588,16 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
                 ) : null}
 
                 {unsettledPath ? (
-                  <AnimatedG animatedProps={unsettledProps}>
-                    <Path
-                      d={unsettledPath}
-                      stroke={theme.accent}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeDasharray="2 5"
-                      fill="none"
-                    />
-                    {/* The caret claims a heading, which only a fitted slope has earned — without
-                        one (too little closed history to fit) the dashed run still bridges to
-                        today's live reading, but ends plainly rather than pointing anywhere. */}
-                    {projection ? <Caret points={unsettled} color={theme.accent} /> : null}
-                  </AnimatedG>
+                  <AnimatedPath
+                    d={unsettledPath}
+                    stroke={theme.accent}
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="2 5"
+                    fill="none"
+                    animatedProps={unsettledProps}
+                  />
                 ) : null}
 
                 {/* The span still running: hollow, because it is not finished being true. The only
@@ -663,10 +635,10 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
             ) : null}
 
             {/* The rule's direct label. Drawn in RN text rather than SVG so it wears the app's own
-                type and colour roles. It sits at one end of the rule, clear of the forecast, on
-                whichever side the curve leaves free.
+                type and colour roles. It sits at one end of the rule, on whichever side the curve
+                leaves free.
                 It also carries the card's own background as a plate, for the record where no spot
-                is free: a busy lifetime line can cross all four. A label you have to read through a
+                is free: a busy lifetime line can cross every one. A label you have to read through a
                 stroke is not a label; the plate costs a few pixels of the area fill and makes the
                 reference legible whatever shape the curve turns out to be. */}
             {averageLabel !== null ? (
@@ -681,7 +653,7 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
                   { top: averageLabel.top },
                   averageLabel.atEnd
                     ? { right: width - averageEndX + AVERAGE_LABEL_INSET }
-                    : { left: BOX.padX + AVERAGE_LABEL_INSET },
+                    : { left: averageStartX + AVERAGE_LABEL_INSET },
                 ]}
                 pointerEvents="none">
                 Avg {formatDegrees(average)}
@@ -689,8 +661,9 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
             ) : null}
 
             {/* Nothing to draw yet — name the empty space rather than present a bare floor, which
-                reads as a chart that failed. */}
-            {closed.length === 0 ? (
+                reads as a chart that failed. Not on the year, whose floor is not bare: its month
+                stops are the frame, and a month joins the line when it ends, not tomorrow. */}
+            {closed.length === 0 && period === 'life' ? (
               <View style={styles.empty} pointerEvents="none">
                 <ThemedText type="small" themeColor="textSecondary">
                   Nothing to plot until tomorrow.
@@ -704,36 +677,35 @@ function PeriodCard({ series, trend }: { series: RecordSeries; trend: TrendSumma
   );
 }
 
-/**
- * The arrowhead on the dashed run — a small triangle laid along the last segment's heading, so the
- * line ends in a direction rather than simply stopping. Nothing is drawn below two points: there is
- * no heading to point in.
- */
-function Caret({ points, color }: { points: readonly Pt[]; color: string }) {
-  const tip = points[points.length - 1];
-  const prev = points[points.length - 2];
-  if (!tip || !prev) return null;
-  const dx = tip.x - prev.x;
-  const dy = tip.y - prev.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const L = 7; // length along the heading
-  const W = 4; // half-width across it
-  const baseX = tip.x - ux * L;
-  const baseY = tip.y - uy * L;
+/** A month as the moon draws it: a tiny orbit, filled to where that month's stripe closed. */
+function MonthRing({ rate }: { rate: number }) {
+  const theme = useTheme();
+  const { radius, ringRadius, circumference, arc: drawn } = ringMetrics(MONTH_RING, MONTH_RING_STROKE, rate);
+  // Closed in the unit it is read in, so the ring agrees with the "360°" beside it and the haptic.
+  const kept = toDegrees(rate) === 360;
+  const arc = kept ? circumference : drawn;
   return (
-    <Polygon
-      points={`${tip.x},${tip.y} ${baseX - uy * W},${baseY + ux * W} ${baseX + uy * W},${baseY - ux * W}`}
-      fill={color}
-    />
+    <Svg width={MONTH_RING} height={MONTH_RING} style={styles.monthRing}>
+      <Circle cx={radius} cy={radius} r={ringRadius} stroke={theme.orbitTrack} strokeWidth={MONTH_RING_STROKE} fill="none" />
+      {arc > 0 ? (
+        <Circle
+          cx={radius}
+          cy={radius}
+          r={ringRadius}
+          stroke={kept ? theme.complete : theme.accent}
+          strokeWidth={MONTH_RING_STROKE}
+          strokeDasharray={`${arc} ${circumference}`}
+          fill="none"
+          transform={`rotate(-90 ${radius} ${radius})`}
+        />
+      ) : null}
+    </Svg>
   );
 }
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedG = Animated.createAnimatedComponent(G);
 
 const styles = StyleSheet.create({
   // The claim is the chart's caption, so it rides a tighter gap than the card's own rhythm —
@@ -742,7 +714,9 @@ const styles = StyleSheet.create({
   // The scrubbed reading. The date gives way first: a lifetime bucket across a month boundary
   // ("26 Jumādā al-Awwal – 2 Jumādā al-Thānī") is wider than the caption's share of the row, and
   // the figure is the thing you were scrubbing for.
-  caption: { flexDirection: 'row', alignItems: 'baseline', flexShrink: 1 },
+  // Centred, not baselined: the month's ring has no baseline, and both texts share one 20pt line.
+  caption: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  monthRing: { marginRight: Spacing.one + Spacing.half },
   captionLabel: { flexShrink: 1 },
   // Tabular, so the date beside it does not shuffle sideways as the digits change under a finger.
   captionValue: { fontVariant: ['tabular-nums'] },

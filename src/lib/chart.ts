@@ -249,83 +249,12 @@ export function spanColumns(
 /**
  * The plain average of `values` — the chart's one horizontal reference.
  *
- * `null` below two points, for the same reason {@link linearFit} is: the average of a single
- * reading is that reading, and a rule drawn through the only point you have says nothing about it.
+ * `null` below two points: the average of a single reading is that reading, and a rule drawn
+ * through the only point you have says nothing about it.
  */
 export function mean(values: readonly number[]): number | null {
   if (values.length < 2) return null;
   let total = 0;
   for (const v of values) total += v;
   return total / values.length;
-}
-
-/**
- * Least-squares fit of `values` against their indices — `slope` per step, `intercept` at index 0.
- * `null` below two points: one point has no direction, and pretending otherwise is the whole
- * failure mode a projection has to avoid.
- */
-export function linearFit(values: readonly number[]): { slope: number; intercept: number } | null {
-  const n = values.length;
-  if (n < 2) return null;
-  const meanX = (n - 1) / 2;
-  let meanY = 0;
-  for (const v of values) meanY += v;
-  meanY /= n;
-  let num = 0;
-  let den = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = i - meanX;
-    num += dx * (values[i]! - meanY);
-    den += dx * dx;
-  }
-  if (den === 0) return null;
-  const slope = num / den;
-  return { slope, intercept: meanY - slope * meanX };
-}
-
-/** The reading a projection carries: where it goes, and the one word for which way that is. */
-export type Projection = {
-  /** Projected rates for steps 1…horizon past the last fitted point, each clamped to 0–1. */
-  values: number[];
-  /** Change per week of steps — the number the direction word is read off. */
-  weeklySlope: number;
-  direction: 'Rising' | 'Steady' | 'Easing';
-};
-
-/**
- * A weekly change smaller than this is noise, not a direction — ~11° of orbit over seven steps.
- * Below it the projection reads "Steady" and its line runs flat, rather than dramatising a wobble.
- */
-export const DIRECTION_THRESHOLD = 0.03;
-
-/**
- * Where a series is heading: a straight fit over its last `fitWindow` points, continued `horizon`
- * steps past the end.
- *
- * Fitted over the tail only, so an old habit of a different shape doesn't hold the projection
- * back. Every value is clamped to 0–1 — an extrapolation is a straight line and would otherwise
- * run off the plot within a few steps, which reads as a promise rather than a direction.
- *
- * `null` below two points. The word is deliberately three-valued and gentle at the bottom:
- * "Easing", not a failure — the app states direction, it does not keep score against you.
- */
-export function project(
-  values: readonly number[],
-  { horizon, fitWindow }: { horizon: number; fitWindow: number },
-): Projection | null {
-  const tail = values.slice(Math.max(0, values.length - fitWindow));
-  const fit = linearFit(tail);
-  if (!fit) return null;
-  const lastIndex = tail.length - 1;
-  const projected: number[] = [];
-  for (let step = 1; step <= horizon; step++) {
-    projected.push(clamp01(fit.intercept + fit.slope * (lastIndex + step)));
-  }
-  const weeklySlope = fit.slope * 7;
-  return {
-    values: projected,
-    weeklySlope,
-    direction:
-      weeklySlope > DIRECTION_THRESHOLD ? 'Rising' : weeklySlope < -DIRECTION_THRESHOLD ? 'Easing' : 'Steady',
-  };
 }

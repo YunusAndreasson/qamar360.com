@@ -353,68 +353,36 @@ describe('computeProgress — invariants across a year of months', () => {
   });
 });
 
-// ── The pace: where the month itself has got to ───────────────────────────────────────────────
-// The hero's always-present benchmark. It must be on the SAME scale as `thisRate` (both are
-// fractions of the whole month's possible), because the two are drawn as arcs on one ring and
-// read against each other — a second scale in the same ° unit is the bug this measure avoids.
-describe('computeProgress — paceRate', () => {
-  it.each(SWEEP)('%s: you can never be ahead of what the month has asked (thisRate <= paceRate)', (today) => {
-    const { start } = monthShape(today);
-    const habits = [dailyHabit('daily'), whiteDaysHabit('white'), countHabit('count', 5)];
-    // Perfect so far — the strictest case: if the invariant holds when everything is done, the
-    // pace is genuinely the ceiling and not merely bigger than a partial score.
-    const completions: CompletionRow[] = [];
-    for (let d = start; d <= today; d = addDaysISO(d, 1))
-      for (const h of habits)
-        if (scheduledOn(h, d)) completions.push(h.id === 'count' ? countRow(h.id, d, 5, 'done') : done(h.id, d));
+// ── The orbit starts the day you do ───────────────────────────────────────────────────────────
+// The month is owed only from the day an act was added. Someone who begins partway through is
+// measured over what is left, so keeping every act from that day on still closes the full orbit on
+// the last day, whichever day they began.
+describe('computeProgress — a month begun partway through', () => {
+  // One 30-day and one 29-day month, so both lengths are covered.
+  const months = ['2026-06-15', '2026-07-15'].map(monthShape);
 
-    const m = computeProgress(habits, completions, today).month!;
-    expect(m.paceRate).toBeGreaterThanOrEqual(m.thisRate);
-    expect(m.paceRate).toBeLessThanOrEqual(1);
+  it('covers both month lengths', () => {
+    expect(new Set(months.map((m) => m.length))).toEqual(new Set([29, 30]));
   });
 
-  it('a perfect record sits exactly ON the pace — the two arc heads meet', () => {
-    const { start } = monthShape('2026-06-15');
-    const today = addDaysISO(start, 9); // ten days in, all kept
-    const completions: CompletionRow[] = [];
-    for (let d = start; d <= today; d = addDaysISO(d, 1)) completions.push(done('daily', d));
-    const m = computeProgress([dailyHabit('daily')], completions, today).month!;
-    expect(m.thisRate).toBeCloseTo(m.paceRate, 10);
-  });
-
-  it('the month closes at a full orbit of pace on its last day', () => {
-    const { start, length } = monthShape('2026-06-15');
-    const m = computeProgress([dailyHabit('daily')], [], addDaysISO(start, length - 1)).month!;
-    expect(m.paceRate).toBe(1);
-  });
-
-  it('day one of a month asks for exactly one day of it', () => {
-    const { start, length } = monthShape('2026-06-15');
-    const m = computeProgress([dailyHabit('daily')], [], start).month!;
-    expect(m.paceRate).toBeCloseTo(1 / length, 10);
-  });
-
-  it('measures elapsed SCHEDULE, not elapsed days — White Days pace in exact thirds', () => {
-    // The only act runs on the 13th–15th, so after the 13th the month has asked for one of its
-    // three acts: 1/3 of pace on day 13 of ~30, where a day count would have said ~43%.
-    const { start } = monthShape('2026-06-15');
-    const m = computeProgress([whiteDaysHabit('w')], [], addDaysISO(start, 12)).month!;
-    expect(m.paceRate).toBeCloseTo(1 / 3, 10);
-    // …and nothing at all before the 13th, however far into the month it is.
-    expect(computeProgress([whiteDaysHabit('w')], [], addDaysISO(start, 11)).month!.paceRate).toBe(0);
-  });
-
-  it('an excused day is not asked of you — it leaves the pace as well as the score', () => {
-    const { start } = monthShape('2026-06-15');
-    const today = addDaysISO(start, 2);
-    const bare = computeProgress([dailyHabit('daily')], [], today).month!;
-    const excused = computeProgress([dailyHabit('daily')], [skip('daily', addDaysISO(start, 1))], today).month!;
-    expect(excused.paceRate).toBeLessThan(bare.paceRate);
-  });
-
-  it('is zero when the month asks nothing at all', () => {
-    expect(computeProgress([], [], '2026-06-15').month!.paceRate).toBe(0);
-  });
+  for (const { start, length } of months) {
+    it.each(Array.from({ length }, (_, i) => i))(`month of ${start}: begun on day %i+1, kept to the end, is 360°`, (offset) => {
+      const begun = addDaysISO(start, offset);
+      // Local noon, so the creation day is `begun` in any test-runner timezone.
+      const habit: ProgressHabit = { ...dailyHabit('daily'), created_at: `${begun}T12:00:00` };
+      const remaining = length - offset;
+      const completions: CompletionRow[] = [];
+      for (let d = begun, kept = 1; kept <= remaining; d = addDaysISO(d, 1), kept += 1) {
+        completions.push(done('daily', d));
+        const rate = computeProgress([habit], completions, d).month!.thisRate;
+        // Each kept day is one share of the days that were left, never of the whole month…
+        expect(rate).toBeCloseTo(kept / remaining, 10);
+        // …so the orbit closes on the last day and not a day before.
+        if (kept < remaining) expect(toDegrees(rate)).toBeLessThan(360);
+        else expect(toDegrees(rate)).toBe(360);
+      }
+    });
+  }
 });
 
 // ── Your usual: where you normally are by this point in a month ───────────────────────────────
@@ -636,22 +604,16 @@ describe('computeProgress — the record over each period', () => {
 
   it('names every line by the period it was read over', () => {
     const { seriesByPeriod } = computeProgress([mature('h')], [], today);
-    for (const period of ['week', 'month', 'year', 'life'] as const) {
+    for (const period of ['year', 'life'] as const) {
       expect(seriesByPeriod[period].period).toBe(period);
     }
   });
 
-  it('offers nothing to choose while the record fits inside one week', () => {
-    const derived = computeProgress([bornDaysAgo('h', 4)], [], today);
-    expect(derived.seriesPeriods).toEqual(['life']);
-    // Week and month clamp to the record's opening, so they are the same window and the same line.
-    for (const period of ['week', 'month'] as const) {
-      expect(derived.seriesByPeriod[period].points).toEqual(derived.seriesByPeriod.life.points);
+  it('shows the year from the first day, beside the record', () => {
+    // The year is the context for the moon above it, so it does not wait for months to compare.
+    for (const daysAgo of [0, 4, 40]) {
+      expect(computeProgress([bornDaysAgo('h', daysAgo)], [], today).seriesPeriods).toEqual(['year', 'life']);
     }
-    // The year still buckets by Hijri month, so its five days are one unfinished bucket — no
-    // settled point to draw a line between, which is exactly why it is not offered.
-    expect(derived.seriesByPeriod.year.points).toHaveLength(1);
-    expect(derived.seriesByPeriod.year.points[0]!.pending).toBe(true);
   });
 
   it('never returns an empty list of periods — there is always the record itself', () => {
@@ -660,31 +622,42 @@ describe('computeProgress — the record over each period', () => {
     }
   });
 
-  it('offers periods narrowest first', () => {
-    const { seriesPeriods } = computeProgress([mature('h')], [], today);
-    const order = ['week', 'month', 'year', 'life'];
-    expect(seriesPeriods).toEqual([...seriesPeriods].sort((a, b) => order.indexOf(a) - order.indexOf(b)));
+  it('frames the year as all twelve months from Muḥarram, however recently the record began', () => {
+    const { seriesByPeriod } = computeProgress([bornDaysAgo('h', 4)], [], today);
+    const year = seriesByPeriod.year;
+    expect(year.slots).toBe(12);
+    expect(hijriParts(year.points[0]!.iso)).toMatchObject({ day: 1, month: 1 });
+    // The months before you began are slots that asked nothing, not misses.
+    expect(year.points.slice(0, -1).every((p) => p.possible === 0)).toBe(true);
+    // The lifetime has no end to frame, so its width is just what has been lived.
+    expect(seriesByPeriod.life.slots).toBe(seriesByPeriod.life.points.length);
   });
 
-  it('reads a week as seven single days', () => {
-    const { seriesByPeriod } = computeProgress([mature('h')], [], today);
-    const week = seriesByPeriod.week;
-    expect(week.points).toHaveLength(7);
-    expect(week.bucketDays).toBe(1);
-    expect(week.points.every((p) => p.iso === p.endISO)).toBe(true);
-    expect(week.points[0]!.iso).toBe(addDaysISO(today, -6));
+  it("reads this month on the year at the moon's own figure, not its rate so far", () => {
+    const { start } = monthShape(today);
+    const midMonth = addDaysISO(start, 13); // `today` is a month's last day, where the two agree
+    const habit: ProgressHabit = { ...dailyHabit('daily'), created_at: `${addDaysISO(start, -200)}T09:00:00.000Z` };
+    const comps: CompletionRow[] = [];
+    for (let d = start; d <= midMonth; d = addDaysISO(d, 1)) comps.push(done('daily', d));
+    const { seriesByPeriod, month } = computeProgress([habit], comps, midMonth);
+    const running = seriesByPeriod.year.points[seriesByPeriod.year.points.length - 1]!;
+    expect(running.pending).toBe(true);
+    expect(running.rate).toBeCloseTo(month!.thisRate, 10);
+    // Kept perfectly so far, which the moon reads as part of an orbit and never as a full one.
+    expect(running.rate).toBeLessThan(1);
   });
 
-  it('reads a month as its own days, however long the record is', () => {
-    const { seriesByPeriod } = computeProgress([mature('h')], [], today);
-    const month = seriesByPeriod.month;
-    const { start, dayOfMonth } = monthShape(today);
-    expect(month.bucketDays).toBe(1);
-    expect(month.points).toHaveLength(dayOfMonth); // the 1st through today, never past it
-    expect(month.points[0]!.iso).toBe(start);
-    expect(month.points.every((p) => p.iso === p.endISO)).toBe(true);
-    // The lifetime line at this age is bucketed; the month view is what restores day resolution.
-    expect(seriesByPeriod.life.bucketDays).toBeGreaterThan(1);
+  it('reads a finished month on the year where its own orbit closed', () => {
+    const { start } = monthShape(today);
+    const lastDay = addDaysISO(start, -1); // the final day of the month before this one
+    const habit: ProgressHabit = { ...dailyHabit('daily'), created_at: `${addDaysISO(start, -200)}T09:00:00.000Z` };
+    const comps: CompletionRow[] = [];
+    for (let d = addDaysISO(lastDay, -9); d <= lastDay; d = addDaysISO(d, 1)) comps.push(done('daily', d));
+    const closedOn = computeProgress([habit], comps, lastDay).month!.thisRate;
+    const year = computeProgress([habit], comps, today).seriesByPeriod.year;
+    const finished = year.points[year.points.length - 2]!;
+    expect(finished.endISO).toBe(lastDay);
+    expect(finished.rate).toBeCloseTo(closedOn, 10);
   });
 
   it('reads a year as its Hijri months, tiled exactly and clipped at today', () => {
@@ -701,60 +674,13 @@ describe('computeProgress — the record over each period', () => {
     }
   });
 
-  it('never reaches back past its own boundary', () => {
-    const { seriesByPeriod } = computeProgress([mature('h')], [], today);
-    expect(seriesByPeriod.week.points[0]!.iso).toBe(addDaysISO(today, -6));
-    expect(seriesByPeriod.month.points[0]!.iso).toBe(monthShape(today).start);
-    expect(hijriParts(seriesByPeriod.year.points[0]!.iso)).toMatchObject({ day: 1, month: 1 });
-  });
-
   it('ends every period on today, with exactly one bucket still being lived', () => {
     const derived = computeProgress([mature('h')], [], today);
-    for (const period of ['week', 'month', 'year', 'life'] as const) {
+    for (const period of ['year', 'life'] as const) {
       const { points } = derived.seriesByPeriod[period];
       expect(points[points.length - 1]!.endISO).toBe(today);
       expect(points.filter((p) => p.pending)).toHaveLength(1);
     }
-  });
-
-  it('drops a period that draws the same buckets as a wider one', () => {
-    // Twenty days of record: the month view and the lifetime view are both "every day since you
-    // began", so offering them as two settings would be two names for one line.
-    const derived = computeProgress([bornDaysAgo('h', 19)], [], today);
-    expect(derived.seriesByPeriod.month.points).toEqual(derived.seriesByPeriod.life.points);
-    expect(derived.seriesPeriods).not.toContain('month');
-    expect(derived.seriesPeriods).toEqual(['week', 'life']);
-  });
-
-  it('keeps a month view whose days the calendar cut short of the record', () => {
-    // Opened well before this Hijri month, so the month window starts at the 1st, not at the
-    // record's opening — a distinct line, and offered.
-    const derived = computeProgress([bornDaysAgo('h', 120)], [], today);
-    expect(derived.seriesPeriods).toContain('month');
-    expect(derived.seriesByPeriod.month.points[0]!.iso).toBe(monthShape(today).start);
-  });
-
-  it('keeps a calendar window’s empty opening days — the month began, nothing was due yet', () => {
-    // A White-Days habit created long ago: the 1st–12th of this month asked nothing. The lifetime
-    // line trims its own empty opening (that is where the RECORD begins); a month window must not,
-    // or it would report the month as not yet started.
-    const { start } = monthShape(today);
-    const habit: ProgressHabit = { ...whiteDaysHabit('w'), created_at: `${addDaysISO(start, -200)}T09:00:00.000Z` };
-    const { seriesByPeriod } = computeProgress([habit], [], addDaysISO(start, 13)); // the 14th
-    const month = seriesByPeriod.month;
-    expect(month.points).toHaveLength(14);
-    expect(month.points[0]!.iso).toBe(start);
-    expect(month.points[0]!.possible).toBe(0);
-  });
-
-  it('agrees with the ring above it at day resolution', () => {
-    // The strongest guard that the month view and the hero ride the same sweep.
-    const { start } = monthShape(today);
-    const habit: ProgressHabit = { ...dailyHabit('daily'), created_at: `${addDaysISO(start, -200)}T09:00:00.000Z` };
-    const comps = [done('daily', start), done('daily', addDaysISO(start, 3))];
-    const { seriesByPeriod, month } = computeProgress([habit], comps, today);
-    const doneSum = seriesByPeriod.month.points.reduce((n, p) => n + p.rate * p.possible, 0);
-    expect(doneSum / month!.monthLength).toBeCloseTo(month!.thisRate, 10);
   });
 
   it('holds its invariants across a year of months', () => {
@@ -766,8 +692,8 @@ describe('computeProgress — the record over each period', () => {
     ];
     for (const day of SWEEP) {
       const derived = computeProgress(habits, [], day);
-      expect(derived.seriesPeriods.length).toBeGreaterThan(0);
-      expect(derived.seriesPeriods[derived.seriesPeriods.length - 1]).toBe('life');
+      expect(derived.seriesPeriods).toEqual(['year', 'life']);
+      expect(derived.seriesByPeriod.year.slots).toBe(12);
       for (const period of derived.seriesPeriods) {
         const { points } = derived.seriesByPeriod[period];
         expect(points.length).toBeLessThanOrEqual(SERIES_MAX_POINTS);

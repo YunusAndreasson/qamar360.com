@@ -12,8 +12,19 @@ import { octagramStar } from '@/lib/geometry';
  * the moon — "the moon generates the order." The star's centre sits behind the moon disc, so
  * only its rays show; absolutely centred in its parent and non-interactive — render it first
  * so the moon/brand sits on top of it.
+ *
+ * `rings={false}` draws the star alone. Progress asks for that: its moon wears one stripe, the
+ * month's 360°, and a hairline circle just outside it read as a second one.
  */
-export function MoonHalo({ size, strokeOpacity = 0.14 }: { size: number; strokeOpacity?: number }) {
+export function MoonHalo({
+  size,
+  strokeOpacity = 0.14,
+  rings: withRings = true,
+}: {
+  size: number;
+  strokeOpacity?: number;
+  rings?: boolean;
+}) {
   const theme = useTheme();
   const uid = useId();
   // Same light-mode dimming as GeometricBackdrop: dark-steel lines on a white page read far
@@ -22,7 +33,7 @@ export function MoonHalo({ size, strokeOpacity = 0.14 }: { size: number; strokeO
   const c = size / 2;
   const rOuter = size * 0.44;
   const star = octagramStar(c, c, rOuter, rOuter * 0.46);
-  const rings = [rOuter, rOuter * 0.7];
+  const rings = withRings ? [rOuter, rOuter * 0.7] : [];
   const gradId = `halo-grad-${uid}`;
   const maskId = `halo-mask-${uid}`;
 
@@ -36,7 +47,7 @@ export function MoonHalo({ size, strokeOpacity = 0.14 }: { size: number; strokeO
             <Stop offset="1" stopColor="#fff" stopOpacity="0" />
           </RadialGradient>
           <Mask id={maskId}>
-            <Rect x="0" y="0" width={size} height={size} fill={`url(#${gradId})`} />
+            <Rect width={size} height={size} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
         <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} strokeOpacity={strokeOpacity * dim} fill="none">

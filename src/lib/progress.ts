@@ -165,23 +165,12 @@ export type MonthProgress = {
    * Whole-month completion so far, 0–1: acts done month-to-date ÷ acts scheduled across the
    * FULL month. The single source of truth for the orbit/degrees — so a perfect day reads as a
    * small slice, and rate 1 (360°) means the whole month is actually complete.
+   *
+   * The month is counted from the day each act was added, not from the 1st: {@link scheduledOn}
+   * owes nothing before a habit's `created_at`. So someone who starts on the 15th is measured over
+   * the 15th onward, and keeping every act from there closes the full orbit on the last day.
    */
   thisRate: number;
-  /**
-   * Where the MONTH itself has got to, 0–1: acts that have come *due* month-to-date ÷ acts
-   * scheduled across the whole month. Same denominator as {@link thisRate}, so the two are
-   * directly comparable positions on one orbit — and `thisRate <= paceRate` always holds (an act
-   * cannot be completed before it comes due), which is what makes the gap between the two arcs
-   * read as "what's outstanding".
-   *
-   * Deliberately elapsed *schedule*, not elapsed days (`dayOfMonth / monthLength`): habits are not
-   * uniformly scheduled — White Days, Mondays/Thursdays — so a day count would misstate how much
-   * of the month has actually been asked of you.
-   *
-   * Unlike {@link averageRate} this exists from the first day of the first month: it is the
-   * calendar, not a past self, so a new user always has a mark to catch.
-   */
-  paceRate: number;
   /**
    * Your usual by this same Hijri day, on the same whole-month scale (0–1): for each prior Hijri
    * month on record, the acts done through the matching day ÷ that month's full possible,
@@ -228,7 +217,11 @@ export type SeriesPoint = {
   iso: string;
   /** Last day of the bucket, inclusive. Equals {@link iso} while buckets are single days. */
   endISO: string;
-  /** The bucket's completion, 0–1: credit earned ÷ acts scheduled in it (excused ones dropped). */
+  /**
+   * The bucket's completion, 0–1: credit earned ÷ acts scheduled in it (excused ones dropped). The
+   * one exception is the year's running month, which carries the moon's own figure (see
+   * {@link yearSeries}).
+   */
   rate: number;
   /**
    * Acts scheduled in the bucket, after excusals. `0` means it carries no signal — nothing was due
@@ -241,18 +234,18 @@ export type SeriesPoint = {
 };
 
 /**
- * A period the record can be read over. Narrowest first — the order the selector offers them in.
+ * A period the record can be read over, below the moon: the year, then the whole record.
  *
- * **A period names a span, and its resolution follows from it.** Choosing "Year" and choosing
- * "one point per month" are the same choice, so there is only ever one control and no way to
- * land on a combination that cannot be drawn: a week is seven days, a month is its own days, a
- * year is its twelve months, and a lifetime is bucketed only as far as it must be to fit.
+ * The screen reads as one zoom-out — this month (the moon), this year month by month, everything —
+ * so each step outward is a wider span and nothing is said twice. A week and a month card used to
+ * sit between them, and both went (2026-10-17): the month card covered the moon's own month in a
+ * unit where 360° was one perfect day, beside an orbit where 360° is the whole month, and the week
+ * was the same day-by-day line again.
  *
- * This is the arrangement a Days / Months / Years switch got wrong. That control set the *grain*
- * while the span stayed fixed, which is why two of its three settings were empty for anyone new
- * and why it made you do by hand what the record can say for itself.
+ * **A period names a span, and its resolution follows from it**: a year is its twelve Hijri months,
+ * and a lifetime is bucketed only as far as it must be to fit.
  */
-export type SeriesPeriod = 'week' | 'month' | 'year' | 'life';
+export type SeriesPeriod = 'year' | 'life';
 
 /**
  * The record read over one period — the line the Progress chart draws.
@@ -275,6 +268,13 @@ export type RecordSeries = {
   sinceISO: string | null;
   /** The period this line was read over, so a card can name itself from the series alone. */
   period: SeriesPeriod;
+  /**
+   * How many buckets the period holds when it is complete, which is the plot's width in slots. A
+   * year is always its twelve months, so it is drawn as the whole year from its first day and a new
+   * account sees where in the year it stands; the months still to come are empty slots. The record
+   * has no end, so for `life` this is just the buckets so far.
+   */
+  slots: number;
 };
 
 
@@ -304,18 +304,13 @@ export type ProgressDerived = {
   /**
    * The record read over each period. `life` is the whole of it — it moves on a user's second day,
    * still reads after five years, and needs no calendar, so it is drawable even where `Intl` lacks
-   * Umm al-Qura (the others quietly collapse onto it there).
-   *
-   * Every key is always present: where the calendar is
-   * unavailable, or the record is younger than a window, the narrower periods collapse onto the
-   * lifetime one and carry the identical line — which costs nothing, since identical windows hit
-   * the same tally memo.
+   * Umm al-Qura. `year` is empty there, having no months to walk.
    */
   seriesByPeriod: Record<SeriesPeriod, RecordSeries>;
   /**
-   * The periods worth offering, narrowest first — those with two settled points to draw a line
-   * between, and a shape no wider period already draws. Never empty (`life` always survives), so
-   * `length === 1` is the signal that there is nothing to choose and no selector to show.
+   * The periods to show, narrowest first. The year is shown from the first day rather than once it
+   * has months to compare: it is the context for the moon above it, and a card that appears two
+   * months in explains nothing on the day it would have helped. Never empty (`life` always is).
    */
   seriesPeriods: SeriesPeriod[];
 };
@@ -416,27 +411,14 @@ function buildSeries(
     const first = points.findIndex((p) => p.possible > 0);
     points = first < 0 ? [] : points.slice(first);
   }
-  return { points, bucketDays, sinceISO: points[0]?.iso ?? null, period };
+  return { points, bucketDays, sinceISO: points[0]?.iso ?? null, period, slots: points.length };
 }
 
-/** Buckets settled enough to draw a line between — a pending bucket is still being lived, and one
- *  that asked nothing carries no reading. */
-function closedCount(series: RecordSeries): number {
-  return series.points.reduce((n, p) => (p.possible > 0 && !p.pending ? n + 1 : n), 0);
-}
+/** Narrowest first: the order the cards are shown in. */
+const PERIOD_ORDER: readonly SeriesPeriod[] = ['year', 'life'];
 
-/** A line's bucket boundaries as one comparable string — two periods with the same shape draw the
- *  same picture, whatever they are called. */
-function shapeOf(series: RecordSeries): string {
-  return series.points.map((p) => `${p.iso}/${p.endISO}`).join(' ');
-}
-
-/** Narrowest first — the order the selector offers periods in, and the order ties resolve against
- *  (a wider name wins, because it is the truer description of the same line). */
-const PERIOD_ORDER: readonly SeriesPeriod[] = ['week', 'month', 'year', 'life'];
-
-/** The last seven days — the app's own rhythm, since habits are scheduled by weekday. */
-const WEEK_DAYS = 7;
+/** A Hijri year is always twelve months, whatever its length in days. */
+const MONTHS_IN_YEAR = 12;
 
 /**
  * How much of the month is still ahead of you, as a phrase. The last day says so by name rather
@@ -474,6 +456,22 @@ function creditOnDay(
     m.set(row.habit_id, row);
   }
   return (habit, iso) => (scheduledOn(habit, iso) ? creditFor(habit, rowByDate.get(iso)?.get(habit.id)) : undefined);
+}
+
+/**
+ * The year card's line: the whole Hijri year as its frame, with this month on the moon's scale.
+ *
+ * A finished month's rate is where its orbit closed, so the year's settled points are the moons
+ * behind this one. The month still running is different. Its own rate (done ÷ due so far) reads
+ * 360° after a perfect fortnight while the moon above is half way round, and the card would say
+ * "This month · 360°" under an orbit that plainly is not there. So it carries the moon's figure
+ * instead, and climbs as the stripe does.
+ */
+function yearSeries(series: RecordSeries, month: MonthProgress | null): RecordSeries {
+  const last = series.points[series.points.length - 1];
+  const points =
+    month && last?.pending ? [...series.points.slice(0, -1), { ...last, rate: month.thisRate }] : series.points;
+  return { ...series, points, slots: Math.max(MONTHS_IN_YEAR, points.length) };
 }
 
 /** Derive every progress metric from the raw rows. Pure — easy to reason about and test. */
@@ -551,9 +549,6 @@ export function computeProgress(
       monthLength: thisRange.length,
       // Computed once here so every chart reads the same rate (no inline done/possible divides).
       thisRate: whole.possible > 0 ? here.done / whole.possible : 0,
-      // The month's own position on that same orbit: what it has ASKED so far over what it asks in
-      // full. `here.possible` was already swept for the numerator's sake — the benchmark is free.
-      paceRate: whole.possible > 0 ? here.possible / whole.possible : 0,
       averageRate: priorRates.length > 0 ? priorRates.reduce((sum, r) => sum + r, 0) / priorRates.length : 0,
       monthsAveraged: priorRates.length,
       // The newest entry of the same walk — one source of truth for "by this same day", so the
@@ -608,46 +603,27 @@ export function computeProgress(
   // orbit is a span fully kept. Each bucket is a `tallyRange`, riding the same memo and the same
   // excusal/count-goal rules as every other figure.
   //
-  // All four are computed here, eagerly, rather than handed out as a builder: every window ends on
-  // today, so windows that clamp to the same start have identical bucket boundaries and cost
-  // nothing beyond the first (which is the common young-record case). Paying once, inside the
-  // hook's existing memo, is what makes tapping the selector free.
+  // Both are computed here, eagerly, inside the hook's existing memo.
   const live = opened !== null && opened <= today;
-  // Each window opens at its own boundary or at the record's, whichever is later. Clamping is what
-  // makes a young record's periods collapse onto one another — and so what makes `seriesPeriods`
-  // shrink on its own, with no threshold rule anywhere.
-  const from = (boundary: string | null | undefined): string =>
-    boundary == null || opened === null || boundary < opened ? opened! : boundary;
   const lifeBucketDays = live ? Math.max(1, Math.ceil((daysBetweenISO(opened, today) + 1) / SERIES_MAX_POINTS)) : 1;
 
-  const empty = (period: SeriesPeriod): RecordSeries => ({ points: [], bucketDays: 1, sinceISO: null, period });
-  const build = (period: SeriesPeriod, start: string, spans: Span[], bucketDays: number): RecordSeries =>
-    buildSeries(spans, period, bucketDays, today, tallyRange, start === opened);
-
-  const weekStart = live ? from(addDaysISO(today, -(WEEK_DAYS - 1))) : today;
-  const monthStart = live ? from(thisRange?.start) : today;
-  const yearStart = live ? from(hijriYearRange(today)?.start) : today;
-  // A year is read one Hijri month at a time. Where the calendar is missing there are no months to
-  // walk, so `monthlySpans` comes back empty and the period simply never gets offered.
-  const yearSpans = live ? monthlySpans(yearStart, today) : [];
+  // The year opens at Muḥarram, not where the record does, so its frame is whole from the first
+  // day: the months before you began are empty slots (they asked nothing), and so are the months
+  // still to come. Never trimmed, for the same reason. Where the calendar is missing there are no
+  // months to walk, `monthlySpans` comes back empty, and the card is simply not shown.
+  const yearStart = live ? hijriYearRange(today)?.start : undefined;
+  const yearSpans = yearStart ? monthlySpans(yearStart, today) : [];
+  const empty = (period: SeriesPeriod): RecordSeries => ({ points: [], bucketDays: 1, sinceISO: null, period, slots: 0 });
   const seriesByPeriod: Record<SeriesPeriod, RecordSeries> = live
     ? {
-        week: build('week', weekStart, uniformSpans(weekStart, today, 1), 1),
-        month: build('month', monthStart, uniformSpans(monthStart, today, 1), 1),
         // 0 bucketDays: a Hijri month is 29 or 30 days, so these have no single width.
-        year: build('year', yearStart, yearSpans, 0),
-        life: build('life', opened, uniformSpans(opened, today, lifeBucketDays), lifeBucketDays),
+        year: yearSeries(buildSeries(yearSpans, 'year', 0, today, tallyRange, false), month),
+        life: buildSeries(uniformSpans(opened, today, lifeBucketDays), 'life', lifeBucketDays, today, tallyRange, true),
       }
-    : { week: empty('week'), month: empty('month'), year: empty('year'), life: empty('life') };
+    : { year: empty('year'), life: empty('life') };
 
-  // Offer a period only where it draws something a wider one doesn't already say. Two settled
-  // points is the floor — one point is a dot, and a line between a dot and a day still being lived
-  // is a slope invented from nothing.
-  const seriesPeriods = PERIOD_ORDER.filter((period, i) => {
-    if (period === 'life') return true; // the record itself is always readable
-    if (closedCount(seriesByPeriod[period]) < 2) return false;
-    return PERIOD_ORDER.slice(i + 1).every((wider) => shapeOf(seriesByPeriod[wider]) !== shapeOf(seriesByPeriod[period]));
-  });
+  // The year whenever there is a calendar to draw it on, and the record always.
+  const seriesPeriods = PERIOD_ORDER.filter((period) => period === 'life' || seriesByPeriod[period].points.length > 0);
 
   return { habitsCount: habits.length, month, trend, seriesByPeriod, seriesPeriods };
 }

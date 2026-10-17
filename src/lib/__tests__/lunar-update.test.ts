@@ -26,7 +26,6 @@ function month(over: Partial<MonthProgress> = {}): MonthProgress {
     dayOfMonth: 15,
     monthLength: 30,
     thisRate: 0.475, // 171°
-    paceRate: 0.5, // half the month has come due on day 15 of 30
     averageRate: 0.3,
     monthsAveraged: 1,
     previousRate: 0.3,

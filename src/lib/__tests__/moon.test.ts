@@ -74,3 +74,21 @@ describe('the pre-rendered notification moons', () => {
     expect(moonPhasePath(C, C, R, illumination, waxing)).toBe(expected);
   });
 });
+
+describe('moonPhasePath — bleed', () => {
+  // The shaded moon blurs this shape and clips it to the disc, so the bleed may move the LIMB and
+  // nothing else: the terminator, which is the one edge the blur is meant to soften, stays put.
+  const terminator = (path: string) => path.slice(path.lastIndexOf(' A '));
+
+  it.each([
+    [0.1, true],
+    [0.5, true],
+    [0.8, false],
+  ])('at %s lit (waxing %s) carries the limb out and leaves the terminator where it was', (illumination, waxing) => {
+    const plain = moonPhasePath(50, 50, 40, illumination, waxing);
+    const bled = moonPhasePath(50, 50, 40, illumination, waxing, 6);
+    expect(bled.startsWith('M 50 4 A 46 46')).toBe(true); // the limb, 6 further out
+    expect(bled).toContain(' L 50 90'); // dropped back to where the terminator begins
+    expect(terminator(bled)).toBe(terminator(plain));
+  });
+});

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent, useId, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { AppIcon } from '@/components/app-icon';
 import { MoonPhase } from '@/components/moon-phase';
@@ -20,10 +20,13 @@ import { PressableScale } from '@/components/pressable-scale';
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { Duration, Scale } from '@/constants/motion';
 import { Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useOnStage } from '@/hooks/use-on-stage';
 import type { MonthProgress } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
+import { haptics } from '@/lib/haptics';
 import { moonIllumination } from '@/lib/moon';
+import { orbitArrival, readOrbitSeen, writeOrbitSeen, type OrbitArrival } from '@/lib/orbit-seen';
 import { clamp01, daysLeftLabel, toDegrees } from '@/lib/progress';
 import { formatDegrees } from '@/lib/progress-format';
 
@@ -48,11 +51,18 @@ const HALO_SIZE = 330;
 // whole month is done. Smaller than the halo so it stays an aura, not a wash.
 const GLOW_SIZE = 300;
 const RING_RADIUS = (ORBIT_SIZE - RING_STROKE) / 2;
-// The canvas used to run 16pt wider on every side to make room for a tick that protruded past the
-// rim. Nothing is drawn outside the ring any more, so the drawing surface is the ring's own
-// footprint — plus a hair, because the stroke's outer edge lands exactly on it and an SVG clips to
-// its bounds, which would shave the antialiasing off the rim.
-const RIM_BLEED = 2;
+// The light at the stripe's head: a soft bloom riding the leading cap, so the front of the stripe
+// reads as the place the month has got to rather than simply where the ink stops.
+const HEAD_GLOW_R = 20;
+// The glint that goes round a closed orbit once: a short stretch of moonlight, as a share of it,
+// carrying a bloom wider than the stroke. The bloom is what shows at night, where a closed stripe
+// is already the moon's own cream and a brighter dash on it is all but invisible.
+const GLINT_SHARE = 0.09;
+const GLINT_BLOOM_R = 28;
+// What is drawn past the rim is light: the head's, and the glint's bloom, which reaches furthest,
+// GLINT_BLOOM_R from the stroke's centre line. So the canvas runs that far out plus a hair (an SVG
+// clips to its bounds, which would shave the antialiasing off the light's edge).
+const RIM_BLEED = GLINT_BLOOM_R - RING_STROKE / 2 + 2;
 const SVG_SIZE = ORBIT_SIZE + RIM_BLEED * 2;
 const RING_CENTER = SVG_SIZE / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
@@ -63,8 +73,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
  * This replaced a caret outside the ring's rim. A mark at your average position made the reader do
  * the work: find the tick, find the arc head, judge which is further round a circle, and remember
  * which of three unlabelled things the tick was. It also cost a legend row in the sheet, because an
- * abstract mark needs a key. A sentence needs none — that is the whole trade — so the ring is down
- * to a progress bar and its target, and the sheet to the two things actually drawn on it.
+ * abstract mark needs a key. A sentence needs none — that is the whole trade.
  *
  * `null` in a first month: there is no usual yet, and inventing one from nothing is the failure
  * mode this benchmark exists to avoid.
@@ -95,6 +104,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   // the user may never visit. It resumes from rest on arrival, which is where the cycle starts.
   const theme = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const reduceMotion = useReducedMotion();
   const onStage = useOnStage();
   const breath = useSharedValue(0);
@@ -107,9 +117,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 
   if (!month) return null;
 
-  // `paceRate` is where the month itself stands — what it has asked of you so far, on the same orbit
-  // scale; the one benchmark that exists on a first day, so the ring always has a mark to catch.
-  const { monthName, year, dayOfMonth, monthLength, thisRate, paceRate, averageRate, monthsAveraged } = month;
+  const { monthName, year, dayOfMonth, monthLength, thisRate, averageRate, monthsAveraged } = month;
   // The verdict and how much month is left to act on it. Neither is on the card any more: the card
   // is the instrument, and these are readings OF it, so they wait on the sheet a tap opens, beside
   // the figures they are read from.
@@ -118,7 +126,7 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
   const { illumination, waxing } = moonIllumination(dayOfMonth, monthLength);
   const a11y = [
     `${monthName} ${year}, day ${dayOfMonth} of ${monthLength}.`,
-    `This month is at ${formatDegrees(thisRate)} of the orbit; the month itself has reached ${formatDegrees(paceRate)}.`,
+    `This month is at ${formatDegrees(thisRate)} of the orbit.`,
     // The figure and the count are said here and nowhere on screen. The sheet gives the verdict,
     // which is what was asked for; this gives the measurement behind it, for anyone who wants to
     // know what "usual" was counted from.
@@ -141,7 +149,6 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
         monthName,
         year: String(year),
         currentRate: String(thisRate),
-        paceRate: String(paceRate),
         usual: usual ?? '',
         daysLeft,
       },
@@ -199,8 +206,8 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
               anyone can perceive — a fourth way of encoding progress that nobody could read, on
               an emblem that already had three. Completion is carried by the arc, by the moon's
               brightness, and by the bloom; the geometry just sits behind them. */}
-          <MoonHalo size={HALO_SIZE} />
-          <ProgressOrbit current={thisRate} pace={paceRate} />
+          <MoonHalo size={HALO_SIZE} rings={false} />
+          <ProgressOrbit current={thisRate} seenKey={`${user?.id ?? ''}|${year}|${monthName}`} onStage={onStage} />
           {/* The moon is the calendar, the orbit ring is the data — so the moon rests quiet (dimmer
               moonlight, still opaque) and lets the bright ring lead,
               brightening to full only when the month is done (where the glow also lights). It
@@ -217,66 +224,125 @@ export function MonthSummary({ month }: { month: MonthProgress | null }) {
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 /**
- * The month as three readings on one ring:
+ * The month as one stripe: a groove that is the whole 360°, and your stripe filling it.
  *
- *   orbitTrack   the month still to come
- *   orbitPace    the month elapsed — what it has asked of you (always present)
- *   accent / complete  you
+ * The stripe is counted from the day each act was added (see `MonthProgress.thisRate`), so a month
+ * begun partway through can still close the full orbit. It starts at the top and runs clockwise,
+ * like a clock hand, with a soft light at its head, and turns warm the moment it closes; the first
+ * time a closed orbit is seen, a glint of moonlight goes round it once.
  *
- * and nothing else. There is no fourth mark: what you are doing against your usual is said in
- * words under the ring (see {@link usualLabel}), because it is a comparison, and a comparison read
- * off two positions on a circle is arithmetic where a sentence is an answer.
- *
- * **There were four bands, then three marks, and now two.** Last month used to be a third tonal step
- * (`accentTrackStrong`) between the other two, which made the ring three shades of one hue with
- * only their lightness to tell them apart — and those track tones are deliberately sub-3:1, being
- * informational rather than text. It worked while two legend rows sat under the orbit naming them.
- * They don't any more (the reading moved into a sheet), and an unlabelled band between two other
- * unlabelled bands is not a benchmark, it is a smudge. The caret survives that loss where a band
- * cannot, because it is distinguished by SHAPE: you can see it is a different kind of mark without
- * being told what it means, and then be told once.
- *
- * The caret that survived that cut is gone too, for a related reason: it was distinguishable, but
- * only ever as "some benchmark" until you had been told which. A mark earns its place on this ring
- * by being something you can SEE about the month — where you are, and how much has been asked. Your
- * usual is neither; it is a judgement about the two, and judgements read better as words.
- *
- * What remains is a progress bar with a target mark, which is a thing people already know how to
- * read. The elapsed stretch is still an ARC rather than a point, because a point on a ring is
- * ambiguous where 0° and 360° meet at the top; an arc *length* is not, and the stretch where the
- * dimmer band shows past the bright one IS the gap — read directly, with no arithmetic.
+ * **There were four bands, then three, and now one.** Last month went first, then a caret at your
+ * usual (a comparison, which reads better as the sheet's sentence than as two positions on a
+ * circle). The last to go was a brighter band for the month elapsed, laid over the groove as a mark
+ * to catch. It made the ring two stripes to anyone not told which was theirs, so the ring is now
+ * yours alone, and the elapsed month is left to the moon's phase and the days-left line.
  */
-function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
+function ProgressOrbit({ current, seenKey, onStage }: { current: number; seenKey: string; onStage: boolean }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
+  const uid = useId();
+  const headGlowId = `orbit-head-${uid}`;
+  const glintBloomId = `orbit-glint-${uid}`;
   const currentRate = clamp01(current);
-  const paceRate = clamp01(pace);
   // The orbit carries the two-temperature signal: cool steel while the month is in progress, warm
   // `complete` moonlight the instant it's done — so a finished orbit reads warm, matching the moon.
   const currentColor = currentRate >= 1 ? theme.complete : theme.accent;
 
-  // The orbit sweeps from empty to the month's completion on appear (and re-animates
-  // when the rate changes) — the screen's signature motion. Reduce Motion lands it
-  // on the final value with no sweep.
-  const progress = useSharedValue(0);
+  // The stripe moves when it is LOOKED AT, from where it was last seen (see lib/orbit-seen). The
+  // tab is mounted from launch, so a sweep keyed to the data alone played off screen and was all
+  // but never seen; and the thing worth watching is not the entrance but what the acts since did.
+  //
+  // It starts where it was last seen, so arriving on a stripe that has not moved shows it standing
+  // there, rather than empty for the frame before the effect below could place it.
+  const [lastSeen] = useState(() => readOrbitSeen(seenKey) ?? 0);
+  const progress = useSharedValue(lastSeen);
+  // 0 → 1 once round the ring when the orbit closes; invisible at both ends, so it never resets.
+  const glint = useSharedValue(1);
+
+  // The landing, felt and (on a close) seen. An Effect Event, because it reads the latest Reduce
+  // Motion setting but must not be a reason for the arrival to replay.
+  const landed = useEffectEvent((arrival: OrbitArrival) => {
+    if (arrival.closes) {
+      haptics.orbitClosed();
+      if (!reduceMotion) {
+        glint.set(0);
+        glint.set(withTiming(1, { duration: Duration.orbit, easing: Easing.inOut(Easing.cubic) }));
+      }
+    } else if (arrival.grew) {
+      haptics.orbitLanded();
+    }
+  });
+
   useEffect(() => {
-    progress.set(reduceMotion
-      ? currentRate
-      : withTiming(currentRate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }));
-  }, [currentRate, reduceMotion, progress]);
+    if (!onStage) return; // off stage the stripe waits where it was, for you to see it move
+    const arrival = orbitArrival(readOrbitSeen(seenKey), currentRate);
+    writeOrbitSeen(seenKey, currentRate);
+    if (!arrival) {
+      progress.set(currentRate);
+      return;
+    }
+    if (reduceMotion) {
+      // No sweep, but still the landing: the haptic is the change, not the motion.
+      progress.set(currentRate);
+      landed(arrival);
+      return;
+    }
+    progress.set(arrival.from);
+    progress.set(withTiming(currentRate, { duration: Duration.orbit, easing: Easing.out(Easing.cubic) }));
+    // Timed to the sweep rather than called back from it, so a change arriving mid-sweep cancels the
+    // landing it interrupted instead of buzzing for a place the stripe never reached.
+    const timer = setTimeout(() => landed(arrival), Duration.orbit);
+    return () => clearTimeout(timer);
+  }, [onStage, currentRate, seenKey, reduceMotion, progress]);
 
   const arcProps = useAnimatedProps(() => ({
     strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.get()),
   }));
+  // The head's light follows the arc's head exactly, computed from the same value on the UI thread.
+  // Out on an empty ring and on a closed one: there is no front before the first act, and a closed
+  // orbit has none either (its moment is the glint's).
+  const headProps = useAnimatedProps(() => {
+    const p = progress.get();
+    const angle = 2 * Math.PI * p - Math.PI / 2;
+    return {
+      cx: RING_CENTER + RING_RADIUS * Math.cos(angle),
+      cy: RING_CENTER + RING_RADIUS * Math.sin(angle),
+      opacity: p > 0.002 && p < 0.998 ? 1 : 0,
+    };
+  });
+  // A dash a little under a tenth of the ring, carried round once and faded in and out with the
+  // trip, so it is gone at both ends and never needs hiding.
+  const glintProps = useAnimatedProps(() => ({
+    strokeDashoffset: -RING_CIRCUMFERENCE * glint.get(),
+    strokeOpacity: Math.sin(Math.PI * glint.get()),
+  }));
+  const glintBloomProps = useAnimatedProps(() => {
+    const t = glint.get();
+    const angle = 2 * Math.PI * (t + GLINT_SHARE / 2) - Math.PI / 2;
+    return {
+      cx: RING_CENTER + RING_RADIUS * Math.cos(angle),
+      cy: RING_CENTER + RING_RADIUS * Math.sin(angle),
+      opacity: Math.sin(Math.PI * t),
+    };
+  });
 
-  // The month's own reach, laid over the untouched remainder: the track brightens across the
-  // stretch that has already come due. It costs no extra ink — the ring was always a full circle —
-  // and it means the very first day has an arc to close on rather than a bare loop.
-  const paceArc = RING_CIRCUMFERENCE * paceRate;
   return (
     <Svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={styles.ring}>
-      {/* The month still to come — the dimmest step, so the elapsed stretch above it reads as a
-          brightening rather than as a separate object laid on top. */}
+      <Defs>
+        {/* A radial gradient, not a blur: it costs nothing to move every frame of the sweep, where
+            a filter would be recomputed under it. */}
+        <RadialGradient id={headGlowId} cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={theme.accent} stopOpacity={0.55} />
+          <Stop offset="0.5" stopColor={theme.accent} stopOpacity={0.22} />
+          <Stop offset="1" stopColor={theme.accent} stopOpacity={0} />
+        </RadialGradient>
+        <RadialGradient id={glintBloomId} cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={theme.glow} stopOpacity={0.7} />
+          <Stop offset="0.5" stopColor={theme.glow} stopOpacity={0.25} />
+          <Stop offset="1" stopColor={theme.glow} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      {/* The groove: the whole 360°, so an empty month still shows the circle there is to fill. */}
       <Circle
         cx={RING_CENTER}
         cy={RING_CENTER}
@@ -285,21 +351,6 @@ function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
         strokeWidth={RING_STROKE}
         fill="none"
       />
-      {/* The month elapsed — the mark to catch, and the only one a first month has. Butt-capped,
-          not round: a round cap would overhang its exact position by half the stroke, and this
-          band's head is the thing the bright arc is measured against. */}
-      {paceArc > 0 ? (
-        <Circle
-          cx={RING_CENTER}
-          cy={RING_CENTER}
-          r={RING_RADIUS}
-          stroke={theme.orbitPace}
-          strokeWidth={RING_STROKE}
-          strokeDasharray={`${paceArc} ${RING_CIRCUMFERENCE}`}
-          fill="none"
-          transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
-        />
-      ) : null}
       {/* Butt-capped at exactly zero, round once there is an arc to cap. A round cap on a
           ZERO-length dash is still drawn — SVG renders it as a full dot — so a month you have not
           started put a bright accent mark at the top of the ring above a reading of 0°. It looked
@@ -319,6 +370,26 @@ function ProgressOrbit({ current, pace }: { current: number; pace: number }) {
         fill="none"
         transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
       />
+      {currentRate > 0 && currentRate < 1 ? (
+        <AnimatedCircle r={HEAD_GLOW_R} fill={`url(#${headGlowId})`} animatedProps={headProps} />
+      ) : null}
+      {currentRate >= 1 ? (
+        <>
+          <AnimatedCircle r={GLINT_BLOOM_R} fill={`url(#${glintBloomId})`} animatedProps={glintBloomProps} />
+          <AnimatedCircle
+            cx={RING_CENTER}
+            cy={RING_CENTER}
+            r={RING_RADIUS}
+            stroke={theme.glow}
+            strokeWidth={RING_STROKE * 0.45}
+            strokeLinecap="round"
+            strokeDasharray={`${RING_CIRCUMFERENCE * GLINT_SHARE} ${RING_CIRCUMFERENCE}`}
+            animatedProps={glintProps}
+            fill="none"
+            transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
+          />
+        </>
+      ) : null}
     </Svg>
   );
 }

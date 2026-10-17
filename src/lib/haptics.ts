@@ -63,6 +63,22 @@ export const haptics = {
    *  setting something down is gentler than lifting it. A cancelled drag stays silent —
    *  nothing changed, so nothing confirms. */
   drop: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Gesture_End),
+  /**
+   * The month's stripe moved on since it was last seen, and has just landed where it now is
+   * (Progress, on arrival). A gentle landing, the same Light texture as a dropped row and the same
+   * meaning: something set down where it belongs. It confirms the acts that moved it, not the
+   * navigation, so it never fires on a stripe that is where it was, or that moved back.
+   */
+  orbitLanded: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Gesture_End),
+  /** The month's whole orbit closed, felt the first time it is seen closed, as the glint sets off
+   *  round the ring. */
+  orbitClosed: intent(
+    () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+    Haptics.AndroidHaptics.Confirm,
+  ),
+  /** Scrubbing the year across a month that closed its whole orbit — the commit texture, so a month
+   *  kept is felt as one, where every other month gives the plain {@link selection} tick. */
+  keptMonth: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Toggle_On),
   /** A habit was ticked off — a crisp, precise click as the check sets. */
   completed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Toggle_On),
   /** A habit was un-ticked — the rounded, muted "release" counterpart. */
