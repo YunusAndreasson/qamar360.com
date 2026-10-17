@@ -70,9 +70,18 @@ function usualLabel(month: MonthProgress): string | null {
  * Month-to-date progress wrapped around the real moon for today's Hijri date.
  *
  * `stripe` carries the stripe's position out, 0–1 as it is drawn, so the Year card's running month
- * can fill on the same sweep (see `YearCard`).
+ * can fill on the same sweep (see `YearCard`). `today` goes to the sheet, which reads the moon's
+ * month from it.
  */
-export function MonthSummary({ month, stripe }: { month: MonthProgress | null; stripe: SharedValue<number> }) {
+export function MonthSummary({
+  month,
+  today,
+  stripe,
+}: {
+  month: MonthProgress | null;
+  today: string;
+  stripe: SharedValue<number>;
+}) {
   // Tonight's moon breathes — a very slow, shallow luminance dip, like the calm of dhikr, so the
   // "you are here" moon reads as alive rather than merely lit. Reduce Motion holds it at full.
   //
@@ -128,6 +137,7 @@ export function MonthSummary({ month, stripe }: { month: MonthProgress | null; s
         currentRate: String(thisRate),
         usual: usual ?? '',
         daysLeft,
+        today,
       },
     });
 

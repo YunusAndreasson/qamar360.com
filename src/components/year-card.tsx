@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -13,7 +13,7 @@ import { ORBIT_GLYPH, ORBIT_GLYPH_STROKE, ORBIT_GLYPH_TEXT_SCALE, OrbitMark } fr
 import { StatCard, StatCardHeader } from '@/components/stat-card';
 import { ThemedText } from '@/components/themed-text';
 import { Duration, Spring } from '@/constants/motion';
-import { Disabled, FontWeight, Pressed, Radius, Spacing } from '@/constants/theme';
+import { Disabled, FontWeight, Pressed, Spacing } from '@/constants/theme';
 import type { RecordSeries } from '@/hooks/use-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { hijriParts } from '@/lib/dates';
@@ -27,8 +27,13 @@ const PER_ROW = 6;
 const CELL_PAD = Spacing.one + Spacing.half;
 const CELL_HEIGHT = ORBIT_GLYPH + CELL_PAD * 2;
 const ROW_GAP = Spacing.one;
-/** How far the selection tile stands in from its column's edges, as in the week bar. */
-const TILE_INSET = Spacing.half;
+/** The light inside a picked month's orbit: the ring's interior, standing a hair in from the stroke. */
+const DISC = ORBIT_GLYPH - ORBIT_GLYPH_STROKE * 2 - Spacing.half;
+/** How strongly it is lit, in the month's own colour; a month with no colour of its own gets less. */
+const DISC_TINT = 0.16;
+const DISC_TINT_NEUTRAL = 0.08;
+/** Where a picked month's light grows from. */
+const DISC_FROM = 0.6;
 /** Ramaḍān's place in the year, 0-based. */
 const RAMADAN = 8;
 
@@ -43,9 +48,13 @@ const RAMADAN = 8;
  *
  * Inside each orbit is the month's number, in the quiet ink; this month's in the accent, the way
  * the week bar marks today; Ramaḍān's in the primary ink and heavier, as Jumuʿah stands out in the
- * week. Nothing else is printed at rest. Tap a month and the header's caption becomes its reading
- * ("Ṣafar · 360°") while a tile slides under it; a month kept in full is felt as one (the kept
- * month's beat). Tap it again and the card is back to naming the year.
+ * week. Nothing else is printed at rest.
+ *
+ * Tap any month and the header's caption names it, with its figure where it has one ("Ṣafar ·
+ * 360°"; a month still to come is its name alone), while its orbit lights from inside in its own
+ * colour: warm for a month kept in full, the accent for one under way, faint white for one with
+ * neither. A light rather than a tile, because every mark on this card is round. A month kept in
+ * full is felt as one (the kept month's beat). Tap it again and the card is back to naming the year.
  */
 export function YearCard({ series, stripe }: { series: RecordSeries; stripe: SharedValue<number> }) {
   const months = yearMonths(series);
@@ -53,9 +62,8 @@ export function YearCard({ series, stripe }: { series: RecordSeries; stripe: Sha
   const year = first ? (hijriParts(first.iso)?.year ?? null) : null;
 
   const [picked, setPicked] = useState<number | null>(null);
-  // Only a month with a figure can be read; a refetch that leaves the pick on one without (a new
-  // year began under it) reads as nothing picked.
-  const selected = picked !== null && readable(months[picked]) ? picked : null;
+  // A refetch can shorten the year under a pick (a new year began), so it is read through the list.
+  const selected = picked !== null && months[picked] ? picked : null;
   const reading = selected !== null ? months[selected]! : null;
 
   const pick = (index: number) => {
@@ -69,8 +77,6 @@ export function YearCard({ series, stripe }: { series: RecordSeries; stripe: Sha
     setPicked(index);
   };
 
-  const [width, setWidth] = useState(0);
-  const column = width / PER_ROW;
   const rows = [months.slice(0, PER_ROW), months.slice(PER_ROW)];
 
   return (
@@ -78,25 +84,26 @@ export function YearCard({ series, stripe }: { series: RecordSeries; stripe: Sha
       <StatCardHeader
         title="Year"
         trailing={
-          reading && reading.rate !== null ? (
+          reading ? (
             <View style={styles.caption}>
               <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.captionLabel}>
                 {reading.name}
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {' · '}
-                <ThemedText type="smallBold" style={styles.captionValue}>
-                  {formatDegrees(reading.rate)}
+              {reading.rate !== null ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {' · '}
+                  <ThemedText type="smallBold" style={styles.captionValue}>
+                    {formatDegrees(reading.rate)}
+                  </ThemedText>
                 </ThemedText>
-              </ThemedText>
+              ) : null}
             </View>
           ) : year ? (
             `${year} H`
           ) : null
         }
       />
-      <View style={styles.grid} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-        {width > 0 ? <SelectionTile index={selected} column={column} /> : null}
+      <View style={styles.grid}>
         {rows.map((row, r) => (
           <View key={r} style={styles.row}>
             {row.map((month, c) => {
@@ -120,10 +127,6 @@ export function YearCard({ series, stripe }: { series: RecordSeries; stripe: Sha
   );
 }
 
-function readable(month: YearMonth | undefined): boolean {
-  return month?.phase === 'running' || month?.phase === 'closed';
-}
-
 function MonthCell({
   month,
   index,
@@ -139,18 +142,22 @@ function MonthCell({
   stripe: SharedValue<number>;
   onPick: (index: number) => void;
 }) {
-  const enabled = readable(month);
+  const theme = useTheme();
   const running = month.phase === 'running';
   const ramadan = index === RAMADAN;
+  // A month that asked nothing, or has not come yet, rests dimmed, as the days ahead do in the week
+  // bar; picked, it comes up to full so the name in the caption has a month to belong to.
+  const quiet = month.rate === null;
+  const light = month.kept ? theme.complete : quiet ? theme.text : theme.accent;
   return (
     <Pressable
       onPress={() => onPick(index)}
-      disabled={!enabled}
       accessibilityRole="button"
       accessibilityLabel={monthAccessibilityLabel(month, year)}
-      accessibilityState={{ selected, disabled: !enabled }}
-      style={({ pressed }) => [styles.cell, pressed && styles.pressed, !enabled && styles.disabled]}>
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [styles.cell, pressed && styles.pressed, quiet && !selected && styles.dim]}>
       <View style={styles.orbit}>
+        <MonthLight on={selected} color={light} tint={quiet ? DISC_TINT_NEUTRAL : DISC_TINT} />
         <View style={StyleSheet.absoluteFill}>
           <OrbitMark
             rate={month.rate}
@@ -163,7 +170,7 @@ function MonthCell({
         </View>
         <ThemedText
           type={selected ? 'smallCompactBold' : 'smallCompact'}
-          themeColor={running ? 'accent' : ramadan ? 'text' : 'textSecondary'}
+          themeColor={running ? 'accent' : ramadan || selected ? 'text' : 'textSecondary'}
           maxFontSizeMultiplier={ORBIT_GLYPH_TEXT_SCALE}
           style={ramadan && !selected && styles.strong}>
           {index + 1}
@@ -173,6 +180,24 @@ function MonthCell({
   );
 }
 
+/**
+ * A picked month's orbit, lit from inside: a disc of its own colour, faint, that grows into the
+ * ring on the settle spring and fades out when the month is let go. Without motion under Reduce
+ * Motion.
+ */
+function MonthLight({ on, color, tint }: { on: boolean; color: string; tint: number }) {
+  const reduceMotion = useReducedMotion();
+  const shown = useSharedValue(on ? 1 : 0);
+  useEffect(() => {
+    shown.set(reduceMotion ? (on ? 1 : 0) : on ? withSpring(1, Spring.settle) : withTiming(0, { duration: Duration.fast }));
+  }, [on, reduceMotion, shown]);
+  const lit = useAnimatedStyle(() => {
+    const s = shown.get();
+    return { opacity: Math.min(1, Math.max(0, s)) * tint, transform: [{ scale: DISC_FROM + (1 - DISC_FROM) * s }] };
+  });
+  return <Animated.View pointerEvents="none" style={[styles.disc, { backgroundColor: color }, lit]} />;
+}
+
 /** Which month, of which year, and how much of it was kept: in the order a sighted reader reads. */
 function monthAccessibilityLabel(month: YearMonth, year: number | null): string {
   const name = year ? `${month.name} ${year}` : month.name;
@@ -180,60 +205,6 @@ function monthAccessibilityLabel(month: YearMonth, year: number | null): string 
   if (month.phase === 'quiet' || month.rate === null) return `${name}, nothing due`;
   const kept = month.kept ? 'kept in full' : `${formatDegrees(month.rate)} kept`;
   return month.phase === 'running' ? `${name}, this month, ${kept}` : `${name}, ${kept}`;
-}
-
-/**
- * The month being read: a tile under its cell, as the day you are on stands on one in the week
- * bar. From one month to another it slides on the same spring; from rest it fades in where it is
- * needed rather than flying in from a corner, and fades out when the card goes back to rest.
- * Without motion under Reduce Motion.
- */
-function SelectionTile({ index, column }: { index: number | null; column: number }) {
-  const theme = useTheme();
-  const reduceMotion = useReducedMotion();
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const shown = useRef(false);
-
-  useEffect(() => {
-    if (index === null) {
-      shown.current = false;
-      opacity.set(reduceMotion ? 0 : withTiming(0, { duration: Duration.fast }));
-      return;
-    }
-    const tx = (index % PER_ROW) * column + TILE_INSET;
-    const ty = Math.floor(index / PER_ROW) * (CELL_HEIGHT + ROW_GAP);
-    if (!shown.current || reduceMotion) {
-      x.set(tx);
-      y.set(ty);
-      opacity.set(reduceMotion ? 1 : withTiming(1, { duration: Duration.fast }));
-    } else {
-      x.set(withSpring(tx, Spring.settle));
-      y.set(withSpring(ty, Spring.settle));
-    }
-    shown.current = true;
-  }, [index, column, reduceMotion, x, y, opacity]);
-
-  const place = useAnimatedStyle(() => ({
-    opacity: opacity.get(),
-    transform: [{ translateX: x.get() }, { translateY: y.get() }],
-  }));
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.tile,
-        {
-          width: column - TILE_INSET * 2,
-          backgroundColor: theme.backgroundSelected,
-          borderColor: theme.border,
-          borderTopColor: theme.topHighlight,
-        },
-        place,
-      ]}
-    />
-  );
 }
 
 const styles = StyleSheet.create({
@@ -246,15 +217,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   cell: { flex: 1, height: CELL_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   orbit: { width: ORBIT_GLYPH, height: ORBIT_GLYPH, alignItems: 'center', justifyContent: 'center' },
+  disc: { position: 'absolute', width: DISC, height: DISC, borderRadius: DISC / 2 },
   strong: { fontWeight: FontWeight.semibold },
-  tile: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    height: CELL_HEIGHT,
-    borderRadius: Radius.button,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   pressed: { opacity: Pressed.dim },
-  disabled: { opacity: Disabled },
+  dim: { opacity: Disabled },
 });

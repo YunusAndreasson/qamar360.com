@@ -17,7 +17,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
  * Progress — where this month stands now, then the record over time.
  */
 export default function ProgressScreen() {
-  const { loading, error, dismissError, refresh, habitsCount, month, seriesByPeriod, seriesPeriods } = useProgress();
+  const { loading, error, dismissError, refresh, habitsCount, month, today, seriesByPeriod, seriesPeriods } = useProgress();
   // Where the moon's stripe is drawn, frame by frame: the hero writes it, and the Year card's
   // running month reads it, so this month fills in both places on one sweep.
   const stripe = useSharedValue(0);
@@ -71,7 +71,7 @@ export default function ProgressScreen() {
     <AppScreen transparent refreshControl={refreshControl}>
       <ErrorBanner message={error} onDismiss={dismissError} />
 
-      <MonthSummary month={month} stripe={stripe} />
+      <MonthSummary month={month} today={today} stripe={stripe} />
 
       {/* The zoom-out under the moon: this year as its twelve moons, then the whole record. Only one
           scale is ever *in* a card, so a figure is never set beside one measured against a

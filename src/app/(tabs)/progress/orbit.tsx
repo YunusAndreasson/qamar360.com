@@ -3,11 +3,16 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { FormSheet } from '@/components/form-sheet';
+import { MoonPhase } from '@/components/moon-phase';
 import { ORBIT_SIZE, RING_STROKE } from '@/components/orbit-drawing';
+import { SectionLabel } from '@/components/section-label';
+import { SeparatedRows } from '@/components/separated-rows';
 import { Surface } from '@/components/surface';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { DATE_LOCALE, localDate } from '@/lib/dates';
+import { moonAlmanac } from '@/lib/moon-almanac';
 import { formatDegrees } from '@/lib/progress-format';
 
 import type { ReactNode } from 'react';
@@ -17,44 +22,34 @@ const GLYPH = 16;
 const CENTER = GLYPH / 2;
 
 /**
- * What the Progress orbit means — the hero's own key, on the sheet it opens.
+ * The orbit's sheet: your figure for the month, then the moon's.
  *
- * The ring above is one stripe on a groove, and the row here is that stripe, named once with its
- * figure. Legend rows used to sit under the orbit; they read as a footnote to a 232pt instrument
- * rather than as its key, and they crowded the one datum the hero is supposed to hold.
+ * The card is the orbit alone, so the figures are read here, on the tap. In order of weight: the
+ * month and its days left are the calendar (the subtitle); your degrees are the reading (the first
+ * row); the verdict is what it comes to, in the primary ink.
  *
- * There were three rows. One named a caret at your average position and went when the caret did:
- * how you are doing against your usual is a sentence, and a sentence is its own legend. Another
- * named the brighter band for the month elapsed, and went with that band.
+ * Then the moon, because it is the largest thing on the card and its shape is the calendar, not your
+ * progress. Saying so in a sentence explained the drawing; naming tonight's phase shows it, and
+ * goes on to what someone keeping the Sunnah reads the moon for: when the White Days come, and
+ * when the next month begins. Each row is what the moon does, then when, from the same Hijri
+ * calendar the moon on the card is drawn from (see `moonAlmanac`).
  *
- * It is also where the figures live now. The card is the orbit alone, so the degrees, your usual
- * and the days left are read here, on the tap, beside the marks they are read off. In order of
- * weight: the month and its days left are the calendar (the subtitle); the figure is the reading
- * (the row); the verdict is what it comes to, in the primary ink; the note is reference, and
- * quietest.
- *
- * The closing line is the reason this sheet exists at all. The moon is the largest, brightest
- * thing on the screen and its SHAPE is the calendar — tonight's real phase for today's Hijri date,
- * computed from the date alone and nothing else. Anyone will read a half-lit moon as "I am halfway
- * through what I set out to do", which is a different claim entirely, and no amount of ring design
- * corrects a misreading of the object in the middle of it. So it is said, plainly, in words.
- *
- * A `fitToContents` sheet cannot scroll, so this must stay short enough to never need to. Three
- * rows and two sentences is the ceiling; if it ever grows past that it becomes a pushed screen like
- * the stacking and exchange guides.
+ * The note at the end is the one rule no mark can show: what a full orbit counts.
  */
 export default function OrbitReadingSheet() {
   const theme = useTheme();
   // A snapshot of the card that opened this, passed as params rather than re-derived — mounting
   // the progress hook here would fire a fetch to re-answer a question already on screen.
-  const { monthName, year, currentRate, usual, daysLeft } = useLocalSearchParams<{
+  const { monthName, year, currentRate, usual, daysLeft, today } = useLocalSearchParams<{
     monthName: string;
     year: string;
     currentRate: string;
     /** Empty in a first month, which has no usual to be measured against. */
     usual: string;
     daysLeft: string;
+    today: string;
   }>();
+  const moon = today ? moonAlmanac(today) : null;
 
   return (
     <FormSheet title="Reading the orbit" subtitle={`${monthName} ${year} H · ${daysLeft}`}>
@@ -68,24 +63,57 @@ export default function OrbitReadingSheet() {
         </ThemedText>
       ) : null}
 
+      {moon ? (
+        <View style={styles.group}>
+          <SectionLabel>The moon</SectionLabel>
+          <Surface>
+            <SeparatedRows>
+              <LegendRow
+                glyph={<MoonPhase illumination={moon.tonight.illumination} waxing={moon.tonight.waxing} size={GLYPH} rim />}
+                label={moon.tonight.label}
+                value="Tonight"
+              />
+              <LegendRow
+                glyph={<MoonPhase illumination={1} waxing={false} size={GLYPH} rim />}
+                label="White Days"
+                value={dateSpan(moon.whiteDays.start, moon.whiteDays.end)}
+              />
+              <LegendRow
+                glyph={<MoonPhase illumination={0} waxing size={GLYPH} rim />}
+                label={moon.nextMonth.name}
+                value={localDate(moon.nextMonth.start).toLocaleDateString(DATE_LOCALE, { weekday: 'short', month: 'short', day: 'numeric' })}
+              />
+            </SeparatedRows>
+          </Surface>
+        </View>
+      ) : null}
+
       <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-        A full orbit is 360°: every act kept from the day you added it to the end of the month. The
-        moon inside it shows tonight’s real phase for the date, not your progress. To-dos and goal
-        check-ins are counted separately.
+        A full orbit is 360°: every act kept from the day you added it to the end of the month. To-dos
+        are counted separately.
       </ThemedText>
     </FormSheet>
   );
 }
 
-/** One mark from the ring, what it is, and its figure. */
+/** Two days as one span, in the app's date locale: "Oct 24–26", or "Oct 30 – Nov 1" across a month. */
+function dateSpan(start: string, end: string): string {
+  const month = (iso: string) => localDate(iso).toLocaleDateString(DATE_LOCALE, { month: 'short' });
+  const day = (iso: string) => localDate(iso).getDate();
+  return month(start) === month(end)
+    ? `${month(start)} ${day(start)}–${day(end)}`
+    : `${month(start)} ${day(start)} – ${month(end)} ${day(end)}`;
+}
+
+/** One row: its glyph, what it is, and its figure or its day. */
 function LegendRow({ glyph, label, value }: { glyph: ReactNode; label: string; value: string }) {
   return (
     <View style={styles.row} accessible accessibilityLabel={`${label}, ${value.replace('°', ' degrees')}`}>
       <View style={styles.glyph}>{glyph}</View>
-      <ThemedText type="rowTitle" style={styles.label}>
+      <ThemedText type="rowTitle" numberOfLines={1} style={styles.label}>
         {label}
       </ThemedText>
-      <ThemedText type="smallCompactBold" themeColor="textSecondary">
+      <ThemedText type="smallCompactBold" themeColor="textSecondary" style={styles.value}>
         {value}
       </ThemedText>
     </View>
@@ -121,5 +149,9 @@ const styles = StyleSheet.create({
   },
   glyph: { width: GLYPH, alignItems: 'center', justifyContent: 'center' },
   label: { flex: 1 },
+  // The day never gives way to the name beside it: a clipped date is no date (see the Android
+  // trailing-text rule).
+  value: { flexShrink: 0 },
+  group: { gap: Spacing.two },
   note: { paddingHorizontal: Spacing.one },
 });
