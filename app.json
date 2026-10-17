@@ -88,7 +88,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Qamar360 opens your photos only when you pick one for your profile."
+          "photosPermission": "Qamar360 opens your photos only when you pick one for your profile.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],
