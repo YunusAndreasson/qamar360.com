@@ -11,7 +11,7 @@ import { formSheetOptions, modalHeaderOptions, transparentScreen } from '@/lib/h
  * editor modal and sheet routes here are its descendants, so they keep the same habit state
  * and the list survives a round-trip to the sheet.
  *
- * `headerLargeTitle` is set per-screen (on `index`, in its body), not here — leaving it in
+ * `headerLargeTitleEnabled` is set per-screen (on `index`, in its body), not here — leaving it in
  * `screenOptions` would give the pushed modal a phantom large-title block.
  */
 export default function HabitsStackLayout() {

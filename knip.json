@@ -14,6 +14,7 @@
   ],
   "ignoreBinaries": ["python3", "rsvg-convert"],
   "ignoreDependencies": [
+    "@expo/agent-cli",
     "@jest/globals",
     "@typescript-eslint/parser"
   ]

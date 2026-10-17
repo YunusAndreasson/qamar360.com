@@ -48,14 +48,16 @@ if [ "$LATEST" -eq 1 ]; then
   # rejected here and revisited by hand:
   #   typescript     TS 7 has no stable programmatic API until 7.1, and
   #                  @typescript-eslint peers `typescript <6.1.0` — lint dies.
+  #                  scripts/check-deprecated-apis.mjs uses that API too.
   #   eslint         eslint-plugin-react (via eslint-config-expo) still calls
   #                  context.getFilename(), removed in ESLint 10 — lint dies.
-  #   jest           jest-expo is built against the jest 29 line.
   #   react          RN's renderer and react-test-renderer are compiled against
   #                  the exact React version the SDK pins.
   #   …-resolver-ts  v4 re-targets eslint-plugin-import-x; v3 is what works here.
+  # jest and @types/jest are not held here: the SDK pins them (30 on SDK 58),
+  # so step 4 puts them back on the SDK's line whatever this step picks.
   npx --yes npm-check-updates --upgrade \
-    --reject expo,typescript,eslint,jest,@types/jest,react,eslint-import-resolver-typescript
+    --reject expo,typescript,eslint,react,eslint-import-resolver-typescript
   npm install
 else
   echo "▸ [3/5] Updating dependencies within package.json semver ranges…"

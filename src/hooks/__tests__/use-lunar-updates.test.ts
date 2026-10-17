@@ -1,6 +1,5 @@
-import { afterEach, beforeAll, beforeEach, expect, it, jest } from '@jest/globals';
-import { act, createElement } from 'react';
-import { create, type ReactTestRenderer } from 'react-test-renderer';
+import { beforeEach, expect, it, jest } from '@jest/globals';
+import { act, renderHook, type RenderHookResult } from '@testing-library/react-native';
 
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
 
@@ -43,26 +42,18 @@ function deferred() {
 
 const initial = { userId: 'first-user', today: '2026-09-05', doneToday: [], loading: false, progressKey: '0' };
 type Props = Parameters<typeof useLunarUpdates>[0];
-function Harness(props: Props) {
-  useLunarUpdates(props);
-  return null;
-}
 
-let renderer: ReactTestRenderer | undefined;
-beforeAll(() => { Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); });
+// RNTL unmounts whatever is still mounted after each test (and sets the act environment).
+let hook: RenderHookResult<void, Props>;
 beforeEach(() => {
   jest.clearAllMocks();
   mockEnabled = true;
   mockOffset = 0;
   mockLoadGoals.mockResolvedValue([]);
 });
-afterEach(async () => {
-  await act(async () => renderer?.unmount());
-  renderer = undefined;
-});
 
 async function mount() {
-  await act(async () => { renderer = create(createElement(Harness, initial)); });
+  hook = await renderHook((props: Props) => useLunarUpdates(props), { initialProps: initial });
 }
 
 it.each(['disabled', 'signed out', 'user changed', 'day changed', 'offset changed', 'loading', 'unmounted'])(
@@ -78,10 +69,8 @@ it.each(['disabled', 'signed out', 'user changed', 'day changed', 'offset change
     if (change === 'day changed') props = { ...initial, today: '2026-09-06' };
     if (change === 'offset changed') mockOffset = 1;
     if (change === 'loading') props = { ...initial, loading: true };
-    await act(async () => {
-      if (change === 'unmounted') renderer?.unmount();
-      else renderer?.update(createElement(Harness, props));
-    });
+    if (change === 'unmounted') await hook.unmount();
+    else await hook.rerender(props);
     await act(async () => {
       old.resolve({ month: null });
       mockBackground?.('background');
@@ -98,7 +87,7 @@ it('starts independent reads together and only schedules the newest overlapping 
   await mount();
   // Goals are already loading even though progress has not settled.
   expect(mockLoadGoals).toHaveBeenCalledTimes(1);
-  await act(async () => { renderer?.update(createElement(Harness, { ...initial, progressKey: '1' })); });
+  await hook.rerender({ ...initial, progressKey: '1' });
   await act(async () => { mockBackground?.('background'); });
   await act(async () => { fresh.resolve({ month: null }); });
   expect(mockSchedule).toHaveBeenCalledTimes(1);

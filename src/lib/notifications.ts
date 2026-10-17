@@ -194,11 +194,19 @@ export function subscribeToUpdateTaps(open: () => void): () => void {
     open();
   };
 
-  // The tap that launched the app. Cleared so a later relaunch doesn't replay it.
-  void N.getLastNotificationResponseAsync()
-    .then((response) => {
-      const tap = lunarTap(response);
-      if (tap) void N.clearLastNotificationResponseAsync().catch(() => {});
+  // The tap that launched the app. Cleared so a later relaunch doesn't replay it. Both calls are
+  // synchronous (and throw when the native method is missing), but the read stays one microtask
+  // out, as the old async API had it: off the caller's effect, once the whole commit has flushed.
+  void Promise.resolve()
+    .then(() => {
+      const tap = lunarTap(N.getLastNotificationResponse());
+      if (tap) {
+        try {
+          N.clearLastNotificationResponse();
+        } catch {
+          // Best-effort: `handledTapId` still stops this session from replaying it.
+        }
+      }
       handle(tap);
     })
     .catch(() => {

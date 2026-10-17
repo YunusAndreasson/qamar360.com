@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, type MutableRefObject } from 'react';
+import { useCallback, useEffect, type RefObject } from 'react';
 import { AppState } from 'react-native';
 
 import { todayLocalISO } from '@/lib/dates';
@@ -14,7 +14,7 @@ import { todayLocalISO } from '@/lib/dates';
 export function useRefreshLifecycle(
   userId: string | null,
   fetchData: () => Promise<void>,
-  todayRef: MutableRefObject<string>,
+  todayRef: RefObject<string>,
   setLoading: (loading: boolean) => void,
 ) {
   // Preload on mount. Under NativeTabs every tab screen is mounted eagerly (all tabs pre-render

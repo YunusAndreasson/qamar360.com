@@ -10,7 +10,7 @@ export default function ProgressStackLayout() {
   const theme = useTheme();
   return (
     <TabStack>
-      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Progress', headerLargeTitle: true }} />
+      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Progress', headerLargeTitleEnabled: true }} />
       <Stack.Screen name="orbit" options={formSheetOptions(theme)} />
       {/* One goal in full. Under a static `goal/` segment so it can't be swallowed by a sibling's
           dynamic one. */}

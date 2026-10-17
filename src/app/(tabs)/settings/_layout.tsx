@@ -9,7 +9,7 @@ export default function SettingsStackLayout() {
   const theme = useTheme();
   return (
     <TabStack>
-      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Settings', headerLargeTitle: true }} />
+      <Stack.Screen name="index" options={{ ...transparentScreen, title: 'Settings', headerLargeTitleEnabled: true }} />
       {/* Pushed sub-screen; title + Save live in the screen's own <Stack.Screen>. Stays opaque
           (no transparentScreen) — a plain form over the themed background. */}
       <Stack.Screen name="change-password" options={{ title: 'Change password' }} />

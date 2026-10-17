@@ -62,3 +62,6 @@ example
 # Gradle output from local native modules
 /modules/*/android/build
 /modules/*/android/.cxx
+# @generated expo skills start
+.claude/skills/expo-sqlite
+# @generated expo skills end

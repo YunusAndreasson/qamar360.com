@@ -704,7 +704,7 @@ export default function HabitsScreen() {
       <Stack.Screen
         options={{
           title: viewDateTitle(viewDate, today),
-          headerLargeTitle: true,
+          headerLargeTitleEnabled: true,
           // Which day you are looking at, one tap above the title. It used to be a permanent
           // strip at the top of the list — two chevrons, the date and a "Back to today" line,
           // charging every ordinary day for a backfill that happens occasionally. The mark is

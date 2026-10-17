@@ -203,7 +203,7 @@ function OverheadGlow({
             <Stop offset="1" stopColor={GLOW_COLOR} stopOpacity="0" />
           </RadialGradient>
         </Defs>
-        <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+        <Rect width="100" height="100" fill={`url(#${id})`} />
       </Svg>
     </Animated.View>
   );
@@ -231,7 +231,7 @@ function RosetteField() {
             <Stop offset="1" stopColor="#fff" stopOpacity="0" />
           </RadialGradient>
           <Mask id={maskId}>
-            <Rect x="0" y="0" width={CARD_VB} height={CARD_VB} fill={`url(#${gradId})`} />
+            <Rect width={CARD_VB} height={CARD_VB} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
         <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
@@ -301,7 +301,7 @@ function CornerBloom({
             <Stop offset="1" stopColor="#fff" stopOpacity="0" />
           </RadialGradient>
           <Mask id={maskId}>
-            <Rect x="0" y="0" width={BLOOM_SIZE} height={BLOOM_SIZE} fill={`url(#${gradId})`} />
+            <Rect width={BLOOM_SIZE} height={BLOOM_SIZE} fill={`url(#${gradId})`} />
           </Mask>
         </Defs>
         <G mask={`url(#${maskId})`} stroke={theme.pattern} strokeWidth={1} fill="none">
@@ -335,7 +335,7 @@ function HorizonTint({ sunAlt, sunAz }: { sunAlt: number; sunAz: number }) {
           <Stop offset="0.55" stopColor={tint.color} stopOpacity="0" />
         </LinearGradient>
       </Defs>
-      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+      <Rect width="100" height="100" fill={`url(#${id})`} />
     </Svg>
   );
 }
@@ -359,7 +359,7 @@ function ScreenVignette() {
           <Stop offset="1" stopColor="#000" stopOpacity={edge} />
         </RadialGradient>
       </Defs>
-      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+      <Rect width="100" height="100" fill={`url(#${id})`} />
     </Svg>
   );
 }
@@ -437,8 +437,8 @@ function HorizonGlow({ sunAlt }: { sunAlt: number }) {
           <Stop offset="1" stopColor={GLOW_COLOR} stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <Rect x="0" y="0" width="100" height="100" fill={`url(#${bandId})`} />
-      <Rect x="0" y="0" width="100" height="100" fill={`url(#${domeId})`} />
+      <Rect width="100" height="100" fill={`url(#${bandId})`} />
+      <Rect width="100" height="100" fill={`url(#${domeId})`} />
     </Svg>
   );
 }

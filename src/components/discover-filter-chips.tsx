@@ -66,7 +66,7 @@ export function DiscoverFilterChips({ filters, active, onChange }: Props) {
               <Stop offset="1" stopColor={theme.background} stopOpacity="1" />
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100" height="100" fill={`url(#${fadeId})`} />
+          <Rect width="100" height="100" fill={`url(#${fadeId})`} />
         </Svg>
       </View>
     </View>
