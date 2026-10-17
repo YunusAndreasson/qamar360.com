@@ -706,7 +706,9 @@ export default function HabitsScreen() {
           headerLeft: () => (
             <HeaderIconButton
               icon={Icons.calendar}
-              color={theme.text}
+              // The same accent as Add on the other side, so the header's two controls read as a
+              // matched pair rather than one control and one label.
+              color={theme.accent}
               accessibilityLabel={`Choose a day, showing ${viewDateTitle(viewDate, today)}`}
               onPress={() => router.push('/habits/day-picker')}
             />
