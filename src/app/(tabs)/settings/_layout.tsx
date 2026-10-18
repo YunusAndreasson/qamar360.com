@@ -23,10 +23,9 @@ export default function SettingsStackLayout() {
           sections, and each sets its own title from the guide data. */}
       <Stack.Screen name="stacking-info" />
       <Stack.Screen name="exchange-info" />
-      {/* The two settings that need more than a switch: each is a compact picker over one
-          value, so it's a sheet rather than a pushed screen — the list stays one level deep. */}
+      {/* The setting that needs more than a switch: a compact picker over one value, so it's a
+          sheet rather than a pushed screen — the list stays one level deep. */}
       <Stack.Screen name="hijri-adjust" options={formSheetOptions(theme)} />
-      <Stack.Screen name="day-times" options={formSheetOptions(theme)} />
       {/* Explains the four lunar updates before the OS prompt — see the screen's own note on
           why the ask is primed rather than fired straight from the switch. */}
       <Stack.Screen name="lunar-updates" options={formSheetOptions(theme)} />

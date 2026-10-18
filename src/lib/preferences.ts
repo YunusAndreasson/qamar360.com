@@ -4,7 +4,6 @@ import { useSyncExternalStore } from 'react';
 import { Appearance } from 'react-native';
 
 import { setHijriOffset } from '@/lib/dates';
-import type { DayBands } from '@/lib/sun';
 import { getWebStorage } from '@/lib/web-storage';
 
 /**
@@ -44,25 +43,6 @@ const oneOfNumber =
   <T extends number>(values: readonly T[]) =>
   (raw: string): T | undefined =>
     (values as readonly number[]).includes(Number(raw)) ? (Number(raw) as T) : undefined;
-
-/** The four chapter starts, in minutes from local midnight, strictly increasing within a day. */
-function parseBands(raw: string): DayBands | undefined {
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (typeof value !== 'object' || value === null) return undefined;
-    const b = value as Record<string, unknown>;
-    const minutes = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1440 ? v : null);
-    const morning = minutes(b.morning);
-    const midday = minutes(b.midday);
-    const evening = minutes(b.evening);
-    const night = minutes(b.night);
-    if (morning === null || midday === null || evening === null || night === null) return undefined;
-    if (!(morning < midday && midday < evening && evening < night)) return undefined;
-    return { morning, midday, evening, night };
-  } catch {
-    return undefined;
-  }
-}
 
 type Spec<T> = {
   /** Storage key. `prefs.themePreference` is the one legacy name — kept so existing installs
@@ -110,13 +90,6 @@ const SPEC = {
    * feature, and inheriting someone's opt-out of per-habit reminders would silence it wrongly.
    */
   lunarUpdates: flag('prefs.lunarUpdates', true),
-  /** Custom day-part boundaries, or `null` to follow the real sun (the default). */
-  dayBands: {
-    key: 'prefs.dayBands',
-    fallback: null,
-    parse: (raw) => (raw === 'sun' ? null : parseBands(raw)),
-    serialize: (v) => (v ? JSON.stringify(v) : 'sun'),
-  } satisfies Spec<DayBands | null>,
 } as const;
 
 export type PreferenceKey = keyof typeof SPEC;
@@ -124,8 +97,7 @@ export type PreferenceKey = keyof typeof SPEC;
 export type PreferenceValue<K extends PreferenceKey> = Exclude<ReturnType<(typeof SPEC)[K]['parse']>, undefined>;
 
 /** Read-through cache: `useSyncExternalStore` calls `getSnapshot` on every render, and an
- *  uncached read would hit SQLite each time (and, worse, re-parse `dayBands` into a fresh object
- *  identity every render — React would then loop forever reporting a changed snapshot). */
+ *  uncached read would hit SQLite each time. */
 const cache = new Map<PreferenceKey, unknown>();
 
 function read<K extends PreferenceKey>(key: K): PreferenceValue<K> {

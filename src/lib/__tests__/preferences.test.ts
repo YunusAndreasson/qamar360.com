@@ -30,7 +30,6 @@ describe('defaults', () => {
     expect(getPreference('skyMotion')).toBe(true);
     expect(getPreference('lunarUpdates')).toBe(true);
     expect(getPreference('hijriOffset')).toBe(0);
-    expect(getPreference('dayBands')).toBeNull(); // follow the sun
   });
 });
 
@@ -40,7 +39,6 @@ describe('round trip', () => {
     setPreference('haptics', false);
     setPreference('hijriOffset', -1);
     setPreference('lunarUpdates', false);
-    setPreference('dayBands', { morning: 360, midday: 720, evening: 1080, night: 1320 });
 
     resetPreferencesCache(); // forget everything in memory — a fresh launch reading storage
 
@@ -48,19 +46,11 @@ describe('round trip', () => {
     expect(getPreference('haptics')).toBe(false);
     expect(getPreference('hijriOffset')).toBe(-1);
     expect(getPreference('lunarUpdates')).toBe(false);
-    expect(getPreference('dayBands')).toEqual({ morning: 360, midday: 720, evening: 1080, night: 1320 });
   });
 
   it('keeps the legacy storage key for appearance, so an existing choice survives', () => {
     setPreference('appearance', 'light');
     expect(store.get('prefs.themePreference')).toBe('light');
-  });
-
-  it('returns a stable object identity for dayBands across reads', () => {
-    // `useSyncExternalStore` compares snapshots by identity: a fresh object per read would
-    // report a change on every render and loop.
-    setPreference('dayBands', { morning: 300, midday: 700, evening: 1000, night: 1300 });
-    expect(getPreference('dayBands')).toBe(getPreference('dayBands'));
   });
 });
 
@@ -70,8 +60,6 @@ describe('a stored value that isn’t legal', () => {
     ['prefs.haptics', 'yes'],
     ['prefs.hijriOffset', '5'], // beyond the ±2 any reckoning uses
     ['prefs.lunarUpdates', 'yes'],
-    ['prefs.dayBands', '{"morning":100}'], // incomplete
-    ['prefs.dayBands', 'not json'],
   ])('falls back to the default rather than propagating %s=%s', (key, value) => {
     store.set(key, value);
     resetPreferencesCache();
@@ -79,13 +67,6 @@ describe('a stored value that isn’t legal', () => {
     expect(getPreference('haptics')).toBe(true);
     expect(getPreference('hijriOffset')).toBe(0);
     expect(getPreference('lunarUpdates')).toBe(true);
-    expect(getPreference('dayBands')).toBeNull();
-  });
-
-  it('rejects day bands whose chapters cross', () => {
-    store.set('prefs.dayBands', JSON.stringify({ morning: 900, midday: 720, evening: 1080, night: 1320 }));
-    resetPreferencesCache();
-    expect(getPreference('dayBands')).toBeNull();
   });
 });
 

@@ -75,11 +75,11 @@ export const STACKING_GUIDE: Guide = {
     },
     {
       heading: 'Read it until you know it.',
-      body: 'A stack’s acts aren’t a checklist to tick one at a time — they’re a short sequence to learn. Read it each time you open the app, until you don’t need to.',
+      body: 'A stack is a short sequence to learn, not a list to clear. Open it when its moment comes and tick each act as you do it, until you know it without looking.',
     },
     {
       heading: 'Finish it in one go.',
-      body: 'One tap seals the whole stack — that’s the only thing the app records. Keep the sequence short enough to always finish it: a stack you complete every day beats one you abandon by the third.',
+      body: 'Every act you tick is recorded, and the last one keeps the whole stack. Keep the sequence short enough to always finish it: a stack you complete every day beats one you abandon by the third.',
       evidence: 'The deeds most beloved to Allah are those kept consistently, even when small (Bukhari 6464; Muslim 783b).',
     },
   ],

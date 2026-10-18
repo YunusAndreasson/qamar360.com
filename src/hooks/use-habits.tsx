@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
+import { countTakeBack, countTap } from '@/lib/count-goal';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, openTasksOn, type DayClose } from '@/lib/day-close';
@@ -180,20 +181,17 @@ type HabitsContextValue = {
   /** Create several habits at once (a ready-made stack's acts); returns the new rows. Callers
    *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`). */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
-  /** Mark every act a stack has due on `viewDate` done, in one write — the app's only
-   *  completion gesture. Excused acts are left out; count goals are logged at their target. */
-  sealStack: (stackId: string) => Promise<void>;
-  /** Re-open a sealed stack: delete `viewDate`'s rows for exactly the acts a seal writes. */
-  unsealStack: (stackId: string) => Promise<void>;
-  /** Tick one act **inside a stack** for `viewDate`, or take it back. The per-act half of the
-   *  stack's completion: ticking the last open act seals the stack exactly as {@link sealStack}
-   *  would, and the header ring fills to the share done meanwhile. A no-op on an excused act. */
+  /** Tick one act **inside a stack** for `viewDate`, or take it back; a count goal counts one
+   *  instead. The only way a stack completes: the last open act seals it, and the header ring
+   *  fills to the share done meanwhile. A no-op on an excused act. */
   toggleAct: (habitId: string) => Promise<void>;
   /** Tick a **stackless** habit for `viewDate`, or take it back. Serves both things that stand on
    *  their own: an exchange (see `lib/exchange.ts`) and a plain habit with no stack. A no-op on one
    *  that is excused today. Acts inside a stack go through {@link toggleAct} instead — same write,
    *  but the group above them has a seal to reach and a beat of its own to fire. */
   toggleLoose: (habitId: string) => Promise<void>;
+  /** Take one back from a count goal's logged count for `viewDate` (the `⋯` sheet's correction). */
+  takeOneBack: (habitId: string) => Promise<void>;
   /** Toggle a habit's "skipped" (excused) state for `viewDate`: open/done → skipped, skipped → open. */
   skipHabit: (habitId: string) => Promise<void>;
   /**
@@ -317,24 +315,6 @@ async function deleteCompletion(habitId: string, day: string): Promise<void> {
 /** Upsert a habit's completion row for a day (one row per habit per day). Throws on error. */
 async function upsertCompletion(row: TablesInsert<'habit_completions'>): Promise<void> {
   const { error } = await supabase.from('habit_completions').upsert(row, { onConflict: COMPLETION_CONFLICT });
-  if (error) throw error;
-}
-
-/** Upsert a whole stack's completion rows in one round-trip — the seal. Throws on error. */
-async function upsertCompletions(rows: TablesInsert<'habit_completions'>[]): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await supabase.from('habit_completions').upsert(rows, { onConflict: COMPLETION_CONFLICT });
-  if (error) throw error;
-}
-
-/** Delete several habits' completion rows for one day — the unseal. Throws on error. */
-async function deleteCompletions(habitIds: string[], day: string): Promise<void> {
-  if (habitIds.length === 0) return;
-  const { error } = await supabase
-    .from('habit_completions')
-    .delete()
-    .in('habit_id', habitIds)
-    .eq('completed_at', day);
   if (error) throw error;
 }
 
@@ -787,148 +767,114 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [goToDay, todayRef]);
 
   /**
-   * Seal a stack: mark every act it has due on the viewed day done, in one write.
+   * One step on a count goal for the viewed day: a tap adds one, `back` takes one away (see
+   * `lib/count-goal.ts` for the rule). Serves a count goal wherever it sits, inside a stack or on
+   * its own, so `toggleAct` and `toggleLoose` hand their count goals here and keep the binary write.
    *
-   * The fast path through a stack, for the morning you simply did the lot: what the user asserts is
-   * that the *group* happened, and the per-act rows underneath are simply how it's recorded (which
-   * is why Progress, streaks and Stats need to know nothing about stacks). Working through the acts
-   * one at a time ({@link runToggleAct}) writes the identical rows and reaches the identical sealed
-   * state — this only gets there in one tap.
-   *
-   * Excused acts are left out entirely; acts already done are left untouched, so an unseal
-   * restores precisely what this seal wrote. A count goal has no partial state to reach any
-   * more — sealing logs its full target, because the seal asserts the whole act.
+   * The tap that reaches the target is the one that completes the habit, so it fires the same beat
+   * and day-close a binary tick does, and closes a stack when it is the last act standing. A step
+   * short of the target writes a 'partial' row, which `creditFor` already counts as count ÷ target.
    */
-  const runSealStack = useCallback(
-    async (stackId: string) => {
+  const runCountStep = useCallback(
+    async (habitId: string, kind: 'tap' | 'back') => {
       if (!userId) return;
-      if (pending.current.has(stackId)) return; // ignore double-taps
+      if (habitId.startsWith('temp-')) return; // not persisted yet
+      if (pending.current.has(habitId)) return; // ignore double-taps
+      if (skippedRef.current.has(habitId)) return; // excused: nothing to count
+
+      const habit = habitsRef.current.find((h) => h.id === habitId);
+      const target = habit?.target_count;
+      if (!habit || target == null || target <= 0) return;
 
       const day = viewDateRef.current;
-      const fresh = sealableActs(habitsRef.current, skippedRef.current, stackId, day).filter(
-        (h) => !completedRef.current.has(h.id),
-      );
-      if (fresh.length === 0) return; // nothing due today, or already sealed
-      pending.current.add(stackId);
+      const wasDone = completedRef.current.has(habitId);
+      const prevCount = countsRef.current.get(habitId);
+      const step =
+        kind === 'tap' ? countTap(prevCount ?? 0, target, wasDone) : countTakeBack(prevCount ?? 0, target, wasDone);
+      const nowDone = step.status === 'done';
+      pending.current.add(habitId);
 
-      const freshIds = fresh.map((h) => h.id);
-      const prevCounts = new Map(fresh.map((h) => [h.id, countsRef.current.get(h.id)]));
-
-      // Optimistic seal — the card blooms and folds before the network returns.
-      setCompleted((prev) => {
-        const next = new Set(prev);
-        for (const id of freshIds) next.add(id);
-        return next;
-      });
+      if (nowDone !== wasDone) {
+        setCompleted((prev) => {
+          const next = new Set(prev);
+          if (nowDone) next.add(habitId);
+          else next.delete(habitId);
+          return next;
+        });
+      }
       setCounts((prev) => {
         const next = new Map(prev);
-        for (const h of fresh) if (h.target_count != null) next.set(h.id, h.target_count);
+        if (step.status === 'clear') next.delete(habitId);
+        else next.set(habitId, step.count);
         return next;
       });
 
-      const res = celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set(freshIds), day);
-      if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+      if (nowDone && !wasDone) {
+        // Resolved through `sealableActs`, as `runToggleAct` does, so the beat and the card's sealed
+        // look cannot disagree. `completedRef` does not hold this step yet, hence the explicit id.
+        const sealsStack =
+          !!habit.stack_id &&
+          sealableActs(habitsRef.current, skippedRef.current, habit.stack_id, day).every(
+            (h) => h.id === habitId || completedRef.current.has(h.id),
+          );
+        const res = sealsStack
+          ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day)
+          : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
+        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+      } else if (kind === 'tap' && step.status === 'partial') {
+        // A count is not yet a deed done: the light tick of a counter, not the completion beat.
+        haptics.selection();
+      } else {
+        haptics.uncompleted();
+      }
 
       try {
-        await upsertCompletions(
-          fresh.map((h) => ({
-            habit_id: h.id,
+        if (step.status === 'clear') await deleteCompletion(habitId, day);
+        else
+          await upsertCompletion({
+            habit_id: habitId,
             user_id: userId,
             completed_at: day,
-            status: 'done',
-            count: h.target_count ?? null,
-          })),
-        );
+            status: step.status,
+            count: step.count,
+          });
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
         if (viewDateRef.current === day) {
-          setCompleted((prev) => {
-            const next = new Set(prev);
-            for (const id of freshIds) next.delete(id);
-            return next;
-          });
+          if (nowDone !== wasDone) {
+            setCompleted((prev) => {
+              const next = new Set(prev);
+              if (wasDone) next.add(habitId);
+              else next.delete(habitId);
+              return next;
+            });
+          }
           setCounts((prev) => {
             const next = new Map(prev);
-            for (const [id, count] of prevCounts) {
-              if (count == null) next.delete(id);
-              else next.set(id, count);
-            }
+            if (prevCount == null) next.delete(habitId);
+            else next.set(habitId, prevCount);
             return next;
           });
         }
         setError(UPDATE_ERROR);
       } finally {
-        pending.current.delete(stackId);
+        pending.current.delete(habitId);
       }
     },
     [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
   );
-  const sealStack = useGuardedMutation(completionGuard.begin, completionGuard.end, runSealStack);
+  const runTakeOneBack = useCallback((habitId: string) => runCountStep(habitId, 'back'), [runCountStep]);
+  const takeOneBack = useGuardedMutation(completionGuard.begin, completionGuard.end, runTakeOneBack);
 
-  /**
-   * Re-open a sealed stack — deletes the viewed day's rows for exactly the acts a seal writes.
-   * Excused acts keep their skip (their row says 'skipped', not 'done', and isn't the seal's).
-   */
-  const runUnsealStack = useCallback(
-    async (stackId: string) => {
-      if (!userId) return;
-      if (pending.current.has(stackId)) return;
-
-      const day = viewDateRef.current;
-      const doneIds = sealableActs(habitsRef.current, skippedRef.current, stackId, day)
-        .filter((h) => completedRef.current.has(h.id))
-        .map((h) => h.id);
-      if (doneIds.length === 0) return;
-      pending.current.add(stackId);
-
-      const prevCounts = new Map(doneIds.map((id) => [id, countsRef.current.get(id)]));
-
-      setCompleted((prev) => {
-        const next = new Set(prev);
-        for (const id of doneIds) next.delete(id);
-        return next;
-      });
-      setCounts((prev) => {
-        const next = new Map(prev);
-        for (const id of doneIds) next.delete(id);
-        return next;
-      });
-      haptics.uncompleted();
-
-      try {
-        await deleteCompletions(doneIds, day);
-      } catch {
-        // The day may have changed mid-flight; only roll back if we're still on it.
-        if (viewDateRef.current === day) {
-          setCompleted((prev) => {
-            const next = new Set(prev);
-            for (const id of doneIds) next.add(id);
-            return next;
-          });
-          setCounts((prev) => {
-            const next = new Map(prev);
-            for (const [id, count] of prevCounts) if (count != null) next.set(id, count);
-            return next;
-          });
-        }
-        setError(UPDATE_ERROR);
-      } finally {
-        pending.current.delete(stackId);
-      }
-    },
-    [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
-  );
-  const unsealStack = useGuardedMutation(completionGuard.begin, completionGuard.end, runUnsealStack);
 
   /**
    * Tick one act inside a stack for the viewed day, or take it back.
    *
-   * Acts were once read-only — the stack was the unit, and its seal the only way to complete
-   * anything in it. `ActRow`'s doc has the argument for why that had to change; what matters here
-   * is that the *write* is unchanged by it. This lands the same ordinary `done` row the seal writes,
-   * one at a time instead of all at once, so Progress, streaks and Stats still know nothing about
-   * stacks — and a count goal is logged at its full target, because ticking the act asserts the
-   * whole deed exactly as sealing the group does.
+   * Acts were once read-only, the stack's one-tap seal the only way to complete anything in it.
+   * `ActRow`'s doc has the argument for why that had to change, and the seal itself is gone now:
+   * this is the only way a stack completes. It lands an ordinary `done` row, so Progress, streaks
+   * and Stats know nothing about stacks. A count goal is counted instead, one tap per unit
+   * ({@link runCountStep}).
    *
    * **The last open act seals the stack**, with no separate write: `isStackComplete` reads the very
    * rows this puts down, so the card's ring closes, its border flashes and it folds itself away the
@@ -947,24 +893,20 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       const act = habitsRef.current.find((h) => h.id === habitId);
       if (!act) return;
+      // A count goal is counted, one tap per unit, rather than ticked.
+      if ((act.target_count ?? 0) > 0) {
+        await runCountStep(habitId, 'tap');
+        return;
+      }
 
       const day = viewDateRef.current;
       const wasDone = completedRef.current.has(habitId);
-      const prevCount = countsRef.current.get(habitId);
       pending.current.add(habitId);
 
       setCompleted((prev) => {
         const next = new Set(prev);
         if (wasDone) next.delete(habitId);
         else next.add(habitId);
-        return next;
-      });
-      // The seal's own rule for a count goal, applied to one act: there is no partial state to
-      // reach any more, so a tick logs the whole target and taking it back clears it again.
-      setCounts((prev) => {
-        const next = new Map(prev);
-        if (wasDone || act.target_count == null) next.delete(habitId);
-        else next.set(habitId, act.target_count);
         return next;
       });
 
@@ -994,7 +936,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             user_id: userId,
             completed_at: day,
             status: 'done',
-            count: act.target_count ?? null,
+            count: null,
           });
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -1005,19 +947,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             else next.delete(habitId);
             return next;
           });
-          setCounts((prev) => {
-            const next = new Map(prev);
-            if (prevCount == null) next.delete(habitId);
-            else next.set(habitId, prevCount);
-            return next;
-          });
         }
         setError(UPDATE_ERROR);
       } finally {
         pending.current.delete(habitId);
       }
     },
-    [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
+    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef, runCountStep],
   );
   const toggleAct = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleAct);
 
@@ -1048,6 +984,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // Excused today: there is nothing to assert. The row renders inert, but a mid-flight skip
       // could still land a tap here, and writing a 'done' over a 'skipped' would silently undo it.
       if (skippedRef.current.has(habitId)) return;
+      // A stackless habit with a count goal is counted, one tap per unit (an exchange never has one).
+      if ((habitsRef.current.find((h) => h.id === habitId)?.target_count ?? 0) > 0) {
+        await runCountStep(habitId, 'tap');
+        return;
+      }
 
       const day = viewDateRef.current;
       const wasHeld = completedRef.current.has(habitId);
@@ -1095,7 +1036,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef],
+    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef, runCountStep],
   );
   const toggleLoose = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleLoose);
 
@@ -1969,10 +1910,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       reload,
       setViewDate,
       createHabits,
-      sealStack,
-      unsealStack,
       toggleAct,
       toggleLoose,
+      takeOneBack,
       skipHabit,
       updateHabit,
       deleteHabit,
@@ -2001,10 +1941,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     reload,
     setViewDate,
     createHabits,
-    sealStack,
-    unsealStack,
     toggleAct,
     toggleLoose,
+    takeOneBack,
     skipHabit,
     updateHabit,
     deleteHabit,

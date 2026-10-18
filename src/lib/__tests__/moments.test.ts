@@ -8,9 +8,9 @@ import { asMoment, dayOrderPlacement, MOMENT_GROUPS, MOMENTS, momentBand, moment
 import { DAY_PARTS } from '@/lib/sun';
 
 describe('the moment set', () => {
-  it('every moment has a real band or is a Friday moment', () => {
-    for (const def of Object.values(MOMENTS)) {
-      if (def.band === null) expect(def.friday).toBe(true);
+  it('every moment has a real band, except the weekday moment Jumuʿah', () => {
+    for (const [key, def] of Object.entries(MOMENTS)) {
+      if (def.band === null) expect(key).toBe('jumuah');
       else expect(DAY_PARTS).toContain(def.band);
     }
   });
@@ -18,13 +18,6 @@ describe('the moment set', () => {
   it('the four sky moments share their keys with the day parts, in band', () => {
     for (const part of DAY_PARTS) {
       expect(MOMENTS[part].band).toBe(part);
-      expect(MOMENTS[part].until).toBe(true);
-    }
-  });
-
-  it('prayer moments never carry the clock caption (the no-prayer-times rule)', () => {
-    for (const key of ['fajr', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] as MomentKey[]) {
-      expect(MOMENTS[key].until).toBeUndefined();
     }
   });
 

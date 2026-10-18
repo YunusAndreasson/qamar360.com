@@ -13,6 +13,7 @@
  * `src/**\/*.test.ts` only, so a row's state matrix would otherwise have no test at all.
  */
 
+import { countGoalLabel } from '@/lib/count-goal';
 import { describeHijriSchedule, describeWeekdays, type HijriSchedule } from '@/lib/dates';
 
 /** The resolved state of a stackless row — everything the bar needs to paint and to announce. */
@@ -27,7 +28,7 @@ export type LooseRowContract = {
   /** The row responds to a tap at all. `false` ⟹ render it with no ripple and no underlay:
    *  a press feedback the row can't honour is a promise it can't keep. */
   enabled: boolean;
-  /** Always a checkbox — the row *is* the control, the way a stack card's header is. */
+  /** Always a checkbox — the row *is* the control. */
   role: 'checkbox';
   checked: boolean;
   /** The visible first line — the name, exactly as stored. Kept apart from {@link label}: the
@@ -40,6 +41,8 @@ export type LooseRowContract = {
   /** The optional second line: what an exchange displaces, or what a habit is asking for (see
    *  {@link habitMetaLine}). Empty when the name is the whole of it. */
   meta: string;
+  /** A count goal partway to its target: how much of the ring to draw. Absent otherwise. */
+  fraction?: number;
 };
 
 /**
@@ -65,13 +68,18 @@ export function habitMetaLine({
   targetUnit,
   scheduleDays,
   hijriSchedule,
+  count = 0,
+  done = false,
 }: {
   targetCount: number | null;
   targetUnit: string | null;
   scheduleDays: number[];
   hijriSchedule: HijriSchedule | null;
+  /** The viewed day's logged count, so a count goal partway reads "3 of 8 cups". */
+  count?: number;
+  done?: boolean;
 }): string {
-  const goal = targetCount ? `${targetCount}${targetUnit ? ` ${targetUnit}` : ''}` : '';
+  const goal = targetCount ? countGoalLabel(targetCount, targetUnit, count, done) : '';
   const schedule = hijriSchedule ? describeHijriSchedule(hijriSchedule) : describeWeekdays(scheduleDays);
   const when = schedule === 'Every day' ? '' : schedule;
   return [goal, when].filter(Boolean).join(' · ');
@@ -90,11 +98,14 @@ export function habitRowContract({
   meta,
   done,
   skipped,
+  count,
 }: {
   name: string;
   /** The second line, from {@link habitMetaLine} — a goal, a schedule, both, or empty. */
   meta: string;
   done: boolean;
+  /** A count goal's day so far, `{ count, target }`; absent on a binary habit. */
+  count?: { count: number; target: number };
   /** Excused for the viewed day. Outranks `done`: an excused row can't also be asserting. */
   skipped: boolean;
 }): LooseRowContract {
@@ -126,7 +137,8 @@ export function habitRowContract({
     // No ", done" here: that state is carried by `checked` on this same element, and saying it
     // twice is exactly what the stack header's label was cleaned up to stop doing.
     label: spoken,
-    hint: done ? 'Clears it for today.' : 'Marks it done for today.',
+    hint: done ? 'Clears it for today.' : count ? 'Counts one.' : 'Marks it done for today.',
     meta,
+    fraction: count && !done && count.target > 0 ? count.count / count.target : undefined,
   };
 }

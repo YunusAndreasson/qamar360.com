@@ -87,7 +87,13 @@ export function LooseRow({ contract, settling, onToggle, options }: Props) {
           {contract.mode === 'excused' ? (
             <AppIcon name="skip" size={20} color={theme.textSecondary} />
           ) : (
-            <CompletionRing complete={contract.mode === 'held'} size={24} strokeWidth={2} settling={settling} />
+            <CompletionRing
+              complete={contract.mode === 'held'}
+              fraction={contract.fraction}
+              size={24}
+              strokeWidth={2}
+              settling={settling}
+            />
           )}
         </View>
         <View style={styles.text}>

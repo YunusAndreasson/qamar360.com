@@ -107,7 +107,7 @@ function ScreenSky() {
 
   // Tonight's real sky over the observer (placed by timezone — no permission). The location is
   // re-read on each minute render (a cheap Intl + map lookup) so travel that changes the
-  // timezone self-corrects, the same way useSunCycle re-reads it per check. Recomputed once a
+  // timezone self-corrects. Recomputed once a
   // minute as the sky turns; the designed field is the graceful fallback if location or the
   // astronomy ever throws, so the backdrop never breaks.
   const { lat, lon } = deviceLocation();

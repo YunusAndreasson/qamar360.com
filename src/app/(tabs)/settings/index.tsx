@@ -42,7 +42,6 @@ export default function SettingsScreen() {
   // Every configurable preference, each defaulting to the behaviour the app shipped with — so a
   // user who never opens this screen has made no choices, and one who does can undo any of them.
   const hijriOffset = usePreference('hijriOffset');
-  const dayBands = usePreference('dayBands');
   const lunarUpdatesOn = usePreference('lunarUpdates');
   const hapticsOn = usePreference('haptics');
   const celebrateDay = usePreference('celebrateDay');
@@ -225,21 +224,14 @@ export default function SettingsScreen() {
         <ThemeSegmented />
       </View>
 
-      {/* The calendar — the settings that change what a date or a chapter *means*. Each defaults
-          to the app's own reckoning, and each says plainly what else it moves. */}
+      {/* The calendar — the setting that changes what a date *means*. It defaults to the app's own
+          reckoning, and says plainly what else it moves. */}
       <SettingsSection title="The day" footer="The Hijri date also moves habits scheduled on Hijri days.">
         <SettingsRow
           icon="calendar"
           label="Hijri date"
           value={describeHijriOffset(hijriOffset)}
           onPress={() => router.push('/settings/hijri-adjust')}
-          showChevron
-        />
-        <SettingsRow
-          icon="sunrise"
-          label="Times of day"
-          value={dayBands ? 'My times' : 'The sun'}
-          onPress={() => router.push('/settings/day-times')}
           showChevron
         />
       </SettingsSection>

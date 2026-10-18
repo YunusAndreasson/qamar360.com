@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Disabled, RowLeadingSlot, Spacing } from '@/constants/theme';
 import type { Habit } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
+import { countGoalLabel, toggleHint } from '@/lib/count-goal';
 
 /** The act mark's geometry — a smaller ring than the 24pt one the stack header wears above it,
  *  with a stroke scaled to match, so the two read as the same mark at two ranks. The header is the
@@ -25,6 +26,8 @@ type Props = {
   done: boolean;
   /** Excused for the viewed day — out of the sequence, but still shown so the stack reads whole. */
   skipped: boolean;
+  /** A count goal's logged count for the viewed day, while it is partway to its target. */
+  count?: number;
   /** Tick this act for the viewed day, or take it back. */
   onToggle: (habit: Habit) => void;
   /** Open this act's sheet (skip today / stats / edit / move). */
@@ -76,11 +79,13 @@ type Props = {
  * excused stack header does. Its `⋯` stays live: un-excusing is the one thing an inert row still
  * has to be able to undo.
  */
-function ActRowBase({ habit, ordinal, done, skipped, onToggle, onOptions, settling = false, onMove }: Props) {
+function ActRowBase({ habit, ordinal, done, skipped, count = 0, onToggle, onOptions, settling = false, onMove }: Props) {
   const theme = useTheme();
   const target = habit.target_count;
   const color = done ? theme.textDisabled : skipped ? theme.textSecondary : theme.text;
-  const goal = target != null ? `${target}${habit.target_unit ? ` ${habit.target_unit}` : ''}` : null;
+  const goal = target != null ? countGoalLabel(target, habit.target_unit, count, done) : null;
+  // A count partway to its target rests its ring part-drawn, as a stack header's does over its acts.
+  const fraction = target != null && target > 0 && !done ? count / target : undefined;
 
   return (
     // The commit region runs the row's full width and the `⋯` floats over its reserved right edge —
@@ -114,7 +119,7 @@ function ActRowBase({ habit, ordinal, done, skipped, onToggle, onOptions, settli
         accessibilityHint={
           skipped
             ? 'Excused today. Open its options to bring it back.'
-            : `${done ? 'Takes it back for today.' : 'Marks it done for today.'} Hold and drag to reorder the sequence.`
+            : `${toggleHint(done, target != null)} Hold and drag to reorder the sequence.`
         }
         accessibilityState={{ checked: done, disabled: skipped }}
         accessibilityActions={
@@ -139,7 +144,13 @@ function ActRowBase({ habit, ordinal, done, skipped, onToggle, onOptions, settli
           {skipped ? (
             <AppIcon name="skip" size={20} color={theme.textSecondary} />
           ) : (
-            <CompletionRing complete={done} size={ACT_RING.size} strokeWidth={ACT_RING.stroke} settling={settling} />
+            <CompletionRing
+              complete={done}
+              fraction={fraction}
+              size={ACT_RING.size}
+              strokeWidth={ACT_RING.stroke}
+              settling={settling}
+            />
           )}
         </View>
         {/* Clamped like every other row on the day. An act's name is free text, and this was the
@@ -151,8 +162,8 @@ function ActRowBase({ habit, ordinal, done, skipped, onToggle, onOptions, settli
         <ThemedText type="rowTitle" numberOfLines={2} style={[styles.name, { color }]}>
           {habit.name}
         </ThemedText>
-        {/* A count goal's target, read as part of the deed ("Drank water · 8 cups") rather than
-            operated: ticking the act logs it in full. flexShrink 0 — Android clips trailing
+        {/* A count goal's target, read as part of the deed ("Drank water · 8 cups"), and how far
+            through it the day is ("3 of 8 cups"): each tap counts one. flexShrink 0 — Android clips trailing
             flex-row text otherwise (the "Undo"→"Und" gotcha). */}
         {goal ? (
           <ThemedText type="small" themeColor="textDisabled" style={styles.target}>
@@ -208,6 +219,7 @@ function actPropsEqual(a: Props, b: Props): boolean {
     a.habit.target_unit === b.habit.target_unit &&
     a.ordinal === b.ordinal &&
     a.done === b.done &&
+    a.count === b.count &&
     a.skipped === b.skipped &&
     a.settling === b.settling &&
     a.onToggle === b.onToggle &&

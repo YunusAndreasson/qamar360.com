@@ -8,13 +8,10 @@ import { asDayPart, type DayPart } from '@/lib/sun';
  *  - **identity**: the stack's leading emblem is the moment's icon, worn always — so two
  *    night stacks are never two moons ("Going to bed" wears the zzz-moon, "ʿIshāʾ" the
  *    starry one).
- *  - **the cycle**: each moment maps to a {@link DayPart} band underneath; the current
- *    band's first open stack lights up ("now" is said by light alone). Friday moments
- *    (Jumuʿah) light by weekday instead.
- *  - **the caption**: only SKY moments show "until HH:MM" (the band's closing time — a sky
- *    fact). Prayer moments never carry a clock: the app's standing rule is that it never
- *    publishes a time to pray by (its location is timezone-derived, ±20 min — fine for sky
- *    gradients, disqualifying for prayer times).
+ *  - **the day's order**: each moment maps to a {@link DayPart} band underneath, which places a
+ *    new stack in the day's sequence. Nothing reacts to which band the clock is in: the
+ *    time-of-day lighting and its "until HH:MM" caption were removed (2026-10-18). Jumuʿah has
+ *    no band; it is a weekday moment.
  *
  * The four sky moments share their keys with {@link DayPart} — a legacy `day_part`-only row
  * (or a stale cached snapshot without the column) resolves through {@link momentOf} unchanged.
@@ -47,30 +44,25 @@ export type MomentDef = {
   icon: IconName;
   /** The day-cycle band the moment lives in; null only for weekday moments. */
   band: DayPart | null;
-  /** Lights all of Friday (weekday-scoped, not hour-scoped). */
-  friday?: boolean;
-  /** Show the band's "until HH:MM" closing time while lit — sky moments only. */
-  until?: boolean;
 };
 
 const MOMENT_DEFS = {
   // ── Sky (the four day parts; keys == DayPart) ───────────────────────────
   // No deed to name: a band opening is something the sun does, not something you did. Kept
   // because they carry the day's light and the legacy `day_part` rows, but filed last.
-  morning: { label: 'Morning', stackName: 'Morning', icon: 'sunrise', band: 'morning', until: true },
-  midday: { label: 'Midday', stackName: 'Midday', icon: 'sun', band: 'midday', until: true },
-  evening: { label: 'Evening', stackName: 'Evening', icon: 'sunset', band: 'evening', until: true },
-  night: { label: 'Night', stackName: 'Night', icon: 'moon', band: 'night', until: true },
+  morning: { label: 'Morning', stackName: 'Morning', icon: 'sunrise', band: 'morning' },
+  midday: { label: 'Midday', stackName: 'Midday', icon: 'sun', band: 'midday' },
+  evening: { label: 'Evening', stackName: 'Evening', icon: 'sunset', band: 'evening' },
+  night: { label: 'Night', stackName: 'Night', icon: 'moon', band: 'night' },
   // ── Life moments — each one an act with an unmistakable finish ───────────
-  'waking-up': { label: 'Woke up', stackName: 'Waking up', icon: 'wake', band: 'morning', until: true },
+  'waking-up': { label: 'Woke up', stackName: 'Waking up', icon: 'wake', band: 'morning' },
   'before-dawn': {
     label: 'Woke in the night',
     stackName: 'Rising at night',
     icon: 'preDawn',
     band: 'night',
-    until: true,
   },
-  bedtime: { label: 'Got into bed', stackName: 'Getting into bed', icon: 'bedtime', band: 'night', until: true },
+  bedtime: { label: 'Got into bed', stackName: 'Getting into bed', icon: 'bedtime', band: 'night' },
   // ── Prayers (sun-position icons — their windows are solar by definition) ─
   // The strongest cues in the app: a prayer has a definite end, happens daily, and is already
   // automatic. The anchor is *having prayed it*, never the hour it falls in.
@@ -88,7 +80,7 @@ const MOMENT_DEFS = {
   isha: { label: 'Prayed ʿIshāʾ', stackName: 'ʿIshāʾ', icon: 'isha', band: 'night' },
   // Anchored to the prayer, not to the weekday: "it became Friday" is a date, "I prayed
   // Jumuʿah" is a deed you can hang something on.
-  jumuah: { label: 'Prayed Jumuʿah', stackName: 'Jumuʿah', icon: 'jumuah', band: null, friday: true },
+  jumuah: { label: 'Prayed Jumuʿah', stackName: 'Jumuʿah', icon: 'jumuah', band: null },
 } satisfies Record<string, MomentDef>;
 
 export type MomentKey = keyof typeof MOMENT_DEFS;

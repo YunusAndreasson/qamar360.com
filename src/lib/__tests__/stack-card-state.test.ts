@@ -2,83 +2,42 @@ import { describe, expect, it } from '@jest/globals';
 
 import { stackHeaderContract } from '@/lib/stack-card-state';
 
-const base = { name: 'Before sleep', memberCount: 3, openCount: 3, sealed: false, lit: false };
+const base = { name: 'Before sleep', memberCount: 3, openCount: 3 };
 
 describe('stackHeaderContract', () => {
   describe('mode', () => {
     it('invites on a stack with no acts yet', () => {
       const header = stackHeaderContract({ ...base, memberCount: 0, openCount: 0 });
       expect(header.mode).toBe('add');
-      expect(header.enabled).toBe(true);
-      expect(header.checked).toBeUndefined();
-      // It only navigates — there is no state to toggle, so it must not announce as a checkbox.
-      expect(header.role).toBe('button');
       // The empty card is the one entry the grid won't lift.
       expect(header.hint).not.toMatch(/drag/i);
     });
 
-    it('goes inert when every act is excused today', () => {
-      const header = stackHeaderContract({ ...base, openCount: 0 });
-      expect(header.mode).toBe('excused');
-      expect(header.enabled).toBe(false);
-      expect(header.checked).toBe(false);
-      expect(header.label).toContain('every act excused today');
-      // Nothing to assert, so the hint must not promise a seal.
-      expect(header.hint).not.toMatch(/marks all/i);
+    it('opens and closes the sequence once the stack has acts', () => {
+      expect(stackHeaderContract(base).mode).toBe('fold');
     });
 
-    it('seals when at least one act is in play', () => {
-      const header = stackHeaderContract(base);
-      expect(header.mode).toBe('seal');
-      expect(header.enabled).toBe(true);
-    });
-
-    // An excused-but-otherwise-complete stack is NOT sealed (isStackComplete returns false for an
-    // empty open set), so `excused` has to win over `sealed` or the header would offer an undo
-    // for a seal that never happened.
-    it('prefers excused over sealed when the two could both apply', () => {
-      expect(stackHeaderContract({ ...base, openCount: 0, sealed: true }).mode).toBe('excused');
-    });
-  });
-
-  describe('checked', () => {
-    it.each([
-      ['open', base],
-      ['sealed', { ...base, sealed: true }],
-      ['excused', { ...base, openCount: 0 }],
-    ])('announces a sealable header as a checkbox (%s)', (_name, input) => {
-      expect(stackHeaderContract(input).role).toBe('checkbox');
-    });
-
-    it('is false while the stack is open', () => {
-      expect(stackHeaderContract(base).checked).toBe(false);
-    });
-
-    it('is true once the stack is sealed', () => {
-      expect(stackHeaderContract({ ...base, sealed: true }).checked).toBe(true);
+    // The acts are what you tick, and an excused act can still be un-excused from its own row, so
+    // a stack whose every act is excused today still has a sequence worth opening.
+    it('still opens when every act is excused today', () => {
+      expect(stackHeaderContract({ ...base, openCount: 0 }).mode).toBe('fold');
     });
   });
 
   describe('hint', () => {
-    it('promises the seal, counting only the acts in play', () => {
-      const header = stackHeaderContract({ ...base, memberCount: 5, openCount: 3 });
-      expect(header.hint).toBe('Marks all 3 acts done for today. Hold and drag to reorder it.');
+    it('says what a tap does to the fold', () => {
+      expect(stackHeaderContract(base).hint).toBe('Shows its acts. Hold and drag to reorder it.');
+      expect(stackHeaderContract({ ...base, expanded: true }).hint).toBe('Hides its acts. Hold and drag to reorder it.');
     });
 
-    // Acts tick on their own now, so the header's tap finishes what is left rather than doing all
-    // of it — promising "all 3" would name work already behind the reader.
-    it('promises only the remainder once some acts are ticked', () => {
-      const header = stackHeaderContract({ ...base, openCount: 3, doneCount: 2 });
-      expect(header.hint).toBe('Marks the remaining 1 act done for today. Hold and drag to reorder it.');
-    });
-
-    it('offers the way back out once sealed', () => {
-      const header = stackHeaderContract({ ...base, sealed: true });
-      expect(header.hint).toBe('Re-opens the stack for today. Hold and drag to reorder it.');
-    });
-
-    it('says "1 act", not "1 acts"', () => {
-      expect(stackHeaderContract({ ...base, memberCount: 1, openCount: 1 }).hint).toContain('all 1 act done');
+    // The header used to seal the whole stack; it must not promise a write it no longer makes.
+    it.each([
+      ['open', base],
+      ['part done', { ...base, doneCount: 2 }],
+      ['done', { ...base, doneCount: 3 }],
+      ['excused', { ...base, openCount: 0 }],
+    ])('never promises to mark acts done (%s)', (_name, input) => {
+      expect(stackHeaderContract(input).hint).not.toMatch(/marks|re-opens|done/i);
     });
   });
 
@@ -90,17 +49,15 @@ describe('stackHeaderContract', () => {
       expect(stackHeaderContract({ ...base, doneCount: 0 }).summary).toBe('3 acts');
     });
 
-    // The whole point of the field now that acts tick individually: every value in between is
-    // reachable, and it is the one thing the ring can only approximate.
     it('counts how far through the sequence you are', () => {
       expect(stackHeaderContract({ ...base, doneCount: 2 }).summary).toBe('2 of 3 acts done');
     });
 
-    it('still says it at the top of the range, where the stack has sealed', () => {
-      expect(stackHeaderContract({ ...base, doneCount: 3, sealed: true }).summary).toBe('3 of 3 acts done');
+    it('still says it at the top of the range, where the stack is kept', () => {
+      expect(stackHeaderContract({ ...base, doneCount: 3 }).summary).toBe('3 of 3 acts done');
     });
 
-    it('counts only the acts a seal would assert', () => {
+    it('counts only the acts in play', () => {
       expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3 }).summary).toBe('3 acts');
       // An excused act is out of the sequence, so it is out of both halves of the count.
       expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3, doneCount: 1 }).summary).toBe(
@@ -123,13 +80,13 @@ describe('stackHeaderContract', () => {
   });
 
   describe('label', () => {
-    it('names the stack and how much a seal would commit', () => {
+    it('names the stack and its length', () => {
       expect(stackHeaderContract({ ...base, memberCount: 5, openCount: 3 }).label).toBe(
         'Before sleep stack, 3 acts',
       );
     });
 
-    // The sub-line and the label are the same fact, so they say it in the same words — a screen
+    // The sub-line and the label are the same fact, so they say it in the same words: a screen
     // reader gets the progress the ring is drawing for everyone else.
     it('carries the progress the sub-line shows', () => {
       const header = stackHeaderContract({ ...base, doneCount: 2 });
@@ -137,33 +94,21 @@ describe('stackHeaderContract', () => {
       expect(header.label).toContain(header.summary);
     });
 
-    it('explains the clock, with its closing time when the moment publishes one', () => {
-      expect(stackHeaderContract({ ...base, lit: true, until: '9:47 PM' }).label).toBe(
-        'Before sleep stack, current time of day until 9:47 PM, 3 acts',
+    it('says how many acts an excused stack holds', () => {
+      expect(stackHeaderContract({ ...base, openCount: 0 }).label).toBe(
+        'Before sleep stack, 3 acts, every act excused today',
       );
     });
 
-    it('says the moment is current without a clock for one that has none (the prayers)', () => {
-      expect(stackHeaderContract({ ...base, lit: true }).label).toBe(
-        'Before sleep stack, current time of day, 3 acts',
-      );
-    });
-
-    it('says "1 act", not "1 acts"', () => {
-      expect(stackHeaderContract({ ...base, memberCount: 1, openCount: 1 }).label).toContain('1 act');
-    });
-
-    // Both states now live on `accessibilityState` — sealed as `checked` here, folded as
-    // `expanded` on the chevron beside it. Repeating either in the label would announce it twice.
+    // Open/closed lives on `accessibilityState.expanded`; repeating it in the label would announce
+    // it twice.
     it.each([
-      ['sealed', { ...base, sealed: true }],
       ['folded', base],
-      ['excused', { ...base, openCount: 0 }],
+      ['open', { ...base, expanded: true }],
       ['empty', { ...base, memberCount: 0, openCount: 0 }],
-    ])('never spells out the state itself (%s)', (_name, input) => {
+    ])('never spells out the fold state (%s)', (_name, input) => {
       const { label } = stackHeaderContract(input);
-      expect(label).not.toMatch(/sealed/i);
-      expect(label).not.toMatch(/collapsed/i);
+      expect(label).not.toMatch(/collapsed|expanded|sealed/i);
     });
   });
 });

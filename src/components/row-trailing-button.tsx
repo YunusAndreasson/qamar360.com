@@ -9,12 +9,10 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * The second verb on a row, at its right edge.
  *
- * Every row on Today that commits something — a stack card's header, a habit, an exchange, a to-do —
- * carries exactly one of these, and the bar beside it reserves exactly {@link TRAILING_BOX} so a
- * long name stops where the button begins. What the glyph is depends on what the row has: a chevron
- * where there is more to *read* (only the stack card, which hides a sequence), a `⋯` where there are
- * things to *do*. One construction for both, or they drift in box, target and press behaviour — as
- * they did while the fold owned this geometry alone.
+ * Every row on Today that commits something (an act, a habit, an exchange, a to-do) carries one of
+ * these, a `⋯` to the things you can *do* to it, and the bar beside it reserves exactly
+ * {@link TRAILING_BOX} so a long name stops where the button begins. The stack card's chevron sits on
+ * the same line in the same box, but is no button of its own: the whole header opens the fold.
  *
  * It is FLOATED over the bar's reserved edge rather than laid out beside it: side by side, the bar's
  * press highlight stops short of the card's right edge and reads as half-lit under the finger.
@@ -28,21 +26,16 @@ import { useTheme } from '@/hooks/use-theme';
  * No haptic: `haptics.ts` says never buzz for disclosure, and opening a menu is the same class of
  * nothing-has-happened-yet.
  */
-export function RowTrailingButton({
+function RowTrailingButton({
   icon,
   label,
   hint,
-  expanded,
   onPress,
 }: {
   icon: IconName;
-  /** A STABLE name for what this opens ("Fajr acts", "Manage Chose water"). Where `expanded` is
-   *  published, it already says which way the control goes; a label that flipped too would
-   *  announce the state twice. */
+  /** A STABLE name for what this opens ("Manage Chose water"). */
   label: string;
   hint: string;
-  /** Only a disclosure publishes this. A menu door has no expanded state to speak. */
-  expanded?: boolean;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -52,7 +45,6 @@ export function RowTrailingButton({
       androidRipple={{ color: theme.backgroundSelected, borderless: true }}
       activeOpacity={Pressed.dim}
       accessibilityRole="button"
-      accessibilityState={expanded === undefined ? undefined : { expanded }}
       accessibilityLabel={label}
       accessibilityHint={hint}
       style={styles.button}>

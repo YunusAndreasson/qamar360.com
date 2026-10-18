@@ -4,6 +4,7 @@ import { FormSheet, SheetActions } from '@/components/form-sheet';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
+import { countGoalLabel } from '@/lib/count-goal';
 import { dayInSentence } from '@/lib/dates';
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
@@ -28,7 +29,7 @@ import { haptics } from '@/lib/haptics';
 export default function ActActionsScreen() {
   const router = useRouter();
   const { habitId } = useLocalSearchParams<{ habitId?: string }>();
-  const { habits, skipped, skipHabit, deleteHabit, today, viewDate } = useHabits();
+  const { habits, completed, skipped, counts, skipHabit, takeOneBack, deleteHabit, today, viewDate } = useHabits();
 
   const habit = habits.find((h) => h.id === habitId) ?? null;
 
@@ -43,6 +44,17 @@ export default function ActActionsScreen() {
   // sequence. Standing on its own it is a **habit**, which is what the section it sits in is called
   // and what the row's own "Manage habit" promised. An exchange is neither.
   const noun = exchange ? 'exchange' : habit.stack_id ? 'act' : 'habit';
+
+  // A count goal is counted one tap at a time on the row; the correction for a tap too many lives
+  // here, out of the way of the count. Offered only while something is logged to take back.
+  const target = habit.target_count;
+  const done = completed.has(habit.id);
+  const logged = done && target != null ? target : (counts.get(habit.id) ?? 0);
+  const canTakeBack = target != null && target > 0 && !isSkipped && logged > 0;
+  const takeBack = () => {
+    void takeOneBack(habit.id);
+    router.back();
+  };
 
   const toggleSkip = () => {
     void skipHabit(habit.id);
@@ -79,6 +91,14 @@ export default function ActActionsScreen() {
     <FormSheet title={habit.name} subtitle={noun.charAt(0).toUpperCase() + noun.slice(1)}>
       <SheetActions
         actions={[
+          canTakeBack
+            ? {
+                icon: 'undo',
+                label: 'Take one back',
+                sublabel: `${logged} of ${countGoalLabel(target, habit.target_unit)} logged ${dayInSentence(viewDate, today)}`,
+                onPress: takeBack,
+              }
+            : null,
           {
             // "Today" only when it is: on a backfilled day the row has to name the day it excuses.
             icon: 'skip',

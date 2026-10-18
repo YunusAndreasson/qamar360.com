@@ -35,6 +35,13 @@ describe('guides', () => {
     for (const section of guide.sections) expect(section.heading.endsWith('.')).toBe(true);
   });
 
+  // Acts inside a stack tick one at a time (2026-09-08), and the header no longer seals the group
+  // in one tap. The guide is the one place the stack is taught, so it must not teach the old rule.
+  it('does not teach the retired one-tap seal', () => {
+    const prose = STACKING_GUIDE.sections.map((s) => s.body).join(' ');
+    expect(prose).not.toMatch(/one tap seals|only thing the app records|aren’t a checklist/i);
+  });
+
   it('gives the two guides distinct ids', () => {
     expect(new Set(GUIDES.map((g) => g.id)).size).toBe(GUIDES.length);
   });

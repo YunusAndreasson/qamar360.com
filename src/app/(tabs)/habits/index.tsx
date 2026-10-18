@@ -33,11 +33,10 @@ import { useDayRecord } from '@/hooks/use-day-record';
 import { type Habit, type HabitStack, useHabits } from '@/hooks/use-habits';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStackActions } from '@/hooks/use-stack-actions';
-import { useSunCycle } from '@/hooks/use-sun-cycle';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
-import { addDaysISO, dayTitle, localDate, scheduledOn } from '@/lib/dates';
+import { addDaysISO, dayTitle, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
   flattenUnits,
@@ -50,9 +49,8 @@ import {
 import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { phaseOn } from '@/lib/lunar-phase';
-import { MOMENTS, momentBand, momentOf } from '@/lib/moments';
+import { momentBand, momentOf } from '@/lib/moments';
 import { usePreference } from '@/lib/preferences';
-import { isStackComplete } from '@/lib/progress';
 import { DAY_PARTS } from '@/lib/sun';
 import type { Task } from '@/lib/tasks';
 
@@ -78,9 +76,8 @@ type StackEntryProps = {
   index: number;
   completed: Set<string>;
   skipped: Set<string>;
+  counts: ReadonlyMap<string, number>;
   settling: boolean;
-  onSeal: (stackId: string) => void;
-  onUnseal: (stackId: string) => void;
   onToggleAct: (habit: Habit) => void;
   onAct: (habit: Habit) => void;
   onEditStack: (stackId: string) => void;
@@ -89,8 +86,6 @@ type StackEntryProps = {
   onAddHabits: (stackId: string) => void;
   expanded: boolean;
   onSetExpanded: (stackId: string, expanded: boolean) => void;
-  isCurrentChapter: boolean;
-  currentChapterUntil: string | undefined;
 };
 
 function StackEntryBase({
@@ -98,9 +93,8 @@ function StackEntryBase({
   index,
   completed,
   skipped,
+  counts,
   settling,
-  onSeal,
-  onUnseal,
   onToggleAct,
   onAct,
   onEditStack,
@@ -109,8 +103,6 @@ function StackEntryBase({
   onAddHabits,
   expanded,
   onSetExpanded,
-  isCurrentChapter,
-  currentChapterUntil,
 }: StackEntryProps) {
   return (
     <DraggableEntry
@@ -125,9 +117,8 @@ function StackEntryBase({
         members={entry.members}
         completed={completed}
         skipped={skipped}
+        counts={counts}
         settling={settling}
-        onSeal={onSeal}
-        onUnseal={onUnseal}
         onToggleAct={onToggleAct}
         onAct={onAct}
         onEditStack={onEditStack}
@@ -136,8 +127,6 @@ function StackEntryBase({
         onAddHabits={onAddHabits}
         expanded={expanded}
         onSetExpanded={onSetExpanded}
-        isCurrentChapter={isCurrentChapter}
-        currentChapterUntil={currentChapterUntil}
       />
     </DraggableEntry>
   );
@@ -154,8 +143,6 @@ const StackEntry = memo(StackEntryBase, (prev, next) => {
     prev.entry !== next.entry ||
     prev.index !== next.index ||
     prev.settling !== next.settling ||
-    prev.onSeal !== next.onSeal ||
-    prev.onUnseal !== next.onUnseal ||
     prev.onToggleAct !== next.onToggleAct ||
     prev.onAct !== next.onAct ||
     prev.onEditStack !== next.onEditStack ||
@@ -163,16 +150,15 @@ const StackEntry = memo(StackEntryBase, (prev, next) => {
     prev.onMoveHabit !== next.onMoveHabit ||
     prev.onAddHabits !== next.onAddHabits ||
     prev.expanded !== next.expanded ||
-    prev.onSetExpanded !== next.onSetExpanded ||
-    prev.isCurrentChapter !== next.isCurrentChapter ||
-    prev.currentChapterUntil !== next.currentChapterUntil
+    prev.onSetExpanded !== next.onSetExpanded
   ) {
     return false;
   }
   return next.entry.members.every(
     (member) =>
       prev.completed.has(member.id) === next.completed.has(member.id) &&
-      prev.skipped.has(member.id) === next.skipped.has(member.id),
+      prev.skipped.has(member.id) === next.skipped.has(member.id) &&
+      prev.counts.get(member.id) === next.counts.get(member.id),
   );
 });
 
@@ -189,6 +175,7 @@ export default function HabitsScreen() {
     stacks,
     completed,
     skipped,
+    counts,
     loading,
     completionsLoading,
     error,
@@ -196,8 +183,6 @@ export default function HabitsScreen() {
     viewDate,
     isToday,
     setViewDate,
-    sealStack,
-    unsealStack,
     toggleAct,
     toggleLoose,
     moveHabit,
@@ -366,36 +351,6 @@ export default function HabitsScreen() {
     }
     return out.sort((a, b) => a.sortKey - b.sortKey);
   }, [visibleHabits, habits, stacks]);
-
-  // The live day-cycle chapter (updates only at real transitions — ~4× a day, never per minute).
-  // The FIRST *open* stack in list order whose moment lives in the current band is the day's
-  // current one, and only on the real today — a past day has no "now". When that stack seals, the
-  // mark passes to the next open stack of the band (the day progressing through its stacks). Sky
-  // moments carry the band's closing time in the header ("until 21:47"); prayer moments never
-  // carry a clock (the no-prayer-times rule). Friday moments (Jumuʿah) count as current by
-  // weekday, all day, independent of the hourly cursor.
-  const { dayPart, partEndsAt } = useSunCycle();
-  const inBand = (e: Entry) => momentBand(momentOf(e.stack)) === dayPart;
-  // Prefer a populated, still-open stack (the light passes on seal); fall back to any band
-  // match so a lone empty card can still invite. All-sealed ends dark either way (the card
-  // itself suppresses the light once complete).
-  const sunEntry = isToday
-    ? (entries.find((e) => inBand(e) && e.members.length > 0 && !isStackComplete(e.members, completed, skipped)) ??
-      entries.find(inBand))
-    : undefined;
-  const sunStackId = sunEntry?.stack.id ?? null;
-  const chapterUntil = partEndsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const fridayToday = isToday && localDate(today).getDay() === 5;
-  const stackLit = (stack: HabitStack) => {
-    if (stack.id === sunStackId) return true;
-    const m = momentOf(stack);
-    return !!m && !!MOMENTS[m].friday && fridayToday;
-  };
-  const stackUntil = (stack: HabitStack) => {
-    if (stack.id !== sunStackId) return undefined;
-    const m = momentOf(stack);
-    return m && MOMENTS[m].until ? chapterUntil : undefined;
-  };
 
   // Whether the TO DO card is ON SCREEN — which is not the same as whether there are to-dos.
   // `TaskSection` also renders for a composer that has been asked for, and "+ → To-do" is the
@@ -774,9 +729,8 @@ export default function HabitsScreen() {
                       index={index}
                       completed={completed}
                       skipped={skipped}
+                      counts={counts}
                       settling={completionsLoading}
-                      onSeal={sealStack}
-                      onUnseal={unsealStack}
                       onToggleAct={tickAct}
                       onAct={openAct}
                       onEditStack={openStackActions}
@@ -785,8 +739,6 @@ export default function HabitsScreen() {
                       onAddHabits={openAddHabits}
                       expanded={expandedIds.has(entry.stack.id)}
                       onSetExpanded={setCardExpanded}
-                      isCurrentChapter={stackLit(entry.stack)}
-                      currentChapterUntil={stackUntil(entry.stack)}
                     />
                   ))}
                   <HabitsDragGhost
@@ -794,9 +746,8 @@ export default function HabitsScreen() {
                     entries={entries}
                     completed={completed}
                     skipped={skipped}
+                    counts={counts}
                     expandedIds={expandedIds}
-                    stackLit={stackLit}
-                    stackUntil={stackUntil}
                   />
                 </DragGrid>
               </HabitDragProvider>
@@ -809,6 +760,7 @@ export default function HabitsScreen() {
             habits={looseHabits}
             completed={completed}
             skipped={skipped}
+            counts={counts}
             settling={completionsLoading}
             onToggle={tickLoose}
             onOptions={openAct}
@@ -839,21 +791,17 @@ function HabitsDragGhost({
   entries,
   completed,
   skipped,
+  counts,
   expandedIds,
-  stackLit,
-  stackUntil,
 }: {
   dragEntryKey: string | null;
   entries: Entry[];
   completed: Set<string>;
   skipped: Set<string>;
+  counts: ReadonlyMap<string, number>;
   /** The list's fold state, shared verbatim: the drag math measures the ORIGINAL card's height at
    *  lift, so a ghost that folded differently would be a different size from the hole it left. */
   expandedIds: ReadonlySet<string>;
-  /** The screen's "which moment is now" rules, shared so the ghost carries the same "until"
-   *  caption as the card it copies. */
-  stackLit: (stack: HabitStack) => boolean;
-  stackUntil: (stack: HabitStack) => string | undefined;
 }) {
   if (!dragEntryKey) return null;
   // A travelling act keeps its own bare look — it is going to another sequence, not becoming a
@@ -871,6 +819,7 @@ function HabitsDragGhost({
             ordinal={stack.members.filter((m) => !skipped.has(m.id)).findIndex((m) => m.id === habitId) + 1}
             done={completed.has(member.id)}
             skipped={skipped.has(member.id)}
+            count={counts.get(member.id)}
             onToggle={noop}
             onOptions={noop}
           />
@@ -887,15 +836,12 @@ function HabitsDragGhost({
         members={entry.members}
         completed={completed}
         skipped={skipped}
-        onSeal={noop}
-        onUnseal={noop}
+        counts={counts}
         onToggleAct={noop}
         onAct={noop}
         onEditStack={noop}
         expanded={expandedIds.has(entry.stack.id)}
         onSetExpanded={noop}
-        isCurrentChapter={stackLit(entry.stack)}
-        currentChapterUntil={stackUntil(entry.stack)}
       />
     </DragGhost>
   );

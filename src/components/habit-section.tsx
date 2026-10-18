@@ -15,6 +15,8 @@ type Props = {
   habits: Habit[];
   completed: Set<string>;
   skipped: Set<string>;
+  /** The viewed day's logged count per count goal. */
+  counts: ReadonlyMap<string, number>;
   /** The viewed day's completions are being (re)fetched after a day-step. */
   settling: boolean;
   onToggle: (habit: Habit) => void;
@@ -41,7 +43,7 @@ type Props = {
  * special one, so it reads first. Outside the drag layer for the same reason the exchanges are:
  * there is no slot in the day's order to drag it into.
  */
-export function HabitSection({ habits: loose, completed, skipped, settling, onToggle, onOptions }: Props) {
+export function HabitSection({ habits: loose, completed, skipped, counts, settling, onToggle, onOptions }: Props) {
   const { show } = useToast();
   const { presets } = useCatalog();
   const { habits, stacks, createStack, updateStack, moveHabit, reorderHabits } = useHabits();
@@ -143,6 +145,7 @@ export function HabitSection({ habits: loose, completed, skipped, settling, onTo
           habit={habit}
           done={completed.has(habit.id)}
           skipped={skipped.has(habit.id)}
+          count={counts.get(habit.id)}
           settling={settling}
           onToggle={onToggle}
           onOptions={onOptions}

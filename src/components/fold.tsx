@@ -2,54 +2,14 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { RowTrailingButton } from '@/components/row-trailing-button';
 import { Collapse, Ease } from '@/constants/motion';
 
 import type { ReactNode } from 'react';
 
 /**
- * The disclosure the stack card wears — the one thing on Today with content worth hiding.
- *
- * It dressed the exchange and habit rows too, for a while, for the symmetry. That was the wrong
- * kind of consistency: a stack's chevron opens onto its sequence, while a loose row's opened onto a
- * two-word schedule and a menu door — one signifier, two very different payoffs, which is how a
- * disclosure stops being trusted. Those rows carry a `⋯` instead (`RowOptionsButton`), and the
- * chevron now means one thing: **there is more of this to read.**
- */
-
-/**
- * The disclosure chevron. Geometry, target and press behaviour come from {@link RowTrailingButton},
- * shared with the `⋯` so the two can't drift; what belongs to the fold is the glyph **swap** (never
- * a rotation — the house idiom, see `expandable-add-row.tsx`) and the `expanded` state it publishes.
- */
-export function FoldToggle({
-  expanded,
-  onPress,
-  label,
-  hint,
-}: {
-  expanded: boolean;
-  onPress: () => void;
-  /** A STABLE name for what the fold hides ("Fajr acts"). `expanded` already says which way it
-   *  goes; a label that flipped too would announce the state twice. */
-  label: string;
-  hint: string;
-}) {
-  return (
-    <RowTrailingButton
-      icon={expanded ? 'expandLess' : 'expandMore'}
-      expanded={expanded}
-      label={label}
-      hint={hint}
-      onPress={onPress}
-    />
-  );
-}
-
-/**
  * The body that folds shut: an overflow-clipped wrapper whose height and opacity ride a `progress`
- * value between the measured content height and 0. The bar stays OUTSIDE this, so it is always
- * tappable.
+ * value between the measured content height and 0. The stack card's header stays OUTSIDE this, so
+ * it is always tappable and is what opens it.
  *
  * The animation contract, learned the hard way and not to be re-litigated:
  *

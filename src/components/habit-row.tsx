@@ -10,6 +10,8 @@ type Props = {
   done: boolean;
   /** Excused for the viewed day: out of the rate entirely, and the row goes inert. */
   skipped: boolean;
+  /** A count goal's logged count for the viewed day. */
+  count?: number;
   /** The viewed day's completions are being (re)fetched after a day-step. */
   settling: boolean;
   /** Tick it, or take it back. */
@@ -32,7 +34,7 @@ type Props = {
  * `dayCloseAfter` counts every scheduled, unexcused habit, so one of these could hold the day open
  * forever while offering nothing to complete. Being tickable *is* the fix.
  */
-function HabitRowBase({ habit, done, skipped, settling, onToggle, onOptions }: Props) {
+function HabitRowBase({ habit, done, skipped, count = 0, settling, onToggle, onOptions }: Props) {
   return (
     <LooseRow
       contract={habitRowContract({
@@ -42,9 +44,12 @@ function HabitRowBase({ habit, done, skipped, settling, onToggle, onOptions }: P
           targetUnit: habit.target_unit,
           scheduleDays: habit.schedule_days,
           hijriSchedule: habit.hijri_schedule,
+          count,
+          done,
         }),
         done,
         skipped,
+        count: habit.target_count != null ? { count, target: habit.target_count } : undefined,
       })}
       settling={settling}
       onToggle={() => onToggle(habit)}
@@ -68,6 +73,7 @@ function habitPropsEqual(a: Props, b: Props): boolean {
     a.habit.schedule_days === b.habit.schedule_days &&
     a.habit.hijri_schedule === b.habit.hijri_schedule &&
     a.done === b.done &&
+    a.count === b.count &&
     a.skipped === b.skipped &&
     a.settling === b.settling &&
     a.onToggle === b.onToggle &&
