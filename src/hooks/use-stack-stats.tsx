@@ -1,11 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit, type HabitStack } from '@/hooks/use-habits';
-import { useLatestRef } from '@/hooks/use-latest-ref';
-import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
+import { useHistoryRead } from '@/hooks/use-history-read';
 import { fetchCompletionRows } from '@/lib/completion-reads';
-import { addDaysISO, todayLocalISO } from '@/lib/dates';
+import { addDaysISO } from '@/lib/dates';
 import { STATS_WINDOW_DAYS, type HabitStats } from '@/lib/habit-stats';
 import type { CompletionRow } from '@/lib/progress';
 import { computeStackStats } from '@/lib/stack-stats';
@@ -57,55 +56,22 @@ export function useStackStats(stackId: string): StackStatsData {
   // Sorted so a pure reorder — which changes nothing this screen measures — doesn't refetch.
   const memberKey = useMemo(() => members.map((m) => m.id).sort().join(','), [members]);
 
-  const [completions, setCompletions] = useState<CompletionRow[]>([]);
-  const [today, setToday] = useState<string>(() => todayLocalISO());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // The identity this hook instance currently serves — a fetch that lands after the identity moved
-  // on (user switch, stack param change, an act added or removed) must neither be reused nor write.
-  const identity = `${userId}:${stackId}:${memberKey}`;
-  const identityRef = useLatestRef(identity);
-  const todayRef = useLatestRef(today);
-
-  // Concurrent callers (mount preload, a focus refetch, pull-to-refresh) share one request — the
-  // one already in flight is milliseconds old and just as fresh. Keyed by identity so a request for
-  // a *previous* stack/user/membership is never handed to the new one.
-  const inFlight = useRef<{ key: string; work: Promise<void> } | null>(null);
-  const fetchData = useCallback(async () => {
-    if (!userId) return;
-    const key = identity;
-    if (inFlight.current?.key === key) return inFlight.current.work;
-    const day = todayLocalISO();
-    // The ids ARE the identity's third field — read them from it rather than from `members`, whose
-    // array identity churns on every habits update and would re-arm the fetch effect each time.
-    const ids = memberKey ? memberKey.split(',') : [];
-    const work = (async () => {
-      try {
-        const rows = await fetchStackCompletions(userId, ids, day);
-        if (identityRef.current !== key) return; // superseded mid-flight — discard
-        setToday(day);
-        setCompletions(rows);
-        setError(null);
-      } catch {
-        if (identityRef.current !== key) return;
-        setError("Could not load these stats. Pull down to try again.");
-      } finally {
-        if (inFlight.current?.key === key) inFlight.current = null;
-      }
-    })();
-    inFlight.current = { key, work };
-    return work;
-  }, [userId, identity, memberKey, identityRef]);
-
-  useRefreshLifecycle(userId, fetchData, todayRef, setLoading);
-
-  const dismissError = useCallback(() => setError(null), []);
+  const load = useCallback(
+    (userId: string, today: string) => fetchStackCompletions(userId, memberKey ? memberKey.split(',') : [], today),
+    [memberKey],
+  );
+  const { data: completions, today, ...read } = useHistoryRead<CompletionRow[]>(
+    userId,
+    `${userId}:${stackId}:${memberKey}`,
+    load,
+    [],
+    'Could not load these stats. Pull down to try again.',
+  );
 
   const stats = useMemo(
     () => (stack ? computeStackStats(members, completions, today) : null),
     [stack, members, completions, today],
   );
 
-  return { loading, error, dismissError, refresh: fetchData, stack, members, stats };
+  return { ...read, stack, members, stats };
 }

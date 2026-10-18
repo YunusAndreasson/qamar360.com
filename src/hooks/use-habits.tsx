@@ -767,6 +767,32 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   }, [goToDay, todayRef]);
 
   /**
+   * The beat for a habit just completed on `day` — shared by every path that completes one (a binary
+   * tick, inside a stack or on its own, and the count step that reaches its target), so what is
+   * felt and what the card shows can never drift apart.
+   *
+   * Whether this completion is the one that finishes its stack is resolved through `sealableActs`,
+   * the same way the card resolves its sealed look: the last open act borrows the seal's rounder
+   * tail beat, anything else (an act with acts still standing, a stackless habit, an exchange) gets
+   * the single crisp confirm. `completedRef` is mirrored in an effect and so does not yet hold this
+   * completion — hence the explicit id. Closing the live day also raises the overlay.
+   */
+  const celebrateDone = useCallback(
+    (habit: Habit, day: string) => {
+      const sealsStack =
+        !!habit.stack_id &&
+        sealableActs(habitsRef.current, skippedRef.current, habit.stack_id, day).every(
+          (h) => h.id === habit.id || completedRef.current.has(h.id),
+        );
+      const res = sealsStack
+        ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day)
+        : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day);
+      if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+    },
+    [showDayComplete, completedRef, habitsRef, skippedRef, todayRef],
+  );
+
+  /**
    * One step on a count goal for the viewed day: a tap adds one, `back` takes one away (see
    * `lib/count-goal.ts` for the rule). Serves a count goal wherever it sits, inside a stack or on
    * its own, so `toggleAct` and `toggleLoose` hand their count goals here and keep the binary write.
@@ -810,17 +836,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       });
 
       if (nowDone && !wasDone) {
-        // Resolved through `sealableActs`, as `runToggleAct` does, so the beat and the card's sealed
-        // look cannot disagree. `completedRef` does not hold this step yet, hence the explicit id.
-        const sealsStack =
-          !!habit.stack_id &&
-          sealableActs(habitsRef.current, skippedRef.current, habit.stack_id, day).every(
-            (h) => h.id === habitId || completedRef.current.has(h.id),
-          );
-        const res = sealsStack
-          ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day)
-          : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
-        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+        celebrateDone(habit, day);
       } else if (kind === 'tap' && step.status === 'partial') {
         // A count is not yet a deed done: the light tick of a counter, not the completion beat.
         haptics.selection();
@@ -861,28 +877,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, showDayComplete, completedRef, countsRef, habitsRef, skippedRef, todayRef, viewDateRef],
+    [userId, celebrateDone, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
   );
   const runTakeOneBack = useCallback((habitId: string) => runCountStep(habitId, 'back'), [runCountStep]);
   const takeOneBack = useGuardedMutation(completionGuard.begin, completionGuard.end, runTakeOneBack);
 
 
   /**
-   * Tick one act inside a stack for the viewed day, or take it back.
-   *
-   * Acts were once read-only, the stack's one-tap seal the only way to complete anything in it.
-   * `ActRow`'s doc has the argument for why that had to change, and the seal itself is gone now:
-   * this is the only way a stack completes. It lands an ordinary `done` row, so Progress, streaks
-   * and Stats know nothing about stacks. A count goal is counted instead, one tap per unit
-   * ({@link runCountStep}).
-   *
-   * **The last open act seals the stack**, with no separate write: `isStackComplete` reads the very
-   * rows this puts down, so the card's ring closes, its border flashes and it folds itself away the
-   * moment the final tick lands. The only thing that needs saying out loud is what it should *feel*
-   * like — a tick that closes the group borrows the seal's rounder tail beat, one that leaves acts
-   * standing gets the single crisp confirm.
+   * Tick any habit for the viewed day, or take it back. Count goals delegate to the
+   * one-unit writer. `celebrateDone` adds the group confirmation only when this closes a stack;
+   * loose habits and exchanges keep the single confirmation. Both public entry points use this
+   * same guarded write and rollback.
    */
-  const runToggleAct = useCallback(
+  const runToggleHabit = useCallback(
     async (habitId: string) => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
@@ -910,23 +917,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      if (wasDone) {
-        haptics.uncompleted();
-      } else {
-        // Whether this tick is the one that finishes the group. Membership resolved through
-        // `sealableActs`, the same way the seal resolves it, so the beat that fires and the sealed
-        // look the card computes can never disagree about what just happened. `completedRef` is
-        // mirrored in an effect and so does not yet hold this tick — hence the explicit id.
-        const sealsStack =
-          !!act.stack_id &&
-          sealableActs(habitsRef.current, skippedRef.current, act.stack_id, day).every(
-            (h) => h.id === habitId || completedRef.current.has(h.id),
-          );
-        const res = sealsStack
-          ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day)
-          : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
-        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
-      }
+      // Whether this tick is the one that finishes the group is `celebrateDone`'s to resolve, the
+      // same way the card resolves its sealed look.
+      if (wasDone) haptics.uncompleted();
+      else celebrateDone(act, day);
 
       try {
         if (wasDone) await deleteCompletion(habitId, day);
@@ -953,92 +947,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef, runCountStep],
+    [userId, celebrateDone, completedRef, habitsRef, skippedRef, viewDateRef, runCountStep],
   );
-  const toggleAct = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleAct);
-
-  /**
-   * Tick a stackless habit for the viewed day, or take it back — an exchange, or a plain habit
-   * that belongs to no stack.
-   *
-   * Neither of these belongs to a sequence — each is a separate claim about the day — so each gets
-   * its own tick, and doing two of three still counts for two. All-or-nothing would turn one slip
-   * into a lost day, which is precisely the dynamic (Marlatt's abstinence-violation effect) an
-   * exchange exists to avoid. The same argument now runs inside a stack too, one level down: see
-   * {@link runToggleAct}, which is this write with a group above it to seal.
-   *
-   * An unanchored habit was not always tickable, and that was a bug rather than a rule:
-   * `dayCloseAfter` counts every scheduled, unexcused habit, so one with no way to complete it held
-   * the day open forever, kept a phantom on the tab badge, and sat in the Progress denominator with
-   * a numerator that could never be anything but zero. This seam is the fix.
-   *
-   * What is recorded is the *deed*: an ordinary `done` row, exactly like a sealed act's, so
-   * degrees, streaks and Stats need to know nothing about any of this. Nothing anywhere records
-   * a day that didn't happen — a miss is simply the absence of a row.
-   */
-  const runToggleLoose = useCallback(
-    async (habitId: string) => {
-      if (!userId) return;
-      if (habitId.startsWith('temp-')) return; // not persisted yet
-      if (pending.current.has(habitId)) return; // ignore double-taps
-      // Excused today: there is nothing to assert. The row renders inert, but a mid-flight skip
-      // could still land a tap here, and writing a 'done' over a 'skipped' would silently undo it.
-      if (skippedRef.current.has(habitId)) return;
-      // A stackless habit with a count goal is counted, one tap per unit (an exchange never has one).
-      if ((habitsRef.current.find((h) => h.id === habitId)?.target_count ?? 0) > 0) {
-        await runCountStep(habitId, 'tap');
-        return;
-      }
-
-      const day = viewDateRef.current;
-      const wasHeld = completedRef.current.has(habitId);
-      pending.current.add(habitId);
-
-      setCompleted((prev) => {
-        const next = new Set(prev);
-        if (wasHeld) next.delete(habitId);
-        else next.add(habitId);
-        return next;
-      });
-
-      if (wasHeld) {
-        haptics.uncompleted();
-      } else {
-        // The same day-close seam the seal uses, so holding the last open thing of the day raises
-        // the overlay and counts the same degrees the Progress tab will.
-        const res = celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habitId]), day);
-        if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
-      }
-
-      try {
-        if (wasHeld) await deleteCompletion(habitId, day);
-        else
-          await upsertCompletion({
-            habit_id: habitId,
-            user_id: userId,
-            completed_at: day,
-            status: 'done',
-            // An exchange is binary by design — there is no partial version of "I did it instead".
-            count: null,
-          });
-      } catch {
-        // The day may have changed mid-flight; only roll back if we're still on it.
-        if (viewDateRef.current === day) {
-          setCompleted((prev) => {
-            const next = new Set(prev);
-            if (wasHeld) next.add(habitId);
-            else next.delete(habitId);
-            return next;
-          });
-        }
-        setError(UPDATE_ERROR);
-      } finally {
-        pending.current.delete(habitId);
-      }
-    },
-    [userId, showDayComplete, completedRef, habitsRef, skippedRef, todayRef, viewDateRef, runCountStep],
-  );
-  const toggleLoose = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleLoose);
+  const toggleHabit = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleHabit);
 
   // Toggle the day's "skipped" (excused) state for a habit — for legitimate misses
   // (travel, menstruation, …) that shouldn't count against the rate. Mirrors
@@ -1152,9 +1063,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // would re-read `habitsRef` before the prior optimistic insert committed and
       // could collide positions (and surface one error banner per habit).
       const base = habitsRef.current.reduce((max, h) => Math.max(max, h.position), -1) + 1;
-      const stamp = Date.now();
       const optimistic: Habit[] = clean.map((input, k) => ({
-        id: `temp-${stamp}-${k}`,
+        id: `temp-${newId()}`,
         user_id: userId,
         name: input.name,
         preset_id: input.preset_id ?? null,
@@ -1910,8 +1820,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       reload,
       setViewDate,
       createHabits,
-      toggleAct,
-      toggleLoose,
+      toggleAct: toggleHabit,
+      toggleLoose: toggleHabit,
       takeOneBack,
       skipHabit,
       updateHabit,
@@ -1941,8 +1851,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     reload,
     setViewDate,
     createHabits,
-    toggleAct,
-    toggleLoose,
+    toggleHabit,
     takeOneBack,
     skipHabit,
     updateHabit,

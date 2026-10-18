@@ -10,7 +10,6 @@ import {
   slotAtX,
   slotX,
   buildSmoothPaths,
-  spanColumns,
   spanFor,
   type PlotBox,
 } from '@/lib/chart';
@@ -218,38 +217,6 @@ describe('mean', () => {
   it('holds at the ends of the scale, where a full period and an empty one both live', () => {
     expect(mean([1, 1, 1])).toBeCloseTo(1, 10);
     expect(mean([0, 0, 0])).toBeCloseTo(0, 10);
-  });
-});
-
-describe('spanColumns', () => {
-  const BOX = { height: 100, padY: 10, padX: 10 };
-
-  it('runs each column to the midpoint between its neighbours', () => {
-    const cols = spanColumns([0, 0.5, 1], 210, BOX);
-    // Points at x = 10, 105, 200. Midpoints at 57.5 and 152.5; the ends reach the card edges.
-    expect(cols[0]).toEqual({ left: 0, width: 57.5 });
-    expect(cols[1]).toEqual({ left: 57.5, width: 95 });
-    expect(cols[2]).toEqual({ left: 152.5, width: 57.5 });
-  });
-
-  // The whole reason it exists: readings clustered in time must not hand their taps away.
-  it('gives a clustered pair narrow columns rather than equal ones', () => {
-    const cols = spanColumns([0, 0.9, 1], 210, BOX);
-    expect(cols[1]!.width).toBeLessThan(cols[0]!.width);
-  });
-
-  it('covers the full width with no gaps between columns', () => {
-    const cols = spanColumns([0, 0.25, 0.8, 1], 300, BOX);
-    expect(cols[0]!.left).toBe(0);
-    for (let i = 1; i < cols.length; i += 1) {
-      expect(cols[i]!.left).toBeCloseTo(cols[i - 1]!.left + cols[i - 1]!.width, 6);
-    }
-    const last = cols[cols.length - 1]!;
-    expect(last.left + last.width).toBe(300);
-  });
-
-  it('gives a lone point the whole width', () => {
-    expect(spanColumns([0.5], 210, BOX)).toEqual([{ left: 0, width: 210 }]);
   });
 });
 

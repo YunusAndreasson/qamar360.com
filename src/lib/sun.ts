@@ -17,6 +17,7 @@
  */
 import { Body, Observer, SearchRiseSet } from 'astronomy-engine';
 
+import { mixHex } from '@/lib/color';
 import { addDaysISO, localDate, todayLocalISO } from '@/lib/dates';
 import type { StarTier } from '@/lib/starfield';
 
@@ -101,18 +102,6 @@ function tent(alt: number, peak: number, lo: number, hi: number): number {
   return smoothstep(alt < peak ? (alt - lo) / (peak - lo) : (hi - alt) / (hi - peak));
 }
 
-/** Linear mix of two `#RRGGBB` colours, `t` toward `b`. */
-function mixHex(a: string, b: string, t: number): string {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
-  const ch = (shift: number) => {
-    const va = (pa >> shift) & 0xff;
-    const vb = (pb >> shift) & 0xff;
-    return Math.round(va + (vb - va) * t);
-  };
-  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0').toUpperCase()}`;
-}
-
 /** Half-width of the azimuth blend around the 0°/180° meridians (see {@link horizonTint}). */
 const MORNING_BLEND_SIN = Math.sin((15 * Math.PI) / 180);
 
@@ -138,7 +127,7 @@ export function horizonTint(sunAltDeg: number, sunAzDeg: number): { color: strin
   const cool = tent(sunAltDeg, -6, -13, 1) * (0.6 + 0.4 * morningness);
   const strength = Math.min(1, warm + cool);
   if (strength <= 0.02) return null;
-  return { color: mixHex(SUN_WARM, SUN_COOL, cool / (warm + cool)), opacity: TINT_PEAK * strength };
+  return { color: mixHex(SUN_WARM, SUN_COOL, cool / (warm + cool)).toUpperCase(), opacity: TINT_PEAK * strength };
 }
 
 /** Per-day sunset cache (the {@link dates.hijriParts} cache pattern). Keyed on day + rounded

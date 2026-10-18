@@ -13,9 +13,8 @@
  * set, or a day the app called sealed would read here as a miss.
  */
 
-import { scheduledOn } from '@/lib/dates';
 import { statsFromDailyCredit, STATS_WINDOW_DAYS, type DailyCredit, type HabitStats } from '@/lib/habit-stats';
-import { creditFor, type CompletionRow, type ProgressHabit } from '@/lib/progress';
+import { creditOnDay, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
 /** A stack's act, as the stats need it — `Habit` satisfies it structurally. */
 export type StackMemberHabit = ProgressHabit;
@@ -31,17 +30,17 @@ export type StackMemberHabit = ProgressHabit;
  *   {@link isStackComplete} refuses to call an all-excused stack complete.
  * - Otherwise ⟹ 1 only if every act still in play earned full credit.
  *
- * Fullness is read through the shared {@link creditFor} rather than by testing `status === 'done'`,
+ * Fullness is read through the shared {@link creditOnDay} rather than by testing `status === 'done'`,
  * so a count-goal act left short of its target can't quietly seal the day.
  */
-function stackCreditOn(members: readonly StackMemberHabit[], rowsFor: (id: string) => CompletionRow | undefined, iso: string): DailyCredit {
+function stackCreditOn(members: readonly StackMemberHabit[], creditForMember: (member: StackMemberHabit) => DailyCredit): DailyCredit {
   let due = 0;
   let open = 0;
   let held = 0;
   for (const member of members) {
-    if (!scheduledOn(member, iso)) continue;
+    const credit = creditForMember(member);
+    if (credit === undefined) continue;
     due += 1;
-    const credit = creditFor(member, rowsFor(member.id));
     if (credit === null) continue; // excused — as `sealableActs` drops it from the seal
     open += 1;
     if (credit === 1) held += 1;
@@ -65,21 +64,10 @@ export function computeStackStats(
   today: string,
   windowDays = STATS_WINDOW_DAYS,
 ): HabitStats {
-  // habit id → date → its completion row (one row per habit per day).
-  const ids = new Set(members.map((m) => m.id));
-  const rowsByHabit = new Map<string, Map<string, CompletionRow>>();
-  for (const row of completions) {
-    if (!ids.has(row.habit_id)) continue;
-    let byDate = rowsByHabit.get(row.habit_id);
-    if (!byDate) {
-      byDate = new Map();
-      rowsByHabit.set(row.habit_id, byDate);
-    }
-    byDate.set(row.completed_at, row);
-  }
+  const credit = creditOnDay(completions);
 
   return statsFromDailyCredit(
-    (iso) => stackCreditOn(members, (id) => rowsByHabit.get(id)?.get(iso), iso),
+    (iso) => stackCreditOn(members, (member) => credit(member, iso)),
     today,
     members.some((m) => !m.hijri_schedule),
     windowDays,

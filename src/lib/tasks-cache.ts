@@ -1,7 +1,5 @@
-import 'expo-sqlite/localStorage/install';
-
 import type { Task } from '@/lib/tasks';
-import { getWebStorage } from '@/lib/web-storage';
+import { readStoredJSON, writeStoredJSON } from '@/lib/web-storage';
 
 /**
  * A last-known snapshot of the day's tasks, persisted so a cold start paints the TO DO section on
@@ -28,21 +26,5 @@ export type TasksSnapshot = {
 // the field is harmless (nothing reads it), so the key stays rather than dropping everyone's seed.
 const CACHE_KEY = 'tasks.snapshot.v2';
 
-const storage = getWebStorage();
-
-export function readTasksSnapshot(): TasksSnapshot | null {
-  try {
-    const raw = storage?.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as TasksSnapshot) : null;
-  } catch {
-    return null; // corrupt/unavailable cache — the provider simply starts empty
-  }
-}
-
-export function writeTasksSnapshot(snapshot: TasksSnapshot): void {
-  try {
-    storage?.setItem(CACHE_KEY, JSON.stringify(snapshot));
-  } catch {
-    // Best-effort cache; ignore quota/serialisation failures.
-  }
-}
+export const readTasksSnapshot = () => readStoredJSON<TasksSnapshot>(CACHE_KEY);
+export const writeTasksSnapshot = (snapshot: TasksSnapshot) => writeStoredJSON(CACHE_KEY, snapshot);

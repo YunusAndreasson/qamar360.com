@@ -1,11 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useHabits, type Habit } from '@/hooks/use-habits';
-import { useLatestRef } from '@/hooks/use-latest-ref';
-import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
+import { useHistoryRead } from '@/hooks/use-history-read';
 import { fetchCompletionRows } from '@/lib/completion-reads';
-import { addDaysISO, todayLocalISO } from '@/lib/dates';
+import { addDaysISO } from '@/lib/dates';
 import { computeHabitStats, STATS_WINDOW_DAYS, type HabitStats } from '@/lib/habit-stats';
 import type { CompletionRow } from '@/lib/progress';
 
@@ -45,49 +44,16 @@ export function useHabitStats(habitId: string): HabitStatsData {
   const { habits } = useHabits();
   const habit = useMemo(() => habits.find((h) => h.id === habitId) ?? null, [habits, habitId]);
 
-  const [completions, setCompletions] = useState<CompletionRow[]>([]);
-  const [today, setToday] = useState<string>(() => todayLocalISO());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // The identity this hook instance currently serves — a fetch that lands after the identity
-  // moved on (user switch, habit param change) must neither be reused nor write its rows.
-  const identity = `${userId}:${habitId}`;
-  const identityRef = useLatestRef(identity);
-  const todayRef = useLatestRef(today);
-
-  // Concurrent callers (mount preload, a focus refetch, pull-to-refresh) share one request — the
-  // one already in flight is milliseconds old and just as fresh. Keyed by identity so a request
-  // for a *previous* habit/user is never handed to the new one.
-  const inFlight = useRef<{ key: string; work: Promise<void> } | null>(null);
-  const fetchData = useCallback(async () => {
-    if (!userId) return;
-    const key = `${userId}:${habitId}`;
-    if (inFlight.current?.key === key) return inFlight.current.work;
-    const day = todayLocalISO();
-    const work = (async () => {
-      try {
-        const rows = await fetchHabitCompletions(userId, habitId, day);
-        if (identityRef.current !== key) return; // superseded mid-flight — discard
-        setToday(day);
-        setCompletions(rows);
-        setError(null);
-      } catch {
-        if (identityRef.current !== key) return;
-        setError("Could not load these stats. Pull down to try again.");
-      } finally {
-        if (inFlight.current?.key === key) inFlight.current = null;
-      }
-    })();
-    inFlight.current = { key, work };
-    return work;
-  }, [userId, habitId, identityRef]);
-
-  useRefreshLifecycle(userId, fetchData, todayRef, setLoading);
-
-  const dismissError = useCallback(() => setError(null), []);
+  const load = useCallback((userId: string, today: string) => fetchHabitCompletions(userId, habitId, today), [habitId]);
+  const { data: completions, today, ...read } = useHistoryRead<CompletionRow[]>(
+    userId,
+    `${userId}:${habitId}`,
+    load,
+    [],
+    'Could not load these stats. Pull down to try again.',
+  );
 
   const stats = useMemo(() => (habit ? computeHabitStats(habit, completions, today) : null), [habit, completions, today]);
 
-  return { loading, error, dismissError, refresh: fetchData, habit, stats };
+  return { ...read, habit, stats };
 }

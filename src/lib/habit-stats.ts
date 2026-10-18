@@ -5,7 +5,7 @@
  * directly unit-testable.
  *
  * The completion rule (binary / count-goal partial / skip-excusal) is NOT re-implemented here —
- * it's the shared {@link creditFor} from `progress.ts`, so a single habit and the whole-app
+ * it's the shared {@link creditOnDay} from `progress.ts`, so a single habit and the whole-app
  * rate can never disagree. Rates stay 0–1 throughout; the degrees convention is applied at the
  * presentation edge (the charts call `toDegrees`).
  *
@@ -16,8 +16,8 @@
  * two screens can't quietly grow different arithmetic behind the same four cards.
  */
 
-import { addDaysISO, scheduledOn, weekdayIndex } from '@/lib/dates';
-import { creditFor, type CompletionRow, type ProgressHabit } from '@/lib/progress';
+import { addDaysISO, weekdayIndex } from '@/lib/dates';
+import { creditOnDay, type CompletionRow, type ProgressHabit } from '@/lib/progress';
 
 /** How far back the stats window reaches by default — a little over a year, so a full year of
  *  weekday and streak history is in view. The completions query only returns rows that exist, so
@@ -85,7 +85,7 @@ export type HabitStats = {
  * - `null` — **excused**, so it leaves the rate entirely and is neutral for the streak;
  * - `0`–`1` — the credit earned.
  *
- * A habit reads this straight off {@link creditFor}; a stack resolves it across its acts. Splitting
+ * A habit reads this straight off {@link creditOnDay}; a stack resolves it across its acts. Splitting
  * the day's worth from everything downstream is what lets both share one sweep.
  */
 export type DailyCredit = number | null | undefined;
@@ -215,15 +215,10 @@ export function computeHabitStats(
   today: string,
   windowDays = STATS_WINDOW_DAYS,
 ): HabitStats {
-  // date → this habit's completion row for that day (one row per habit per day).
-  const rowByDate = new Map<string, CompletionRow>();
-  for (const row of completions) {
-    if (row.habit_id !== habit.id) continue;
-    rowByDate.set(row.completed_at, row);
-  }
+  const credit = creditOnDay(completions);
 
   return statsFromDailyCredit(
-    (iso) => (scheduledOn(habit, iso) ? creditFor(habit, rowByDate.get(iso)) : undefined),
+    (iso) => credit(habit, iso),
     today,
     !habit.hijri_schedule,
     windowDays,

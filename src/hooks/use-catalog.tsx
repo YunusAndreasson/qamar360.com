@@ -1,5 +1,3 @@
-import 'expo-sqlite/localStorage/install';
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import {
@@ -11,7 +9,7 @@ import {
 import type { Tables } from '@/lib/database.types';
 import type { HijriSchedule } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
-import { getWebStorage } from '@/lib/web-storage';
+import { readStoredJSON, writeStoredJSON } from '@/lib/web-storage';
 
 /**
  * The shared Sunnah catalog (categories, presets) — the curated library shown in
@@ -41,24 +39,7 @@ const BUNDLED: Catalog = {
   presets: SUNNAH_PRESETS,
 };
 
-const storage = getWebStorage();
-
-function readCache(): Catalog | null {
-  try {
-    const raw = storage?.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as Catalog) : null;
-  } catch {
-    return null; // corrupt/unavailable cache — fall back to the bundled catalog
-  }
-}
-
-function writeCache(catalog: Catalog): void {
-  try {
-    storage?.setItem(CACHE_KEY, JSON.stringify(catalog));
-  } catch {
-    // Best-effort cache; ignore quota/serialisation failures.
-  }
-}
+const readCache = () => readStoredJSON<Catalog>(CACHE_KEY);
 
 function mapPreset(row: Tables<'presets'>): SunnahPreset {
   return {
@@ -105,7 +86,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     fetchCatalog()
       .then((fresh) => {
         if (cancelled) return;
-        writeCache(fresh);
+        writeStoredJSON(CACHE_KEY, fresh);
         setCatalog(fresh);
       })
       .catch(() => {
@@ -122,7 +103,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const fresh = await fetchCatalog();
-      writeCache(fresh);
+      writeStoredJSON(CACHE_KEY, fresh);
       setCatalog(fresh);
     } catch {
       // Offline / unreachable: keep whatever we already painted (cache or bundled).

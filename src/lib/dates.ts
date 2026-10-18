@@ -287,45 +287,6 @@ export function hijriYearRange(iso: string): { start: string; end: string; lengt
   return { start, end: addDaysISO(start, length - 1), length, year: parts.year };
 }
 
-/**
- * Whole Hijri months from the month containing `fromISO` to the one containing `toISO`: 0 when
- * both land in the same month, negative when `toISO` is the earlier of the two.
- *
- * Exact rather than approximate, and that is the point of doing it in Hijri coordinates instead
- * of dividing a day count by 29.53: an Umm al-Qura year is always twelve months, so the month
- * numbers subtract cleanly and no run of 29- and 30-day months can accumulate a drift. A goal
- * with a twenty-year horizon divides its remainder by this number, and a month of slippage there
- * is a month of quota handed to the wrong side of the calendar.
- *
- * `null` when the runtime has no Islamic calendar, like everything else built on
- * {@link hijriParts}.
- */
-export function hijriMonthsBetween(fromISO: string, toISO: string): number | null {
-  const from = hijriParts(fromISO);
-  const to = hijriParts(toISO);
-  if (!from || !to) return null;
-  return (to.year - from.year) * 12 + (to.month - from.month);
-}
-
-/**
- * The Hijri month `count` months after the one containing `iso` — the forward sibling of
- * {@link hijriMonthsBetween}, and its inverse.
- *
- * Arithmetic on the month number rather than a walk through {@link hijriMonthRange}, for the
- * same reason: twelve months to the year, always. A pace-based arrival can sit hundreds of
- * months out, and stepping there a month at a time would cost hundreds of calendar formats to
- * name a single heading.
- */
-export function hijriMonthAfter(iso: string, count: number): { monthName: string; year: number } | null {
-  const parts = hijriParts(iso);
-  if (!parts) return null;
-  const zeroBased = parts.month - 1 + count;
-  // `Math.floor` rather than a truncating divide, so a negative count walks backwards correctly.
-  const year = parts.year + Math.floor(zeroBased / 12);
-  const month = ((zeroBased % 12) + 12) % 12;
-  return { monthName: HIJRI_MONTHS[month] ?? '', year };
-}
-
 /** One-letter weekday labels indexed 0=Sunday … 6=Saturday — for the schedule picker. */
 export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 

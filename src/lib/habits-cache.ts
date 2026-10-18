@@ -1,7 +1,5 @@
-import 'expo-sqlite/localStorage/install';
-
 import type { Habit, HabitStack } from '@/hooks/use-habits';
-import { getWebStorage } from '@/lib/web-storage';
+import { readStoredJSON, writeStoredJSON } from '@/lib/web-storage';
 
 /**
  * A last-known snapshot of the Habits tab, persisted so a cold start paints real content on
@@ -35,21 +33,5 @@ export type HabitsSnapshot = {
 // revalidation lands. Bump this whenever a new `Habit` field decides where a row is rendered.
 const CACHE_KEY = 'habits.snapshot.v2';
 
-const storage = getWebStorage();
-
-export function readHabitsSnapshot(): HabitsSnapshot | null {
-  try {
-    const raw = storage?.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as HabitsSnapshot) : null;
-  } catch {
-    return null; // corrupt/unavailable cache — the provider falls back to a skeleton
-  }
-}
-
-export function writeHabitsSnapshot(snapshot: HabitsSnapshot): void {
-  try {
-    storage?.setItem(CACHE_KEY, JSON.stringify(snapshot));
-  } catch {
-    // Best-effort cache; ignore quota/serialisation failures.
-  }
-}
+export const readHabitsSnapshot = () => readStoredJSON<HabitsSnapshot>(CACHE_KEY);
+export const writeHabitsSnapshot = (snapshot: HabitsSnapshot) => writeStoredJSON(CACHE_KEY, snapshot);

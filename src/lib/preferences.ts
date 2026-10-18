@@ -1,5 +1,3 @@
-import 'expo-sqlite/localStorage/install';
-
 import { useSyncExternalStore } from 'react';
 import { Appearance } from 'react-native';
 
@@ -25,7 +23,7 @@ import { getWebStorage } from '@/lib/web-storage';
  * modules that have no component to hang it on.
  */
 
-/** Resolved per call rather than captured at module scope: the shim above installs it on import,
+/** Resolved per call rather than captured at module scope: the storage module installs the shim,
  *  and a lazy read can't be tripped by module evaluation order. */
 const storage = getWebStorage;
 

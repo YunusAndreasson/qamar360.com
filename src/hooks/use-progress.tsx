@@ -1,12 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 
 import { useAuth } from '@/hooks/use-auth';
-import type { Habit } from '@/hooks/use-habits';
-import { useLatestRef } from '@/hooks/use-latest-ref';
-import { useRefreshLifecycle } from '@/hooks/use-refresh-lifecycle';
-import { todayLocalISO } from '@/lib/dates';
+import { useHistoryRead } from '@/hooks/use-history-read';
 import { fetchProgressWindow } from '@/lib/load-progress';
-import { computeProgress, type CompletionRow, type MonthProgress, type RecordSeries, type SeriesPeriod } from '@/lib/progress';
+import { computeProgress, type MonthProgress, type RecordSeries, type SeriesPeriod } from '@/lib/progress';
 
 // The progress math lives in `@/lib/progress` (pure, no React/Supabase — unit-testable).
 // Re-export its public types so existing screen components keep importing them from this hook.
@@ -42,51 +39,16 @@ export function useProgress(): ProgressData {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [completions, setCompletions] = useState<CompletionRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string>(() => todayLocalISO());
-
-  const todayRef = useLatestRef(today);
-
-  // The user this hook instance currently serves — a fetch that lands after a user switch must
-  // neither be reused nor write its rows.
-  const userRef = useLatestRef(userId);
-
-  // Concurrent callers (the mount preload, a focus refetch, pull-to-refresh) share one request:
-  // each fetch is two queries plus a whole-year recompute on landing, so overlapping identical
-  // pulls are pure waste — the one already in flight is milliseconds old and just as fresh.
-  // Keyed by user so a request for a *previous* user is never handed to the new one.
-  const inFlight = useRef<{ key: string; work: Promise<void> } | null>(null);
-  const fetchData = useCallback(async () => {
-    if (!userId) return;
-    if (inFlight.current?.key === userId) return inFlight.current.work;
-    const day = todayLocalISO();
-    const work = (async () => {
-      try {
-        const { habits: rows, completions: comps } = await fetchProgressWindow(userId, day);
-        if (userRef.current !== userId) return; // superseded mid-flight — discard
-        setToday(day);
-        setHabits(rows);
-        setCompletions(comps);
-        setError(null);
-      } catch {
-        if (userRef.current !== userId) return;
-        setError('Could not load your progress. Pull down to try again.');
-      } finally {
-        if (inFlight.current?.key === userId) inFlight.current = null;
-      }
-    })();
-    inFlight.current = { key: userId, work };
-    return work;
-  }, [userId, userRef]);
-
-  useRefreshLifecycle(userId, fetchData, todayRef, setLoading);
-
-  const dismissError = useCallback(() => setError(null), []);
+  const { data, today, ...read } = useHistoryRead(
+    userId,
+    `${userId}`,
+    fetchProgressWindow,
+    { habits: [], completions: [] },
+    'Could not load your progress. Pull down to try again.',
+  );
+  const { habits, completions } = data;
 
   const derived = useMemo(() => computeProgress(habits, completions, today), [habits, completions, today]);
 
-  return { loading, error, dismissError, refresh: fetchData, today, ...derived };
+  return { ...read, today, ...derived };
 }

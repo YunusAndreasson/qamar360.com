@@ -1,7 +1,5 @@
-import 'expo-sqlite/localStorage/install';
-
 import { toDegrees } from '@/lib/progress';
-import { getWebStorage } from '@/lib/web-storage';
+import { readStoredJSON, writeStoredJSON } from '@/lib/web-storage';
 
 /**
  * Where the moon's stripe stood the last time anyone actually looked at it.
@@ -18,26 +16,14 @@ import { getWebStorage } from '@/lib/web-storage';
 type Seen = { key: string; rate: number };
 
 const CACHE_KEY = 'progress.orbitSeen.v1';
-// Read lazily: the shim may not have installed when this module is first evaluated.
-const storage = getWebStorage;
 
 export function readOrbitSeen(key: string): number | null {
-  try {
-    const raw = storage()?.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const seen = JSON.parse(raw) as Partial<Seen>;
-    return seen.key === key && typeof seen.rate === 'number' ? seen.rate : null;
-  } catch {
-    return null; // a corrupt row is a stripe never seen, not a crash
-  }
+  const seen = readStoredJSON<Partial<Seen>>(CACHE_KEY);
+  return seen?.key === key && typeof seen.rate === 'number' ? seen.rate : null;
 }
 
 export function writeOrbitSeen(key: string, rate: number): void {
-  try {
-    storage()?.setItem(CACHE_KEY, JSON.stringify({ key, rate } satisfies Seen));
-  } catch {
-    // Best effort: losing this only means the next arrival sweeps from empty.
-  }
+  writeStoredJSON(CACHE_KEY, { key, rate } satisfies Seen);
 }
 
 /** What the stripe does as it comes on stage. */

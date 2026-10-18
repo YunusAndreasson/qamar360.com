@@ -314,7 +314,7 @@ export function withDoneToday(completions: CompletionRow[], doneIds: string[], d
  * The single source of truth for the completion rule — shared by {@link computeProgress} and the
  * per-habit stats ({@link import('./habit-stats').computeHabitStats}), so the two can never drift.
  */
-export function creditFor(habit: { target_count?: number | null }, row: CompletionRow | undefined): number | null {
+function creditFor(habit: { target_count?: number | null }, row: CompletionRow | undefined): number | null {
   if (row?.status === 'skipped') return null; // excused — out of the rate entirely
   if (habit.target_count && habit.target_count > 0) {
     if (row?.status === 'done') return 1; // reached target
@@ -414,7 +414,7 @@ export function daysLeftLabel({ dayOfMonth, monthLength }: Pick<MonthProgress, '
  * it), and collapsing them is the classic way a habit's rate quietly starts counting Fridays it
  * was never scheduled for.
  */
-function creditOnDay(
+export function creditOnDay(
   completions: CompletionRow[],
 ): (habit: ProgressHabit, iso: string) => number | null | undefined {
   // date → (habit id → its completion row) for that day.
