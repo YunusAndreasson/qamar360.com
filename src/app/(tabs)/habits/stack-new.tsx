@@ -57,7 +57,9 @@ export default function StackNewScreen() {
   const save = () => {
     if (!canSave) return;
     haptics.added();
-    router.back();
+    // Back to the day, where the card will land — not to the library this may have been opened
+    // from. Cancel is the one that steps back a screen.
+    router.dismissTo('/habits');
     // Create after closing so the card's arrival on Today is what the eye lands on. The toast
     // waits for the insert to settle so its Undo always has a real id to delete.
     void (async () => {
@@ -91,6 +93,9 @@ export default function StackNewScreen() {
         placeholder="e.g. Fajr"
         autoCapitalize="sentences"
         accessibilityLabel="Stack name"
+        // One field: Done creates, as the nav bar's Create would.
+        returnKeyType="done"
+        onSubmitEditing={save}
         error={isDuplicate ? 'You already have a stack with this name.' : undefined}
       />
 

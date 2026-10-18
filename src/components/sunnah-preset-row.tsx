@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 
 import { ExpandableAddRow } from '@/components/expandable-add-row';
 import { ThemedText } from '@/components/themed-text';
-import { scheduleSummary, type SunnahPreset } from '@/constants/sunnah-habits';
+import { presetSummary, type SunnahPreset } from '@/constants/sunnah-habits';
 
 type Props = {
   preset: SunnahPreset;
@@ -21,7 +21,9 @@ type Props = {
  * reveal the "what counts as done" detail and the Sunnah evidence.
  */
 export function SunnahPresetRow({ preset, added, onAdd, onRemove, addHint, addedHint }: Props) {
-  const summary = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
+  // The measure and the schedule — "5 prayers · Every day" — so a counted act is seen as counted
+  // before it is added.
+  const summary = presetSummary(preset);
 
   return (
     <ExpandableAddRow

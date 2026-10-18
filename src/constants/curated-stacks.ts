@@ -41,7 +41,7 @@ export type CuratedStack = {
   id: string;
   /** The stack name as created — also the dedupe key against the user's existing stacks. */
   name: string;
-  /** The anchor: the stack wears this moment's emblem and lights when it arrives. */
+  /** The anchor: the stack wears this moment's emblem. */
   moment: MomentKey;
   /** One line on why this cue holds — shown in the library, not stored on the stack. */
   blurb: string;

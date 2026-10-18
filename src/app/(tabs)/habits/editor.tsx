@@ -5,7 +5,7 @@ import { HabitEditorForm } from '@/components/habit-editor';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { type HabitCreate, useHabits } from '@/hooks/use-habits';
 import { useStackActions } from '@/hooks/use-stack-actions';
-import { otherNames } from '@/lib/names';
+import { siblingNames } from '@/lib/names';
 
 /**
  * One params-driven screen for both new and edit, presented as a native modal
@@ -41,11 +41,13 @@ export default function HabitEditorScreen() {
   const openStackActions = useStackActions();
   const onEditStack = habit && habit.stack_id ? () => openStackActions(habit.stack_id!) : undefined;
 
-  // Normalized names of the *other* habits — the form rejects a name that
-  // collides with one of these, so the user can't create an indistinguishable
-  // duplicate (there's no DB uniqueness backing the name). The habit being
-  // edited is excluded so keeping its own name is fine.
-  const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
+  // Normalized names of the other habits in the same stack (or, loose, the other loose habits) —
+  // the form rejects a name that collides with one of these, since two identical rows side by side
+  // are indistinguishable (there's no DB uniqueness backing the name). Across stacks the same name
+  // is fine: reading Qurʾān after Fajr and again after ʿIshāʾ are two acts. The habit being edited
+  // is excluded so keeping its own name is fine.
+  const container = isNew ? (targetStack?.id ?? null) : (habit?.stack_id ?? null);
+  const existingNames = useMemo(() => siblingNames(habits, container, id), [habits, container, id]);
 
   // Editing an act that no longer exists (stale deep link / deleted elsewhere): back out rather
   // than render a form that can't commit. Creating is never stale — with no stack the habit is

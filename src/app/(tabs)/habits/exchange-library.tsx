@@ -35,14 +35,16 @@ export default function ExchangeLibraryScreen() {
   const { show } = useToast();
   const { habits, createHabits, deleteHabit } = useHabits();
 
-  // Folded habit names — the dedupe key everywhere in the app. (No useMemo: the React Compiler
-  // memoizes derived values.)
-  const owned = new Set(habits.map((h) => normalizeName(h.name)));
+  // Folded names of the loose habits — the container an exchange lands in, and the same set the
+  // exchange form checks a name against (`siblingNames(habits, null)`). An act of the same name
+  // inside a stack is another row, so it must not make a card read "Already yours". (No useMemo:
+  // the React Compiler memoizes derived values.)
+  const owned = new Set(habits.filter((h) => h.stack_id === null).map((h) => normalizeName(h.name)));
 
   // The from-scratch door, named once and offered twice — from the nav bar and from the closing
-  // row. `replace` for the same reason the stack library's does: the library and the blank form
-  // answer one question, so back belongs to the "+" sheet, not to the library again.
-  const goCreateExchange = () => router.replace({ pathname: '/habits/exchange', params: { id: 'new' } });
+  // row. `push`, like the stack library's and Discover's: Cancel steps back here, Create closes
+  // the flow onto the day.
+  const goCreateExchange = () => router.push({ pathname: '/habits/exchange', params: { id: 'new' } });
 
   const add = async (entry: CuratedExchange) => {
     const created = await createHabits([

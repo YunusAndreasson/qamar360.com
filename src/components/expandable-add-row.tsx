@@ -90,8 +90,9 @@ export function ExpandableAddRow({
           onPress={toggleAdd}
           androidRipple={{ color: theme.backgroundSelected }}
           activeOpacity={Pressed.dim}
-          accessibilityRole="button"
-          accessibilityState={{ selected: added }}
+          // A checklist row: announced as the checkbox it behaves as, checked once added.
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: added }}
           accessibilityLabel={rowAccessibilityLabel}
           accessibilityHint={added ? addedHint : addHint}
           style={styles.add}>

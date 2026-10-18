@@ -49,7 +49,8 @@ function toggleInSet<T>(setter: (update: (prev: Set<T>) => Set<T>) => void, valu
 type Props = {
   /** The habit being edited, or `null` to create a new one. */
   habit: Habit | null;
-  /** {@link normalizeName}-folded names of the user's *other* habits — used to reject duplicates. */
+  /** {@link normalizeName}-folded names of the other habits in the same stack (or the other loose
+   *  habits) — used to reject a duplicate side by side. The same name in another stack is fine. */
   existingNames: string[];
   /** Name of the stack this habit belongs to, or null. Editing only. */
   stackName?: string | null;
@@ -102,8 +103,8 @@ export function HabitEditorForm({
   );
 
   const trimmedName = name.trim();
-  // Reject a name that matches another habit — no DB constraint enforces this, so two
-  // identical rows would otherwise be indistinguishable.
+  // Reject a name that matches a habit beside this one — no DB constraint enforces this, so two
+  // identical rows in one card would otherwise be indistinguishable.
   const isDuplicate = useMemo(() => isDuplicateName(trimmedName, existingNames), [trimmedName, existingNames]);
   const hijriValid = monthDays.size > 0 || months.size > 0 || hijriDates.size > 0;
   // A count goal needs a whole-number target ≥ 1; 'once' carries no target.
@@ -199,7 +200,8 @@ export function HabitEditorForm({
     // twice — the second has nothing to pop and logs "The action 'GO_BACK' was not handled…".
     confirmDestructive({
       title: `Delete ${noun}`,
-      message: `Delete “${habit.name}”? This can’t be undone.`,
+      // The same words the act's own `⋯` sheet and Discover use for this one destruction.
+      message: `Delete “${habit.name}”? Its history goes with it.`,
       onConfirm: () => {
         // The soft "release" — the counterpart of deleting a stack, so destruction always
         // confirms with the same texture.
@@ -229,11 +231,13 @@ export function HabitEditorForm({
         onChangeText={setName}
         // An example, not a restatement of the label: it shows the house style in one glance —
         // past tense, first person, one specific deed — which "Habit name" never taught.
-        placeholder="e.g. Read a page of Qurʾān"
+        placeholder="e.g. Read 1 page of Qurʾān"
         autoCapitalize="sentences"
         autoFocus={isNew}
-        accessibilityLabel="Act name"
-        error={isDuplicate ? 'You already use that name.' : undefined}
+        accessibilityLabel={noun === 'act' ? 'Act name' : 'Habit name'}
+        // The rest of the form is taps, not typing: Done puts the keyboard away to reveal it.
+        returnKeyType="done"
+        error={isDuplicate ? (noun === 'act' ? 'This stack already has that act.' : 'You already have that habit.') : undefined}
       />
 
       {/* Target — a single daily act, or counting toward a numeric target (e.g. 5 pages). Not
@@ -242,7 +246,9 @@ export function HabitEditorForm({
       <FieldLabel>Target</FieldLabel>
       <Segmented
         options={[
-          { value: 'once', label: 'Once daily' },
+          // "Once", not "Once daily": the Repeat below may say Mon · Thu, and then "daily" is false.
+          // It is once on each day the act is scheduled.
+          { value: 'once', label: 'Once' },
           { value: 'count', label: 'Count', accessibilityLabel: 'Count target' },
         ]}
         value={goalMode}

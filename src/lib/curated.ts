@@ -43,8 +43,8 @@ export type CuratedPlan = {
   inputs: HabitInput[];
   /** The whole membership in sequence — what the stack holds once the plan has run. */
   acts: PlannedAct[];
-  /** Acts the user already keeps that this plan will MOVE into the stack: they sit loose, or in
-   *  another stack, today. Counted apart from `inputs` because it is the one half of a plan that
+  /** Acts the user already keeps that this plan will MOVE into the stack: they sit loose today.
+   *  (One already in another stack stays there; the plan adds a copy, see {@link buildCuratedPlan}.) Counted apart from `inputs` because it is the one half of a plan that
    *  rearranges something the user set up themselves — so the card has to say it out loud. */
   gatherIds: string[];
 };
@@ -77,6 +77,11 @@ export function habitInputFor(preset: SunnahPreset, schedule?: number[]): HabitI
  * *gathered* into the stack rather than skipped — it keeps its id, and with it every tick it has
  * ever earned — and only a stack that exists AND already holds every act has nothing left to do.
  *
+ * Only a *loose* act is gathered, though. One that already sits in another stack belongs to that
+ * stack's sequence — reading Qurʾān after Fajr is not reading it after ʿIshāʾ — so pulling it out
+ * would quietly empty a slot the user set up. The plan creates a fresh copy under the same name
+ * instead, as Discover does when composing a stack.
+ *
  * The rest is what the old starter card proved: ids missing from the live catalog drop out
  * silently, an act matches by its *folded* name (a habit saved before the preset gained its
  * diacritics still counts as the same act), and a same-named stack the user already keeps is
@@ -89,13 +94,20 @@ export function buildCuratedPlan(
   stacks: { id: string; name: string }[],
 ): CuratedPlan | null {
   const byId = new Map(presets.map((p) => [p.id, p]));
-  // First match wins, so a user holding the same act twice never has both gathered into one stack.
-  const owned = new Map<string, OwnedHabit>();
-  for (const habit of habits) {
-    const key = normalizeName(habit.name);
-    if (!owned.has(key)) owned.set(key, habit);
-  }
   const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(curated.name)) ?? null;
+  // The acts the plan may reuse: those already in the stack being built, and the loose ones — each
+  // taken once, so a user holding the same act twice never has both gathered into one stack.
+  const reusable = habits.filter((h) => h.stack_id === null || (twin !== null && h.stack_id === twin.id));
+  const taken = new Set<string>();
+  const ownedFor = (name: string) => {
+    const key = normalizeName(name);
+    // The copy already in the twin first: it moves nowhere, where a loose one would be re-seated.
+    const match =
+      reusable.find((h) => !taken.has(h.id) && h.stack_id !== null && normalizeName(h.name) === key) ??
+      reusable.find((h) => !taken.has(h.id) && normalizeName(h.name) === key);
+    if (match) taken.add(match.id);
+    return match;
+  };
 
   const acts: PlannedAct[] = [];
   const inputs: HabitInput[] = [];
@@ -103,7 +115,7 @@ export function buildCuratedPlan(
   for (const act of curated.acts) {
     const preset = byId.get(act.presetId);
     if (!preset) continue; // id missing from the live catalog — drop it, don't crash
-    const already = owned.get(normalizeName(preset.name));
+    const already = ownedFor(preset.name);
     if (already) {
       acts.push({ kind: 'own', habitId: already.id });
       // An act already sitting in the very stack being built moves nowhere.

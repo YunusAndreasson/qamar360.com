@@ -1,16 +1,21 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { StyleSheet, type TextInputInstance } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
 import { FieldLabel } from '@/components/field-label';
 import { FormField } from '@/components/form-field';
 import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { GuideLink } from '@/components/guide-link';
 import { WeekdayPicker } from '@/components/weekday-picker';
+import { Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
+import { confirmDestructive } from '@/lib/alerts';
 import { DAILY_SCHEDULE } from '@/lib/dates';
-import { isDuplicateName, otherNames } from '@/lib/names';
+import { haptics } from '@/lib/haptics';
+import { isDuplicateName, siblingNames } from '@/lib/names';
 
 /**
  * The new/edit-exchange form — one params-driven modal for both, the way `editor.tsx` is for
@@ -30,7 +35,7 @@ import { isDuplicateName, otherNames } from '@/lib/names';
 export default function ExchangeFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { habits, createHabits, updateHabit } = useHabits();
+  const { habits, createHabits, updateHabit, deleteHabit } = useHabits();
 
   const isNew = !id || id === 'new';
   const habit = isNew ? null : (habits.find((h) => h.id === id) ?? null);
@@ -39,11 +44,16 @@ export default function ExchangeFormScreen() {
   const [insteadOf, setInsteadOf] = useState(habit?.instead_of ?? '');
   const [name, setName] = useState(habit?.name ?? '');
   const [days, setDays] = useState<Set<number>>(() => new Set(habit?.schedule_days ?? DAILY_SCHEDULE));
+  // The return key walks the plan in the order it happens — When → Instead of → I did — and the
+  // last one's Done saves, so the form can be filled without reaching for the nav bar.
+  const insteadOfRef = useRef<TextInputInstance>(null);
+  const nameRef = useRef<TextInputInstance>(null);
 
   const trimmedName = name.trim();
   // Same duplicate guard the act editor runs, folded through the same normalizer: nothing in the
   // DB enforces name uniqueness, so two identical rows would be indistinguishable in Stats.
-  const existingNames = useMemo(() => otherNames(habits, id), [habits, id]);
+  // An exchange stands loose, so it only has to differ from the other loose habits.
+  const existingNames = useMemo(() => siblingNames(habits, null, id), [habits, id]);
   const isDuplicate = isDuplicateName(trimmedName, existingNames);
   const canSave =
     trimmedName.length > 0 && insteadOf.trim().length > 0 && cue.trim().length > 0 && !isDuplicate && days.size > 0;
@@ -58,9 +68,29 @@ export default function ExchangeFormScreen() {
     };
     // `createHabits` lands rows with no `stack_id`, which is exactly right here — an exchange is
     // anchored to an urge, not to a moment, so it belongs to no stack.
-    if (isNew) void createHabits([fields]);
-    else if (habit) void updateHabit(habit.id, fields);
-    router.back();
+    if (isNew) {
+      void createHabits([fields]);
+      // The same crisp "commit" as creating an act or a stack — every way something enters the
+      // day confirms with one texture. Editing in place stays silent, as it does for an act.
+      haptics.added();
+    } else if (habit) void updateHabit(habit.id, fields);
+    // Back to the day, where the new row now is — not to the library this form may have been
+    // opened from. Cancel is the one that steps back a screen.
+    router.dismissTo('/habits');
+  };
+
+  const confirmDelete = () => {
+    if (!habit) return;
+    // Deleting drops it from state and the stale guard below backs the form out — don't also
+    // navigate here, or it pops twice. Same words as the exchange's own `⋯` sheet.
+    confirmDestructive({
+      title: 'Delete exchange',
+      message: `Delete “${habit.name}”? Its history goes with it.`,
+      onConfirm: () => {
+        haptics.removed();
+        void deleteHabit(habit.id);
+      },
+    });
   };
 
   // Editing one that no longer exists (stale deep link, or deleted from another screen): back out
@@ -92,6 +122,9 @@ export default function ExchangeFormScreen() {
         autoCapitalize="none"
         autoFocus={isNew}
         accessibilityLabel="When this happens"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => insteadOfRef.current?.focus()}
         hint="A moment you would notice arriving, in a few words."
       />
 
@@ -99,9 +132,13 @@ export default function ExchangeFormScreen() {
         label="Instead of"
         value={insteadOf}
         onChangeText={setInsteadOf}
+        ref={insteadOfRef}
         placeholder="soft drinks"
         autoCapitalize="none"
         accessibilityLabel="Instead of"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => nameRef.current?.focus()}
         hint="Named so you recognise the moment. This is not what gets tracked."
       />
 
@@ -111,10 +148,15 @@ export default function ExchangeFormScreen() {
         label="I did"
         value={name}
         onChangeText={setName}
-        placeholder="Drank a glass of water"
+        ref={nameRef}
+        placeholder="e.g. Drank a glass of water"
         autoCapitalize="sentences"
         accessibilityLabel="What you did instead"
-        error={isDuplicate ? 'You already use that name.' : undefined}
+        returnKeyType="done"
+        onSubmitEditing={save}
+        // Exchanges and loose habits sit side by side on Today, so "habit" is the word that covers
+        // whichever one already holds this name.
+        error={isDuplicate ? 'You already have a habit by that name.' : undefined}
         hint={isDuplicate ? undefined : 'Something actually to hand in that moment.'}
       />
 
@@ -124,6 +166,17 @@ export default function ExchangeFormScreen() {
       {/* Three fields is a lot to ask of someone who hasn't been told why each one matters, and
           this form can be opened without passing the library that explains it. */}
       <GuideLink label="Why replacing works" href="/habits/exchange-info" />
+
+      {/* Delete (editing only) — where the act editor keeps its own, so both forms end the same. */}
+      {habit ? (
+        <AppButton variant="destructive" onPress={confirmDelete} style={styles.delete}>
+          Delete exchange
+        </AppButton>
+      ) : null}
     </FormScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  delete: { marginTop: Spacing.four },
+});

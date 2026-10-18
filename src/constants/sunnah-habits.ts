@@ -1,4 +1,5 @@
-import { DAILY_SCHEDULE, describeHijriSchedule, type HijriSchedule } from '@/lib/dates';
+import { countGoalLabel } from '@/lib/count-goal';
+import { DAILY_SCHEDULE, describeHijriSchedule, describeWeekdays, type HijriSchedule } from '@/lib/dates';
 
 /**
  * A curated, evidence-backed library of Sunnah habits, each worded as a SMART goal —
@@ -188,9 +189,9 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'duha',
     categoryId: 'sunnah-prayers',
-    name: 'Prayed Duhā (2 rakʿah)',
-    detail: 'Pray at least two rakʿahs of Duhā in the morning — from about 15–20 minutes after sunrise until just before Dhuhr (zawāl).',
-    evidence: 'Two rakʿahs of Duhā suffice as the charity due upon every joint each morning (Muslim 720).',
+    name: 'Prayed two rakʿah of Ḍuḥā',
+    detail: 'Pray at least two rakʿahs of Ḍuḥā in the morning — from about 15–20 minutes after sunrise until just before Dhuhr (zawāl).',
+    evidence: 'Two rakʿahs of Ḍuḥā suffice as the charity due upon every joint each morning (Muslim 720).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
@@ -328,7 +329,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'tasbih-after-salah',
     categoryId: 'dhikr',
-    name: 'Said tasbīḥ ×33 after each prayer',
+    name: 'Said tasbīḥ after prayer',
     detail: 'After each obligatory prayer, say SubḥānAllāh, Alḥamdulillāh and Allāhu Akbar 33 times each, then complete the hundred with: lā ilāha illā Allāh waḥdahu lā sharīka lah, lahu-l-mulku wa lahu-l-ḥamd wa huwa ʿalā kulli shayʾin qadīr.',
     evidence: 'Whoever says them after every prayer, his sins are forgiven though they be like the foam of the sea (Muslim 597).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -338,7 +339,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'ayat-al-kursi',
     categoryId: 'dhikr',
-    name: 'Recited Āyat al-Kursī after each prayer',
+    name: 'Recited Āyat al-Kursī after prayer',
     detail: 'Recite Āyat al-Kursī (Qurʾān 2:255) after each obligatory prayer.',
     evidence: 'Whoever recites it after every prayer, nothing keeps him from Paradise but death (an-Nasāʾī, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -364,7 +365,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'salawat',
     categoryId: 'dhikr',
-    name: 'Sent salawāt ×10 on the Prophet ﷺ',
+    name: 'Sent ṣalawāt ×10 on the Prophet ﷺ',
     detail: 'Send blessings on the Prophet ﷺ at least 10 times today — increase on Fridays.',
     evidence: 'Whoever sends one blessing on me, Allāh sends ten upon him (Muslim 408).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -412,7 +413,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'kaffarat-al-majlis',
     categoryId: 'dhikr',
-    name: 'Sealed a gathering',
+    name: 'Said the duʿāʾ on leaving a gathering',
     detail: 'Before leaving any gathering, say the expiation (kaffārat al-majlis): Subḥānaka-llāhumma wa biḥamdik, ashhadu an lā ilāha illā ant, astaghfiruka wa atūbu ilayk — skip on a day with none.',
     evidence: 'Whoever says it when leaving a gathering, what occurred in it is forgiven (Tirmidhi 3433, ṣaḥīḥ).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -456,7 +457,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'fast-ashura',
     categoryId: 'fasting',
-    name: 'Fasted ʿĀshūrāʾ',
+    name: 'Fasted Tāsūʿāʾ & ʿĀshūrāʾ',
     detail: 'Fast ʿĀshūrāʾ — the 10th of Muḥarram — together with the 9th (Tāsūʿāʾ), as the Prophet ﷺ resolved to do.',
     evidence: 'Fasting ʿĀshūrāʾ expiates the previous year; "if I live to next year I will fast the ninth" (Muslim 1134).',
     defaultSchedule: [],
@@ -574,7 +575,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'focused-study',
     categoryId: 'growth',
-    name: 'Studied with focus',
+    name: 'Studied for 30 focused minutes',
     detail: 'Spend at least 30 focused minutes on your studies — schoolwork, a course, or a skill — phone away and notifications off. Open with the duʿāʾ for beneficial knowledge: Allāhumma nfaʿnī bimā ʿallamtanī wa ʿallimnī mā yanfaʿunī.',
     evidence: 'Seeking knowledge is an obligation upon every Muslim (Ibn Mājah 224, ḥasan); switching between tasks and notifications measurably erodes learning and recall compared to one uninterrupted block (Uncapher & Wagner, PNAS 2016).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -590,7 +591,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'arabic-study',
     categoryId: 'growth',
-    name: 'Studied Arabic',
+    name: 'Studied Arabic for 20 minutes',
     detail: 'Spend at least 20 focused minutes learning Arabic — grammar, vocabulary, or reading practice — phone away and notifications off.',
     evidence: 'ʿUmar ibn al-Khaṭṭāb said, "Learn Arabic, for it is part of your religion" (Ibn Abī Shaybah, athar); the Qurʾān was sent down "in Arabic, that you may understand" (12:2).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -610,7 +611,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'qaylulah',
     categoryId: 'wellbeing',
-    name: 'Took a short midday rest',
+    name: 'Rested 10 minutes at midday',
     detail: 'Rest or nap for 10–20 minutes around midday (qaylūlah) to restore energy for the day and for night prayer.',
     evidence: 'The Companions would take a midday rest (qaylūlah), a Prophetic practice (Bukhari 940).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -642,15 +643,15 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'daily-walk',
     categoryId: 'wellbeing',
-    name: 'Went for a walk',
-    detail: 'Take a brisk walk of 10–30 minutes — make it your walk to the masjid wherever you can.',
+    name: 'Took a brisk 10-minute walk',
+    detail: 'Take a brisk walk of at least 10 minutes, up to 30 — make it your walk to the masjid wherever you can.',
     evidence: 'For every step toward the masjid a rank is raised and a sin erased (Muslim 666).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
     id: 'exercise-daily',
     categoryId: 'wellbeing',
-    name: 'Moved my body',
+    name: 'Exercised for 20 minutes',
     detail: 'Get 20–30 minutes of deliberate exercise today — a brisk walk, a run, training, or a sport — enough to raise your heart rate.',
     evidence: 'The strong believer is better and more beloved to Allāh than the weak believer, though there is good in both (Muslim 2664).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -659,7 +660,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     id: 'hydrate-water',
     categoryId: 'wellbeing',
     name: 'Drank water',
-    detail: 'Stay hydrated — aim for 6–8 cups across the day, drinking seated and in a few breaths rather than one gulp.',
+    detail: 'Stay hydrated — aim for 8 cups across the day, drinking seated and in a few breaths rather than one gulp.',
     evidence: 'The Prophet ﷺ would drink in three breaths and forbade gulping in one (Muslim 2028).',
     defaultSchedule: DAILY_SCHEDULE,
     targetCount: 8,
@@ -784,7 +785,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'morning-daylight',
     categoryId: 'wellbeing',
-    name: 'Got morning daylight',
+    name: 'Got 5 minutes of morning daylight',
     detail: 'Get 5–15 minutes of outdoor daylight within an hour of waking — step outside, even on a cloudy day.',
     evidence: 'Morning light is the strongest signal that sets your body clock, improving daytime alertness, mood and night-time sleep (Blume et al., Somnologie 2019).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -834,7 +835,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'screens-away',
     categoryId: 'wellbeing',
-    name: 'Put screens away before sleep',
+    name: 'Put screens away 30 minutes before sleep',
     detail: 'Put your phone and other screens away at least 30 minutes before you sleep, and leave the phone charging out of arm’s reach of your bed.',
     evidence: 'Reading a bright screen before bed delays melatonin, pushes sleep later and dulls next-morning alertness (Chang et al., PNAS 2015) — and the Prophet ﷺ disliked idle talk after ʿIshāʾ (Bukhari 568).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -842,7 +843,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'sleep-7-hours',
     categoryId: 'wellbeing',
-    name: 'Gave sleep at least 7 hours',
+    name: 'Went to bed 7 hours before waking',
     detail: 'Be in bed, lights out, at least 7 hours before your wake-up time — count back from when you rise and hold that line.',
     evidence: 'Adults need 7 or more hours a night for healthy attention, mood, metabolism and immunity — the joint consensus of the American Academy of Sleep Medicine and the Sleep Research Society (Watson et al., Sleep 2015).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -858,7 +859,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   {
     id: 'caffeine-cutoff',
     categoryId: 'wellbeing',
-    name: 'Cut caffeine after early afternoon',
+    name: 'Had my last caffeine by 2pm',
     detail: 'Have your last coffee, tea, or other caffeine by early afternoon — say 2pm — so it clears your system well before bed.',
     evidence: 'Caffeine taken even 6 hours before bed measurably cut total sleep time (Drake et al., Journal of Clinical Sleep Medicine 2013).',
     defaultSchedule: DAILY_SCHEDULE,
@@ -873,15 +874,23 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
   },
 ];
 
-/** Short weekday names indexed 0=Sun … 6=Sat, for schedule summaries. */
-const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 /**
- * A human one-line schedule summary, e.g. "Every day", "Fri", "Mon, Thu", or — for a Hijri
- * habit — "White Days (13–15)", "Ramaḍān". No habit carries a clock time, so none appears here.
+ * A human one-line schedule summary, e.g. "Every day", "Fri", "Mon · Thu", or — for a Hijri
+ * habit — "White Days (13–15)", "Ramaḍān". The weekdays read in the week's own order, the same
+ * words Today's rows use ({@link describeWeekdays}), so a preset reads in Discover the way it will
+ * read once added. No habit carries a clock time, so none appears here.
  */
 export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null): string {
-  if (hijri) return describeHijriSchedule(hijri);
-  const sorted = [...schedule].sort((a, b) => a - b);
-  return sorted.length === 7 ? 'Every day' : sorted.map((d) => SHORT_WEEKDAYS[d]).join(', ');
+  return hijri ? describeHijriSchedule(hijri) : describeWeekdays(schedule);
+}
+
+/**
+ * What a preset asks of a day, in one line: its count if it is counted, then its schedule —
+ * "5 prayers · Every day", or "Mon · Thu" for a plain tick. The measure belongs where the act is
+ * chosen, not only where it is ticked: without it "Prayed in congregation" reads as one tick a day
+ * until it lands on Today and asks for five.
+ */
+export function presetSummary(preset: Pick<SunnahPreset, 'defaultSchedule' | 'hijriSchedule' | 'targetCount' | 'targetUnit'>): string {
+  const schedule = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
+  return preset.targetCount ? `${countGoalLabel(preset.targetCount, preset.targetUnit)} · ${schedule}` : schedule;
 }

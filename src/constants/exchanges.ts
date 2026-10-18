@@ -137,7 +137,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
       },
       {
         id: 'dua-not-scrolling',
-        name: 'Made duʿāʾ',
+        name: 'Made duʿāʾ while waiting',
         insteadOf: 'scrolling',
         cue: 'stuck waiting',
         detail: 'One duʿāʾ in the queue or at the lights, with the phone still in your pocket.',
@@ -185,7 +185,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         cue: 'someone annoys me',
         detail: 'One true good thing, out loud, to whoever was about to hear the complaint.',
         evidence:
-          '“Whoever believes in Allah and the Last Day, let him speak good or stay silent” (Bukhari 6018, Muslim 47).',
+          '“Whoever believes in Allāh and the Last Day, let him speak good or stay silent” (Bukhari 6018, Muslim 47).',
       },
     ],
   },

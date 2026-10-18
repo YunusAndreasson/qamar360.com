@@ -16,6 +16,7 @@ import { STACKING_GUIDE } from '@/constants/guides';
 import { Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
+import { countGoalLabel } from '@/lib/count-goal';
 import { buildCuratedPlan } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS } from '@/lib/moments';
@@ -39,9 +40,10 @@ export default function StackLibraryScreen() {
   const { habits, stacks, createHabits, createStack, updateStack, deleteStack, deleteHabit, moveHabit } = useHabits();
 
   // The from-scratch door, named once and offered twice — from the nav bar and from the closing
-  // row. `replace`, not `push`: the library and the blank form are two answers to one question, so
-  // going back from the form should land where the "+" sheet left you, not on the library again.
-  const goCreateStack = () => router.replace('/habits/stack-new');
+  // row. `push`, as Discover pushes its editor: Cancel on the blank form steps back to the library
+  // you were browsing (the "+" sheet it once returned to was already replaced away, so `replace`
+  // dropped you on Today), while Create closes the whole flow onto the day.
+  const goCreateStack = () => router.push('/habits/stack-new');
 
   const addStack = async (curated: CuratedStack) => {
     const plan = buildCuratedPlan(curated, presets, habits, stacks);
@@ -167,7 +169,12 @@ function CuratedCard({
 }) {
   const { presets } = useCatalog();
   const byId = new Map(presets.map((p) => [p.id, p]));
-  const acts = curated.acts.map((a) => byId.get(a.presetId)?.name).filter((n): n is string => n !== undefined);
+  // Each act as it will read on Today: a counted one carries its measure ("Drank water · 8 cups"),
+  // so the card says what the stack asks of a day before it is added.
+  const acts = curated.acts
+    .map((a) => byId.get(a.presetId))
+    .filter((p) => p !== undefined)
+    .map((p) => (p.targetCount ? `${p.name} · ${countGoalLabel(p.targetCount, p.targetUnit)}` : p.name));
   const adding = plan?.inputs.length ?? 0;
   const gathering = plan?.gatherIds.length ?? 0;
   const moment = MOMENTS[curated.moment];

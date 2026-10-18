@@ -46,7 +46,7 @@ export function isExchange(habit: Exchangeable): boolean {
  * chose). See {@link ExchangeRowContract} for why the row stops at two lines.
  *
  * Lowercase and unpunctuated because it is not a label but the second half of a sentence the title
- * begins: *Drank a glass of water* / *instead of soft drinks*. That makes the visible line and the
+ * begins: *Chose water* / *instead of soft drinks*. That makes the visible line and the
  * spoken one the same sentence, and it is why the words are here rather than in a caption.
  *
  * They were dropped on 2026-08-05 as clutter, on the grounds that the section above the card was

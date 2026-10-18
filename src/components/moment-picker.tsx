@@ -73,7 +73,7 @@ export function MomentPicker({
         </View>
       ))}
       <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-        Pick one, or none. The stack wears its icon and lights up when the moment arrives. A time
+        Pick one, or none. The stack wears its icon. A time
         can’t remind you of anything: anchor to something you already do, and the acts come with it.
       </ThemedText>
     </>

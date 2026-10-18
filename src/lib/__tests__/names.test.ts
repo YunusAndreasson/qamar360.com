@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { dedupeName, normalizeName, otherNames } from '@/lib/names';
+import { normalizeName, otherNames, siblingNames } from '@/lib/names';
 
 describe('normalizeName', () => {
   it('trims and lower-cases', () => {
@@ -39,26 +39,24 @@ describe('otherNames', () => {
   });
 });
 
-describe('dedupeName', () => {
-  it('returns the base untouched when it is free', () => {
-    expect(dedupeName('Read a page of Qurʾān', new Set())).toBe('Read a page of Qurʾān');
+describe('siblingNames', () => {
+  const habits = [
+    { id: 'a', name: 'Read Qurʾān', stack_id: 'fajr' },
+    { id: 'b', name: 'Morning adhkār', stack_id: 'fajr' },
+    { id: 'c', name: 'Read Qurʾān', stack_id: 'isha' },
+    { id: 'd', name: 'Drink water', stack_id: null },
+  ];
+
+  it('collects only the names inside the same stack, so a deed can stand in several', () => {
+    expect(siblingNames(habits, 'isha')).toEqual([normalizeName('Read Qurʾān')]);
+    expect(siblingNames(habits, 'maghrib')).toEqual([]);
   });
 
-  it('appends the smallest free numeric suffix (starting at 2)', () => {
-    const taken = new Set([normalizeName('Read a page of Qurʾān')]);
-    expect(dedupeName('Read a page of Qurʾān', taken)).toBe('Read a page of Qurʾān 2');
+  it('treats the loose habits as one container of their own', () => {
+    expect(siblingNames(habits, null)).toEqual([normalizeName('Drink water')]);
   });
 
-  it('skips suffixes already taken', () => {
-    const taken = new Set(
-      ['Qurʾān', 'Qurʾān 2', 'Qurʾān 3'].map(normalizeName),
-    );
-    expect(dedupeName('Qurʾān', taken)).toBe('Qurʾān 4');
-  });
-
-  it('matches the taken set through the same diacritic folding (no near-duplicate slips by)', () => {
-    // A plain-saved "Read 1 page of Quran" must block the diacritical preset name.
-    const taken = new Set([normalizeName('Read 1 page of Quran')]);
-    expect(dedupeName('Read 1 page of Qurʾān', taken)).toBe('Read 1 page of Qurʾān 2');
+  it('leaves out the habit being edited', () => {
+    expect(siblingNames(habits, 'fajr', 'a')).toEqual([normalizeName('Morning adhkār')]);
   });
 });

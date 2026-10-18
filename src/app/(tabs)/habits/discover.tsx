@@ -11,7 +11,6 @@ import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
-import { useToast } from '@/components/toast';
 import { scheduleSummary, type SunnahCategory, type SunnahPreset } from '@/constants/sunnah-habits';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
@@ -21,7 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
 import { habitInputFor as toCreate } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
-import { dedupeName, normalizeName } from '@/lib/names';
+import { normalizeName } from '@/lib/names';
 
 /** 'all' | a category id — the active chip narrows the corpus searched. */
 type FilterId = 'all' | SunnahCategory['id'];
@@ -38,6 +37,10 @@ type Row =
   | { type: 'yourHabits'; habits: Habit[] }
   | { type: 'category'; category: SunnahCategory; presets: SunnahPreset[] }
   | { type: 'create' };
+
+/** Where a habit sits, by name: its stack (or none) plus its folded name. A name is unique only
+ *  within one stack, so this — not the name alone — is what identifies the act a row stands for. */
+const slot = (stackId: string | null, name: string) => `${stackId ?? ''}\u0000${normalizeName(name)}`;
 
 const rowKey = (row: Row) => (row.type === 'category' ? `category-${row.category.id}` : row.type);
 
@@ -61,18 +64,18 @@ const SectionGap = () => <View style={styles.gap} />;
  *
  * *Scoped* (`stackId` — the empty card's "Add your first act", `⋯ Manage stack → Add acts`): the
  * screen composes one stack's sequence. A tap answers "in this stack?" rather than "exists?", so a
- * loose habit you already have moves in, one already in another stack is copied here as its own row
- * (never pulled out of it), and the ✓ tap un-members rather than deletes. A "Your acts" section
+ * loose habit you already have moves in, one already in another stack is added here again under the
+ * same name as its own row (never pulled out of it: reading Qurʾān after Fajr and after ʿIshāʾ are
+ * two acts), and the ✓ tap un-members rather than deletes. A "Your habits" section
  * offers the lone habits you already have.
  *
  * *Unscoped* (`+ → Habit`): the same library, landing a **stackless habit** — the unit the HABITS
  * section on Today tracks. This is why the other two REPEATING doors in the add sheet open a
  * library and this one no longer opens a blank form: naming a habit from memory is recall where the
  * catalog offers recognition, and three doors in one sheet behaving two ways is the inconsistency
- * you feel before you can point at it. Here a tap answers "exists?", and the ✓ deletes what it
- * created — but only what it created: a preset that lives inside a stack is shown as added and says
- * where it is, because un-adding it from a library screen would silently destroy a stacked act and
- * the history that cascades with it.
+ * you feel before you can point at it. Here a tap answers "among your loose habits?" — the same
+ * question as scoped, asked of the habits in no stack — and the ✓ deletes the loose one. A copy of
+ * the preset inside a stack is another act and isn't this screen's to touch.
  *
  * (The unscoped branch existed before it was reachable, and `addPreset` opened with `if (!stack)
  * return` — while `ExpandableAddRow` fires its "added" haptic *before* delegating. The tap buzzed
@@ -81,7 +84,6 @@ const SectionGap = () => <View style={styles.gap} />;
 export default function DiscoverScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const toast = useToast();
   const { stackId } = useLocalSearchParams<{ stackId?: string }>();
   const {
     habits,
@@ -119,10 +121,13 @@ export default function DiscoverScreen() {
   const q = deferred.trim().toLowerCase();
   const searching = q.length > 0;
 
-  // Normalized name → habit, so a row can both answer "already added?" and undo its own add
-  // by deleting the exact habit it created (the ✓ becomes tap-to-remove).
-  const habitByName = useMemo(() => new Map(habits.map((h) => [normalizeName(h.name), h])), [habits]);
-  const existing = useMemo(() => new Set(habitByName.keys()), [habitByName]);
+  // The habit a preset row stands for: the one by that name in this screen's container — the
+  // scoped stack, or the loose habits when unscoped. A name is only unique within a stack, so a
+  // lookup across all habits would find whichever copy came last (the Fajr one, while composing
+  // ʿIshāʾ) and the row would answer for the wrong act.
+  const container = stack?.id ?? null;
+  const habitBySlot = useMemo(() => new Map(habits.map((h) => [slot(h.stack_id, h.name), h])), [habits]);
+  const habitIn = (stackId: string | null, preset: SunnahPreset) => habitBySlot.get(slot(stackId, preset.name));
 
   // What this visit actually created. The ✓ is documented as undoing "what it created" — but it
   // matched by NAME, so the same tap also reached a habit kept for months and deleted it, and
@@ -134,74 +139,41 @@ export default function DiscoverScreen() {
   // would be the expensive half of a bookkeeping detail.
   const createdHere = useRef<Set<string>>(new Set());
 
-  // Scoped: a row is "added" only when its habit is a member of THIS stack — the surface
-  // manages membership; the plain screen manages existence.
-  const addedFor = (preset: SunnahPreset) => {
-    const habit = habitByName.get(normalizeName(preset.name));
-    return scoped ? habit?.stack_id === stack.id : habit !== undefined;
-  };
-
-  // Copy a preset into the scoped stack as a fresh, independent row — used when the same habit
-  // already lives in another stack, so we add a second one here instead of moving the original
-  // out. Mirrors "Add another": the copy takes the next free "… 2"/"… 3" name, and the toast
-  // offers a one-tap rename.
-  const addCopyIntoStack = async (preset: SunnahPreset, targetStackId: string) => {
-    const name = dedupeName(preset.name, existing);
-    const [created] = await createHabits([{ ...toCreate(preset), name }]);
-    if (!created) return; // createHabits already surfaced the error
-    await moveHabit(created.id, { toStackId: targetStackId, placement: { type: 'member-append' } });
-    toast.show(`Added another “${preset.name}”`, 'success', {
-      label: 'Rename',
-      onPress: () => router.push({ pathname: '/habits/editor', params: { id: created.id } }),
-    });
-  };
+  // A row is "added" when its habit is in this screen's container — scoped, a member of THIS
+  // stack; unscoped, one of the loose habits. A copy elsewhere is a different act.
+  const addedFor = (preset: SunnahPreset) => habitIn(container, preset) !== undefined;
 
   const addPreset = (preset: SunnahPreset) => {
+    if (habitIn(container, preset)) return; // already here (the ✓ tap handles removal)
     if (!stack) {
       // Unscoped: land it as a stackless habit, straight into Today's HABITS section. `toCreate`
       // names no stack at all, which is what made this the three-line change it looks like.
-      if (!habitByName.has(normalizeName(preset.name))) {
-        void createHabits([toCreate(preset)]).then(([created]) => {
-          if (created) createdHere.current.add(created.id);
-        });
-      }
+      void createHabits([toCreate(preset)]).then(([created]) => {
+        if (created) createdHere.current.add(created.id);
+      });
       return;
     }
-    const found = habitByName.get(normalizeName(preset.name));
-    if (!found) {
-      // Not a habit anywhere yet — create it straight into this stack.
-      void createHabitInStack(toCreate(preset), stack.id);
+    const loose = habitIn(null, preset);
+    if (loose) {
+      // An un-anchored habit you already have — give it this home. Non-destructive: it wasn't in a
+      // stack, so nothing gets quietly emptied.
+      void moveHabit(loose.id, { toStackId: stack.id });
       return;
     }
-    if (found.stack_id === stack.id) return; // already a member here (the ✓ tap handles removal)
-    if (found.stack_id === null) {
-      // An un-anchored habit you already have (from before every habit had a stack) — give it
-      // this home. Non-destructive: it wasn't in a stack, so nothing gets quietly emptied.
-      void moveHabit(found.id, { toStackId: stack.id });
-      return;
-    }
-    // It already lives in another stack: add an independent copy here rather than pull the
-    // original out of that stack. Each copy is its own row (the app's model, and the ＋ "Add
-    // another"), so filling this stack never silently empties another.
-    void addCopyIntoStack(preset, stack.id);
+    // Not here yet — create it straight into this stack, under the preset's own name, even when
+    // another stack already holds it. Each is its own row with its own ticks, so filling this stack
+    // never silently empties another.
+    void createHabitInStack(toCreate(preset), stack.id);
   };
 
   const removePreset = (preset: SunnahPreset) => {
-    const habit = habitByName.get(normalizeName(preset.name));
+    const habit = habitIn(container, preset);
     if (!habit) return;
     if (stack) {
       // Scoped: un-member, never delete. This screen composes a stack's sequence; destroying an act
       // (and the history that cascades with it) belongs to the act's own sheet, where the
       // confirmation is. Un-anchored, it lands in Today's HABITS section rather than vanishing.
       void moveHabit(habit.id, { toStackId: null, keepEmptyShell: true });
-      return;
-    }
-    // Unscoped, the ✓ undoes this screen's own add — so it may only reach a habit that stands on
-    // its own. One inside a stack was not added here and is not this screen's to destroy; say where
-    // it is instead of doing nothing, because the row already buzzed as though something happened.
-    if (habit.stack_id) {
-      const home = stacks.find((s) => s.id === habit.stack_id);
-      toast.show(home ? `Already in ${home.name}` : 'Already in a stack', 'success');
       return;
     }
     // Undoing an add you just made is instant — that is the checklist idiom this row is built on,
@@ -222,12 +194,9 @@ export default function DiscoverScreen() {
 
   // Search and category cards share the same actions and accessibility contract.
   const renderPreset = (preset: SunnahPreset) => {
-    const habit = habitByName.get(normalizeName(preset.name));
     const addedHint = stack
       ? 'Removes it from this stack and keeps it in your habits'
-      : habit?.stack_id
-        ? 'Shows which stack already contains this habit'
-        : 'Removes this habit; asks before deleting saved history';
+      : 'Removes this habit; asks before deleting saved history';
     return (
       <SunnahPresetRow
         key={preset.id}
@@ -350,7 +319,7 @@ export default function DiscoverScreen() {
         // row leaving this section (it's a member now) is the confirmation, like a preset ✓.
         return (
           <View style={wrap}>
-            <SettingsSection title="Your acts">
+            <SettingsSection title="Your habits">
               {item.habits.map((habit) => (
                 <SettingsRow
                   key={habit.id}
@@ -393,7 +362,7 @@ export default function DiscoverScreen() {
               <SettingsRow
                 icon="add"
                 label={`Create your own ${noun}`}
-                sublabel="Name, schedule and target"
+                sublabel="Name, target and schedule"
                 onPress={goCreateHabit}
                 showChevron
               />

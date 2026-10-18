@@ -610,7 +610,7 @@ export default function HabitsScreen() {
               ),
           headerRight: () => (
             <HeaderActions>
-              {/* One door to add: the sheet forks to six things you can start, repeating or
+              {/* One door to add: the sheet forks to four things you can start, repeating or
                   one-off — hence the bare "Add", which is all this button can honestly promise. */}
               <HeaderIconButton
                 icon={Icons.add}

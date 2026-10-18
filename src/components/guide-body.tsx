@@ -7,7 +7,8 @@ import type { Guide, GuideSection } from '@/constants/guides';
 import { Spacing } from '@/constants/theme';
 
 /**
- * A guide's photograph and its lede — the head of both the inline intro and the standalone screen.
+ * A guide's photograph and its lede — the head of the standalone screen. (The inline intro shows
+ * the lede alone and keeps the photograph inside its disclosure; see `guide-intro.tsx`.)
  *
  * The photo is a `Surface`, not a bare rounded `<Image>`. These are near-black dusk interiors:
  * their corners sit around `#030305`–`#0F0F10`, and the dark theme's background is `#060910`. An
@@ -27,11 +28,19 @@ import { Spacing } from '@/constants/theme';
 export function GuideOpening({ guide }: { guide: Guide }) {
   return (
     <View style={styles.opening}>
-      <Surface accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Image source={guide.image} style={styles.photo} contentFit="cover" contentPosition="top" />
-      </Surface>
+      <GuidePhoto guide={guide} />
       <ThemedText type="default">{guide.lede}</ThemedText>
     </View>
+  );
+}
+
+/** The photograph alone — the inline intro keeps it inside its disclosure, so the library's
+ *  choices start above the fold and the picture comes with the argument it illustrates. */
+export function GuidePhoto({ guide }: { guide: Guide }) {
+  return (
+    <Surface accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Image source={guide.image} style={styles.photo} contentFit="cover" contentPosition="top" />
+    </Surface>
   );
 }
 

@@ -119,10 +119,33 @@ describe('buildCuratedPlan', () => {
   it('returns null only once the stack exists AND already holds every act', () => {
     const stacks = [{ id: 's1', name: 'fajr' }];
     expect(buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything('s1'), stacks)).toBeNull();
-    // The same acts kept outside that stack still leave it something to do: gather them in.
-    const scattered = buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything('s2'), stacks);
+    // The same acts kept loose still leave it something to do: gather them in.
+    const scattered = buildCuratedPlan(AFTER_FAJR, PRESETS, ownsEverything(), stacks);
     expect(scattered!.existingStackId).toBe('s1');
     expect(scattered!.gatherIds).toHaveLength(3);
+  });
+
+  it('copies an act another stack holds instead of pulling it out of that stack', () => {
+    // Reading Qurʾān after Fajr and again after ʿIshāʾ are two acts — the ʿIshāʾ one stays put.
+    const plan = buildCuratedPlan(
+      AFTER_FAJR,
+      PRESETS,
+      owned({ name: 'Prayed Fajr on time', stack_id: 's2' }, 'Said the morning adhkār'),
+      [{ id: 's2', name: 'Isha' }],
+    );
+    expect(plan!.inputs.map((i) => i.name)).toEqual(['Said the duʿāʾ on waking', 'Prayed Fajr on time']);
+    expect(plan!.gatherIds).toEqual(['h1']);
+  });
+
+  it('reuses the copy already in the stack being built over a loose twin of it', () => {
+    const plan = buildCuratedPlan(
+      AFTER_FAJR,
+      PRESETS,
+      owned('Prayed Fajr on time', { name: 'Prayed Fajr on time', stack_id: 's1' }),
+      [{ id: 's1', name: 'Fajr' }],
+    );
+    expect(plan!.acts).toContainEqual({ kind: 'own', habitId: 'h1' });
+    expect(plan!.gatherIds).toEqual([]);
   });
 
   it('matches a same-named existing stack for appending instead of creating a twin', () => {

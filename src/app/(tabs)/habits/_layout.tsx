@@ -25,7 +25,7 @@ export default function HabitsStackLayout() {
     <TabStack>
       {/* Transparent so the fixed sky behind the stack shows through the (transparent) list. */}
       <Stack.Screen name="index" options={transparentScreen} />
-      {/* The "+" fork: six things you can start, repeating or one-off — a compact form sheet whose
+      {/* The "+" fork: four things you can start, repeating or one-off — a compact form sheet whose
           rows name the noun each one makes. */}
       <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
       {/* The library of ready-made stacks, each anchored to a moment the day already has — a

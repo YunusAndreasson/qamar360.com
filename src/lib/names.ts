@@ -1,6 +1,6 @@
 /**
  * Name matching for habits & stacks. Nothing in the DB enforces name uniqueness, so the app
- * rejects duplicates itself — and Discover's "already added ✓" check has to normalize a name the
+ * rejects duplicates itself (stacks across the account, habits within their stack) — and Discover's "already added ✓" check has to normalize a name the
  * exact same way the editors' collision check does, or the two silently drift. One normalizer,
  * one place.
  */
@@ -32,16 +32,13 @@ export const isDuplicateName = (trimmed: string, existingNames: string[]) =>
   trimmed.length > 0 && existingNames.includes(normalizeName(trimmed));
 
 /**
- * Append the smallest numeric suffix that makes `base` unique against `taken` (a set of names
- * already folded through {@link normalizeName}): "Qurʾān" → "Qurʾān 2" → "Qurʾān 3" …. Returns
- * `base` untouched when it's already free. The one differentiator shared by the drop-to-stack
- * default name and Discover's "Add another" copy, so a duplicate never trips the editors'
- * name-uniqueness guard (there's no DB constraint — the app keeps names distinct itself).
+ * {@link otherNames} narrowed to the habits beside one: the same stack, or (`stackId` null) the
+ * loose habits and exchanges. A habit's name only has to be told apart from its neighbours — the
+ * same deed may stand in several stacks ("Read Qurʾān" after Fajr and again after ʿIshāʾ), each
+ * its own row with its own ticks, and the card it sits in is what tells them apart.
  */
-export const dedupeName = (base: string, taken: Set<string>): string => {
-  if (!taken.has(normalizeName(base))) return base;
-  for (let n = 2; ; n++) {
-    const candidate = `${base} ${n}`;
-    if (!taken.has(normalizeName(candidate))) return candidate;
-  }
-};
+export const siblingNames = <T extends { id: string; name: string; stack_id: string | null }>(
+  habits: T[],
+  stackId: string | null,
+  id?: string,
+) => otherNames(habits.filter((h) => h.stack_id === stackId), id);
