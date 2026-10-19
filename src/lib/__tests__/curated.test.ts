@@ -29,7 +29,6 @@ const AFTER_FAJR: CuratedStack = {
   id: 'after-fajr',
   name: 'Fajr',
   moment: 'fajr',
-  blurb: '',
   acts: [{ presetId: 'waking' }, { presetId: 'fajr' }, { presetId: 'ghost-id' }, { presetId: 'adhkar-am' }],
 };
 
@@ -37,7 +36,6 @@ const FRIDAY: CuratedStack = {
   id: 'friday',
   name: 'Friday',
   moment: 'jumuah',
-  blurb: '',
   acts: [{ presetId: 'kahf' }, { presetId: 'water', schedule: [5] }],
 };
 

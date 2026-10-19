@@ -20,12 +20,16 @@ import { Spacing } from '@/constants/theme';
  * reach it. Someone who doesn't gets the lede for free and the rest, photograph included, for the
  * price of a tap. The standalone guide screen keeps the photograph at its head (`GuideOpening`).
  *
- * No in-body title — the nav bar above already says "Ready-made stacks".
+ * No in-body title — the nav bar above already names the screen.
  */
 export function GuideIntro({ guide }: { guide: Guide }) {
   return (
     <View style={styles.intro}>
-      <ThemedText type="default">{guide.lede}</ThemedText>
+      {/* Secondary: an introduction to the choices, not one of them. In primary ink it was the
+          heaviest block on the page, read before the names it was there to introduce. */}
+      <ThemedText type="default" themeColor="textSecondary">
+        {guide.lede}
+      </ThemedText>
       <DisclosureRow label={guide.why} expandHint="Opens the full guide." collapseHint="Hides the guide.">
         <View style={styles.body}>
           <GuidePhoto guide={guide} />
@@ -37,8 +41,9 @@ export function GuideIntro({ guide }: { guide: Guide }) {
 }
 
 const styles = StyleSheet.create({
-  // `marginBottom` on top of AppScreen's own 16pt gap reproduces the 24pt of air the one-line
-  // lede this replaces used to hold before the first section label.
-  intro: { gap: Spacing.three, marginBottom: Spacing.two },
+  // The disclosure hangs off the lede it expands, so the two are bound tight: the row's own 44pt
+  // box already puts ~10pt of air above its label. No margin below — both libraries space their
+  // blocks 24 apart, and an extra 8 here made the head the one 32pt gap on the page.
+  intro: { gap: Spacing.one },
   body: { gap: Spacing.four },
 });

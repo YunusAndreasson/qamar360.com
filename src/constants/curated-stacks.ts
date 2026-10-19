@@ -14,10 +14,14 @@ import type { MomentKey } from '@/lib/moments';
  * below is mostly just those deeds with a short sequence hung on each. Every name here is
  * therefore an *after*, matching the past-tense voice the acts themselves are named in.
  *
- * Ḍuḥā is the one exception, and it is filed under its own heading for exactly that reason: it
- * is a cue the user has to establish rather than one they already have. It is here because the
- * forenoon is the longest stretch of the waking day with no deed in it to hang anything on, so
- * the alternative was not a weaker anchor — it was no stack at all.
+ * Ḍuḥā is the one exception: it is a cue the user has to establish rather than one they already
+ * have. It is here because the forenoon is the longest stretch of the waking day with no deed in
+ * it to hang anything on, so the alternative was not a weaker anchor — it was no stack at all.
+ *
+ * The groups are plain nouns, in the order of the day, and nothing more: the library is scanned
+ * for a moment you recognise ("Fajr", "Getting into bed"), so a heading only has to say which
+ * shelf that moment is on. They used to be figures of speech ("The hinges of the day", "The
+ * prayer you choose") that each needed reading twice.
  *
  * Every act is a preset that already exists in {@link SUNNAH_PRESETS}; this file only names ids
  * and their order. A curated stack is a *starting point* — once added it is an ordinary stack the
@@ -43,8 +47,6 @@ export type CuratedStack = {
   name: string;
   /** The anchor: the stack wears this moment's emblem. */
   moment: MomentKey;
-  /** One line on why this cue holds — shown in the library, not stored on the stack. */
-  blurb: string;
   /** The acts, in the order they are performed. */
   acts: CuratedAct[];
 };
@@ -54,52 +56,13 @@ const FRIDAY = [5];
 
 export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[] }[] = [
   {
-    key: 'hinges',
-    title: 'The hinges of the day',
-    stacks: [
-      {
-        id: 'after-waking',
-        name: 'Waking up',
-        moment: 'waking-up',
-        blurb: 'Your eyes open in the same place every day — the most dependable cue you own.',
-        acts: [
-          { presetId: 'wipe-face-on-waking' },
-          { presetId: 'dua-on-waking' },
-          { presetId: 'miswak' },
-          { presetId: 'hydrate-water' },
-        ],
-      },
-      {
-        id: 'after-rising-at-night',
-        name: 'Rising at night',
-        moment: 'before-dawn',
-        blurb: 'Getting up is the hard part, and you have already done it — hang the rest on that.',
-        acts: [{ presetId: 'tahajjud' }, { presetId: 'istighfar-100' }, { presetId: 'quran-murajaah' }],
-      },
-      {
-        id: 'after-getting-into-bed',
-        name: 'Getting into bed',
-        moment: 'bedtime',
-        blurb: 'Lying down is the one thing you never skip — so it can carry the rest.',
-        acts: [
-          { presetId: 'screens-away' },
-          { presetId: 'sleep-on-wudu' },
-          { presetId: 'surah-al-mulk' },
-          { presetId: 'three-quls-sleep' },
-          { presetId: 'sleeping-adhkar' },
-        ],
-      },
-    ],
-  },
-  {
     key: 'prayers',
-    title: 'The five prayers',
+    title: 'Prayers',
     stacks: [
       {
         id: 'after-fajr',
         name: 'Fajr',
         moment: 'fajr',
-        blurb: 'You are already up and on the mat, and nothing has claimed the day yet.',
         acts: [
           { presetId: 'sunnah-before-fajr' },
           { presetId: 'fajr-on-time' },
@@ -109,73 +72,14 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
         ],
       },
       {
-        id: 'after-dhuhr',
-        name: 'Dhuhr',
-        moment: 'dhuhr',
-        blurb: 'The prayer has already broken the working day open — use the break it made.',
-        acts: [
-          { presetId: 'sunnah-before-dhuhr' },
-          { presetId: 'dhuhr-on-time' },
-          { presetId: 'sunnah-after-dhuhr' },
-          { presetId: 'qaylulah' },
-        ],
-      },
-      {
-        id: 'after-asr',
-        name: 'ʿAṣr',
-        moment: 'asr',
-        blurb: 'You have just stood up from prayer — the body is already moving, so keep it moving.',
-        acts: [
-          { presetId: 'sunnah-before-asr' },
-          { presetId: 'asr-on-time' },
-          { presetId: 'tasbih-after-salah' },
-          { presetId: 'daily-walk' },
-        ],
-      },
-      {
-        id: 'after-maghrib',
-        name: 'Maghrib',
-        moment: 'maghrib',
-        blurb: 'You have just prayed and the household is together — attach what belongs to people.',
-        acts: [
-          { presetId: 'maghrib-on-time' },
-          { presetId: 'sunnah-after-maghrib' },
-          { presetId: 'evening-adhkar' },
-          { presetId: 'family-time' },
-        ],
-      },
-      {
-        id: 'after-isha',
-        name: 'ʿIshāʾ',
-        moment: 'isha',
-        blurb: 'The last prayer already ends your day — let it end it well.',
-        acts: [
-          { presetId: 'isha-on-time' },
-          { presetId: 'sunnah-after-isha' },
-          { presetId: 'witr' },
-          { presetId: 'sleep-early' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'forenoon',
-    // Its own heading rather than a sixth card under "THE FIVE PRAYERS", which is a count and
-    // would stop being true. The title says the difference outright: every other stack in this
-    // file hangs off something you already do, and this one hangs off something you are taking up.
-    title: 'The prayer you choose',
-    stacks: [
-      {
         id: 'after-duha',
         name: 'Ḍuḥā',
         moment: 'duha',
         // The only stack here whose anchor is not already automatic — see the note on the `duha`
         // moment. It is also the only one whose first act *is* the anchor rather than a refinement
         // of it: the five carry "prayed it on time", because praying at all was never in question,
-        // and here it is. Which makes this the one stack that has to earn its own cue before it
-        // can carry anything — so it is deliberately short, and the forenoon it opens is the
-        // emptiest stretch of the day to grow into.
-        blurb: 'The forenoon has no hinge of its own — so Ḍuḥā becomes one, and the morning hangs on it.',
+        // and here it is. So it is deliberately short, and the forenoon it opens is the emptiest
+        // stretch of the day to grow into.
         acts: [
           { presetId: 'duha' },
           // The rest of the ḥadīth the prayer comes from: a charity owed by every joint each
@@ -188,32 +92,67 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
           { presetId: 'quran-sabaq' },
         ],
       },
-    ],
-  },
-  {
-    key: 'week',
-    title: 'The weekly prayer',
-    stacks: [
       {
-        id: 'after-jumuah',
-        name: 'Jumuʿah',
-        moment: 'jumuah',
-        // Anchored to the prayer, not the weekday. "It is Friday" is a fact about the calendar
-        // that arrives while you are asleep and never announces itself again; standing up from
-        // Jumuʿah is a deed with a finish, which is the only kind of thing a stack can hang on.
-        blurb: 'The one prayer you leave the house for — and the clearest finish line in the week.',
+        id: 'after-dhuhr',
+        name: 'Dhuhr',
+        moment: 'dhuhr',
         acts: [
-          { presetId: 'surah-al-kahf-friday' },
-          { presetId: 'salawat', schedule: FRIDAY },
-          { presetId: 'dua-for-a-brother', schedule: FRIDAY },
+          { presetId: 'sunnah-before-dhuhr' },
+          { presetId: 'dhuhr-on-time' },
+          { presetId: 'sunnah-after-dhuhr' },
+          { presetId: 'qaylulah' },
+        ],
+      },
+      {
+        id: 'after-asr',
+        name: 'ʿAṣr',
+        moment: 'asr',
+        acts: [
+          { presetId: 'sunnah-before-asr' },
+          { presetId: 'asr-on-time' },
+          { presetId: 'tasbih-after-salah' },
+          { presetId: 'daily-walk' },
+        ],
+      },
+      {
+        id: 'after-maghrib',
+        name: 'Maghrib',
+        moment: 'maghrib',
+        acts: [
+          { presetId: 'maghrib-on-time' },
+          { presetId: 'sunnah-after-maghrib' },
+          { presetId: 'evening-adhkar' },
+          { presetId: 'family-time' },
+        ],
+      },
+      {
+        id: 'after-isha',
+        name: 'ʿIshāʾ',
+        moment: 'isha',
+        acts: [
+          { presetId: 'isha-on-time' },
+          { presetId: 'sunnah-after-isha' },
+          { presetId: 'witr' },
+          { presetId: 'sleep-early' },
         ],
       },
     ],
   },
   {
-    key: 'body',
-    title: 'Body & mind',
+    key: 'waking-and-sleep',
+    title: 'Waking and sleep',
     stacks: [
+      {
+        id: 'after-waking',
+        name: 'Waking up',
+        moment: 'waking-up',
+        acts: [
+          { presetId: 'wipe-face-on-waking' },
+          { presetId: 'dua-on-waking' },
+          { presetId: 'miswak' },
+          { presetId: 'hydrate-water' },
+        ],
+      },
       {
         id: 'after-waking-body',
         name: 'Waking up, for the body',
@@ -222,12 +161,48 @@ export const CURATED_GROUPS: { key: string; title: string; stacks: CuratedStack[
         // up, so it hangs on getting up. Shares the anchor with 'after-waking' on purpose —
         // they are two different sequences off the same reliable deed, and a user may keep both.
         moment: 'waking-up',
-        blurb: 'You are already up and moving; hang the body’s work on that, not on a clock.',
         acts: [
           { presetId: 'morning-daylight' },
           { presetId: 'protein-morning' },
           { presetId: 'vitamin-d' },
           { presetId: 'exercise-daily' },
+        ],
+      },
+      {
+        id: 'after-getting-into-bed',
+        name: 'Getting into bed',
+        moment: 'bedtime',
+        acts: [
+          { presetId: 'screens-away' },
+          { presetId: 'sleep-on-wudu' },
+          { presetId: 'surah-al-mulk' },
+          { presetId: 'three-quls-sleep' },
+          { presetId: 'sleeping-adhkar' },
+        ],
+      },
+      {
+        id: 'after-rising-at-night',
+        name: 'Rising at night',
+        moment: 'before-dawn',
+        acts: [{ presetId: 'tahajjud' }, { presetId: 'istighfar-100' }, { presetId: 'quran-murajaah' }],
+      },
+    ],
+  },
+  {
+    key: 'week',
+    title: 'Fridays',
+    stacks: [
+      {
+        id: 'after-jumuah',
+        name: 'Jumuʿah',
+        // Anchored to the prayer, not the weekday. "It is Friday" is a fact about the calendar
+        // that arrives while you are asleep and never announces itself again; standing up from
+        // Jumuʿah is a deed with a finish, which is the only kind of thing a stack can hang on.
+        moment: 'jumuah',
+        acts: [
+          { presetId: 'surah-al-kahf-friday' },
+          { presetId: 'salawat', schedule: FRIDAY },
+          { presetId: 'dua-for-a-brother', schedule: FRIDAY },
         ],
       },
     ],

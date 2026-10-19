@@ -28,15 +28,15 @@ export default function HabitsStackLayout() {
       {/* The "+" fork: four things you can start, repeating or one-off — a compact form sheet whose
           rows name the noun each one makes. */}
       <Stack.Screen name="add-menu" options={formSheetOptions(theme)} />
-      {/* The library of ready-made stacks, each anchored to a moment the day already has — a
-          native modal sheet with a left-aligned Close, like Discover beside it. */}
+      {/* Add a stack: your own, or a ready-made one anchored to a moment the day already has — a
+          native modal sheet with a left-aligned Close, like Discover ("Add a habit") beside it. */}
       <Stack.Screen
         name="stack-library"
-        options={{ ...modalHeaderOptions(theme), title: 'Ready-made stacks', headerLeft: headerCloseAction(() => router.back()) }}
+        options={{ ...modalHeaderOptions(theme), title: 'Add a stack', headerLeft: headerCloseAction(() => router.back()) }}
       />
       {/* Add an act: search/filter the curated Sunnah library or create your own — a native
           modal sheet, with a native search bar and a left-aligned Close; the chips lead the list.
-          The screen titles itself ("Add a habit", or "Add to {stack}" with a `stackId`); this is
+          The screen titles itself ("Add a habit", or "Add an act" with a `stackId`); this is
           the same words as the fallback, so the bar never flashes the route's name first. */}
       <Stack.Screen
         name="discover"
@@ -51,7 +51,7 @@ export default function HabitsStackLayout() {
           from "Manage stack". Presented exactly like its per-act sibling above. */}
       <Stack.Screen name="stack-stats" options={transparentScreen} />
       {/* Name a new (empty) stack — the one-field modal behind "Your own stack", the stack
-          library's "Custom" and the stack picker's "New stack". */}
+          library's "Your own stack" row and the stack picker's "New stack". */}
       <Stack.Screen name="stack-new" options={modalHeaderOptions(theme)} />
       {/* Rename a stack — the one-field modal behind "Manage stack" → "Edit stack". */}
       <Stack.Screen name="stack-rename" options={modalHeaderOptions(theme)} />
@@ -68,13 +68,12 @@ export default function HabitsStackLayout() {
           from inside the "New stack" modal, so pushing (a back button, a real title) beats
           stacking a second modal on the first. Its title comes from the guide data. */}
       <Stack.Screen name="stacking-info" />
-      {/* The library of ready-made exchanges — the other half of the "+" fork, presented like the
-          stack library beside it. */}
+      {/* Add an exchange: your own, or a ready-made one — presented like "Add a stack" beside it. */}
       <Stack.Screen
         name="exchange-library"
         options={{
           ...modalHeaderOptions(theme),
-          title: 'Ready-made exchanges',
+          title: 'Add an exchange',
           headerLeft: headerCloseAction(() => router.back()),
         }}
       />

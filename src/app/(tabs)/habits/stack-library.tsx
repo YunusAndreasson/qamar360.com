@@ -1,9 +1,8 @@
-import { Stack, useRouter } from 'expo-router';
-import { Fragment } from 'react';
+import { useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
-import { headerNewAction } from '@/components/form-header-actions';
 import { GuideIntro } from '@/components/guide-intro';
 import { LibraryCard } from '@/components/library-card';
 import { SectionLabel } from '@/components/section-label';
@@ -22,13 +21,18 @@ import { haptics } from '@/lib/haptics';
 import { MOMENTS } from '@/lib/moments';
 
 /**
- * The library of ready-made stacks.
+ * Add a stack: your own, or one of the ready-made ones.
  *
  * This is the app's front door for a new user, and the reason the first-run empty state asks for
  * an *anchor* rather than a habit: a sequence hung on something you already do every day survives,
- * and a Muslim day is unusually rich in such anchors. Each card shows the cue, why it holds, and
- * the exact acts you'd be taking on — the decision is made with the whole thing visible, not after
- * committing to it.
+ * and a Muslim day is unusually rich in such anchors. Each card shows the moment and the exact acts
+ * you'd be taking on, so the decision is made with the whole thing visible, not after committing.
+ *
+ * The page reads top to bottom as one decision: what a stack is (one line), your own (one row),
+ * then the ready-made ones by moment. It used to open on the argument, bury the from-scratch door
+ * in the nav bar and again below eleven cards, and give each card three tiers of grey prose over a
+ * full-width button whose label changed from card to card. The name now leads each card, the acts
+ * follow quietly, and every card's verb is the same "Add".
  *
  * Adding is idempotent by design: acts already owned are skipped and a same-named stack is
  * appended to, so re-running a partly-added stack only fills the gaps.
@@ -39,11 +43,28 @@ export default function StackLibraryScreen() {
   const { presets } = useCatalog();
   const { habits, stacks, createHabits, createStack, updateStack, deleteStack, deleteHabit, moveHabit } = useHabits();
 
-  // The from-scratch door, named once and offered twice — from the nav bar and from the closing
-  // row. `push`, as Discover pushes its editor: Cancel on the blank form steps back to the library
-  // you were browsing (the "+" sheet it once returned to was already replaced away, so `replace`
-  // dropped you on Today), while Create closes the whole flow onto the day.
+  // The from-scratch door, offered once, ahead of the ready-made cards. `push`, as Discover pushes
+  // its editor: Cancel on the blank form steps back here (the "+" sheet it once returned to was
+  // already replaced away, so `replace` dropped you on Today), while Create closes the whole flow
+  // onto the day.
   const goCreateStack = () => router.push('/habits/stack-new');
+
+  // The card being added, while its writes are in flight. A plan is read off the habits as they
+  // stand, so a second tap before the first landed planned the same acts again and made them twice.
+  // State draws the busy pill; the ref is the guard, since two taps can land before a re-render.
+  const [adding, setAdding] = useState<string | null>(null);
+  const addingRef = useRef(false);
+  const add = async (curated: CuratedStack) => {
+    if (addingRef.current) return;
+    addingRef.current = true;
+    setAdding(curated.id);
+    try {
+      await addStack(curated);
+    } finally {
+      addingRef.current = false;
+      setAdding(null);
+    }
+  };
 
   const addStack = async (curated: CuratedStack) => {
     const plan = buildCuratedPlan(curated, presets, habits, stacks);
@@ -111,14 +132,21 @@ export default function StackLibraryScreen() {
 
   return (
     <AppScreen contentStyle={styles.content}>
-      {/* "Custom" opposite the route's Close: the same door the closing row opens, out of a scroll
-          that is ~10 cards deep. See {@link headerNewAction} for why it is a word and not a "+". */}
-      <Stack.Screen options={{ headerRight: headerNewAction('Custom', 'Create your own stack', goCreateStack) }} />
-
-      {/* The case for anchoring, at the head of the screen where the anchoring is chosen — the
-          photograph and the thesis always, the argument behind one tap. It used to be a row in the
-          footer, below every card: an explanation offered after the decision it informs. */}
+      {/* What a stack is, in one line, with the argument one tap down. */}
       <GuideIntro guide={STACKING_GUIDE} />
+
+      {/* Your own first, the way a template gallery leads with the blank page: someone who came
+          knowing what they want shouldn't have to scroll past eleven suggestions to find it. One
+          row, so it costs the browsing reader a glance. */}
+      <SettingsSection>
+        <SettingsRow
+          icon="add"
+          label="Your own stack"
+          sublabel="Choose a moment, then add your acts"
+          onPress={goCreateStack}
+          showChevron
+        />
+      </SettingsSection>
 
       {CURATED_GROUPS.map((group) => (
         <View key={group.key} style={styles.group}>
@@ -130,41 +158,37 @@ export default function StackLibraryScreen() {
               // Null only once the stack exists AND holds every act — owning the acts alone
               // leaves the card something to offer: the anchoring itself.
               plan={buildCuratedPlan(curated, presets, habits, stacks)}
-              onAdd={() => void addStack(curated)}
+              busy={adding === curated.id}
+              onAdd={() => void add(curated)}
             />
           ))}
         </View>
       ))}
-
-      {/* The from-scratch path stays one tap away without shouting over the library — the same
-          closing row all three libraries end on: an add glyph, "Create your own …", and the
-          chevron a row that opens something carries. */}
-      <SettingsSection>
-        <SettingsRow
-          icon="add"
-          label="Create your own stack"
-          sublabel="Name it, anchor it to a moment, then add your acts"
-          onPress={goCreateStack}
-          showChevron
-        />
-      </SettingsSection>
     </AppScreen>
   );
 }
 
 /**
- * One ready-made stack, shown whole: its anchor emblem and name, the one line on why that cue
- * holds, and the acts in the order they're done. Acts the user already has are struck from the
- * "you'd be adding" count rather than hidden — the sequence is the thing being learned, so it is
- * always shown complete.
+ * One ready-made stack, shown whole: its name, then the acts in the order
+ * they're done. Acts the user already keeps are listed like the rest (the sequence is the thing
+ * being learned, so it is always shown complete); adding gathers them in rather than duplicating
+ * them, and the accessibility hint says so.
+ *
+ * Each card used to carry a line on why its cue holds, and a button that named one of three
+ * offers ("Add this stack", "Add the missing 2", "Anchor the acts you keep"). The line was a third
+ * tier of grey between the name and the acts, read once if ever; the three labels made the same
+ * tap look like three different things. The difference they named is real but small, and Undo
+ * reverses all of it.
  */
 function CuratedCard({
   curated,
   plan,
+  busy,
   onAdd,
 }: {
   curated: CuratedStack;
   plan: ReturnType<typeof buildCuratedPlan>;
+  busy: boolean;
   onAdd: () => void;
 }) {
   const { presets } = useCatalog();
@@ -179,12 +203,6 @@ function CuratedCard({
   const gathering = plan?.gatherIds.length ?? 0;
   const moment = MOMENTS[curated.moment];
 
-  // Three offers a card can make, and the label has to name the right one: create every act,
-  // create only the ones missing, or create nothing at all and just anchor what is already kept.
-  // That last case used to render as "Already yours" — a card claiming the user had a stack they
-  // did not, over a button that was no longer there.
-  const label =
-    adding === 0 ? 'Anchor the acts you keep' : adding === acts.length ? 'Add this stack' : `Add the missing ${adding}`;
   const said: string[] = [];
   if (adding > 0) said.push(`Adds ${adding} act${adding === 1 ? '' : 's'}`);
   if (gathering > 0)
@@ -193,20 +211,14 @@ function CuratedCard({
 
   return (
     <LibraryCard
-      icon={moment.icon}
       title={curated.name}
       owned={plan === null}
-      action={{ label, onPress: onAdd, accessibilityLabel: `Add the ${curated.name} stack`, accessibilityHint: hint }}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {curated.blurb}
-      </ThemedText>
-      <View style={styles.acts}>
-        {acts.map((name, i) => (
-          <Fragment key={name}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.act}>
-              {`${i + 1}  ${name}`}
-            </ThemedText>
-          </Fragment>
+      action={{ onPress: onAdd, busy, accessibilityLabel: `Add the ${curated.name} stack`, accessibilityHint: hint }}>
+      <View style={styles.acts} accessible accessibilityLabel={`Acts: ${acts.join(', ')}`}>
+        {acts.map((name) => (
+          <ThemedText key={name} type="small" themeColor="textSecondary">
+            {name}
+          </ThemedText>
         ))}
       </View>
     </LibraryCard>
@@ -218,8 +230,6 @@ const styles = StyleSheet.create({
   content: { gap: Spacing.four },
   // 8 from a caption to its first card and between cards: the app's caption→card beat.
   group: { gap: Spacing.two },
-  // The sequence, set as its own block so it reads as a list to learn rather than body copy.
-  acts: { gap: Spacing.half, paddingVertical: Spacing.one },
-  // Tabular figures so the ordinals form a true column.
-  act: { fontVariant: ['tabular-nums'] },
+  // The sequence, one act a line, so it reads as a list to learn rather than body copy.
+  acts: { gap: Spacing.half },
 });

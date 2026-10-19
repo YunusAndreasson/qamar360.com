@@ -57,7 +57,7 @@ export type Guide = {
 export const STACKING_GUIDE: Guide = {
   id: 'stacking',
   title: 'Habit stacking',
-  lede: 'Anchor a stack to something you already do — the cue you never forget.',
+  lede: 'A stack is a few acts you do straight after something you already do every day.',
   why: 'Why anchoring works',
   image: require('../../assets/images/guide-stacking.webp'),
   sections: [
@@ -88,7 +88,7 @@ export const STACKING_GUIDE: Guide = {
 export const EXCHANGE_GUIDE: Guide = {
   id: 'exchange',
   title: 'Exchanges',
-  lede: 'Put a good act where an old one keeps happening — the same moment, a different answer.',
+  lede: 'An exchange is a good act you do at the moment you’d usually reach for an old habit.',
   why: 'Why replacing works',
   image: require('../../assets/images/guide-exchange.webp'),
   sections: [

@@ -31,6 +31,7 @@ export function DisclosureRow({
   expandHint,
   collapseHint,
   initiallyExpanded = false,
+  dense = false,
   children,
 }: {
   label: string;
@@ -41,6 +42,10 @@ export function DisclosureRow({
   /** Opens on its first render — for content the user already filled in, which a closed row would
    *  hide from the very person who wrote it. Read once; after that the row owns its state. */
   initiallyExpanded?: boolean;
+  /** Keep the 44pt target but let it overlap its neighbours' air rather than add to it — for the
+   *  last line of a card, where the row's own 10pt above and below its label otherwise doubled the
+   *  gap under the line before it and left the card a deep empty foot. */
+  dense?: boolean;
   children: ReactNode;
 }) {
   const theme = useTheme();
@@ -55,7 +60,7 @@ export function DisclosureRow({
         accessibilityState={{ expanded }}
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityHint={expanded ? collapseHint : expandHint}
-        style={({ pressed }) => [styles.row, pressed && { opacity: Pressed.dim }]}>
+        style={({ pressed }) => [styles.row, dense && styles.dense, pressed && { opacity: Pressed.dim }]}>
         {/* `textSecondary`, not the `textDisabled` this row used to wear on an exchange card: it
             is a tappable control, and `textDisabled` is the app's Lc-15 legibility floor. It still
             sits level with the plan line above it rather than above it. */}
@@ -75,4 +80,5 @@ export function DisclosureRow({
 const styles = StyleSheet.create({
   // A real 44pt target, with the glyph bound to its label rather than pushed to the far edge.
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, minHeight: 44 },
+  dense: { marginVertical: -Spacing.two },
 });

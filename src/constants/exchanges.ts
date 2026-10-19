@@ -71,18 +71,16 @@ export type CuratedExchange = {
 export type CuratedExchangeGroup = {
   /** Stable key, e.g. 'table'. */
   key: string;
-  /** Uppercase section header, in the voice of {@link CURATED_GROUPS}. */
+  /** Section caption: a plain noun for where the moment happens, as {@link CURATED_GROUPS} names
+   *  its shelves. Once figures of speech ("The tongue"), each with a line under it to explain. */
   title: string;
-  /** One line on why this class of urge yields to being replaced rather than resisted. */
-  blurb: string;
   exchanges: CuratedExchange[];
 };
 
 export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   {
     key: 'table',
-    title: 'The table',
-    blurb: 'A meal has a clear beginning. That’s where the swap goes, before the first bite.',
+    title: 'Food and drink',
     exchanges: [
       {
         id: 'water-not-soft-drinks',
@@ -120,8 +118,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'screen',
-    title: 'The screen',
-    blurb: 'You reach for your phone at the same few moments. Name one, and put something else there.',
+    title: 'Phone and screens',
     exchanges: [
       {
         id: 'quran-not-music',
@@ -156,8 +153,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'tongue',
-    title: 'The tongue',
-    blurb: 'The words are out before you decide on them, so decide on them beforehand.',
+    title: 'Speech',
     exchanges: [
       {
         id: 'istighfar-not-backbiting',
@@ -191,8 +187,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
   },
   {
     key: 'impulse',
-    title: 'The impulse',
-    blurb: 'You move before you think. Pick the move now, while you’re calm.',
+    title: 'Urges',
     exchanges: [
       {
         id: 'sat-down-sought-refuge',

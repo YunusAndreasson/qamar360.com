@@ -14,7 +14,7 @@ import { isDuplicateName, otherNames } from '@/lib/names';
 
 /**
  * Name a new stack — the modal behind "Your own stack" on the first-run day and the stack
- * library's "Custom" (a name, plus an optional moment anchor). Deliberately NO autofocus: the sheet opens with the whole moment grid in
+ * library's "Your own stack" row (a name, plus an optional moment anchor). Deliberately NO autofocus: the sheet opens with the whole moment grid in
  * view (a raised keyboard buried it), and picking a moment prefills the name — the common
  * case is one tap and Create. Creates an intentionally empty stack: it lands on Today at its
  * moment's day-order slot (or the end, unanchored) as a card holding an "Add your first
