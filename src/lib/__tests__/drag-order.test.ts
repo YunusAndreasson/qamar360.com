@@ -189,6 +189,16 @@ describe('resolveDropSlot', () => {
     });
   });
 
+  it('a member over a card that already holds its name is no target — the drop floats home', () => {
+    // Same geometry as the join above, but T refuses this act (a same-named act stands in it).
+    const result = resolveDropSlot(400, order, frames, 'member:m', 'member', 'S', sMemberOrder, sMemberFrames, -1, -1, 0, ['T']);
+    expect(result.kind).toBe('between');
+    // Refusing one stack leaves the others open.
+    expect(
+      resolveDropSlot(400, order, frames, 'member:m', 'member', 'S', sMemberOrder, sMemberFrames, -1, -1, 0, ['X']),
+    ).toEqual({ kind: 'into', stackId: 'T' });
+  });
+
   it("an act over its own card's top band resolves to between — which commits nothing", () => {
     // An act has nowhere to go outside a stack, so the gesture layer floats it home rather than
     // detaching. resolveDropSlot still reports the geometry; the meaning is applied above it.

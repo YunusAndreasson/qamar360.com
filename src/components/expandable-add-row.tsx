@@ -104,9 +104,12 @@ export function ExpandableAddRow({
             <ThemedText type="rowTitle" numberOfLines={2} style={styles.title}>
               {title}
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-              {subtitle}
-            </ThemedText>
+            {/* Only when there is something to say: an every-day tick has no second line. */}
+            {subtitle ? (
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                {subtitle}
+              </ThemedText>
+            ) : null}
           </View>
         </Touchable>
         <Touchable

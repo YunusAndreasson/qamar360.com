@@ -21,8 +21,8 @@ type Props = {
  * reveal the "what counts as done" detail and the Sunnah evidence.
  */
 export function SunnahPresetRow({ preset, added, onAdd, onRemove, addHint, addedHint }: Props) {
-  // The measure and the schedule — "5 prayers · Every day" — so a counted act is seen as counted
-  // before it is added.
+  // The measure, and the schedule when it is not every day — "5 prayers", "Mon · Thu" — so a
+  // counted act is seen as counted before it is added. Empty for the every-day tick.
   const summary = presetSummary(preset);
 
   return (
@@ -34,7 +34,7 @@ export function SunnahPresetRow({ preset, added, onAdd, onRemove, addHint, added
       onRemove={onRemove}
       addHint={addHint}
       addedHint={addedHint}
-      rowAccessibilityLabel={`${preset.name}. ${summary}.`}
+      rowAccessibilityLabel={summary ? `${preset.name}. ${summary}.` : preset.name}
       expandHint="Show details">
       <ThemedText type="small">{preset.detail}</ThemedText>
       <ThemedText type="small" themeColor="textSecondary" style={styles.evidence}>

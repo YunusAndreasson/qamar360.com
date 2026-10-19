@@ -314,7 +314,7 @@ export function withDoneToday(completions: CompletionRow[], doneIds: string[], d
  * The single source of truth for the completion rule — shared by {@link computeProgress} and the
  * per-habit stats ({@link import('./habit-stats').computeHabitStats}), so the two can never drift.
  */
-function creditFor(habit: { target_count?: number | null }, row: CompletionRow | undefined): number | null {
+export function creditFor(habit: { target_count?: number | null }, row: CompletionRow | undefined): number | null {
   if (row?.status === 'skipped') return null; // excused — out of the rate entirely
   if (habit.target_count && habit.target_count > 0) {
     if (row?.status === 'done') return 1; // reached target
@@ -490,7 +490,10 @@ export type YearMonth = {
   phase: 'running' | 'closed' | 'quiet' | 'ahead';
   /** 0–1 for a `running` or `closed` month, else `null`: an orbit that was never owed is not 0°. */
   rate: number | null;
-  /** Closed at a full 360°, in the unit it is read in, so the orbit agrees with the figure. */
+  /** Kept in full: the rate reached 1. Not rounded degrees — `orbitDegrees` never reads a rate short
+   *  of 1 as 360°, and the hero closes its ring only at 1 — so the mark, the caption and the haptic
+   *  all close on the same day. (Rounding here once called a 0.999 month kept while the caption
+   *  said 359° and the hero stayed open.) */
   kept: boolean;
 };
 
@@ -503,9 +506,9 @@ export function yearMonths(series: RecordSeries): YearMonth[] {
     const name = HIJRI_MONTHS[i] ?? '';
     const point = series.points[i];
     if (!point) return { name, phase: 'ahead', rate: null, kept: false };
-    if (point.pending) return { name, phase: 'running', rate: point.rate, kept: toDegrees(point.rate) === 360 };
+    if (point.pending) return { name, phase: 'running', rate: point.rate, kept: point.rate >= 1 };
     if (point.possible === 0) return { name, phase: 'quiet', rate: null, kept: false };
-    return { name, phase: 'closed', rate: point.rate, kept: toDegrees(point.rate) === 360 };
+    return { name, phase: 'closed', rate: point.rate, kept: point.rate >= 1 };
   });
 }
 

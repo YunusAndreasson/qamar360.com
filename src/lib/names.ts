@@ -42,3 +42,47 @@ export const siblingNames = <T extends { id: string; name: string; stack_id: str
   stackId: string | null,
   id?: string,
 ) => otherNames(habits.filter((h) => h.stack_id === stackId), id);
+
+type Placed = { id: string; name: string; stack_id: string | null };
+
+/**
+ * The name a move must refuse: moving `habitId` into `toStackId` (null = out among the loose
+ * habits and exchanges) would set it beside a same-named one, so the container would hold two
+ * identical rows that nothing on screen tells apart. Null when the move may go. A move within the
+ * habit's own container (a reorder) never clashes — whatever already stands there stands.
+ *
+ * {@link siblingNames} is the rule the editors check a typed name against; this is the same rule
+ * for a habit that keeps its name and changes neighbours, so every door into a stack (the picker,
+ * the drag, Discover, "Anchor all") refuses the same thing.
+ */
+export const clashOnMove = <T extends Placed>(habits: T[], habitId: string, toStackId: string | null) => {
+  const habit = habits.find((h) => h.id === habitId);
+  if (!habit || (habit.stack_id ?? null) === toStackId) return null;
+  return isDuplicateName(habit.name.trim(), siblingNames(habits, toStackId, habitId)) ? habit.name : null;
+};
+
+/** What a refused move tells the user — where it would have gone, and what is already there. */
+export const moveRefusal = (stackName: string | null, name: string) =>
+  stackName ? `${stackName} already has “${name}”` : `“${name}” is already in Habits`;
+
+/**
+ * For each act, the stacks it may NOT be dropped into because they already hold its name — what the
+ * Today drag reads so a card that would refuse the act never lights up as a target. Built once per
+ * render, not per frame: one pass to fold each stack's names, one to look each act up.
+ */
+export function refusedStacks<T extends Placed>(habits: T[]): Map<string, string[]> {
+  const byStack = new Map<string, Set<string>>();
+  for (const h of habits) {
+    if (!h.stack_id) continue;
+    const names = byStack.get(h.stack_id) ?? new Set<string>();
+    names.add(normalizeName(h.name));
+    byStack.set(h.stack_id, names);
+  }
+  const refused = new Map<string, string[]>();
+  for (const h of habits) {
+    const name = normalizeName(h.name);
+    const ids = [...byStack].filter(([id, names]) => id !== h.stack_id && names.has(name)).map(([id]) => id);
+    if (ids.length > 0) refused.set(h.id, ids);
+  }
+  return refused;
+}

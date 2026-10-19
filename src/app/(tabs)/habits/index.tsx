@@ -50,6 +50,7 @@ import { isExchange } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
 import { phaseOn } from '@/lib/lunar-phase';
 import { momentBand, momentOf } from '@/lib/moments';
+import { clashOnMove, moveRefusal, refusedStacks } from '@/lib/names';
 import { usePreference } from '@/lib/preferences';
 import { DAY_PARTS } from '@/lib/sun';
 import type { Task } from '@/lib/tasks';
@@ -466,6 +467,15 @@ export default function HabitsScreen() {
       const sourceStack = habit?.stack_id ? stacks.find((s) => s.id === habit.stack_id) : undefined;
       const wasOnlyMember =
         !!sourceStack && habits.filter((h) => h.stack_id === sourceStack.id).length === 1;
+      // The stack already has an act of this name: say so here, before the "Added" beat, rather
+      // than confirm a move `moveHabit` is going to refuse. A card that would refuse the act never
+      // lights up under the drag (`refusedJoins`), so this only catches a drop whose data moved
+      // between the hover and the commit.
+      const clash = clashOnMove(habits, habitId, stackId);
+      if (clash) {
+        if (stack) showToast(moveRefusal(stack.name, clash), 'danger');
+        return;
+      }
       haptics.added();
       void moveHabit(habitId, { toStackId: stackId });
       if (!stack || !restore) return;
@@ -498,6 +508,11 @@ export default function HabitsScreen() {
   for (const entry of entries) {
     memberOrder[entry.stack.id] = entry.members.map((m) => `member:${m.id}`);
   }
+  // member key → the cards it may not be dropped into (each already holds an act of its name), so
+  // the drag never lights a card the move would refuse. Built from every habit, not just the
+  // visible ones: a member hidden by the day's schedule still holds its name in its stack.
+  const refusedJoins: Record<string, string[]> = {};
+  for (const [habitId, stackIds] of refusedStacks(habits)) refusedJoins[`member:${habitId}`] = stackIds;
 
   // A drop between cards: the card reorders, its acts travelling with it. Only cards reach here —
   // an act dropped in a gap has nowhere to land (a habit lives in a stack or nowhere), and the
@@ -711,6 +726,7 @@ export default function HabitsScreen() {
                 scrollRef={scrollRef}
                 order={orderMeta}
                 memberOrder={memberOrder}
+                refusedJoins={refusedJoins}
                 contentBottomInset={LIST_BOTTOM_INSET}
                 onDragActive={onDragActive}
                 onDropBetween={onDropBetween}

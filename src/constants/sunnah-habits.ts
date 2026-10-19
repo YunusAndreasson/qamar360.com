@@ -1,5 +1,5 @@
-import { countGoalLabel } from '@/lib/count-goal';
-import { DAILY_SCHEDULE, describeHijriSchedule, describeWeekdays, type HijriSchedule } from '@/lib/dates';
+import { DAILY_SCHEDULE, type HijriSchedule } from '@/lib/dates';
+import { habitMetaLine } from '@/lib/loose-row';
 
 /**
  * A curated, evidence-backed library of Sunnah habits, each worded as a SMART goal —
@@ -875,22 +875,17 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
 ];
 
 /**
- * A human one-line schedule summary, e.g. "Every day", "Fri", "Mon · Thu", or — for a Hijri
- * habit — "White Days (13–15)", "Ramaḍān". The weekdays read in the week's own order, the same
- * words Today's rows use ({@link describeWeekdays}), so a preset reads in Discover the way it will
- * read once added. No habit carries a clock time, so none appears here.
- */
-export function scheduleSummary(schedule: number[], hijri?: HijriSchedule | null): string {
-  return hijri ? describeHijriSchedule(hijri) : describeWeekdays(schedule);
-}
-
-/**
- * What a preset asks of a day, in one line: its count if it is counted, then its schedule —
- * "5 prayers · Every day", or "Mon · Thu" for a plain tick. The measure belongs where the act is
- * chosen, not only where it is ticked: without it "Prayed in congregation" reads as one tick a day
- * until it lands on Today and asks for five.
+ * What a preset asks of a day, in one line — the same second line the act will wear on Today
+ * ({@link habitMetaLine}): its count if it is counted ("5 prayers"), its schedule only when it is
+ * not every day ("Mon · Thu"), and nothing for the every-day tick. The measure belongs where the
+ * act is chosen, not only where it is ticked; "Every day" does not, because it is nearly every
+ * row — said ninety times it tells you nothing, and it hides the few rows that differ.
  */
 export function presetSummary(preset: Pick<SunnahPreset, 'defaultSchedule' | 'hijriSchedule' | 'targetCount' | 'targetUnit'>): string {
-  const schedule = scheduleSummary(preset.defaultSchedule, preset.hijriSchedule);
-  return preset.targetCount ? `${countGoalLabel(preset.targetCount, preset.targetUnit)} · ${schedule}` : schedule;
+  return habitMetaLine({
+    targetCount: preset.targetCount ?? null,
+    targetUnit: preset.targetUnit ?? null,
+    scheduleDays: preset.defaultSchedule,
+    hijriSchedule: preset.hijriSchedule ?? null,
+  });
 }

@@ -11,20 +11,22 @@ import {
 import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
-import { countTakeBack, countTap } from '@/lib/count-goal';
+import { countTakeBack, countTap, type CountStep } from '@/lib/count-goal';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
 import { dayCloseAfter, moonLitFor, openTasksOn, type DayClose } from '@/lib/day-close';
 import { orderAfterHabitMove, type MovePlacement } from '@/lib/drag-order';
 import { isExchange } from '@/lib/exchange';
-import { readHabitsSnapshot, writeHabitsSnapshot } from '@/lib/habits-cache';
+import { readHabitsSnapshot, readPendingPurges, writeHabitsSnapshot, writePendingPurges } from '@/lib/habits-cache';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/id';
 import { dayOrderPlacement, momentBand, momentOf, type MomentKey } from '@/lib/moments';
+import { clashOnMove, moveRefusal } from '@/lib/names';
 import { usePreference } from '@/lib/preferences';
 import { openUnitsOn, sealableActs } from '@/lib/progress';
 import { createRefreshGuard } from '@/lib/refresh-guard';
@@ -182,7 +184,7 @@ type HabitsContextValue = {
    *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`). */
   createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
   /** Tick one act **inside a stack** for `viewDate`, or take it back; a count goal counts one
-   *  instead. The only way a stack completes: the last open act seals it, and the header ring
+   *  instead, and once met takes one back (`lib/count-goal`). The only way a stack completes: the last open act seals it, and the header ring
    *  fills to the share done meanwhile. A no-op on an excused act. */
   toggleAct: (habitId: string) => Promise<void>;
   /** Tick a **stackless** habit for `viewDate`, or take it back. Serves both things that stand on
@@ -230,7 +232,8 @@ type HabitsContextValue = {
    *  paths (the add-to-stack sheet, the member row's "Remove" swipe). `placement` defaults:
    *  into a stack → appended last; out of one → right after its former card. Emptying a
    *  stack deletes that now-memberless shell, unless `keepEmptyShell` (the stack-scoped Add
-   *  screen un-adds without pulling the stack out from under itself). */
+   *  screen un-adds without pulling the stack out from under itself). A move that would set the
+   *  habit beside a same-named one in its new container is refused with a toast (`clashOnMove`). */
   moveHabit: (
     habitId: string,
     target: { toStackId: string | null; placement?: MovePlacement; keepEmptyShell?: boolean },
@@ -361,6 +364,18 @@ function celebrateHold(
   return close;
 }
 
+/** Where a count goal stands on a day, as the row shows it: the logged count (absent = nothing
+ *  logged, or a done row from before counts existed) and whether it is met. */
+type CountState = { count: number | undefined; done: boolean };
+
+/** A habit-day, the unit a count goal's writes are serialised on (one row per habit per day). */
+const countKey = (habitId: string, day: string) => `${habitId}|${day}`;
+
+const stateAfter = (step: CountStep): CountState =>
+  step.status === 'clear' ? { count: undefined, done: false } : { count: step.count, done: step.status === 'done' };
+
+const sameCount = (a: CountState, b: CountState) => a.count === b.count && a.done === b.done;
+
 export function HabitsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -370,9 +385,16 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // still today — a rolled-over or past-day snapshot falls back to the skeleton (see habits-cache).
   const [snapshot] = useState(readHabitsSnapshot);
   const seed = snapshot && snapshot.userId === userId && snapshot.day === todayLocalISO() ? snapshot : null;
+  // Cleanup DELETEs a previous session could not land (see `pendingPurges`). Read once, before the
+  // seed is used, so those rows are hidden from the very first frame and retried by the first fetch.
+  const [persistedPurges] = useState(() => readPendingPurges(userId));
 
-  const [habits, setHabits] = useState<Habit[]>(() => seed?.habits ?? []);
-  const [stacks, setStacks] = useState<HabitStack[]>(() => seed?.stacks ?? []);
+  const [habits, setHabits] = useState<Habit[]>(
+    () => seed?.habits.filter((h) => !persistedPurges.habits.includes(h.id)) ?? [],
+  );
+  const [stacks, setStacks] = useState<HabitStack[]>(
+    () => seed?.stacks.filter((s) => !persistedPurges.habit_stacks.includes(s.id)) ?? [],
+  );
   const [completed, setCompleted] = useState<Set<string>>(() => new Set(seed?.completed));
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set(seed?.skipped));
   const [counts, setCounts] = useState<Map<string, number>>(() => new Map(seed?.counts));
@@ -433,29 +455,44 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // race for rows deleted before their INSERT lands — this is that idea for rows the server does
   // already know about.) Filtering the fetch is what makes the delete stick no matter which of the
   // two round-trips wins; the id is dropped again only if the delete itself fails and we restore.
-  const deletedHabitIds = useRef<Set<string>>(new Set());
-  const deletedStackIds = useRef<Set<string>>(new Set());
+  const deletedHabitIds = useRef<Set<string>>(new Set(persistedPurges.habits));
+  const deletedStackIds = useRef<Set<string>>(new Set(persistedPurges.habit_stacks));
   // Server rows this session took down as CLEANUP — a habit whose insert landed after the user
   // cancelled it, a stack shell left by a failed create — whose DELETE didn't make it (offline is
   // the usual reason). They used to be fire-and-forget, so the row came back on the next refresh as
-  // something the user never kept. Now each is tombstoned (hidden from every fetch this session)
-  // and its DELETE is retried at the head of the next fetch of its table until one sticks.
+  // something the user never kept. Now each is tombstoned (hidden from every fetch) and its DELETE
+  // is retried at the head of the next fetch of its table until one sticks.
+  //
+  // Both halves are persisted per user (`habits-cache`): held only in memory, a purge still failing
+  // when the app was killed was forgotten, and the orphan row came straight back on the next launch.
+  // The tombstones above are seeded from the same list, so it stays hidden until the retry lands.
   const pendingPurges = useRef<{ habits: Set<string>; habit_stacks: Set<string> }>({
-    habits: new Set(),
-    habit_stacks: new Set(),
+    habits: new Set(persistedPurges.habits),
+    habit_stacks: new Set(persistedPurges.habit_stacks),
   });
-  const purgeRow = useCallback(async (table: 'habits' | 'habit_stacks', id: string) => {
-    (table === 'habits' ? deletedHabitIds : deletedStackIds).current.add(id);
-    let failed = true;
-    try {
-      const { error } = await supabase.from(table).delete().eq('id', id);
-      failed = error !== null;
-    } catch {
-      // A transport throw is the same answer as an error response: still in the table.
-    }
-    if (failed) pendingPurges.current[table].add(id);
-    else pendingPurges.current[table].delete(id);
-  }, []);
+  const purgeRow = useCallback(
+    async (table: 'habits' | 'habit_stacks', id: string) => {
+      (table === 'habits' ? deletedHabitIds : deletedStackIds).current.add(id);
+      let failed = true;
+      try {
+        const { error } = await supabase.from(table).delete().eq('id', id);
+        failed = error !== null;
+      } catch {
+        // A transport throw is the same answer as an error response: still in the table.
+      }
+      const ids = pendingPurges.current[table];
+      if (ids.has(id) === failed) return; // no change to what must survive a restart
+      if (failed) ids.add(id);
+      else ids.delete(id);
+      if (userId) {
+        writePendingPurges(userId, {
+          habits: [...pendingPurges.current.habits],
+          habit_stacks: [...pendingPurges.current.habit_stacks],
+        });
+      }
+    },
+    [userId],
+  );
   const retryPurges = useCallback(
     async (table: 'habits' | 'habit_stacks') => {
       const ids = [...pendingPurges.current[table]];
@@ -466,6 +503,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
   // The day-complete celebration overlay (root-mounted). Fired below when a tick closes the live day.
   const { celebrate: showDayComplete } = useDayComplete();
+  // A refused move (`runMoveHabit`) says why on the toast every screen already uses for a move's
+  // outcome — mounted at the root, above this provider.
+  const { show: showToast } = useToast();
 
   const fetchHabits = useCallback(async () => {
     if (!userId) return true;
@@ -792,20 +832,77 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     [showDayComplete, completedRef, habitsRef, skippedRef, todayRef],
   );
 
+  // A count goal's row as the user last asked for it, per habit-day, while writes for it are still
+  // going out — and the one writer each such habit-day has. See `runCountStep`.
+  const countWanted = useRef<Map<string, CountStep>>(new Map());
+  const countFlights = useRef<Map<string, Promise<void>>>(new Map());
+
   /**
-   * One step on a count goal for the viewed day: a tap adds one, `back` takes one away (see
-   * `lib/count-goal.ts` for the rule). Serves a count goal wherever it sits, inside a stack or on
-   * its own, so `toggleAct` and `toggleLoose` hand their count goals here and keep the binary write.
+   * Where a count goal stands on `day` right now: the latest step still being written, if there is
+   * one, else the rendered state. The rendered state alone is not enough — `countsRef` and
+   * `completedRef` are mirrored in an effect, so a second tap inside the same frame read the count
+   * from before the first and counted the same cup twice.
+   */
+  const standingCount = useCallback(
+    (habitId: string, day: string): CountState => {
+      const wanted = countWanted.current.get(countKey(habitId, day));
+      if (wanted) return stateAfter(wanted);
+      return { count: countsRef.current.get(habitId), done: completedRef.current.has(habitId) };
+    },
+    [completedRef, countsRef],
+  );
+
+  /** Paint a count goal's state for the viewed day (both sets, copy-on-write, untouched if equal). */
+  const showCount = useCallback((habitId: string, state: CountState) => {
+    setCompleted((prev) => {
+      if (prev.has(habitId) === state.done) return prev;
+      const next = new Set(prev);
+      if (state.done) next.add(habitId);
+      else next.delete(habitId);
+      return next;
+    });
+    setCounts((prev) => {
+      if (prev.get(habitId) === state.count) return prev;
+      const next = new Map(prev);
+      if (state.count == null) next.delete(habitId);
+      else next.set(habitId, state.count);
+      return next;
+    });
+  }, []);
+
+  /**
+   * One step on a count goal for the viewed day: a tap adds one (or, once the goal is met, takes one
+   * back), `back` takes one away (see `lib/count-goal.ts` for the rule). Serves a count goal
+   * wherever it sits, inside a stack or on its own, so `toggleAct` and `toggleLoose` hand their
+   * count goals here and keep the binary write.
    *
    * The tap that reaches the target is the one that completes the habit, so it fires the same beat
-   * and day-close a binary tick does, and closes a stack when it is the last act standing. A step
-   * short of the target writes a 'partial' row, which `creditFor` already counts as count ÷ target.
+   * and day-close a binary tick does ({@link celebrateDone}), and closes a stack when it is the last
+   * act standing. A step short of the target writes a 'partial' row, which `creditFor` already
+   * counts as count ÷ target.
+   *
+   * **Every tap counts.** A count goal is one tap per cup, so eight quick taps are the ordinary way
+   * to log eight — and the binary rows' "ignore a tap while the last one is in flight" guard used to
+   * sit here too, silently recording two or three of them. Now each tap is applied at once: it is
+   * read against {@link standingCount} (never the effect-mirrored refs), lands on screen, fires its
+   * beat, and records itself as the row's *wanted* state. Writing is left to ONE writer per
+   * habit-day — the first tap's call, which loops until what the server holds is what was last
+   * asked for (latest wins: three taps during one round-trip are one more write, not three). That
+   * call is the one inside `useGuardedMutation`'s bracket for the whole loop, so a refresh still
+   * cannot read the table mid-burst and clobber the optimistic count.
+   *
+   * A failed write rolls the row back to the last state the server confirmed (only if that day is
+   * still on screen), drops what was wanted, and raises the banner. A skip or an edit that rewrites
+   * the row takes the wanted entry itself (the writer then stops after the write already on the
+   * wire, and that op waits for it — see `runSkipHabit`), so the two never land out of order.
    */
   const runCountStep = useCallback(
     async (habitId: string, kind: 'tap' | 'back') => {
       if (!userId) return;
       if (habitId.startsWith('temp-')) return; // not persisted yet
-      if (pending.current.has(habitId)) return; // ignore double-taps
+      // A skip or a target edit is rewriting this row right now; a count written under it could
+      // land after it and undo it.
+      if (pending.current.has(habitId)) return;
       if (skippedRef.current.has(habitId)) return; // excused: nothing to count
 
       const habit = habitsRef.current.find((h) => h.id === habitId);
@@ -813,78 +910,74 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (!habit || target == null || target <= 0) return;
 
       const day = viewDateRef.current;
-      const wasDone = completedRef.current.has(habitId);
-      const prevCount = countsRef.current.get(habitId);
+      const key = countKey(habitId, day);
+      const before = standingCount(habitId, day);
       const step =
-        kind === 'tap' ? countTap(prevCount ?? 0, target, wasDone) : countTakeBack(prevCount ?? 0, target, wasDone);
-      const nowDone = step.status === 'done';
-      pending.current.add(habitId);
+        kind === 'tap'
+          ? countTap(before.count ?? 0, target, before.done)
+          : countTakeBack(before.count ?? 0, target, before.done);
+      const after = stateAfter(step);
+      if (sameCount(before, after)) return; // nothing to take back
 
-      if (nowDone !== wasDone) {
-        setCompleted((prev) => {
-          const next = new Set(prev);
-          if (nowDone) next.add(habitId);
-          else next.delete(habitId);
-          return next;
-        });
-      }
-      setCounts((prev) => {
-        const next = new Map(prev);
-        if (step.status === 'clear') next.delete(habitId);
-        else next.set(habitId, step.count);
-        return next;
-      });
+      countWanted.current.set(key, step);
+      showCount(habitId, after);
 
-      if (nowDone && !wasDone) {
-        celebrateDone(habit, day);
-      } else if (kind === 'tap' && step.status === 'partial') {
-        // A count is not yet a deed done: the light tick of a counter, not the completion beat.
-        haptics.selection();
-      } else {
-        haptics.uncompleted();
-      }
+      if (after.done && !before.done) celebrateDone(habit, day);
+      // A count is not yet a deed done: the light tick of a counter, not the completion beat.
+      else if (kind === 'tap' && !before.done) haptics.selection();
+      // One taken back — from a met goal by a tap, or from the `⋯` sheet.
+      else haptics.uncompleted();
 
-      try {
-        if (step.status === 'clear') await deleteCompletion(habitId, day);
-        else
-          await upsertCompletion({
-            habit_id: habitId,
-            user_id: userId,
-            completed_at: day,
-            status: step.status,
-            count: step.count,
-          });
-      } catch {
-        // The day may have changed mid-flight; only roll back if we're still on it.
-        if (viewDateRef.current === day) {
-          if (nowDone !== wasDone) {
-            setCompleted((prev) => {
-              const next = new Set(prev);
-              if (wasDone) next.add(habitId);
-              else next.delete(habitId);
-              return next;
-            });
+      // Already a writer for this habit-day: it will pick this step up when its write lands.
+      if (countFlights.current.has(key)) return;
+
+      const write = async () => {
+        let confirmed = before; // what the server holds — the state before this burst began
+        for (;;) {
+          const wanted = countWanted.current.get(key);
+          // Everything asked for is written — or a skip/edit took the entry and owns the row now.
+          if (!wanted || sameCount(stateAfter(wanted), confirmed)) break;
+          try {
+            if (wanted.status === 'clear') await deleteCompletion(habitId, day);
+            else
+              await upsertCompletion({
+                habit_id: habitId,
+                user_id: userId,
+                completed_at: day,
+                status: wanted.status,
+                count: wanted.count,
+              });
+          } catch {
+            // Superseded mid-write (the op that took the entry writes the whole row itself), or the
+            // habit was deleted under it: neither leaves anything here to put back.
+            if (!countWanted.current.has(key)) return;
+            countWanted.current.delete(key);
+            if (!habitsRef.current.some((h) => h.id === habitId)) return;
+            // The day may have changed mid-flight; only roll back if we're still on it.
+            if (viewDateRef.current === day) showCount(habitId, confirmed);
+            setError(UPDATE_ERROR);
+            return;
           }
-          setCounts((prev) => {
-            const next = new Map(prev);
-            if (prevCount == null) next.delete(habitId);
-            else next.set(habitId, prevCount);
-            return next;
-          });
+          confirmed = stateAfter(wanted);
         }
-        setError(UPDATE_ERROR);
+        countWanted.current.delete(key);
+      };
+      const flight = write();
+      countFlights.current.set(key, flight);
+      try {
+        await flight;
       } finally {
-        pending.current.delete(habitId);
+        countFlights.current.delete(key);
       }
     },
-    [userId, celebrateDone, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
+    [userId, celebrateDone, showCount, standingCount, habitsRef, skippedRef, viewDateRef],
   );
   const runTakeOneBack = useCallback((habitId: string) => runCountStep(habitId, 'back'), [runCountStep]);
   const takeOneBack = useGuardedMutation(completionGuard.begin, completionGuard.end, runTakeOneBack);
 
 
   /**
-   * Tick any habit for the viewed day, or take it back. Count goals delegate to the
+   * Tick any habit for the viewed day, or take it back. Count goals delegate to the queued
    * one-unit writer. `celebrateDone` adds the group confirmation only when this closes a stack;
    * loose habits and exchanges keep the single confirmation. Both public entry points use this
    * same guarded write and rollback.
@@ -965,8 +1058,15 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       const day = viewDateRef.current;
       const wasSkipped = skippedRef.current.has(habitId);
-      const wasDone = completedRef.current.has(habitId);
-      const prevCount = countsRef.current.get(habitId);
+      // A count goal's latest tap, even one still being written (`runCountStep`), not the
+      // effect-mirrored refs alone.
+      const { done: wasDone, count: prevCount } = standingCount(habitId, day);
+      // A skip rewrites the whole row, so it supersedes a count still going out: taking the wanted
+      // entry stops that writer after the write already on the wire, and waiting for that write
+      // (below) keeps this one last, so the row ends up skipped rather than re-counted.
+      const countKeyed = countKey(habitId, day);
+      countWanted.current.delete(countKeyed);
+      const countInFlight = countFlights.current.get(countKeyed);
 
       // Optimistic flip: skipped → open, or open/done → skipped.
       setSkipped((prev) => {
@@ -997,6 +1097,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       else haptics.selection();
 
       try {
+        if (countInFlight) await countInFlight;
         if (wasSkipped) {
           await deleteCompletion(habitId, day);
         } else {
@@ -1033,7 +1134,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, completedRef, countsRef, skippedRef, viewDateRef],
+    [userId, standingCount, skippedRef, viewDateRef],
   );
   const skipHabit = useGuardedMutation(completionGuard.begin, completionGuard.end, runSkipHabit);
 
@@ -1168,9 +1269,19 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       if (opts?.reconcileViewedDay === false) return;
       const day = viewDateRef.current;
       const newTarget = patch.target_count;
-      const count = countsRef.current.get(habitId) ?? 0;
       if (skippedRef.current.has(habitId)) return; // excused for the day — nothing to reconcile
+      // Reconciled against the latest tap, even one still being written (`runCountStep`). A branch
+      // that rewrites the row supersedes that write, as a skip does (`supersedeCount`): the wanted
+      // entry is taken so its writer stops after the write on the wire, the write here waits for
+      // that one, and `pending` holds new taps off until it lands — so nothing counted under the
+      // reconcile can land after it. A row already consistent leaves the writer alone.
+      const standing = standingCount(habitId, day);
+      const count = standing.count ?? 0;
+      const countKeyed = countKey(habitId, day);
+      const countInFlight = countFlights.current.get(countKeyed);
+      const supersedeCount = () => countWanted.current.delete(countKeyed);
       if (newTarget == null) {
+        supersedeCount(); // it no longer counts: stop writing counts for it
         // Count goal → binary: the running count no longer means anything on the row.
         if (count > 0) {
           setCounts((prevCounts) => {
@@ -1185,26 +1296,32 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         // Binary → count with the day already ticked: the binary 'done' row (count null) would
         // render greyed-done at "0/N" with a live stepper and credit an unmet target. The old
         // tick doesn't represent N reps — reopen the day (mirrors adjustHabitCount's ≤0 delete).
-        if (!completedRef.current.has(habitId)) return; // nothing logged, nothing ticked
+        if (!standing.done) return; // nothing logged, nothing ticked
+        supersedeCount();
         setCompleted((prevDone) => {
           const nextDone = new Set(prevDone);
           nextDone.delete(habitId);
           return nextDone;
         });
+        pending.current.add(habitId);
         try {
+          if (countInFlight) await countInFlight;
           await deleteCompletion(habitId, day);
         } catch {
           if (viewDateRef.current === day) {
             setCompleted((prevDone) => new Set(prevDone).add(habitId));
           }
           setError(UPDATE_ERROR);
+        } finally {
+          pending.current.delete(habitId);
         }
         return;
       }
       const clamped = Math.min(count, newTarget);
       const nowDone = clamped >= newTarget;
-      const wasDone = completedRef.current.has(habitId);
+      const wasDone = standing.done;
       if (clamped === count && nowDone === wasDone) return; // row already consistent
+      supersedeCount();
       if (clamped !== count) {
         setCounts((prevCounts) => new Map(prevCounts).set(habitId, clamped));
       }
@@ -1216,7 +1333,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           return next;
         });
       }
+      pending.current.add(habitId);
       try {
+        if (countInFlight) await countInFlight;
         await upsertCompletion({
           habit_id: habitId,
           user_id: userId,
@@ -1240,9 +1359,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           }
         }
         setError(UPDATE_ERROR);
+      } finally {
+        pending.current.delete(habitId);
       }
     },
-    [userId, completedRef, countsRef, habitsRef, skippedRef, viewDateRef],
+    [userId, standingCount, habitsRef, skippedRef, viewDateRef],
   );
   const updateHabit = useGuardedMutation(beginMutation, endMutation, runUpdateHabit);
 
@@ -1703,6 +1824,18 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // Same stack with no explicit placement = already where it's going; WITH a placement it's
       // a reorder within the stack (a legitimate move).
       if ((habit.stack_id ?? null) === toStackId && !target.placement) return;
+      // Names are unique only within a container (`siblingNames`): the same deed may stand in several
+      // stacks, but never twice in one — and the loose habits are one container too. Every door into
+      // a stack lands here (the picker, the drag's join, Discover, createHabitInStack, the Undos), so
+      // this is where a move that would set a habit beside its namesake is refused: no write, no
+      // optimistic change, and the toast says why. The picker and the drag check the same rule
+      // first, so they never offer it; this is what keeps any other path from slipping one through.
+      const clash = clashOnMove(prevHabits, habitId, toStackId);
+      if (clash) {
+        const toStack = toStackId ? prevStacks.find((s) => s.id === toStackId) : undefined;
+        showToast(moveRefusal(toStack?.name ?? null, clash), 'danger');
+        return;
+      }
 
       const fromStackId = habit.stack_id ?? null;
       let placement: MovePlacement =
@@ -1767,7 +1900,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         if (delErr) restoreShell();
       }
     },
-    [userId, persistGrouping, habitsRef, stacksRef],
+    [userId, persistGrouping, showToast, habitsRef, stacksRef],
   );
   const moveHabit = useGuardedMutation(beginMutation, endMutation, runMoveHabit);
 

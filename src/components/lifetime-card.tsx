@@ -299,7 +299,13 @@ export function LifetimeCard({ series }: { series: RecordSeries }) {
     failOffsetY: [-12, 12],
     onActivate: (e) => moveTo(e.x),
     onUpdate: (e) => moveTo(e.x),
-    onFinalize: () => release(),
+    // `onDeactivate`, not `onFinalize`: RNGH 3 runs finalize on EVERY end, including the pan's own
+    // FAILED when a plain tap lifts before 12pt of travel. Releasing there took down the reading a
+    // tap had just parked (or, landing before the tap's activate, reset `lastIndex` so tapping the
+    // same bucket again re-showed it instead of putting it away). Deactivate fires only when the
+    // pan was ACTIVE, which is exactly when the scrub put a reading up; a cancel mid-scrub still
+    // passes through it.
+    onDeactivate: () => release(),
   });
   // A tap reads one bucket, and the reading STAYS: a Tap only activates once the finger has lifted,
   // so releasing on finalize (as the scrub does) took the reading down the frame it went up, and a

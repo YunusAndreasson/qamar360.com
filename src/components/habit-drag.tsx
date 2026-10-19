@@ -176,6 +176,7 @@ export function HabitDragProvider({
   scrollRef,
   order: orderProp,
   memberOrder: memberOrderProp,
+  refusedJoins: refusedJoinsProp,
   contentBottomInset = 0,
   onDragActive,
   onDropBetween,
@@ -188,6 +189,10 @@ export function HabitDragProvider({
   /** stackId → its member keys (`member:<id>`) in sequence — the inner lists a member reorders
    *  within (mirrors `order` for the top level). */
   memberOrder: Record<string, string[]>;
+  /** Member key (`member:<id>`) → the stacks that act may not join, because each already holds an
+   *  act of the same name. Those cards never light up under it, so the drop floats home instead of
+   *  melting into a card the move would then refuse. Absent = every card may be joined. */
+  refusedJoins?: Record<string, string[]>;
   /** The scroll content's padding below the grid — bounds how far auto-scroll may go. */
   contentBottomInset?: number;
   /** Ghost mount/unmount + scroll freeze: called with the lifted key, then null at rest. */
@@ -226,6 +231,7 @@ export function HabitDragProvider({
   const order = useSharedValue<OrderMeta[]>([]);
   const memberFrames = useSharedValue<Record<string, Frame>>({});
   const memberOrder = useSharedValue<Record<string, string[]>>({});
+  const refusedJoins = useSharedValue<Record<string, string[]>>({});
   const reorderStackId = useSharedValue<string | null>(null);
   const memberDragIndex = useSharedValue(-1);
   const memberInsertIndex = useSharedValue(-1);
@@ -332,6 +338,7 @@ export function HabitDragProvider({
       insertIndex.get(),
       curReorder,
       SLOT_HYSTERESIS,
+      refusedJoins.get()[draggingKey.get()!] ?? [],
     );
     applySlot(slot);
   }, false);
@@ -438,6 +445,17 @@ export function HabitDragProvider({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the orders' identity
   }, [orderSignature, memberSignature]);
+  // The refusals are read per frame by the heartbeat, so they mirror like the orders — but a change
+  // to them is no reason to abort a live drag (a rename elsewhere, say): the next frame just reads it.
+  const refusedSignature = refusedJoinsProp
+    ? Object.keys(refusedJoinsProp)
+        .map((k) => `${k}:${refusedJoinsProp[k]!.join(',')}`)
+        .join('|')
+    : '';
+  useEffect(() => {
+    refusedJoins.set(refusedJoinsProp ?? {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the refusals' content
+  }, [refusedSignature]);
 
   // The Compiler deliberately leaves this provider uncached (its worklets and shared values make
   // it bail out), so an ordinary parent render used to mint a new context value and wake every

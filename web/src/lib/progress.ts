@@ -7,6 +7,7 @@
 
 import { queryOptions } from '@tanstack/react-query'
 
+import { fetchCompletionRows } from '#/lib/completion-reads'
 import type { Tables } from '#/lib/database.types'
 import { addDaysISO, hijriMonthRange, hijriParts, hijriYearStart, scheduledOn, todayLocalISO, weekdayIndex } from '#/lib/dates'
 import type { HijriSchedule } from '#/lib/dates'
@@ -432,18 +433,12 @@ export const progressQueryOptions = () =>
     queryKey: ['progress'],
     queryFn: async (): Promise<ProgressData> => {
       const since = addDaysISO(todayLocalISO(), -(WINDOW_DAYS - 1))
-      const [habitsRes, completionsRes] = await Promise.all([
+      // Paged: a year of ten habits is past PostgREST's silent 1000-row cap (see completion-reads).
+      const [habitsRes, completions] = await Promise.all([
         supabaseBrowser.from('habits').select('*').order('position'),
-        supabaseBrowser
-          .from('habit_completions')
-          .select('habit_id, completed_at, status, count')
-          .gte('completed_at', since),
+        fetchCompletionRows((query) => query.gte('completed_at', since)),
       ])
       if (habitsRes.error) throw habitsRes.error
-      if (completionsRes.error) throw completionsRes.error
-      return {
-        habits: (habitsRes.data ?? []) as Habit[],
-        completions: (completionsRes.data ?? []) as CompletionRow[],
-      }
+      return { habits: (habitsRes.data ?? []) as Habit[], completions }
     },
   })

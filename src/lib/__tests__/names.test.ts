@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { normalizeName, otherNames, siblingNames } from '@/lib/names';
+import { clashOnMove, moveRefusal, normalizeName, otherNames, refusedStacks, siblingNames } from '@/lib/names';
 
 describe('normalizeName', () => {
   it('trims and lower-cases', () => {
@@ -58,5 +58,59 @@ describe('siblingNames', () => {
 
   it('leaves out the habit being edited', () => {
     expect(siblingNames(habits, 'fajr', 'a')).toEqual([normalizeName('Morning adhkār')]);
+  });
+});
+
+// Fajr holds "Read Qurʾān"; ʿIshāʾ holds its own; a loose "Read Quran" and a loose "Walk" stand
+// outside any stack. The same deed may live in several stacks — just never twice in one container.
+const placed = [
+  { id: 'f1', name: 'Read Qurʾān', stack_id: 'fajr' },
+  { id: 'f2', name: 'Morning adhkār', stack_id: 'fajr' },
+  { id: 'i1', name: 'Read Qurʾān', stack_id: 'isha' },
+  { id: 'l1', name: 'Read Quran', stack_id: null },
+  { id: 'l2', name: 'Walk', stack_id: null },
+];
+
+describe('clashOnMove', () => {
+  it('refuses a move into a stack that already holds the name, however it is spelled', () => {
+    expect(clashOnMove(placed, 'l1', 'fajr')).toBe('Read Quran');
+  });
+
+  it('lets the same deed into a stack that does not hold it yet', () => {
+    expect(clashOnMove(placed, 'f2', 'isha')).toBeNull();
+    expect(clashOnMove(placed, 'l2', 'fajr')).toBeNull();
+  });
+
+  it('treats the loose habits as one container on the way out', () => {
+    expect(clashOnMove(placed, 'f1', null)).toBe('Read Qurʾān');
+    expect(clashOnMove(placed, 'f2', null)).toBeNull();
+  });
+
+  it('never refuses a reorder within the habit’s own container', () => {
+    expect(clashOnMove(placed, 'f1', 'fajr')).toBeNull();
+  });
+
+  it('says nothing about a habit it cannot find', () => {
+    expect(clashOnMove(placed, 'gone', 'fajr')).toBeNull();
+  });
+});
+
+describe('moveRefusal', () => {
+  it('names the stack and what it already has', () => {
+    expect(moveRefusal('Fajr', 'Read Qurʾān')).toBe('Fajr already has “Read Qurʾān”');
+    expect(moveRefusal(null, 'Walk')).toBe('“Walk” is already in Habits');
+  });
+});
+
+describe('refusedStacks', () => {
+  it('lists, per act, the other stacks that already hold its name', () => {
+    const refused = refusedStacks(placed);
+    expect(refused.get('f1')).toEqual(['isha']);
+    expect(refused.get('i1')).toEqual(['fajr']);
+    // A loose habit is refused by every stack that holds its name — the drag never carries one,
+    // but the map stays honest.
+    expect(refused.get('l1')).toEqual(['fajr', 'isha']);
+    expect(refused.has('f2')).toBe(false);
+    expect(refused.has('l2')).toBe(false);
   });
 });

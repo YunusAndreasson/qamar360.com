@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { toggleHint } from '@/lib/count-goal';
 import { DAILY_SCHEDULE } from '@/lib/dates';
 import { habitMetaLine, habitRowContract } from '@/lib/loose-row';
 
@@ -23,10 +24,24 @@ describe('habitRowContract — the three states', () => {
     expect(c.mode).toBe('held');
     expect(c.checked).toBe(true);
     expect(c.enabled).toBe(true);
-    expect(c.hint).toBe('Clears it for today.');
+    expect(c.hint).toBe('Takes it back for today.');
     // Never ", done" in the label: `checked` on the same element already says it, and saying it
     // twice is what the stack header's label was cleaned up to stop doing.
     expect(c.label).toBe('Walked outside');
+  });
+
+  // A count goal is counted, and once met a tap takes ONE back rather than the day — and the row
+  // says so in the same words an act inside a stack does (`toggleHint`), since it is the same tap.
+  it('counts one on a count goal, and takes one back once it is met', () => {
+    expect(row({ count: { count: 3, target: 8 } }).hint).toBe('Counts one.');
+    expect(row({ done: true, count: { count: 8, target: 8 } }).hint).toBe('Takes one back.');
+  });
+
+  it('describes the tap exactly as an act row does', () => {
+    for (const done of [false, true]) {
+      expect(row({ done }).hint).toBe(toggleHint(done, false));
+      expect(row({ done, count: { count: 1, target: 8 } }).hint).toBe(toggleHint(done, true));
+    }
   });
 
   it('goes inert when excused, and says so rather than instructing', () => {

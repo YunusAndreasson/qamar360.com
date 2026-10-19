@@ -13,7 +13,7 @@
  * `src/**\/*.test.ts` only, so a row's state matrix would otherwise have no test at all.
  */
 
-import { countGoalLabel } from '@/lib/count-goal';
+import { countGoalLabel, toggleHint } from '@/lib/count-goal';
 import { describeHijriSchedule, describeWeekdays, type HijriSchedule } from '@/lib/dates';
 
 /** The resolved state of a stackless row — everything the bar needs to paint and to announce. */
@@ -137,7 +137,9 @@ export function habitRowContract({
     // No ", done" here: that state is carried by `checked` on this same element, and saying it
     // twice is exactly what the stack header's label was cleaned up to stop doing.
     label: spoken,
-    hint: done ? 'Clears it for today.' : count ? 'Counts one.' : 'Marks it done for today.',
+    // The same words an act inside a stack says for the same gesture (`toggleHint`): a habit is
+    // tapped the same way wherever it stands, so it must not be described two ways.
+    hint: toggleHint(done, count != null),
     meta,
     fraction: count && !done && count.target > 0 ? count.count / count.target : undefined,
   };

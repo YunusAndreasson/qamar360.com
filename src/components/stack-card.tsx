@@ -17,7 +17,7 @@ import { Collapse } from '@/constants/motion';
 import { Disabled, Face, RowLeadingSlot, Spacing, UnitRow, UnitRowText } from '@/constants/theme';
 import type { Habit, HabitStack } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
-import { isStackComplete } from '@/lib/progress';
+import { creditFor, isStackComplete } from '@/lib/progress';
 import { stackHeaderContract } from '@/lib/stack-card-state';
 
 type Props = {
@@ -66,8 +66,9 @@ type Props = {
  * Progress and Stats need to know nothing about stacks).
  *
  * **The header is a gauge and a door.** Its {@link CompletionRing} fills to the share of the acts
- * that are done, and the sub-line says the same in figures ("5 of 10 acts done"): a proportion
- * answers *roughly how far* at a glance and a number answers *exactly where*. A tap anywhere on the
+ * that are done (a count goal partway counting its part), and the sub-line says it in figures
+ * ("5 of 10 acts done"): a proportion answers *roughly how far* at a glance and a number answers
+ * *exactly where*. A tap anywhere on the
  * bar opens or closes the sequence. The bar used to seal the whole stack instead, and a tap on a
  * sealed bar deleted every act's record for the day, including acts ticked one by one, with no
  * undo. Two controls for one job, and the bigger one destroyed data, so the seal went.
@@ -101,12 +102,29 @@ function StackCardBase({
   // The acts actually in play today: the excused drop out of the sequence the stack asks for
   // (the same rule `sealableActs` applies to the write, so the card and the row can't disagree).
   const openActs = members.filter((m) => !skipped.has(m.id));
-  // How much of the sequence stands done — the header ring's fill and the sub-line's count, which
-  // are the same fact told twice (a proportion you can see at a glance, a number you can read).
+  // How much of the sequence stands done — the sub-line's count, and (with the partial credit
+  // below) the header ring's fill: a proportion you can see at a glance, a number you can read.
   // Derived here rather than in a helper of its own: `isStackComplete` owns the *rule* for sealed
   // and this is only the count behind it, over the very `openActs` that rule resolves.
   const doneCount = openActs.reduce((n, m) => n + (completed.has(m.id) ? 1 : 0), 0);
-  const doneFraction = openActs.length === 0 ? 0 : doneCount / openActs.length;
+  // The ring's fill is the acts' CREDIT, not just the whole ones: a count goal partway (7 of 8
+  // cups) moves its own row's ring, so a header that ignored it would stand still under a mark
+  // that moved. Credit by the very rule Progress scores the day with (`creditFor`), so the header
+  // can never claim more or less of the stack than the orbit will. The row is the day-state as
+  // `creditFor` reads it (status and count; the date it never looks at). The sub-line still counts
+  // whole acts: "2 of 3 acts done" is the exact figure, and a third of a cup is not an act done.
+  const credit = openActs.reduce(
+    (sum, m) =>
+      sum +
+      (creditFor(
+        m,
+        completed.has(m.id)
+          ? { habit_id: m.id, completed_at: '', status: 'done', count: null }
+          : { habit_id: m.id, completed_at: '', status: 'partial', count: counts.get(m.id) ?? 0 },
+      ) ?? 0),
+    0,
+  );
+  const doneFraction = openActs.length === 0 ? 0 : credit / openActs.length;
   // The whole group sealed. Drives the one-shot border flash, the greyed header tone, the status
   // check and the auto-fold; the synced completion haptic is fired from the seal seam in use-habits.
   const stackComplete = isStackComplete(members, completed, skipped);
@@ -214,7 +232,8 @@ function StackCardBase({
                 <CompletionRing
                   complete={stackComplete}
                   // The group's mark is the running total of the marks below it: two acts of five
-                  // ticked rests this arc at two fifths, and the fifth tick closes it.
+                  // ticked rests this arc at two fifths, a count goal half way adds its half, and
+                  // the fifth tick closes it.
                   fraction={doneFraction}
                   size={24}
                   strokeWidth={2}

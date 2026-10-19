@@ -8,7 +8,7 @@ import { suggestedMoments } from '@/lib/curated';
 import { buildUnits, flattenUnits } from '@/lib/drag-order';
 import { haptics } from '@/lib/haptics';
 import { MOMENTS, type MomentKey } from '@/lib/moments';
-import { normalizeName } from '@/lib/names';
+import { clashOnMove, normalizeName } from '@/lib/names';
 
 type Props = {
   /** The day's stackless habits, in position order. */
@@ -51,9 +51,20 @@ export function HabitSection({ habits: loose, completed, skipped, counts, settli
   // Folded name → the moment the library would give this habit. (No useMemo — the React Compiler
   // memoizes derived values.)
   const suggestions = suggestedMoments(presets);
+  // The user's own stack for a moment, by the moment's stack name — "Anchor all" appends to it
+  // rather than minting a twin beside it.
+  const twinFor = (moment: MomentKey) =>
+    stacks.find((s) => normalizeName(s.name) === normalizeName(MOMENTS[moment].stackName));
   // Only what is on screen: an "Anchor all" that also moved habits the user can't see would be
-  // reporting work they didn't watch happen.
-  const suggested = loose.filter((h) => suggestions.get(normalizeName(h.name)) != null);
+  // reporting work they didn't watch happen. And only what can actually go: a habit whose stack
+  // already holds an act of its name would land as a second identical row there, so `moveHabit`'s
+  // rule (`clashOnMove`) leaves it out — the offer would otherwise stay up, anchoring nothing.
+  const suggested = loose.filter((h) => {
+    const moment = suggestions.get(normalizeName(h.name));
+    if (moment == null) return false;
+    const twin = twinFor(moment);
+    return !twin || clashOnMove(habits, h.id, twin.id) === null;
+  });
 
   if (loose.length === 0) return null;
 
@@ -79,7 +90,7 @@ export function HabitSection({ habits: loose, completed, skipped, counts, settli
     // chained calls, so each group sees the previous one's result.
     for (const [moment, group] of byMoment) {
       const name = MOMENTS[moment].stackName;
-      const twin = stacks.find((s) => normalizeName(s.name) === normalizeName(name));
+      const twin = twinFor(moment);
       const ids = group.map((h) => h.id);
       if (twin) {
         // Append to the user's own same-named stack rather than minting a twin beside it.

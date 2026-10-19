@@ -70,7 +70,8 @@ export function OrbitMark({
    *  degrees passes its own, so the mark agrees with the figure beside it. */
   kept?: boolean;
   animate?: boolean;
-  /** A 0–1 clock to draw the arc from instead of `rate`; warm once it closes the orbit. */
+  /** A 0–1 clock to draw the arc from instead of `rate`; warm once it closes the orbit, or, when
+   *  `kept`, once it lands on `rate` (the figure it is sweeping to). */
   follow?: SharedValue<number>;
 }) {
   const theme = useTheme();
@@ -101,13 +102,21 @@ export function OrbitMark({
     progress.set(withTiming(target, { duration: Tick.sweep, easing: Ease.draw }));
   }, [target, kept, animate, reduceMotion, progress, warm]);
 
+  // Where a followed orbit closes. A clock that only closed at exactly 1 ignored `kept`: a month the
+  // caller reads as kept (its rounded degrees are 360) sat at 0.999 as an open accent arc while its
+  // light, its haptic and its label all said kept in full. So a kept orbit closes as the clock lands
+  // on its own figure — the clock is sweeping TO `rate`, so that is the moment the sweep ends, and it
+  // closes on the same frame the free-standing mark's `target` of 1 would. (A hair under, because a
+  // timing animation's landing is a float.)
+  const closesAt = kept ? Math.min(1, rate ?? 1) - 1e-6 : 1;
+
   // A zero-length dash can still paint a sliver, so the arc hides until it has any length.
   const arcProps = useAnimatedProps(() => {
     const p = follow ? follow.get() : progress.get();
-    const w = follow ? (p >= 1 ? 1 : 0) : warm.get();
+    const w = follow ? (p >= closesAt ? 1 : 0) : warm.get();
     return { strokeDashoffset: circumference * (1 - p), opacity: p < 0.004 ? 0 : 1 - w };
   });
-  const warmProps = useAnimatedProps(() => ({ opacity: follow ? (follow.get() >= 1 ? 1 : 0) : warm.get() }));
+  const warmProps = useAnimatedProps(() => ({ opacity: follow ? (follow.get() >= closesAt ? 1 : 0) : warm.get() }));
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

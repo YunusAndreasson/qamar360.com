@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { countGoalLabel, countTakeBack, countTap } from '@/lib/count-goal';
+import { countGoalLabel, countTakeBack, countTap, toggleHint } from '@/lib/count-goal';
 
 describe('countTap', () => {
   it('adds one per tap', () => {
@@ -16,16 +16,37 @@ describe('countTap', () => {
     expect(countTap(0, 1, false)).toEqual({ status: 'done', count: 1 });
   });
 
-  it('clears a completed goal, as a tap on a ticked row always has', () => {
-    expect(countTap(8, 8, true)).toEqual({ status: 'clear' });
-    // A done row logged before counts existed carries no count at all.
-    expect(countTap(0, 8, true)).toEqual({ status: 'clear' });
+  // A tap on a met goal takes ONE back, the way a tap on a done binary row un-does it — but at the
+  // cost of a unit, not the day: one habitual extra tap on a full glass must not wipe all eight.
+  it('takes one back from a completed goal instead of clearing the day', () => {
+    expect(countTap(8, 8, true)).toEqual({ status: 'partial', count: 7 });
+    // A done row logged before counts existed carries no count at all: it stands at its target.
+    expect(countTap(0, 8, true)).toEqual({ status: 'partial', count: 7 });
   });
 
-  // A target lowered under an existing count is reconciled by the editor, but a tap must not
-  // count past the target if it ever lands first.
-  it('never counts past the target', () => {
-    expect(countTap(9, 8, false)).toEqual({ status: 'clear' });
+  it('un-does a completed target of one, exactly like a binary row', () => {
+    expect(countTap(1, 1, true)).toEqual({ status: 'clear' });
+  });
+
+  it('is the same step the `⋯` sheet takes back, once the goal is met', () => {
+    expect(countTap(8, 8, true)).toEqual(countTakeBack(8, 8, true));
+  });
+
+  // A 'partial' row already at or past its target (a target lowered under it, a row out of sync)
+  // is a met goal the row never said so about. The tap completes it at the target — it must not
+  // read it as done and take one back, nor clear it.
+  it('completes a partial row that already reached its target', () => {
+    expect(countTap(8, 8, false)).toEqual({ status: 'done', count: 8 });
+    expect(countTap(9, 8, false)).toEqual({ status: 'done', count: 8 });
+  });
+});
+
+describe('toggleHint', () => {
+  it('names what the tap does on each kind of row', () => {
+    expect(toggleHint(false, false)).toBe('Marks it done for today.');
+    expect(toggleHint(true, false)).toBe('Takes it back for today.');
+    expect(toggleHint(false, true)).toBe('Counts one.');
+    expect(toggleHint(true, true)).toBe('Takes one back.');
   });
 });
 

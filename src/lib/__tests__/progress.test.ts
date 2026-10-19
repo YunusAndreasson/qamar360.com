@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { addDaysISO, daysBetweenISO, HIJRI_MONTHS, hijriMonthRange, hijriParts, scheduledOn } from '@/lib/dates';
-import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, tallyDays, toDegrees, withDoneToday, yearMonths, type CompletionRow, type ProgressHabit } from '@/lib/progress';
+import { clamp01, computeProgress, isStackComplete, openUnitsOn, sealableActs, SERIES_MAX_POINTS, tallyDays, toDegrees, withDoneToday, yearMonths, type CompletionRow, type ProgressHabit, type SeriesPoint } from '@/lib/progress';
 
 describe('clamp01', () => {
   it('clamps below 0 and above 1', () => {
@@ -675,6 +675,16 @@ describe('computeProgress — the record over each period', () => {
     expect(months[now]!.phase).toBe('running');
     expect(months[now - 1]).toMatchObject({ phase: 'closed', rate: 1, kept: true });
     expect(months[now - 2]).toMatchObject({ phase: 'closed', rate: 0, kept: false });
+  });
+
+  it('calls a month kept only at a rate of 1, never at one that merely rounds to 360°', () => {
+    // 0.9995 rounds to 360 in whole degrees, but `orbitDegrees` reads it as 359° and the hero ring
+    // stays open, so the Year mark must not close warm on it either.
+    const point = (rate: number) =>
+      ({ iso: '2026-01-01', endISO: '2026-01-29', rate, possible: 30, pending: false }) as SeriesPoint;
+    const months = yearMonths({ points: [point(0.9995), point(1)], bucketDays: 0, slots: 12 });
+    expect(months[0]).toMatchObject({ phase: 'closed', kept: false });
+    expect(months[1]).toMatchObject({ phase: 'closed', kept: true });
   });
 
   it('reads a year as its Hijri months, tiled exactly and clipped at today', () => {

@@ -159,6 +159,10 @@ export function insertionIndexWithHysteresis(
  * An act over ANOTHER card's body joins that stack. Its top/bottom bands fall through to
  * "between", which for an act means nothing to commit — an act has nowhere to go outside a stack,
  * so the drop simply floats home.
+ *
+ * `refused` names the stacks this act may not join because they already hold its name (see
+ * `refusedStacks` in `lib/names`). Their bodies read as no target at all, so the card never lights
+ * up and the drop floats home — the ring is a promise, and one the move would refuse can't be made.
  */
 export function resolveDropSlot(
   centerY: number,
@@ -174,6 +178,7 @@ export function resolveDropSlot(
   currentBetween = -1,
   currentReorder = -1,
   deadband = 0,
+  refused: readonly string[] = [],
 ): DropSlot {
   'worklet';
   const midpoints = restMidpoints(order, frames, draggedKey);
@@ -195,6 +200,7 @@ export function resolveDropSlot(
           index: insertionIndexWithHysteresis(centerY, mids, currentReorder, deadband),
         };
       }
+      if (refused.includes(entry.stackId)) continue;
       return { kind: 'into', stackId: entry.stackId };
     }
   }
