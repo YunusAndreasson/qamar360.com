@@ -40,8 +40,10 @@ export const Route = createRootRoute({
       // The app's icon (assets/logo/qamar-icon.svg): the SVG for tabs, the .ico for whatever asks for
       // /favicon.ico (sized, so browsers that read SVG prefer it), a 180px tile for iOS home
       // screens, and the manifest's 192/512 and maskable icons for Android.
-      { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
-      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      // `?v=` names the drawing: browsers keep a favicon in their own cache past any header, so a
+      // redrawn icon needs a new address to be fetched at all. Bump it when the icon changes.
+      { rel: 'icon', href: '/favicon.ico?v=2', sizes: '32x32' },
+      { rel: 'icon', href: '/favicon.svg?v=2', type: 'image/svg+xml' },
       { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       { rel: 'manifest', href: '/manifest.webmanifest' },
     ],

@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- The tab icon: the app's icon (assets/logo/qamar-icon.svg), a white Q on the night #060910,
-       on a rounded tile, with the stroke drawn heavier (64 for the app's 40) so the ring stays
-       crisp at 16px. -->
+       on a rounded tile, drawn for the pixel grid of a tab. The ring is heavier (112 for the
+       app's 40) and its outer edge falls on whole pixels at 16, 32 and 48px (384 = 6px at 16),
+       so it renders solid instead of grey; the tail is longer, so at 16px it still reads as a
+       tail and not a speck. favicon.ico is rendered from this file. -->
   <rect width="1024" height="1024" rx="224" fill="#060910"/>
-  <circle cx="512" cy="512" r="312" fill="none" stroke="#FFFFFF" stroke-width="64"/>
-  <line x1="703" y1="703" x2="789" y2="789" stroke="#FFFFFF" stroke-width="64" stroke-linecap="round"/>
+  <circle cx="512" cy="512" r="328" fill="none" stroke="#FFFFFF" stroke-width="112"/>
+  <line x1="700" y1="700" x2="845" y2="845" stroke="#FFFFFF" stroke-width="112" stroke-linecap="round"/>
 </svg>

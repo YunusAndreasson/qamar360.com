@@ -70,8 +70,10 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   falls back to Arial: add it to the script's `--unicodes` and re-run (needs fonttools + brotli).
   Firefox has no `text-wrap: pretty`, so body lines tie their last two words with `&nbsp;`.
 - Icons, all from the app's `assets/logo/qamar-icon.svg` (a white Q on the night
-  `#060910`): `favicon.svg` (tabs; the stroke drawn heavier, 64 for 40, so the ring
-  holds at 16px), `favicon.ico` (16/32/48, for whatever asks for `/favicon.ico`),
+  `#060910`): `favicon.svg` (tabs; drawn for a tab's pixel grid: stroke 112 for the app's 40,
+  the ring's outer edge on whole pixels at 16/32/48 and a longer tail, so 16px reads as a Q and
+  not a grey ring with a speck), `favicon.ico` (16/32/48 rendered from it by `rsvg-convert` +
+  `magick`, for whatever asks for `/favicon.ico`),
   `apple-touch-icon.png` (180, opaque square: iOS rounds it), and the manifest's
   `icon-192/512.png` and `icon-maskable-512.png` (the app's adaptive mark,
   inside Android's 80% safe circle). `manifest.webmanifest` is `display:
