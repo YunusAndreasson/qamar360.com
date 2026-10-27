@@ -15,8 +15,8 @@ one half of that message or leaves the page. As built (concision pass,
 
 0. **Hero**: the crescent just after sunset, "Small acts, / kept by the sun /
    and the moon.", the lede "Qamar360 helps you keep the Sunnah without
-   reminders. You tie small acts to the prayers, and see each month as an orbit
-   around the moon." (never "no notifications" or "no alerts": the lunar
+   reminders. You tie small acts to the prayers, and see each month’s progress as an
+   orbit around the moon." (never "no notifications" or "no alerts": the lunar
    updates are notifications).
 1. **The turn** (one section): habit apps run on reminders that get swiped
    away; Muslims kept time by the sky. Qurʾān 10:5 as a verse, then "Qamar360

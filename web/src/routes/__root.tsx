@@ -7,7 +7,7 @@ import interFont from '#/fonts/inter-4.1.1.woff2?url'
 import siteCss from '#/site.css?url'
 
 const DESCRIPTION =
-  'Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month as an orbit around the moon.'
+  'Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month’s progress as an orbit around the moon.'
 
 export const Route = createRootRoute({
   head: () => ({

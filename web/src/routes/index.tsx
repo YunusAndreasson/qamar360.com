@@ -154,8 +154,8 @@ function Home() {
                 <span>Small acts,</span> <span>kept by the sun</span> <span>and the&nbsp;moon.</span>
               </h1>
               <p className="hero-lede">
-                Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each
-                month as an orbit around the&nbsp;moon.
+                Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each month’s
+                progress as an orbit around the&nbsp;moon.
               </p>
               <p className="coming">Coming to iPhone and Android</p>
             </div>
