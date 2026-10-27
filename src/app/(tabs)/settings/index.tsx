@@ -363,7 +363,7 @@ export default function SettingsScreen() {
 
       {/* Footer — a quiet sign-off. The app's website + socials sit here as a compact icon row
           (the conventional home for them); the version follows (not a tappable-looking row), and
-          the maker credit is a single whisper-quiet link to the projects page, not a section. */}
+          the maker credit is a single whisper-quiet link to his site, not a section. */}
       <View style={styles.footer}>
         <SocialLinks style={styles.footerSocial} />
         <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
@@ -372,10 +372,10 @@ export default function SettingsScreen() {
         <Pressable
           onPress={() => openBrowser(Links.maker)}
           accessibilityRole="link"
-          accessibilityLabel="Made by Edenmind, opens andreassonphoto.com"
+          accessibilityLabel="Made by Yunus Andreasson, opens andreassonphoto.com"
           style={({ pressed }) => [styles.makerLink, pressed && styles.pressed]}>
           <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
-            Made by Edenmind
+            Made by Yunus Andreasson
           </ThemedText>
           <AppIcon name="openInNew" size={13} color={theme.textSecondary} />
         </Pressable>

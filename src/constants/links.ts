@@ -15,6 +15,6 @@ export const Links = {
   instagram: 'https://www.instagram.com/qamar360com/',
   x: 'https://x.com/Qamar360Com',
 
-  // The maker — the byline links to the projects page that lists everything he builds.
-  maker: 'https://andreassonphoto.com/projects',
+  // The maker: the byline names him and links his own site, as qamar360.com's footer does.
+  maker: 'https://andreassonphoto.com',
 } as const;
