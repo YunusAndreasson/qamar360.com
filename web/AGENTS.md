@@ -1,9 +1,55 @@
-# Web app
+# Website
 
-Marketing/web app for Qamar360, built with Vite + TanStack Start
+qamar360.com: the site that promotes the app's download, plus its privacy
+policy, terms and support page. Built with Vite + TanStack Start
 (`@tanstack/react-start`), deployed as the **`qamar360` Cloudflare Worker**
-serving qamar360.com and www.qamar360.com (config in `wrangler.jsonc`).
-The Expo mobile app lives at the repo root and has a separate release flow.
+serving qamar360.com and www.qamar360.com (config in `wrangler.jsonc`). Plan:
+`docs/website-plan.md` at the repo root. The Expo mobile app lives at the repo
+root and has a separate release flow.
+
+There is no login and no web app. The old web app (sign-in, habits, routines,
+discover, progress) was retired on 2026-10-26; `src/server.ts` (the worker
+entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
+
+## Layout
+
+- `src/site.css`: the only stylesheet. Plain CSS, no Tailwind; colours are the
+  app's dark roles. Dark only.
+- `src/site.ts`: who runs the app, the contact address, the social links, and
+  the date the documents last changed (`DOCS_UPDATED`).
+- `src/routes/privacy.tsx`, `terms.tsx`, `support.tsx`: written from what the
+  app does. The privacy page lists the repo source of each claim at its top;
+  when the app changes what it stores, change the page and `DOCS_UPDATED`.
+- `src/routes/index.tsx`: the download page. Its centre is `MonthOrbit`: the
+  app's Progress orbit (`orbit.tsx`) round the real moon (`moon-canvas.tsx`,
+  the app's Skia moon shader ported to WebGL2 over `public/moon/near-side.png`,
+  the app's NASA texture), played by the scroll through one Ramaḍān. Keep its
+  proportions, colours and notification wording in step with the app
+  (`orbit-drawing.tsx`, `moon-body.tsx`, `lib/lunar-update.ts`).
+- `src/lib/moon.ts`: phase and Umm al-Qura maths ported from the app, tested.
+- `public/fonts/inter-4.1.1.woff2`: the only font, Inter 4.1 variable (optical size + weight) cut by
+  `scripts/subset-font.sh` to Latin, the transliteration letters (ā ī ū ḍ ḥ ṣ ṭ ẓ ʾ ʿ) and the
+  OpenType features the CSS uses; preloaded from `__root.tsx`. A copy character outside that set
+  falls back to Arial: add it to the script's `--unicodes` and re-run (needs fonttools + brotli).
+  Firefox has no `text-wrap: pretty`, so body lines tie their last two words with `&nbsp;`.
+- `public/images`: photographs as `<name>-<width>.avif|webp`. The hero and
+  the close are full-bleed; every still between is a `Frame` exported as
+  `<name>-wide-*` (2.39:1) and `<name>-tall-*` (4:5, phones). All are one
+  night generated with Codex in one style. A still keeps an empty side only
+  when its words are set there (`side`); a caption or wordless still is
+  composed full. No churches anywhere: no spires, steeples, domes or crosses.
+- The phones in `sill`, `bedside`, `rooftop` and `rug` show real screens:
+  Codex draws each phone with its screen blank and black, and a screenshot
+  from the emulator is warped onto the glass, so an image model never draws
+  the app's UI. The screens come from a seeded showcase account
+  (`QAMAR_SHOWCASE_*` in `.argent/secrets.env`), with a demo-mode status bar
+  and the emulator's real clock set to the scene's hour. The day-complete card
+  turns its Hijri date at Maghrib, so its time has to match.
+
+## Copy
+
+The app's copy rules apply (no em dash as a connector, objects don't want
+things, no templated phrases). Never uppercase "iPhone".
 
 ## Commands
 
@@ -13,6 +59,7 @@ pnpm build            # vite build
 pnpm test             # vitest run
 pnpm typecheck        # tsc --noEmit
 pnpm generate-routes  # tsr generate (TanStack Router route tree)
+pnpm preview          # serve the production build in workerd (redirects work here, not in dev)
 pnpm verify           # test + typecheck + build (full check — run before finishing)
 pnpm deploy           # vite build + wrangler deploy (see Deploy)
 ```

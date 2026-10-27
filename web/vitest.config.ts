@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config'
 // plugin there sets worker-environment options vitest is incompatible with.
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    environment: 'node',
     passWithNoTests: true,
   },
 })

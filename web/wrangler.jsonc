@@ -3,7 +3,7 @@
   "name": "qamar360",
   "compatibility_date": "2026-08-30",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/server.ts",
   "observability": { "enabled": true },
   "routes": [
     { "pattern": "qamar360.com", "custom_domain": true },

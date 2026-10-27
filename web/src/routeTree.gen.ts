@@ -10,95 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthedRouteImport } from './routes/_authed'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthedDiscoverRouteImport } from './routes/_authed/discover'
-import { Route as AuthedHabitsRouteImport } from './routes/_authed/habits'
-import { Route as AuthedProgressRouteImport } from './routes/_authed/progress'
-import { Route as AuthedRoutinesRouteImport } from './routes/_authed/routines'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as TermsRouteImport } from './routes/terms'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedRoute = AuthedRouteImport.update({
-  id: '/_authed',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedDiscoverRoute = AuthedDiscoverRouteImport.update({
-  id: '/discover',
-  path: '/discover',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedHabitsRoute = AuthedHabitsRouteImport.update({
-  id: '/habits',
-  path: '/habits',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedProgressRoute = AuthedProgressRouteImport.update({
-  id: '/progress',
-  path: '/progress',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedRoutinesRoute = AuthedRoutinesRouteImport.update({
-  id: '/routines',
-  path: '/routines',
-  getParentRoute: () => AuthedRoute,
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/discover': typeof AuthedDiscoverRoute
-  '/habits': typeof AuthedHabitsRoute
-  '/progress': typeof AuthedProgressRoute
-  '/routines': typeof AuthedRoutinesRoute
+  '/privacy': typeof PrivacyRoute
+  '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/discover': typeof AuthedDiscoverRoute
-  '/habits': typeof AuthedHabitsRoute
-  '/progress': typeof AuthedProgressRoute
-  '/routines': typeof AuthedRoutinesRoute
+  '/privacy': typeof PrivacyRoute
+  '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/_authed': typeof AuthedRouteWithChildren
-  '/login': typeof LoginRoute
-  '/_authed/discover': typeof AuthedDiscoverRoute
-  '/_authed/habits': typeof AuthedHabitsRoute
-  '/_authed/progress': typeof AuthedProgressRoute
-  '/_authed/routines': typeof AuthedRoutinesRoute
+  '/privacy': typeof PrivacyRoute
+  '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
+  fullPaths: '/' | '/privacy' | '/support' | '/terms'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/discover' | '/habits' | '/progress' | '/routines'
-  id:
-    | '__root__'
-    | '/'
-    | '/_authed'
-    | '/login'
-    | '/_authed/discover'
-    | '/_authed/habits'
-    | '/_authed/progress'
-    | '/_authed/routines'
+  to: '/' | '/privacy' | '/support' | '/terms'
+  id: '__root__' | '/' | '/privacy' | '/support' | '/terms'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthedRoute: typeof AuthedRouteWithChildren
-  LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
+  SupportRoute: typeof SupportRoute
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -110,72 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed': {
-      id: '/_authed'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthedRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/discover': {
-      id: '/_authed/discover'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof AuthedDiscoverRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/habits': {
-      id: '/_authed/habits'
-      path: '/habits'
-      fullPath: '/habits'
-      preLoaderRoute: typeof AuthedHabitsRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/progress': {
-      id: '/_authed/progress'
-      path: '/progress'
-      fullPath: '/progress'
-      preLoaderRoute: typeof AuthedProgressRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/routines': {
-      id: '/_authed/routines'
-      path: '/routines'
-      fullPath: '/routines'
-      preLoaderRoute: typeof AuthedRoutinesRouteImport
-      parentRoute: typeof AuthedRoute
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AuthedRouteChildren {
-  AuthedDiscoverRoute: typeof AuthedDiscoverRoute
-  AuthedHabitsRoute: typeof AuthedHabitsRoute
-  AuthedProgressRoute: typeof AuthedProgressRoute
-  AuthedRoutinesRoute: typeof AuthedRoutinesRoute
-}
-
-const AuthedRouteChildren: AuthedRouteChildren = {
-  AuthedDiscoverRoute: AuthedDiscoverRoute,
-  AuthedHabitsRoute: AuthedHabitsRoute,
-  AuthedProgressRoute: AuthedProgressRoute,
-  AuthedRoutinesRoute: AuthedRoutinesRoute,
-}
-
-const AuthedRouteWithChildren =
-  AuthedRoute._addFileChildren(AuthedRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthedRoute: AuthedRouteWithChildren,
-  LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
+  SupportRoute: SupportRoute,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

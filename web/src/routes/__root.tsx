@@ -1,56 +1,44 @@
-import {
-  HeadContent,
-  Scripts,
-  createRootRouteWithContext,
-} from '@tanstack/react-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TanStackDevtools } from '@tanstack/react-devtools'
+import { HeadContent, Link, Scripts, createRootRoute } from '@tanstack/react-router'
 
-import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
+import { SiteFooter, SiteHeader } from '#/components/site-chrome'
+import { Site } from '#/site'
+import siteCss from '#/site.css?url'
 
-import appCss from '../styles.css?url'
+const DESCRIPTION =
+  'Qamar360 ties small acts of the Sunnah to moments you already keep, and shows each Hijri month as one orbit of the moon.'
 
-import type { QueryClient } from '@tanstack/react-query'
-
-interface MyRouterContext {
-  queryClient: QueryClient
-}
-
-export const Route = createRootRouteWithContext<MyRouterContext>()({
+export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Qamar360 — Sunnah habits & routines' },
-      {
-        name: 'description',
-        content:
-          'Track your Sunnah habits and routines across the lunar cycle — a calm, precise place for daily practice.',
-      },
-      { name: 'theme-color', content: '#09090b' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+      { title: Site.name },
+      { name: 'description', content: DESCRIPTION },
+      // The site is night only; match the browser chrome to it.
+      { name: 'theme-color', content: '#060910' },
       { name: 'color-scheme', content: 'dark' },
-      // Maker identity — pairs with the Person JSON-LD below.
-      { name: 'author', content: 'Yunus Andreasson' },
+      { name: 'author', content: Site.provider },
       { name: 'twitter:creator', content: '@YunusAndreasson' },
-      { name: 'twitter:card', content: 'summary' },
-      // Open Graph / Twitter card — these were entirely missing.
+      { name: 'twitter:card', content: 'summary_large_image' },
       { property: 'og:type', content: 'website' },
-      { property: 'og:site_name', content: 'Qamar360' },
-      { property: 'og:title', content: 'Qamar360 — Sunnah habits & routines' },
-      {
-        property: 'og:description',
-        content:
-          'Track your Sunnah habits and routines across the lunar cycle — a calm, precise place for daily practice.',
-      },
+      { property: 'og:url', content: Site.url },
+      { property: 'og:image', content: `${Site.url}/og.jpg` },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { property: 'og:image:alt', content: 'A man walks alone down a wet cobbled street at dusk, under a thin crescent moon.' },
+      { property: 'og:site_name', content: Site.name },
+      { property: 'og:title', content: Site.name },
+      { property: 'og:description', content: DESCRIPTION },
     ],
     links: [
-      { rel: 'stylesheet', href: appCss },
+      // The one font file, fetched alongside the stylesheet rather than after it.
+      { rel: 'preload', href: '/fonts/inter-4.1.1.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+      { rel: 'stylesheet', href: siteCss },
       { rel: 'icon', href: '/qamar-mark.svg', type: 'image/svg+xml' },
     ],
     scripts: [
       // Person JSON-LD — identical @id across every one of the maker's sites so search engines
-      // resolve them to one entity. Emitted as its own ld+json block (no Organization/WebSite
-      // graph exists here to merge a `creator` reference into).
+      // resolve them to one entity.
       {
         type: 'application/ld+json',
         children: JSON.stringify({
@@ -71,33 +59,34 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: NotFound,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
         {children}
-        {/* Devtools are a build-time thing only — never ship the panel/badge to production. */}
-        {import.meta.env.DEV && (
-          <TanStackDevtools
-            config={{
-              position: 'bottom-right',
-            }}
-            plugins={[
-              {
-                name: 'Tanstack Router',
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-              TanStackQueryDevtools,
-            ]}
-          />
-        )}
         <Scripts />
       </body>
     </html>
+  )
+}
+
+function NotFound() {
+  return (
+    <div className="doc-page holding-page">
+      <SiteHeader />
+      <main className="holding">
+        <h1>Nothing here.</h1>
+        <p className="holding-lede">
+          This address leads nowhere. <Link to="/">Go to the home page</Link>.
+        </p>
+      </main>
+      <SiteFooter />
+    </div>
   )
 }
