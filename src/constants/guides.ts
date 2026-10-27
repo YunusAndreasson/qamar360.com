@@ -107,7 +107,7 @@ export const EXCHANGE_GUIDE: Guide = {
     {
       heading: 'Name the moment it hits.',
       body: 'Not “eat better” — “drank a glass of water instead of soft drinks, when I sit down to eat”. The urge arrives in a handful of particular moments; name one, and pick something actually to hand when it does.',
-      evidence: 'The Prophet ﷺ told a man who was angry while standing to sit down (Abu Dawud 4782).',
+      evidence: 'The Prophet ﷺ told a man who was angry while standing to sit down (Abu Dawud 4782, ṣaḥīḥ).',
     },
     {
       heading: 'A slip is not a collapse.',

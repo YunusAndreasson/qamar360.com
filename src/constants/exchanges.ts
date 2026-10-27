@@ -196,7 +196,7 @@ export const EXCHANGE_GROUPS: CuratedExchangeGroup[] = [
         cue: 'anger rising',
         detail: 'Sit down if you’re standing, then say aʿūdhu bi-Llāhi min al-shayṭān al-rajīm.',
         evidence:
-          '“When one of you becomes angry while standing, let him sit down” (Abu Dawud 4782). And: “I know a word which, if he said it, what he finds would leave him — aʿūdhu bi-Llāhi min al-shayṭān” (Bukhari 3282).',
+          '“When one of you becomes angry while standing, let him sit down” (Abu Dawud 4782, ṣaḥīḥ). And: “I know a word which, if he said it, what he finds would leave him — aʿūdhu bi-Llāhi min al-shayṭān” (Bukhari 3282).',
       },
       {
         id: 'sadaqah-not-impulse-buy',

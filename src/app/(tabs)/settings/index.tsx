@@ -103,7 +103,8 @@ export default function SettingsScreen() {
   const confirmDelete = () =>
     confirmDestructive({
       title: 'Delete account',
-      message: 'This permanently deletes your account and all your habits. This can’t be undone.',
+      message:
+        'This permanently deletes your account and your photo, with all your habits, stacks, to-dos and progress. This can’t be undone.',
       onConfirm: () => void runDelete(),
     });
 

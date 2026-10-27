@@ -207,7 +207,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     categoryId: 'sunnah-prayers',
     name: 'Prayed two rakʿah after wuḍūʾ',
     detail: 'After wuḍūʾ, pray two rakʿah with full presence, before your mind wanders.',
-    evidence: 'Bilāl prayed two rakʿah after every wuḍūʾ; the Prophet ﷺ heard his footsteps in Paradise (Bukhari 1149, Muslim 2458).',
+    evidence: 'Whoever makes wuḍūʾ well, then prays two rakʿah with heart and face turned to them, Paradise is due to him (Muslim 234). Bilāl prayed after every wuḍūʾ, and the Prophet ﷺ heard his footsteps in Paradise (Bukhari 1149).',
     defaultSchedule: DAILY_SCHEDULE,
   },
   {
@@ -441,7 +441,7 @@ export const SUNNAH_PRESETS: SunnahPreset[] = [
     categoryId: 'fasting',
     name: 'Fasted the White Days',
     detail: 'Fast the three white days — the 13th, 14th, and 15th of each Hijri month — from dawn to sunset.',
-    evidence: 'Fasting three days each month is like fasting for life; the Prophet ﷺ enjoined the white days, the 13th, 14th, and 15th (Bukhari 1979; Tirmidhi 761, ṣaḥīḥ).',
+    evidence: 'Fasting three days each month is like fasting for life; the Prophet ﷺ enjoined the white days, the 13th, 14th, and 15th (Bukhari 1979; Tirmidhi 761, ḥasan).',
     defaultSchedule: [],
     hijriSchedule: { monthDays: [13, 14, 15] },
   },
