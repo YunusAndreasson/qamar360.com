@@ -45,6 +45,11 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   (`QAMAR_SHOWCASE_*` in `.argent/secrets.env`), with a demo-mode status bar
   and the emulator's real clock set to the scene's hour. The day-complete card
   turns its Hijri date at Maghrib, so its time has to match.
+- `hero-screen-*` is a bare screenshot (no photo) shown beside the headline:
+  Progress on 3 Jumādā al-Thānī 1448, so the crescent on the phone is the
+  crescent in the hero's sky. The phone's clock cannot go back before the
+  Supabase certificate's start date (TLS fails), so an earlier day means a
+  later month and seeded history up to it.
 
 ## Copy
 

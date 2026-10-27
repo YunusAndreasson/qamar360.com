@@ -112,6 +112,7 @@ function Home() {
       />
       <SiteHeader overlay />
       <main>
+        <div className="hero-wrap">
         <section className="hero">
           <Photo
             className="hero-photo"
@@ -132,6 +133,19 @@ function Home() {
             <p className="coming">Coming to iPhone and Android</p>
           </div>
         </section>
+        {/* The app itself, at once: a real screen from the third night of a month, so the crescent
+            on it is the crescent in the sky. */}
+        <figure className="hero-phone">
+          <Photo
+            className="hero-screen"
+            name="hero-screen"
+            widths={[360, 600, 900]}
+            sizes="(min-width: 900px) 300px, min(62vw, 320px)"
+            alt="Qamar360’s Progress on 3 Jumādā al-Thānī: the month’s orbit at 32° round a thin crescent moon, and the Hijri year as twelve orbits."
+            priority
+          />
+        </figure>
+        </div>
 
         <section className="interlude" aria-label="The acts">
           <p className="statement reveal">
