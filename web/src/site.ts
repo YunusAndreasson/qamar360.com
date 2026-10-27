@@ -7,8 +7,8 @@ export const Site = {
   email: 'yunus@edenmind.com',
   instagram: 'https://www.instagram.com/qamar360com/',
   x: 'https://x.com/Qamar360Com',
-  // The maker credit, worded as in the app's Settings footer.
-  maker: 'https://andreassonphoto.com/projects',
+  // The maker credit: the person who makes Qamar360, and his own site.
+  maker: { name: 'Yunus Andreasson', url: 'https://andreassonphoto.com' },
 } as const
 
 /** The date the privacy policy, terms and support page last changed. */

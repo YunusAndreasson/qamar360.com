@@ -185,6 +185,9 @@ a:hover {
   /* A 44px target without moving the mark. */
   padding-block: 9px;
   margin-block: -9px;
+  /* The line as tall as the mark, so the mark sits on whole pixels: centred in the body's 25.6px
+     line it fell on a half pixel, and a 1x screen blurred it. */
+  line-height: 24px;
   align-items: center;
   gap: 10px;
   color: var(--text);
