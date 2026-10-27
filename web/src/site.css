@@ -2,7 +2,7 @@
    OpenType features below: scripts/subset-font.sh. Preloaded from __root.tsx. */
 @font-face {
   font-family: 'Inter Site';
-  src: url('/fonts/inter-4.1.1.woff2') format('woff2');
+  src: url('./fonts/inter-4.1.1.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -28,13 +28,30 @@
 :root {
   color-scheme: dark;
 
+  /* Motion. One curve that settles slowly, one rise, and a pace for each kind of change, so the
+     same kind of thing moves the same way wherever it is on the site. The patterns that use them
+     (arrive, develop) are under "Motion" below; under reduced motion all of it is off. */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --rise: 8px; /* the furthest anything moves */
+  --t-touch: 0.4s; /* a tick, a hover, a tap answered */
+  --t-state: 0.6s; /* something already there changes: a colour, a label, a fold, a page */
+  --t-swap: 0.8s; /* one stop of a play hands the stage to the next */
+  --t-arrive: 1.2s; /* words, lines and marks arriving */
+  --t-verse: 1.6s; /* sacred text and the sky's captions, slower than the prose */
+  --t-light: 2.4s; /* light itself: the photographs, the sun, the moon, the stars */
+  --follow: 0.4s; /* what follows its subject waits this long: words after a picture, a line after its word */
+  --stagger: 0.12s; /* between the parts of one group, in reading order */
+  --unlit: 0.5; /* how dark a picture starts before it develops */
+
   --night: #060910; /* night 1, the app's background and splash */
   --night-raised: #12161d; /* night 2 */
   --line: #282d36; /* night 4 */
   --text: #eceef2; /* night 12 */
   --text-quiet: #aeb3bd; /* night 11, the app's textSecondary */
-  --text-faint: #798191; /* night 9, meta lines only */
-  --text-faint-over: #9298a4; /* night 10, a meta line laid over a photograph */
+  /* Meta lines only: markers, captions, notes. Night 10, the lowest step that holds APCA Lc 45 on
+     the night for small type (night 9 measured 35). */
+  --text-faint: #9298a4;
+  --text-faint-over: var(--text-quiet); /* a meta line laid over a photograph */
   --ice: #89c2e3; /* steel 9, the app's accent: links and focus */
   --moonglow: #f4eacb; /* moon 9, the app's `complete` */
   --sky-glow: #1e2a52; /* the app's OverheadGlow */
@@ -52,13 +69,13 @@
 
 html {
   background: var(--night);
-  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
+/* No background here: the night is the root's, and the stars lie on it, under the body. */
 body {
   margin: 0;
   min-height: 100dvh;
-  background: var(--night);
   color: var(--text);
   font-family: var(--font);
   font-optical-sizing: auto;
@@ -81,10 +98,62 @@ a {
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
   text-decoration-color: color-mix(in srgb, var(--ice) 45%, transparent);
+  transition:
+    color var(--t-touch) var(--ease),
+    text-decoration-color var(--t-touch) var(--ease);
 }
 
 a:hover {
   text-decoration-color: var(--ice);
+}
+
+/* The stars behind every page (components/starfield.tsx). Fixed to the large viewport, so a
+   phone's address bar coming and going never resizes it, and lit once its first frame is drawn. */
+.starfield {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100lvh;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-light) var(--ease);
+}
+
+.starfield.is-lit {
+  opacity: 1;
+}
+
+/* The home page is one night, Maghrib at the top and Fajr at the foot: the dusk's last light low
+   on the screen while the opening is read, and the dawn's first over the last screens. Set by the
+   starfield's scroll (`--dusk`, `--dawn`, 0–1); never more than a tint, so the stars show through. */
+.horizon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100lvh;
+  pointer-events: none;
+}
+
+.horizon::before,
+.horizon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.horizon::before {
+  background: radial-gradient(140% 55% at 50% 112%, rgb(246 222 186 / 0.075), rgb(246 222 186 / 0) 70%);
+  opacity: var(--dusk, 0);
+}
+
+.horizon::after {
+  background: radial-gradient(140% 62% at 50% 116%, rgb(150 182 214 / 0.09), rgb(150 182 214 / 0) 72%);
+  opacity: var(--dawn, 0);
 }
 
 :focus-visible {
@@ -139,8 +208,13 @@ a:hover {
 .site-footer nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 24px;
+  gap: 0 40px;
   margin-bottom: 4px;
+}
+
+.site-footer nav span {
+  display: flex;
+  gap: 24px;
 }
 
 /* Each link is a 44px target, as small text on a phone needs. */
@@ -167,8 +241,7 @@ a:hover {
   /* The app's overhead glow: a broad, faint dome of night above the text. */
   background:
     radial-gradient(120% 60% at 46% 0%, color-mix(in srgb, var(--sky-glow) 45%, transparent), transparent 70%)
-      no-repeat,
-    var(--night);
+      no-repeat;
   min-height: 100dvh;
 }
 
@@ -288,7 +361,7 @@ a:hover {
 
 /* Four sizes of type and no more, one per level of the page, each larger than the level below:
    display    the opening line and the closing one, set light and large like a title card;
-   statement  the line that opens a chapter ("First, the acts", "Then the orbit");
+   statement  the story told in type between the pictures: its passages and its verses;
    title      the heading of a section within a chapter, one size throughout;
    body       the few lines under a title, quiet.
    Small type (the month's reading, notifications, captions) serves the pictures it labels.
@@ -297,11 +370,14 @@ a:hover {
   position: relative;
   --wide: 72rem;
   --display: clamp(50px, 8.4vw, 124px);
-  --statement: clamp(31px, 4.2vw, 60px);
   --title: clamp(27px, 3vw, 44px);
   --body: clamp(17px, 1.3vw, 20px);
   /* The pause between scenes. Generous on purpose: the dark is part of the page. */
   --beat: clamp(128px, 24vh, 280px);
+  /* The space between the parts of one run of the story: a passage, its figure, its verse. Close
+     enough to read as one argument, far enough that each part arrives on its own. A chapter's turn
+     is the largest pause of all, a beat and a half, and its title card sits a step above what it opens. */
+  --step: calc(var(--beat) * 0.6);
   /* Space inside a group, by how closely two things belong: a label to its heading, a heading
      to its text, a text to its source. Always far smaller than the beat between groups. */
   --tight: 16px;
@@ -314,7 +390,6 @@ a:hover {
   --orbit-tail: #6b98b2;
   --orbit-complete: var(--moonglow);
   --moon-night: #12161d;
-  background: var(--night);
   overflow-x: clip;
 }
 
@@ -382,17 +457,98 @@ a:hover {
   opacity: 0.6;
 }
 
-.reveals .reveal {
+/* ── Motion: the two ways a thing comes onto the page ──────────────────── */
+
+/* Everything hidden until seen sits under `.reveals`, the class `useReveal` (routes/index.tsx)
+   puts on the root, so without JS, or under reduced motion, it all simply shows. */
+
+/* Arrive: words, cards and marks fade in and rise into place. One rule for every one of them; each
+   kind says only how fast (`--pace`) and how long it waits (`--wait`). The hero and a lunar update
+   arrive the same way through the `arrive` keyframes, as they need no observer. */
+.reveals .reveal,
+.reveals :is(.frame-words, .year-words, .close-words).reveal > *,
+.play-stop,
+.day-card,
+.day-close {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(var(--rise));
   transition:
-    opacity 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s,
-    transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s;
+    opacity var(--pace, var(--t-arrive)) var(--ease) var(--wait, 0s),
+    transform var(--pace, var(--t-arrive)) var(--ease) var(--wait, 0s);
 }
 
-.reveals .reveal.is-visible {
+.reveals .reveal.is-visible,
+.reveals :is(.frame-words, .year-words, .close-words).reveal.is-visible > *,
+.play-stop[data-active],
+.day-card[data-active],
+.day-close[data-shown] {
   opacity: 1;
   transform: none;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--from, 1) * var(--rise)));
+  }
+}
+
+/* A play's stops hand over at the pace of a swap. */
+:is(.play-stop, .day-card, .day-close) {
+  --pace: var(--t-swap);
+}
+
+/* A group read as one (a still's words, the year's heading, the close) keeps its place and lets
+   its lines arrive in reading order: label, then heading, then line. */
+.reveals :is(.frame-words, .year-words, .close-words).reveal {
+  opacity: 1;
+  transform: none;
+}
+
+:is(.frame-words, .year-words, .close-words) > * {
+  --wait: calc(var(--after, 0s) + var(--i, 0) * var(--stagger));
+}
+
+:is(.frame-words, .year-words, .close-words) > :nth-child(2) {
+  --i: 1;
+}
+
+:is(.frame-words, .year-words, .close-words) > :nth-child(3) {
+  --i: 2;
+}
+
+/* Words laid over a still follow the picture. */
+.close-words {
+  --after: var(--follow);
+}
+
+@media (min-width: 900px) {
+  .frame-words {
+    --after: var(--follow);
+  }
+}
+
+/* Develop: light comes up out of the night. A `.develop` picture (a still, today's sun) is lit by
+   `useReveal` once it is on screen and decoded, so a fast scroll never flashes it in; tonight's moon
+   once it is drawn; the hero's street at first paint, through the `develop` keyframes, its opacity
+   untouched because it is the page's first large paint. No zoom, no drift. */
+.develop,
+.tonight-moon .moon-canvas {
+  transition:
+    opacity var(--t-light) var(--ease),
+    filter var(--t-light) var(--ease);
+}
+
+.reveals .develop:not(.is-visible),
+.tonight-moon .moon-canvas:not([data-ready]) {
+  opacity: 0;
+  filter: brightness(var(--unlit));
+}
+
+@keyframes develop {
+  from {
+    filter: brightness(var(--unlit));
+  }
 }
 
 .landing .site-footer {
@@ -418,6 +574,9 @@ a:hover {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  /* The photograph dissolves into the night at its foot, so the stars carry on through it. Over
+     plain night this is the same as a shade to the night colour. */
+  mask-image: linear-gradient(to top, transparent 0%, rgb(0 0 0 / 0.2) 26%, #000 60%);
 }
 
 .hero-photo img,
@@ -431,6 +590,28 @@ a:hover {
 
 .hero-photo img {
   object-position: 50% 35%;
+  animation: develop var(--t-light) var(--ease) both;
+}
+
+/* The first screen: the street develops as eyes adjust to the dark. The headline is there at once
+   (it is the message, and the largest paint); the lines under it and the app follow it in reading
+   order, a stagger apart. */
+.hero-lede,
+.hero .coming,
+.hero-phone {
+  animation: arrive var(--t-arrive) var(--ease) var(--wait) both;
+}
+
+.hero-lede {
+  --wait: var(--follow);
+}
+
+.hero-phone {
+  --wait: calc(var(--follow) + var(--stagger));
+}
+
+.hero .coming {
+  --wait: calc(var(--follow) + 2 * var(--stagger));
 }
 
 /* On a wide screen the words sit at the lower left, where the man walks. The photograph is drawn
@@ -445,15 +626,16 @@ a:hover {
 .hero-shade {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(to top, var(--night) 0%, rgb(6 9 16 / 0.8) 26%, rgb(6 9 16 / 0) 60%),
-    linear-gradient(to bottom, rgb(6 9 16 / 0.55) 0%, rgb(6 9 16 / 0) 22%);
+  background: linear-gradient(to bottom, rgb(6 9 16 / 0.55) 0%, rgb(6 9 16 / 0) 22%);
 }
 
 @media (min-width: 900px) {
+  .hero-photo {
+    mask-image: linear-gradient(to top, transparent 0%, rgb(0 0 0 / 0.55) 24%, #000 50%);
+  }
+
   .hero-shade {
     background:
-      linear-gradient(to top, var(--night) 0%, rgb(6 9 16 / 0.45) 24%, rgb(6 9 16 / 0) 50%),
       linear-gradient(to right, rgb(6 9 16 / 0.8) 0%, rgb(6 9 16 / 0.4) 36%, rgb(6 9 16 / 0) 58%),
       linear-gradient(to bottom, rgb(6 9 16 / 0.5) 0%, rgb(6 9 16 / 0) 20%);
   }
@@ -475,12 +657,17 @@ a:hover {
   padding: 0 var(--gutter) clamp(56px, 12vh, 128px);
 }
 
+/* The opening line is longer than the closing one, so it sets a size below the display tier and
+   keeps to three lines, one for the acts, one for the sun and one for the moon. */
 .hero h1 {
-  max-width: 5.6em;
-  font-size: var(--display);
+  font-size: clamp(44px, 6.4vw, 96px);
   font-weight: 300;
   line-height: 0.96;
   letter-spacing: -0.045em;
+}
+
+.hero h1 span {
+  display: block;
 }
 
 .hero-lede {
@@ -519,9 +706,23 @@ a:hover {
   padding-bottom: calc(15svh + 40px);
 }
 
+/* On a phone the screen stands alone on its own screen, so it says what it shows. Beside the
+   headline on a wide screen the hero says it already. */
+.hero-phone figcaption {
+  position: absolute;
+  top: calc(100% + 28px);
+  left: 50%;
+  width: min(80vw, 22rem);
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
 @media (min-width: 900px) {
   .hero-phone {
-    --phone-w: min(30svh, 300px);
+    --phone-w: min(36svh, 340px);
     position: absolute;
     right: max(var(--gutter), calc((100vw - var(--wide)) / 2));
     bottom: clamp(56px, 12vh, 128px);
@@ -531,33 +732,209 @@ a:hover {
   .hero-words {
     padding-bottom: clamp(56px, 12vh, 128px);
   }
+
+  .hero-phone figcaption {
+    display: none;
+  }
 }
 
-/* ── Chapter openers: one line alone on the night ──────────────────────── */
+/* ── The story: passages, verses and chapter cards ─────────────────────── */
 
-/* An opener belongs to the chapter it opens, so it sits far from what came before and close to
-   what follows. */
-.interlude {
+/* A run of the story told in type alone, between the photographs. Its pieces stand a step apart,
+   and the runs a beat apart, so the eye groups each argument before it reads it. */
+.story {
   display: grid;
-  justify-items: center;
-  gap: clamp(40px, 7vh, 64px);
+  gap: var(--step);
   max-width: calc(52rem + 2 * var(--gutter));
   margin-inline: auto;
-  padding: calc(var(--beat) * 1.25) var(--gutter) calc(var(--beat) * 0.4);
+  padding: var(--beat) var(--gutter);
+}
+
+/* Two runs in a row share one beat between them, not two. */
+:is(.story, .year-section) + .story {
+  padding-top: 0;
+}
+
+/* A frame brings half a beat of its own, so a run next to one gives up the other half. */
+.frame + .story {
+  padding-top: calc(var(--beat) / 2);
+}
+
+.story:has(+ .frame) {
+  padding-bottom: calc(var(--beat) / 2);
+}
+
+/* The moon's opening sits close to the month it opens. */
+.story-moon {
+  padding-bottom: calc(var(--beat) / 2);
+}
+
+/* A line of prose and the verse that grounds it: one claim, so closer than the story's step. */
+.story-claim {
+  display: grid;
+  gap: clamp(32px, 5vh, 48px);
+}
+
+/* Prose, read top to bottom: large and light, set left in a narrow column at the centre of the
+   page. One idea per paragraph; each arrives on its own. */
+.passage {
+  width: 100%;
+  max-width: 21em;
+  margin-inline: auto;
+  font-size: clamp(25px, 2.7vw, 38px);
+  font-weight: 300;
+  line-height: 1.3;
+  letter-spacing: -0.022em;
+}
+
+.passage > p + p {
+  margin-top: 1.1em;
+}
+
+.passage .cite {
+  max-width: 26rem;
+  letter-spacing: 0;
+}
+
+/* A text from the Qurʾān or the hadith, alone on the night. A step larger than the prose, centred,
+   its opening quote hung outside the line so the words themselves stand flush. */
+.verse {
+  max-width: 19em;
+  margin: 0 auto;
+  font-size: clamp(27px, 3.3vw, 48px);
   text-align: center;
 }
 
-.tonight {
-  display: grid;
-  justify-items: center;
-  gap: 28px;
+.verse blockquote {
   margin: 0;
 }
 
-.tonight-moon {
+.verse blockquote p {
+  font-weight: 300;
+  line-height: 1.28;
+  letter-spacing: -0.025em;
+  text-wrap: balance !important;
+}
+
+.verse blockquote p::before {
+  content: '“';
+  margin-left: -0.42em;
+}
+
+.verse blockquote p::after {
+  content: '”';
+}
+
+.verse figcaption {
+  margin-top: var(--apart);
+  color: var(--text-quiet);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-feature-settings: 'case';
+}
+
+/* Sacred text arrives slower than the prose round it, and comes into focus where it stands
+   instead of rising. */
+.reveals .verse.reveal {
+  --pace: var(--t-verse);
+  transform: none;
+  filter: blur(3px);
+  transition:
+    opacity var(--pace) var(--ease),
+    filter var(--pace) var(--ease);
+}
+
+.reveals .verse.reveal.is-visible {
+  filter: none;
+}
+
+/* A chapter's title card: the half of the story it opens, in small spaced capitals on a short
+   horizon line, the line the sun path stands on. A beat and a half from what came before and a step from
+   what it opens, so it reads as that chapter's head and not as a line between two. */
+.landing .chapter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin: 0;
+  padding: calc(var(--beat) / 2) var(--gutter) 0;
+  color: var(--text-quiet);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  font-feature-settings: 'case';
+}
+
+.landing .chapter::before,
+.landing .chapter::after {
+  content: '';
+  width: clamp(32px, 6vw, 64px);
+  height: 1px;
+  background: color-mix(in srgb, var(--text-faint) 55%, transparent);
+}
+
+/* The horizon opens out from the word once it has come. */
+.landing .chapter::before {
+  transform-origin: right;
+}
+
+.landing .chapter::after {
+  transform-origin: left;
+}
+
+.reveals .chapter.reveal::before,
+.reveals .chapter.reveal::after {
+  transform: scaleX(0);
+  transition: transform var(--t-arrive) var(--ease) var(--follow);
+}
+
+.reveals .chapter.reveal.is-visible::before,
+.reveals .chapter.reveal.is-visible::after {
+  transform: none;
+}
+
+/* Tracking adds space after the last letter too; this takes it back so the word sits centred. */
+.landing .chapter span {
+  margin-right: -0.4em;
+}
+
+.chapter + .story {
+  padding-top: var(--step);
+}
+
+/* Tonight's moon and today's sun: each half opens on the real sky, drawn live, with one line
+   saying what it is. */
+.sky-now {
+  display: grid;
+  justify-items: center;
+  gap: 28px;
+  margin: 0 auto;
+}
+
+.tonight-moon,
+.today-sun {
   position: relative;
   width: clamp(88px, 11vw, 132px);
   aspect-ratio: 1;
+}
+
+/* The sun's own light on the night round it: warmer and wider than the moon's, still quiet. */
+.today-sun::before {
+  content: '';
+  position: absolute;
+  inset: -80%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 214 150 / 0.13), rgb(255 214 150 / 0) 70%);
+}
+
+.today-sun img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* The moon's own faint light on the night round it. */
@@ -574,45 +951,220 @@ a:hover {
   width: 100%;
   height: 100%;
   background: none;
-  opacity: 0;
-  transition: opacity 2.4s ease;
 }
 
-.tonight-moon .moon-canvas[data-ready] {
-  opacity: 1;
-}
-
-.tonight figcaption {
+.sky-now figcaption {
+  text-align: center;
   color: var(--text-faint);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   font-feature-settings: 'case';
-  opacity: 0;
-  transition: opacity 1.6s ease 0.4s;
+  transition: opacity var(--t-verse) var(--ease) var(--follow);
 }
 
-.tonight[data-ready] figcaption {
+/* The line waits for the sky it names, which is read in the browser. */
+.reveals .sky-now:not([data-ready]) figcaption {
+  opacity: 0;
+}
+
+.sky-now-line {
+  display: block;
+}
+
+/* What the drawing is: a plain line under the first, not a second label. */
+.sky-now-note {
+  display: block;
+  margin-top: 12px;
+  color: var(--text-quiet);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-feature-settings: normal;
+}
+
+/* ── The sun's path: the five prayers on one day ───────────────────────── */
+
+.sun-path {
+  width: 100%;
+  max-width: 50rem;
+  margin: 0 auto;
+}
+
+/* Room above the arc for the noon label, and below the horizon for the two night ones. */
+.sun-path-plot {
+  position: relative;
+  margin-block: 40px 56px;
+}
+
+.sun-path svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sun-horizon {
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.sun-day {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The way the sun has come today: its own light, laid along the arc behind it. */
+.sun-trail {
+  fill: none;
+  stroke: color-mix(in srgb, var(--moonglow) 55%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The sun itself: the one warm body on the arc, dimmed while it is below the horizon. */
+.sun-now {
+  fill: var(--moonglow);
+}
+
+.sun-now-glow {
+  fill: rgb(244 234 203 / 0.12);
+}
+
+.sun-now[data-below] {
+  fill: color-mix(in srgb, var(--moonglow) 55%, var(--night));
+}
+
+.sun-now-glow[data-below] {
+  fill: rgb(244 234 203 / 0.04);
+}
+
+.sun-night {
+  fill: none;
+  stroke: var(--text-faint);
+  opacity: 0.4;
+  stroke-width: 2;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+}
+
+/* The prayers wait on the arc in the night's tone and take the sun's warm once it reaches them. */
+.sun-prayer {
+  r: 7px;
+  fill: var(--text-faint);
+  transition: fill var(--t-state) var(--ease);
+}
+
+.sun-prayer[data-below] {
+  fill: var(--night);
+  stroke: var(--text-faint);
+  stroke-width: 2;
+  transition: stroke var(--t-state) var(--ease);
+}
+
+.sun-prayer[data-reached] {
+  fill: var(--moonglow);
+}
+
+.sun-prayer[data-below][data-reached] {
+  fill: var(--night);
+  stroke: var(--moonglow);
+}
+
+.sun-label {
+  position: absolute;
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  white-space: nowrap;
+  line-height: 1.25;
+  --dx: -50%;
+  --dy: calc(-100% - 16px);
+  transform: translate(var(--dx), var(--dy));
+}
+
+.sun-label[data-place='below'] {
+  --dy: 16px;
+}
+
+.sun-label[data-place='right'] {
+  --dx: 18px;
+  --dy: -50%;
+}
+
+.sun-label[data-place='upper-right'] {
+  --dx: 12px;
+  --dy: calc(-100% - 8px);
+}
+
+.sun-label:is([data-place='above'], [data-place='below'])[data-align='start'] {
+  --dx: -10px;
+}
+
+.sun-label[data-align='end'] {
+  --dx: calc(-100% + 10px);
+  text-align: right;
+}
+
+.sun-label[data-align='middle'] {
+  justify-items: center;
+  text-align: center;
+}
+
+.sun-label {
+  opacity: 0.55;
+  transition: opacity var(--t-state) var(--ease);
+}
+
+.sun-label[data-reached] {
   opacity: 1;
 }
 
-.statement {
-  margin: 0;
-  max-width: 16em;
+.sun-name {
   color: var(--text);
-  font-size: var(--statement);
-  font-weight: 300;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-  text-wrap: balance !important;
+  font-size: clamp(13px, 1.2vw, 17px);
+  font-weight: 500;
+}
+
+.sun-event {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* On a phone the passage above names what the sun does at each prayer; the plot keeps the names,
+   and its lines and marks are drawn heavier, since the whole plot is drawn at a third of its size.
+   Only the played day's plot: today's sun is drawn small and stays at its own scale. */
+@media (max-width: 599px) {
+  .sun-event {
+    display: none;
+  }
+
+  .sun-path .sun-prayer {
+    r: 15px;
+  }
+
+  .sun-path .sun-prayer[data-below] {
+    stroke-width: 4;
+  }
+
+  .sun-path :is(.sun-day, .sun-night, .sun-horizon) {
+    stroke-width: 4;
+  }
+
+  .sun-path .sun-night {
+    stroke-dasharray: 4 18;
+  }
 }
 
 /* ── The month: one orbit, played by the scroll ────────────────────────── */
 
 .month {
   position: relative;
-  height: 600vh;
+  height: 560vh;
 }
 
 .month-stage {
@@ -652,9 +1204,17 @@ a:hover {
 
 .month-update {
   width: min(360px, 100%);
-  min-height: 88px;
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  align-items: end;
+}
+
+/* All the updates share one cell; the unseen ones hold its height. */
+.month-update > * {
+  grid-area: 1 / 1;
+}
+
+.month-update-sizer {
+  visibility: hidden;
 }
 
 .month-orbit {
@@ -675,7 +1235,7 @@ a:hover {
   font-weight: 300;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  transition: color 1.2s ease;
+  transition: color var(--t-arrive) var(--ease);
 }
 
 .month:has(.orbit-closed) .month-degrees {
@@ -691,30 +1251,54 @@ a:hover {
   margin-bottom: var(--tight);
 }
 
-.month-stops {
+.play-stops {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.month-stop {
+.play-stop {
   grid-area: 1 / 1;
-  opacity: 0;
-  transform: translateY(10px);
-  transition:
-    opacity 0.8s ease,
-    transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.month-stop[data-active] {
-  opacity: 1;
-  transform: none;
-}
-
-.month-stop p {
+.play-stop p {
   margin: var(--near) 0 0;
   max-width: 26rem;
+}
+
+/* A hadith in the month's words: the verse's voice at the size of the stop's body. */
+.month-verse {
+  margin: var(--near) 0 0;
+  max-width: 26rem;
+}
+
+.play-stop .month-verse p {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(19px, 1.6vw, 24px);
+  font-weight: 300;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.month-verse p::before {
+  content: '“';
+  margin-left: -0.4em;
+}
+
+.month-verse p::after {
+  content: '”';
+}
+
+.month-verse footer {
+  margin-top: 12px;
+  color: var(--text-quiet);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-feature-settings: 'case';
 }
 
 @media (max-width: 899px) {
@@ -722,7 +1306,7 @@ a:hover {
     text-align: center;
   }
 
-  .month-stop h2 {
+  .play-stop h2 {
     font-size: clamp(25px, 6.6vw, 31px);
   }
 
@@ -730,9 +1314,23 @@ a:hover {
     margin-bottom: 10px;
   }
 
-  .month-stop p {
+  .play-stop p {
     margin: 12px auto 0;
     font-size: 16px;
+  }
+
+  .month-verse {
+    margin: 16px auto 0;
+  }
+
+  .play-stop .month-verse p {
+    font-size: 19px;
+  }
+
+  /* Centred under the orbit, a source drops its side rule. */
+  .play-stop .cite {
+    padding-left: 0;
+    border-left: 0;
   }
 }
 
@@ -748,10 +1346,6 @@ a:hover {
     gap: 32px;
   }
 
-  .month-update {
-    min-height: 96px;
-  }
-
   .month-orbit {
     width: min(38vw, 52svh, 520px);
   }
@@ -765,7 +1359,7 @@ a:hover {
   }
 
   .hero h1 {
-    font-size: min(var(--display), 17svh);
+    font-size: min(clamp(44px, 6.4vw, 96px), 14svh);
   }
 
   .hero-lede {
@@ -794,17 +1388,13 @@ a:hover {
     text-align: left;
   }
 
-  .month-stop p {
+  .play-stop p {
     margin: 12px 0 0;
   }
 
   .month-visual {
     order: 2;
     gap: 10px;
-  }
-
-  .month-update {
-    min-height: 0;
   }
 
   .month-orbit {
@@ -821,6 +1411,393 @@ a:hover {
   }
 }
 
+/* ── The day: the sun's arc and Today, played by the scroll ──────────────── */
+
+.day {
+  position: relative;
+  height: 440vh;
+}
+
+/* The month's stage, mirrored: on a phone the picture leads (the arc, then Today), then the words;
+   on a wide screen the words stand left and the picture right. */
+.day-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  max-width: calc(var(--wide) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 12px var(--gutter);
+  display: grid;
+  align-content: center;
+  gap: 24px;
+  opacity: var(--arrive, 1);
+}
+
+.day-visual {
+  order: -1;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.day-visual .sun-path {
+  width: min(100%, 26rem);
+}
+
+.day-visual .sun-path-plot {
+  margin-block: 24px 28px;
+}
+
+.day-cards,
+.day-close {
+  grid-row: 2;
+  grid-column: 1;
+  width: min(100%, 24rem);
+}
+
+.day-cards {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day-card {
+  grid-area: 1 / 1;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+}
+
+/* The card that closes the day comes up over Today, as the app raises it over its own. */
+.day-close {
+  align-self: center;
+  justify-self: center;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@media (max-width: 899px) {
+  .day-words {
+    text-align: center;
+  }
+
+  .day-words .marker {
+    margin-bottom: 10px;
+  }
+
+  .day-words .play-stop h2 {
+    font-size: clamp(23px, 6vw, 31px);
+  }
+
+  .day-words .play-stop p {
+    margin: 10px auto 0;
+    font-size: 16px;
+  }
+
+  /* On a phone the stage is the picture; the study a stop rests on is for the wide screen. */
+  .day-words .cite {
+    display: none;
+  }
+
+  .day-visual .sun-event {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .day-stage {
+    grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(48px, 7vw, 120px);
+  }
+
+  .day-visual {
+    order: 2;
+    gap: 12px;
+  }
+
+  .day-visual .sun-path {
+    width: min(100%, 42rem);
+  }
+
+  .day-cards,
+  .day-close {
+    width: min(100%, 27rem);
+  }
+}
+
+/* ── Today, as the app draws it ────────────────────────────────────────── */
+
+/* The app's dark roles: a card is night 2 on the night, ruled in night 4; a finished act recedes to
+   night 7 (`textDisabled`), the tone its check is drawn in. */
+.today-section {
+  text-align: left;
+}
+
+.today-label {
+  margin: 0 0 8px 16px !important;
+  color: var(--text-quiet);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-feature-settings: 'case';
+}
+
+.today-card {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--night-raised);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.stack-head,
+.today-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 14px;
+}
+
+.stack-head {
+  min-height: 60px;
+}
+
+.today-row {
+  min-height: 52px;
+}
+
+.today-row-text {
+  display: grid;
+  min-width: 0;
+}
+
+.stack-name {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: color var(--t-state) var(--ease);
+}
+
+.today-row-name {
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.3;
+  transition: color var(--t-state) var(--ease);
+}
+
+.today-row-sub {
+  color: var(--text-quiet);
+  font-size: 13px;
+  line-height: 1.35;
+  transition: color var(--t-state) var(--ease);
+}
+
+.stack-card[data-complete] .stack-name,
+.today-row[data-done] .today-row-name {
+  color: #5c616b;
+}
+
+.today-row[data-done] .today-row-sub {
+  color: #5c616b;
+}
+
+.tick,
+.ring {
+  justify-self: center;
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tick {
+  stroke: var(--text);
+  transition: stroke var(--t-touch) var(--ease);
+}
+
+.today-row[data-done] .tick {
+  stroke: #5c616b;
+}
+
+.ring-track {
+  stroke: var(--text);
+  transition: stroke var(--t-touch) var(--ease);
+}
+
+.ring-fill {
+  stroke: var(--ice);
+  transition:
+    stroke-dashoffset var(--t-touch) var(--ease),
+    stroke var(--t-touch) var(--ease);
+}
+
+/* Begun, the ring's own outline steps back so the arc reads as the gauge. */
+.ring[data-started]:not([data-complete]) .ring-track {
+  stroke: #323641;
+}
+
+.ring-check {
+  stroke: #5c616b;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--t-touch) var(--ease) var(--t-touch);
+}
+
+.ring[data-complete] .ring-track,
+.ring[data-complete] .ring-fill {
+  stroke: #5c616b;
+}
+
+.ring[data-complete] .ring-check {
+  stroke-dashoffset: 0;
+}
+
+.more,
+.chevron {
+  width: 22px;
+  height: 22px;
+  color: var(--text-quiet);
+}
+
+.more {
+  fill: currentColor;
+}
+
+.chevron {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The sequence under the bar, folded away a beat after its last tick as the app folds it. */
+.stack-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--t-state) var(--ease);
+}
+
+.stack-card[data-folded] .stack-fold {
+  grid-template-rows: 0fr;
+}
+
+.stack-acts {
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+/* Inset rules between the acts, from the text column, as the app's grouped rows rule them. */
+.today-row {
+  position: relative;
+}
+
+.today-row + .today-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 60px;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+/* Sealed, the card's border flashes the accent once (the app's StackCompleteFlash). */
+.stack-card[data-complete] {
+  animation: stack-sealed var(--t-arrive) var(--ease);
+}
+
+@keyframes stack-sealed {
+  from {
+    border-color: var(--ice);
+  }
+}
+
+/* The app's day-complete card: raised night 6, the moon, and the warm of a thing done. */
+.day-complete {
+  display: grid;
+  justify-items: center;
+  width: min(20rem, 88vw);
+  padding: 28px 20px 26px;
+  border-radius: 24px;
+  background: #3b414e;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.55);
+  text-align: center;
+}
+
+.day-complete p {
+  margin: 0;
+}
+
+.day-complete-moon {
+  position: relative;
+  width: 100px;
+  aspect-ratio: 1;
+  margin-bottom: 16px;
+}
+
+.day-complete-moon::before {
+  content: '';
+  position: absolute;
+  inset: -45%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 246 225 / 0.26), rgb(255 246 225 / 0) 72%);
+}
+
+.day-complete-moon .moon-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: none;
+}
+
+.day-complete-title {
+  color: var(--moonglow);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.day-complete-date {
+  margin-top: 6px !important;
+  color: var(--text-quiet);
+  font-size: 15px;
+}
+
+.day-complete-degrees {
+  margin-top: 14px !important;
+  color: var(--moonglow);
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-complete-sub {
+  color: var(--text-quiet);
+  font-size: 14px;
+}
+
+.day-complete-sub + .day-complete-sub {
+  margin-top: 8px !important;
+}
+
 /* ── The orbit: the app's Progress hero ────────────────────────────────── */
 
 .orbit {
@@ -832,17 +1809,11 @@ a:hover {
 }
 
 .orbit-track,
-.orbit-stripe {
+.orbit-stripe,
+.orbit-warm {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  -webkit-mask: radial-gradient(
-    closest-side,
-    transparent calc(100% - var(--stroke) - 0.5px),
-    #000 calc(100% - var(--stroke) + 0.5px),
-    #000 calc(100% - 0.75px),
-    transparent 100%
-  );
   mask: radial-gradient(
     closest-side,
     transparent calc(100% - var(--stroke) - 0.5px),
@@ -892,14 +1863,30 @@ a:hover {
 }
 
 .orbit-empty .orbit-cap-start,
-.orbit-empty .orbit-head,
-.orbit-closed .orbit-cap-start,
-.orbit-closed .orbit-head {
+.orbit-empty .orbit-head {
   display: none;
 }
 
-.orbit-closed .orbit-stripe {
+/* The month kept whole: warm moonlight fades in over the blue stripe, and the head's light goes out
+   under it, in the time the moon takes to brighten (`orbit.tsx`). */
+.orbit-warm {
   background: var(--orbit-complete);
+  opacity: 0;
+  transition: opacity var(--t-arrive) var(--ease);
+}
+
+.orbit-closed .orbit-warm {
+  opacity: 1;
+}
+
+.orbit-cap-start,
+.orbit-head {
+  transition: opacity var(--t-state) var(--ease);
+}
+
+.orbit-closed .orbit-cap-start,
+.orbit-closed .orbit-head {
+  opacity: 0;
 }
 
 .orbit-bloom {
@@ -913,7 +1900,7 @@ a:hover {
     rgb(251 239 202 / 0) 100%
   );
   opacity: 0;
-  transition: opacity 1.4s ease;
+  transition: opacity var(--t-arrive) var(--ease);
 }
 
 .orbit-closed .orbit-bloom {
@@ -951,16 +1938,10 @@ a:hover {
   border-radius: 22px;
   background: rgb(40 45 56 / 0.62);
   border: 1px solid rgb(255 255 255 / 0.07);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
   backdrop-filter: blur(24px) saturate(140%);
-  animation: notification-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-@keyframes notification-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
+  /* It arrives as everything does, but from above, as a notification drops onto a lock screen. */
+  --from: -1;
+  animation: arrive var(--t-swap) var(--ease) both;
 }
 
 .notification-icon {
@@ -1016,17 +1997,11 @@ a:hover {
   overflow: hidden;
 }
 
-.scene-shade {
+/* The photograph comes out of the night and goes back into it, with the stars through both ends. */
+.scene-photo {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    var(--night) 0%,
-    rgb(6 9 16 / 0) 22%,
-    rgb(6 9 16 / 0) 50%,
-    rgb(6 9 16 / 0.82) 84%,
-    var(--night) 100%
-  );
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 50%, rgb(0 0 0 / 0.18) 84%, transparent 100%);
 }
 
 .scene-words {
@@ -1107,7 +2082,7 @@ a:hover {
   color: var(--text-faint);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
-  transition: color 0.3s ease;
+  transition: color var(--t-touch) var(--ease);
 }
 
 .year:has([aria-pressed='true']) .year-reading {
@@ -1142,13 +2117,30 @@ a:hover {
   overflow: visible;
 }
 
+@media (min-width: 900px) {
+  .year-month svg {
+    width: min(100%, 116px);
+  }
+}
+
 .year-track {
   stroke: var(--orbit-track);
 }
 
 .year-stripe {
+  /* Drawn as the marks of a group arrive: after the figure, a half stagger apart. */
+  --wait: calc(var(--follow) + var(--i, 0) * var(--stagger) / 2);
   stroke: var(--orbit-head);
-  transition: filter 0.3s ease;
+  transition:
+    stroke-dashoffset var(--t-arrive) var(--ease) var(--wait),
+    stroke-opacity var(--t-touch) var(--ease) var(--wait),
+    filter var(--t-touch) var(--ease);
+}
+
+/* The twelve orbits draw their stripes once as the year comes into view, Ramaḍān closing last. */
+.reveals .reveal:not(.is-visible) .year-stripe {
+  stroke-dashoffset: var(--len);
+  stroke-opacity: 0;
 }
 
 .year-month[data-closed] .year-stripe {
@@ -1181,6 +2173,12 @@ a:hover {
 .frame {
   position: relative;
   padding-block: calc(var(--beat) / 2);
+}
+
+/* A chapter card stands a beat and a half from what came before: the frame gives a beat, the card
+   its own half. */
+.frame:has(+ .chapter) {
+  padding-bottom: var(--beat);
 }
 
 .frame-photo {
@@ -1220,7 +2218,7 @@ a:hover {
   margin-top: var(--apart);
   padding-left: 18px;
   border-left: 1px solid var(--line);
-  color: var(--text-faint);
+  color: var(--text-quiet);
   font-size: 15px;
   line-height: 1.55;
 }
@@ -1229,19 +2227,20 @@ a:hover {
 .cite span {
   display: block;
   margin-top: 6px;
-  color: var(--text-quiet);
+  color: var(--text);
   white-space: nowrap;
 }
 
-/* Centred under the year's words, the side rule gives way to a short one above. */
-.year-words .cite {
+/* The year's moral, under its twelve orbits: centred, so the side rule gives way to a short one
+   above. */
+.landing .year-cite {
   position: relative;
   max-width: 24rem;
   padding: var(--near) 0 0;
   border-left: 0;
 }
 
-.year-words .cite::before {
+.year-cite::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1250,14 +2249,6 @@ a:hover {
   height: 1px;
   background: var(--line);
   transform: translateX(-50%);
-}
-
-/* Said once, beside the one hadith on the page. */
-.landing .source-note {
-  margin-top: 12px;
-  padding-left: 19px;
-  color: var(--text-faint);
-  font-size: 14px;
 }
 
 @media (min-width: 900px) {
@@ -1281,19 +2272,37 @@ a:hover {
     width: min(26rem, 34vw);
   }
 
-  .frame-right .frame-words {
-    align-items: flex-end;
-  }
-
   /* Laid over a photograph, a meta line takes the next step up so it holds against the brightest
      part of the picture behind it. */
-  .frame-left .marker,
-  .frame-right .marker {
+  .frame-left .marker {
     color: var(--text-faint-over);
   }
 
   .frame-caption .frame-words {
     position: static;
     padding-top: 64px;
+  }
+}
+
+/* Moving between the pages: one soft crossfade (the router starts it), the stars held under both. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--t-state);
+}
+
+/* Under reduced motion nothing on any page moves or fades: every state is simply there. The stars
+   draw one still frame, and the scroll plays swap their stops at once. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after,
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
   }
 }

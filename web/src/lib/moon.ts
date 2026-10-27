@@ -31,11 +31,13 @@ export function moonIllumination(dayOfMonth: number, monthLength: number): { ill
 
 /**
  * The moon as it is seen on the evening of a day, for drawing. `moonIllumination` puts the new
- * moon exactly on the 1st, but on the evening of the 1st a thin crescent is already up (that is
- * how the month is sighted), so the drawing runs a little over a day ahead. Past the month's end
- * it comes round to the next month's first crescent.
+ * moon exactly on the 1st, but on the evening of the 1st a crescent is already up (that is how the
+ * month is sighted), so the drawing runs two days ahead: a crescent about 4% lit, as first-sighted
+ * crescents are. At 1.3 days (2% lit) it was true but drew as a 3px hairline on a dark disc, which
+ * read as no crescent at all. Past the month's end it comes round to the next month's first
+ * crescent.
  */
-const CRESCENT_LEAD = 1.3
+const CRESCENT_LEAD = 2
 
 export function eveningPhase(dayOfMonth: number, monthLength: number): { illumination: number; waxing: boolean } {
   const p = ((((dayOfMonth - 1 + CRESCENT_LEAD) / monthLength) % 1) + 1) % 1

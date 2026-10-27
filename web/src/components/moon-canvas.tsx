@@ -15,6 +15,26 @@ import { sunDirection } from '#/lib/moon'
  */
 const TEXTURE = '/moon/near-side.png'
 
+/**
+ * The texture, decoded once for every moon on the page and off the main thread. It is data, not
+ * colour, so it is decoded with no colour-space conversion and no premultiplying; asking the same of
+ * an <img> at upload time (the UNPACK_* flags) makes the browser decode it again, synchronously,
+ * for every canvas.
+ */
+let surface: Promise<ImageBitmap> | null = null
+function loadSurface() {
+  surface ??= fetch(TEXTURE)
+    .then((response) => response.blob())
+    .then((blob) =>
+      // Orientation keeps its default: the PNG carries no orientation data, and 'none' is deprecated.
+      createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }),
+    )
+  surface.catch(() => {
+    surface = null // a failed fetch is tried again by the next moon
+  })
+  return surface
+}
+
 const RELIEF_RANGE = 0.5
 const EXPOSURE_KNEE = 2
 const ALBEDO_CONTRAST = 1.35
@@ -118,15 +138,12 @@ function createRenderer(canvas: HTMLCanvasElement, onReady: () => void): Rendere
 
   let ready = false
   let pending: [number, boolean, number] | null = null
+  let disposed = false
   const texture = gl.createTexture()
-  const image = new Image()
-  image.decoding = 'async'
-  image.onload = () => {
+  loadSurface().then((bitmap) => {
+    if (disposed) return
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    // The texture is data, not colour: no colour-space conversion, no premultiplying.
-    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE)
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
     gl.generateMipmap(gl.TEXTURE_2D)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -135,8 +152,7 @@ function createRenderer(canvas: HTMLCanvasElement, onReady: () => void): Rendere
     ready = true
     if (pending) draw(...pending)
     onReady()
-  }
-  image.src = TEXTURE
+  }, () => {})
 
   function draw(illumination: number, waxing: boolean, brightness: number) {
     if (!ready) {
@@ -159,7 +175,7 @@ function createRenderer(canvas: HTMLCanvasElement, onReady: () => void): Rendere
     // Frees what this renderer made but leaves the context alive: a canvas hands out one context
     // for life, so a lost one could never be had back if React runs the effect again.
     dispose() {
-      image.onload = null
+      disposed = true
       gl.deleteTexture(texture)
       gl.deleteBuffer(buffer)
       gl.deleteProgram(program)

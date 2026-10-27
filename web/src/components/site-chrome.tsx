@@ -4,7 +4,7 @@ import { Site } from '#/site'
 
 /**
  * The Qamar mark: a pure geometric "Q", a circle with the tail crossing it at the lower right.
- * Same geometry as the app icon (assets/logo/qamar-mark.svg). Inherits `currentColor`.
+ * Same geometry as the app icon (assets/logo/qamar-icon.svg). Inherits `currentColor`.
  */
 export function QamarMark({ size = 24 }: { size?: number }) {
   return (
@@ -32,18 +32,24 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
 export function SiteFooter() {
   return (
     <footer className="site-footer">
+      {/* Two groups, the site's own pages and its accounts elsewhere, so a narrow screen breaks
+          between them and never strands one link on a line. */}
       <nav aria-label="Site">
-        <Link to="/privacy" activeProps={{ 'aria-current': 'page' }}>
-          Privacy
-        </Link>
-        <Link to="/terms" activeProps={{ 'aria-current': 'page' }}>
-          Terms
-        </Link>
-        <Link to="/support" activeProps={{ 'aria-current': 'page' }}>
-          Support
-        </Link>
-        <a href={Site.instagram}>Instagram</a>
-        <a href={Site.x}>X</a>
+        <span>
+          <Link to="/privacy" activeProps={{ 'aria-current': 'page' }}>
+            Privacy
+          </Link>
+          <Link to="/terms" activeProps={{ 'aria-current': 'page' }}>
+            Terms
+          </Link>
+          <Link to="/support" activeProps={{ 'aria-current': 'page' }}>
+            Support
+          </Link>
+        </span>
+        <span>
+          <a href={Site.instagram}>Instagram</a>
+          <a href={Site.x}>X</a>
+        </span>
       </nav>
       <p>
         <a href={Site.maker} rel="me">

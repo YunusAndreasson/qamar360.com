@@ -36,10 +36,11 @@ describe('hijriDate', () => {
 })
 
 describe('eveningPhase', () => {
-  it('shows a thin waxing crescent on the 1st and comes round to the next one after the month', () => {
+  it('shows a visible waxing crescent on the 1st and comes round to the next one after the month', () => {
     const first = eveningPhase(1, 30)
     expect(first.waxing).toBe(true)
-    expect(first.illumination).toBeGreaterThan(0.01)
+    // Wide enough to read as a crescent, not a hairline on a dark disc.
+    expect(first.illumination).toBeGreaterThan(0.03)
     expect(first.illumination).toBeLessThan(0.05)
     expect(eveningPhase(31, 30).illumination).toBeCloseTo(first.illumination)
   })

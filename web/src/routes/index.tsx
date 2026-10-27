@@ -1,18 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useState } from 'react'
 
+import { DayPlay } from '#/components/day-play'
 import { MonthOrbit } from '#/components/month-orbit'
 import { MoonCanvas } from '#/components/moon-canvas'
 import { Photo } from '#/components/photo'
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
+import { TodaySun } from '#/components/today-sun'
+import { Chapter, Passage, Verse } from '#/components/story'
 import { YearOrbits } from '#/components/year-orbits'
 import { eveningPhase, hijriDate, type HijriDate } from '#/lib/moon'
 
 /**
- * The download site. Qamar is the moon, 360 its orbit: the page is built round the app's one idea,
- * a month as an orbit of the real moon that your kept acts fill to 360°. Plan and reasoning:
- * docs/website-plan.md. The app is in neither store yet, so the call to action says it is coming
- * and links nowhere it can't keep.
+ * The download site, told as one story with one message: the app sets no reminders, because the
+ * prayer is the cue and the moon is the measure. Habit apps keep time with the phone; the Sunnah
+ * keeps it by the sky. After that turn the page has two halves: the sun, whose prayers cue what you
+ * do each day (stacks), and the moon, an orbit of the real moon that your kept acts fill to 360°.
+ * Plan and pace rules: docs/website-plan.md. The app is in neither store yet, so the call to action
+ * says it is coming and links nowhere it can't keep.
  */
 export const Route = createFileRoute('/')({
   component: Home,
@@ -25,40 +30,59 @@ function useTonight() {
   return tonight
 }
 
-/** Tonight's moon, in tonight's phase, with the date beneath it. Until the browser has read the
- *  date, the space is held and nothing is drawn. */
+/** Tonight's moon, drawn in its phase for tonight's Hijri date, with the date beneath it. Until the
+ *  browser has read the date, the space is held and nothing is drawn. */
 function TonightMoon() {
   const tonight = useTonight()
   const phase = tonight ? eveningPhase(tonight.day, tonight.monthLength) : null
   return (
-    <figure className="tonight" data-ready={tonight ? '' : undefined}>
+    <figure className="sky-now reveal" data-ready={tonight ? '' : undefined}>
       <div className="tonight-moon">
         {phase ? <MoonCanvas illumination={phase.illumination} waxing={phase.waxing} brightness={0.85} /> : null}
       </div>
-      <figcaption>{tonight ? `Tonight · ${tonight.day} ${tonight.monthName} ${tonight.year}` : '\u00a0'}</figcaption>
+      <figcaption>
+        <span className="sky-now-line">
+          {tonight ? `Tonight · ${tonight.day} ${tonight.monthName} ${tonight.year}` : '\u00a0'}
+        </span>
+        <span className="sky-now-note">Drawn from NASA’s maps of the lunar&nbsp;surface.</span>
+      </figcaption>
     </figure>
   )
 }
 
-/** Fades sections in once as they reach the viewport. Without JS, or with reduced motion, all
- *  content simply shows (the hidden state is set by a class this effect adds). */
+/** The one observer behind the page's two motions (site.css, "Motion"): each `.reveal` arrives
+ *  once it reaches the viewport, and each `.develop` picture comes up out of the night once it is
+ *  there and decoded, so a fast scroll never flashes one in half-drawn. Without JS, or with reduced
+ *  motion, all content simply shows (the hidden state is set by a class this effect adds). */
 function useReveal() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const items = document.querySelectorAll<HTMLElement>('.reveal')
+    const items = document.querySelectorAll<HTMLElement>('.reveal, .develop')
+    const show = (item: Element) => {
+      const img = item.matches('.develop') ? item.querySelector('img') : null
+      if (!img) item.classList.add('is-visible')
+      // A picture that fails still shows, as the alt text it falls back to.
+      else img.decode().catch(() => {}).then(() => item.classList.add('is-visible'))
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible')
+            show(entry.target)
             observer.unobserve(entry.target)
           }
         }
       },
       { rootMargin: '0px 0px -12% 0px' },
     )
+    // What is already on the screen when this runs (a reload partway down, a slow hydration) has
+    // been seen as it is, so it stays; hiding it now would only blink it dark and back.
+    items.forEach((item) => {
+      const { top, bottom } = item.getBoundingClientRect()
+      if (top < window.innerHeight && bottom > 0) item.classList.add('is-visible')
+      else observer.observe(item)
+    })
     document.documentElement.classList.add('reveals')
-    items.forEach((item) => observer.observe(item))
     return () => observer.disconnect()
   }, [])
 }
@@ -78,7 +102,7 @@ function Frame({
 }: {
   name: string
   alt: string
-  side?: 'left' | 'right'
+  side?: 'left'
   /** Exported at twice the size too, for a still whose detail must stay crisp (the phone's screen). */
   sharp?: boolean
   children?: ReactNode
@@ -88,7 +112,7 @@ function Frame({
   return (
     <Tag className={`frame frame-${side ?? 'caption'}`}>
       <Photo
-        className="frame-photo"
+        className="frame-photo develop"
         name={`${name}-wide`}
         widths={sharp ? [960, 1536, 2560] : [960, 1536]}
         tall={{ name: `${name}-tall`, widths: sharp ? [600, 820, 1640] : [600, 820] }}
@@ -107,121 +131,123 @@ function Home() {
       <noscript
         dangerouslySetInnerHTML={{
           __html:
-            '<style>.month{height:auto}.month-stage{position:static;height:auto;padding-block:64px}.month-stops{gap:56px}.month-stop{grid-area:auto;opacity:1;transform:none}.month-update{display:none}</style>',
+            '<style>.month-stage{position:static;height:auto;padding-block:64px}.day,.month{height:auto}.day-stage{position:static;height:auto;padding-block:64px}.play-stops,.day-cards{gap:56px}.play-stop,.day-card{grid-area:auto;opacity:1;transform:none}.month-update,.day-close{display:none}</style>',
         }}
       />
       <SiteHeader overlay />
       <main>
         <div className="hero-wrap">
-        <section className="hero">
-          <Photo
-            className="hero-photo"
-            name="hero-wide"
-            widths={[768, 1536]}
-            sizes="(min-width: 900px) 118vw, 100vw"
-            tall={{ name: 'hero-tall', widths: [600, 941] }}
-            alt="A man walks alone down a wet cobbled street at dusk, under a thin crescent moon."
-            priority
-          />
-          <div className="hero-shade" />
-          <div className="hero-words">
-            <h1>A month is one orbit.</h1>
-            <p className="hero-lede">
-              Qamar360 is an app for keeping small acts of the Sunnah. The acts you keep fill the Hijri month, and a
-              month kept whole closes&nbsp;at&nbsp;360°.
-            </p>
-            <p className="coming">Coming to iPhone and Android</p>
-          </div>
-        </section>
-        {/* The app itself, at once: a real screen from the third night of a month, so the crescent
-            on it is the crescent in the sky. */}
-        <figure className="hero-phone">
-          <Photo
-            className="hero-screen"
-            name="hero-screen"
-            widths={[360, 600, 900]}
-            sizes="(min-width: 900px) 300px, min(62vw, 320px)"
-            alt="Qamar360’s Progress on 3 Jumādā al-Thānī: the month’s orbit at 32° round a thin crescent moon, and the Hijri year as twelve orbits."
-            priority
-          />
-        </figure>
+          <section className="hero">
+            <Photo
+              className="hero-photo"
+              name="hero-wide"
+              widths={[768, 1536]}
+              sizes="(min-width: 900px) 118vw, 100vw"
+              tall={{ name: 'hero-tall', widths: [600, 941] }}
+              alt="A man walks alone down a wet cobbled street at dusk, under a thin crescent moon."
+              priority
+            />
+            <div className="hero-shade" />
+            <div className="hero-words">
+              {/* Three lines, broken where the sense breaks: the acts, then the sun, then the moon. */}
+              <h1>
+                <span>Small acts,</span> <span>kept by the sun</span> <span>and the&nbsp;moon.</span>
+              </h1>
+              <p className="hero-lede">
+                Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each
+                month as an orbit around the&nbsp;moon.
+              </p>
+              <p className="coming">Coming to iPhone and Android</p>
+            </div>
+          </section>
+          {/* The app itself, at once: a real screen from the third night of a month, so the crescent
+              on it is the crescent in the sky. */}
+          <figure className="hero-phone">
+            <Photo
+              className="hero-screen"
+              name="hero-screen"
+              widths={[360, 600, 900]}
+              sizes="(min-width: 900px) 300px, min(62vw, 320px)"
+              alt="Qamar360’s Progress on 3 Jumādā al-Thānī: the month’s orbit at 32° round a thin crescent moon, and the Hijri year as twelve orbits."
+              priority
+            />
+            <figcaption>
+              The app on 3 Jumādā al&#8209;Thānī. The crescent on the screen is the one in the&nbsp;sky.
+            </figcaption>
+          </figure>
         </div>
 
-        <section className="interlude" aria-label="The acts">
-          <p className="statement reveal">
-            First, the acts: small things from the Sunnah, tied to moments you already keep.
-          </p>
+        {/* The turn: habit apps keep time with the phone; the Sunnah keeps it by the sky. Then its
+            two halves: the sun, whose prayers cue what you do each day, and the moon, which counts
+            the month and the year. */}
+        <section className="story" aria-label="The sky">
+          {/* Three beats a step apart: the problem, the turn with the verse that grounds it, the answer.
+              The turn and its verse are one claim, so they stand close. */}
+          <Passage>
+            <p className="reveal">
+              Most habit apps run on reminders. A buzz at nine for the Qurʾān, another at ten for water. Within a few
+              weeks you swipe them away&nbsp;unread.
+            </p>
+          </Passage>
+          <div className="story-claim">
+            <Passage>
+              <p className="reveal">
+                Muslims kept time long before phones. The sun sets the day, and the moon the&nbsp;month.
+              </p>
+            </Passage>
+            <Verse source="Qurʾān 10:5 · tr. Khattab">
+              He is the One Who made the sun a radiant source and the moon a reflected light, with precisely ordained
+              phases, so that you may know the number of years and calculation of&nbsp;time.
+            </Verse>
+          </div>
+          <Passage>
+            <p className="reveal">
+              Qamar360 does the same. The prayers tell you when to act, and the moon shows how much of the month
+              you&nbsp;kept.
+            </p>
+          </Passage>
         </section>
 
-        <Frame
-          name="wudu"
-          side="right"
-          alt="Before dawn, a man’s hands cupped under an old brass tap, water running into them."
-        >
-          <p className="marker">Stacks</p>
-          <h2>Bilāl prayed after every wuḍūʾ.</h2>
-          <p>
-            He tied the prayer to something he already did. A stack works the same way: a few acts tied to a moment
-            already in your day, such as Fajr, waking up or getting into&nbsp;bed.
-          </p>
-          <p className="cite">
-            The Prophet heard his footsteps in Paradise and asked him why. This was his&nbsp;answer. <span>Bukhari 1149</span>
-          </p>
-          <p className="source-note">Every act in the app’s library carries its source: a hadith, a verse or a&nbsp;study.</p>
-        </Frame>
+        <Chapter>The sun</Chapter>
+
+        <section className="story story-sun" aria-label="Today’s sun">
+          <TodaySun />
+          <Verse source="Qurʾān 17:78 · tr. Khattab">
+            Observe the prayer from the decline of the sun until the darkness of the night and the dawn prayer, for
+            certainly the dawn prayer is witnessed by&nbsp;angels.
+          </Verse>
+          <Passage>
+            <p className="reveal">
+              You already pray five times a day. Tie a few small acts to a prayer, and the prayer becomes
+              the&nbsp;reminder.
+            </p>
+            <p className="cite reveal">
+              Reminders helped people remember a task but kept it from becoming a habit. Cues from their own routine
+              worked&nbsp;better. <span>Stawarz et al., 2015</span>
+            </p>
+          </Passage>
+        </section>
+
+        <DayPlay />
 
         <Frame
           name="supper"
           side="left"
-          alt="A table by a window after Maghrib, one place set under a warm lamp, a phone lying face down at the corner."
+          alt="A table by a window just after Maghrib, the last red of the sunset low over the rooftops, one place set under a warm lamp, a dark phone lying face down beside the napkin."
         >
-          <p className="marker">Exchanges</p>
-          <h2>Plate to the table, screen left behind.</h2>
-          <p>
-            An exchange puts a good act where an old habit keeps happening: you eat at the table, not at a screen. You
-            record what you did, never what you&nbsp;didn’t.
-          </p>
-          <p className="cite">
-            Plans not to do something can make the habit stronger. Plans for what to do instead&nbsp;don’t.{' '}
-            <span>Adriaanse et al., 2011</span>
-          </p>
+          <p className="marker">Maghrib</p>
+          <h2>No alarm went&nbsp;off.</h2>
+          <p>The sun set, and that was the&nbsp;cue.</p>
         </Frame>
 
-        <Frame
-          name="sill"
-          side="right"
-          sharp
-          alt="A phone on a moonlit window sill beside a cup of tea and prayer beads. On its screen, Qamar360’s Today with the Fajr stack open: four of its five acts ticked, a page of Qurʾān still to read."
-        >
-          <p className="marker">Today</p>
-          <h2>One tick for each act you keep.</h2>
-          <p>Today lists the day’s to‑dos, stacks, habits and exchanges. Open a stack and tick each act as you do&nbsp;it.</p>
-          <p className="cite">
-            Keeping a record of what you have done helps you keep doing&nbsp;it. <span>Harkin et al., 2016 · 138 trials</span>
-          </p>
-        </Frame>
+        <Chapter>The moon</Chapter>
 
-        <Frame
-          name="bedside"
-          side="left"
-          sharp
-          alt="In bed at night, a hand holds up a phone. On its screen, Qamar360 closes the day: the full moon, “Alḥamdulillāh”, 17 Jumādā al-Awwal 1448 and 138° this month."
-        >
-          <p className="marker">Closing the day</p>
-          <h2>The last tick closes the day.</h2>
-          <p>
-            Keep every act due today, with no to‑do left open, and the app closes the day: Alḥamdulillāh, the Hijri
-            date, and how far round the month you&nbsp;are.
-          </p>
-        </Frame>
-
-        <section className="interlude" aria-label="The orbit">
-          <div className="reveal">
-            <TonightMoon />
-          </div>
-          <p className="statement reveal">
-            Then the orbit: every act you keep moves you round the month, from one crescent to the next.
-          </p>
+        <section className="story story-moon" aria-label="Tonight’s moon">
+          <TonightMoon />
+          <Verse source="Qurʾān 2:189 · tr. Khattab">
+            They ask you about the phases of the moon. Say, ‘They are a means for people to determine time
+            and&nbsp;pilgrimage.’
+          </Verse>
         </section>
 
         <MonthOrbit />
@@ -234,43 +260,26 @@ function Home() {
 
         <section className="year-section" aria-labelledby="year-title">
           <div className="year-words reveal">
-            <p className="marker">Progress</p>
             <h2 id="year-title">Twelve orbits make a year.</h2>
             <p>
-              The Hijri year is twelve lunar months, so Progress shows twelve orbits. You see at a glance which months
-              you kept&nbsp;whole.
-            </p>
-            <p className="cite">
-              The deeds most loved by Allah are the ones done regularly, even if they are&nbsp;small.{' '}
-              <span>Bukhari 6464</span>
+              One for each Hijri month, so you can see which ones you kept&nbsp;whole.
             </p>
           </div>
           <div className="reveal">
             <YearOrbits />
           </div>
-        </section>
-
-        <Frame
-          name="rug"
-          sharp
-          alt="At dawn, a phone lies on the floorboards beside a prayer rug and prayer beads, in moonlight. On its screen, Qamar360’s Today: the week from Saturday to Friday in Hijri dates, a to-do, four stacks and a habit."
-        >
-          <p className="marker">Hijri time</p>
-          <h2>The week ends on Jumuʿah.</h2>
-          <p>
-            The week on Today runs from Saturday to Friday and counts its days in Hijri dates. The stars behind the app
-            are tonight’s real sky, placed by your time zone, so it never needs your&nbsp;location.
+          <p className="cite year-cite reveal">
+            Indeed, the number of months ordained by Allah is&nbsp;twelve. <span>Qurʾān 9:36 · tr. Khattab</span>
           </p>
-        </Frame>
+        </section>
 
         <section className="scene scene-close">
           <Photo
-            className="scene-photo"
+            className="scene-photo develop"
             name="fajr"
             widths={[768, 1536]}
             alt="The last crescent of the month hangs low over the rooftops before dawn."
           />
-          <div className="scene-shade" />
           <div className="scene-words close-words reveal">
             <h2>Begin with the next crescent.</h2>
             <p className="coming">Coming to iPhone and Android</p>

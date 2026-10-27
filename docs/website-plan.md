@@ -4,24 +4,96 @@ Plan, 2026-10-26. Decisions taken are in section 11.
 
 **Status, 2026-10-26 (built, not deployed):** the web app is retired (old paths
 301 to `/`); `/privacy`, `/terms` and `/support` are written; and `/` is the
-download page. **The structure changed from section 4 after review:** the page
-is built round the app's one idea, *Qamar is the moon, 360 is its orbit*, not
-round a night from Maghrib to Fajr. As built:
+download page.
 
-1. Hero: the crescent street, "A month is one orbit.", tonight's Hijri date (live).
-2. The month: the app's Progress orbit pinned while the scroll plays a Ramaḍān
-   kept in full. The real moon (the app's NASA-texture shader, ported to WebGL2)
-   waxes and wanes, the stripe fills to 360°, and on days 1, 8, 15 and 22 the
-   app's actual lunar-update notification appears.
-3. Full moon over the rooftops: "Twelve orbits make a year." then the twelve
-   orbits (an example year, tap to read a month).
-4. Stacks and Exchanges, each with the app's own photograph.
-5. Moonlight on a prayer rug: Hijri time.
-6. Fajr with the last crescent: "Begin with the next crescent."
+**2026-10-27: `/` carries one message.** *The app sets no reminders: the
+prayer is the cue, and the moon is the measure.* Habits are tied to the
+prayers, which follow the sun; progress is tied to the moon. The only messages
+the app sends are the lunar updates, at the moon's quarters. Every section says
+one half of that message or leaves the page. As built (concision pass,
+2026-10-27, ~20 phone screens, was ~24):
 
-Four photographs were generated with Codex from the app's three as style
-references (`web/public/images`). Section 4's table below is the superseded
-first draft.
+0. **Hero**: the crescent just after sunset, "Small acts, / kept by the sun /
+   and the moon.", the lede "Qamar360 helps you keep the Sunnah without
+   reminders. You tie small acts to the prayers, and see each month as an orbit
+   around the moon." (never "no notifications" or "no alerts": the lunar
+   updates are notifications).
+1. **The turn** (one section): habit apps run on reminders that get swiped
+   away; Muslims kept time by the sky. Qurʾān 10:5 as a verse, then "Qamar360
+   does the same. The prayers tell you when to act, and the moon shows how much
+   of the month you kept."
+2. **THE SUN**: **today's sun**, mirroring tonight's moon: one real sun (NASA
+   SDO's visible-light photograph, recoloured in the site's warm, the moon's
+   size) and one live line, "Today in Stockholm · ʿAṣr comes next" (the
+   visitor's time-zone city, never a clock time); then Qurʾān 17:78 as a verse; "You already pray five times a day.
+   Tie a few small acts to a prayer, and the prayer becomes the reminder.", with Stawarz 2015 (routine cues beat reminders) as
+   its cite. Then **`DayPlay`** (`components/day-play.tsx`): the sun travels
+   `SunPath`'s arc and rests on each prayer while that prayer's curated stack
+   ticks on a DOM port of Today (`components/stack-card.tsx`), each act with
+   its sunnah.com-checked source. Fajr (Bilāl, Bukhari 1149), then Dhuhr, ʿAṣr
+   and Maghrib passing, then ʿIshāʾ closing the day. The
+   day-complete card ("2 Shaʿbān 1448 · 12° · 29 days left") is the bridge to
+   the moon: "The last act closes the day." Then the **supper** still,
+   marked `MAGHRIB`: "No alarm went off. The sun set, and that was the cue."
+3. **THE MOON**: tonight's moon live, Qurʾān 2:189 as a verse, then
+   `MonthOrbit` plays **a Shaʿbān kept in full** (not Ramaḍān: no White Days in
+   Ramaḍān). Its 1st says the app writes only when the moon turns a quarter;
+   the four lunar updates appear as cards on the 1st, 8th, 15th and 22nd. 15 is
+   the White Days (Tirmidhi 761, ḥasan), 22 nine nights left (Bukhari 1969),
+   360° ends on Bukhari 1909 and Ramaḍān's crescent rising in the warm ring.
+   Then the rooftop still with no words, and twelve orbits make a year (Qurʾān
+   9:36 as its cite).
+4. **Close**: the last crescent before dawn, "Begin with the next crescent."
+
+Cut in the concision pass (assets kept): the streak and "tied to the phone"
+paragraphs, the sill still (the Fajr stack already plays live), the Umm
+al‑Qura passage, the lunar-updates passage and its live "next one" line,
+Bukhari 6464, the Bukhari 554 hinge, Qurʾān 36:39, and the Adriaanse and Harkin
+cites, and **exchanges** (user call: a visitor doesn't know the word, and
+an act cued by a meal blurs "the prayer is the cue"; they stay in the app and
+the App Store listing). Earlier passes had already cut the wuḍūʾ, Jumuʿah rug and bedside
+stills.
+
+Four texts are set as verses, one per beat: 10:5 (the turn), 17:78 (the sun),
+2:189 (the moon) and Bukhari 1909 (the month's end, inside `MonthOrbit`). The
+studies and the other hadith stay small citations. Qurʾān translations are
+Khattab's (*The Clear Quran*), credited on the page. All sources were checked
+against sunnah.com and quran.com on 2026-10-27. With the Umm al‑Qura line gone,
+the page must still never claim the crescent is sighted: the app calculates it.
+
+**Pace rules** (keep them when the page changes):
+
+- One idea per screen. A typographic screen holds about 40 words at most; a
+  frame keeps its two-sentence limit.
+- No more than two word-carrying photo frames in a row; a line of type or a
+  chapter card comes between.
+- The two halves open with their title cards, `THE SUN` and `THE MOON`. No
+  "First… / Then…" signposts. The prayer is the cue and the moon is the
+  measure: a section that says neither leaves the page. Say "no reminders",
+  never "no notifications".
+- One large verse per beat; a second source on the same point is cut, not
+  added.
+- The turn (the sky) lands by the third screen on a phone.
+- About 20 phone screens in all (390×844); the month is the longest stretch,
+  the day the next. The first legible app UI (the Fajr card) lands by the fifth
+  phone screen; don't let it slip later.
+- Distance says what belongs together. Use four levels, and never the same
+  distance for two different relations:
+  - Inside a group (a label, its heading, its text, its source): 16–32 px.
+  - Between the parts of one argument (a passage, its figure, its verse, its
+    note): a step, 0.6 beat.
+  - Between arguments, and between a run of type and a frame: one beat.
+  - Before a chapter card: a beat and a half (two beats left a near-empty
+    screen on desktop). The card then sits a step above what it opens.
+- Distance follows the argument, not the markup. Two paragraphs that say
+  different things (the problem, then the turn) are a step apart, never one
+  paragraph gap; a line and the verse that grounds it are one claim and stand
+  close (32–48 px, `.story-claim`).
+- A figure follows the words that explain it. A source that is not about the
+  figure comes after it, never between the two.
+
+The earlier, superseded builds: a page round the orbit alone (2026-10-26), and
+before that one night from Maghrib to Fajr (section 4's table below).
 
 ## 1. What the site is for
 
@@ -138,6 +210,12 @@ apply to every string on the site.
   the sky is the time zone's, not the city's; Bukhari/Muslim carry no grading
   label, so never promise "each hadith with its grading".
 - Read every line aloud. If it sounds like an advert, cut it.
+- **No aphorisms.** No balanced "the X tells you when, and the Y how far"
+  lines, no "Nothing X, and nothing Y" closers, no appositive that re-explains
+  the sentence before it. Say the plain thing.
+- **No app-internal nouns** a visitor can't know (exchange, stripe, Today,
+  Progress) unless the sentence explains them. "Stack" is explained where it
+  first appears.
 
 ### First draft
 
@@ -196,7 +274,8 @@ same product:
 |---|---|---|
 | Night | `#060910` | Page background, the base of the scroll sky |
 | Text | the app's dark `text` role | Headlines and body |
-| Text, quiet | the app's dark `textSecondary` (APCA Lc ≥ 60) | Body copy, markers |
+| Text, quiet | the app's dark `textSecondary` (APCA Lc 61) | Body copy, cites |
+| Text, faint | night 10, `#9298A4` (Lc 46) | Markers, captions, notes. Night 9 measured Lc 35, too low for small type |
 | Ice | `#89C2E3` | Focus rings, links. Used rarely |
 | Moonglow | `#F4EACB` | The orbit's arc and one warm star. The only warm colour that is not inside a photograph |
 
@@ -276,16 +355,69 @@ with the photography.
 
 ### Motion
 
-Little, slow, and all of it off under `prefers-reduced-motion`.
+Little, slow, and all of it off under `prefers-reduced-motion` (one global
+rule in `site.css`; the JS-driven parts check it too). Motion says that the
+night is passing or that something has arrived, and nothing else.
 
-- The scroll sky (section 4), as a CSS scroll-driven animation; browsers
-  without support see a fixed night.
-- Sections fade in once, ~600 ms, no slide.
-- The orbit in section 3 draws its arc once when it enters view.
-- Stars in section 4 twinkle on long, out-of-step periods like the app's
-  (7 / 11 / 17 s), never fully off.
-- No parallax on photographs, no scroll-jacking, no auto-playing video, no
-  sound.
+It is one vocabulary, defined once at the top of `web/src/site.css`, so the same
+kind of thing moves the same way wherever it is:
+
+- **One curve and one rise.** `--ease` everywhere; nothing moves further than
+  `--rise` (8 px).
+- **A pace per kind of change:**
+  - touch, 0.4 s;
+  - state, 0.6 s;
+  - swap, 0.8 s;
+  - arrive, 1.2 s;
+  - verse, 1.6 s;
+  - light, 2.4 s.
+- **Two waits.** `--follow`, 0.4 s, after a thing's subject. `--stagger`,
+  0.12 s, between the parts of one group.
+- **Two patterns.** *Arrive* (fade and rise) is one rule shared by text,
+  stops, cards and notifications. *Develop* (light out of the night) is shared
+  by the photographs, the sun, the moon and the hero. One observer
+  (`useReveal`) starts both.
+
+A new element joins a pattern by its class (`.reveal` or `.develop`) and
+names at most its pace and wait. It never writes a duration of its own.
+
+As built (2026-10-27):
+
+- **One night, top to bottom.** The home page runs Maghrib to Fajr. A faint
+  dusk glow sits low on the screen while the opening is read. Over the last
+  screens a cool dawn glow rises and the stars fade by a third, as they do before
+  Fajr. This is `nightLight` in `web/src/lib/play.ts`, set by the starfield as
+  `--dusk`/`--dawn` on a fixed `.horizon`. It is never more than a tint, and the
+  other pages stay in plain night.
+- **The stars** (`web/src/components/starfield.tsx`) set the scene and are not
+  the subject:
+  - about one star per 2,500 px², mostly faint;
+  - three depths that move 2–8% of the scroll;
+  - a drift of at most a pixel a second;
+  - mid and faint stars twinkle over 5–11 s;
+  - under reduced motion, one still frame that still takes the night's light.
+- **The first screen.** The photograph comes up out of the dark over 2.8 s. The
+  headline is there at once: it is the message and the largest paint. The lede,
+  the call and the app screen follow within a second.
+- **Reveals.** Text fades in once and rises 8 px. Verses don't rise: they come
+  into focus over 1.6 s. A still's words, the year's heading and the close
+  arrive line by line, 0.12 s apart.
+- **Stills develop.** Each photograph comes up out of the night once it is on
+  screen *and* decoded, so a fast scroll never flashes a picture in. Words laid
+  over a still wait 0.6 s for it.
+- **Chapter cards** open their horizon lines out from the word.
+- **The sun and the moon** at the head of each half fade in once their picture
+  is there.
+- **The year** draws its twelve stripes once as it comes into view, Ramaḍān
+  closing last.
+- **The played stages** fade in as their section arrives and back into the
+  night as it leaves (`arrival` × `departure`).
+- **Between pages**, one soft crossfade (the router's view transition).
+- **Never:** parallax or zoom on photographs, text split into words or letters,
+  loops other than the stars, scroll-jacking, auto-playing video or sound.
+
+Photographs dissolve into the night through masks, never a shade to the night
+colour.
 
 ## 7. Download mechanics
 
@@ -421,6 +553,36 @@ These ship first (section 10), because store review needs them.
    Chrome and Firefox; reduced motion on; JavaScript off; Lighthouse; APCA
    contrast on every text colour over every image it sits on; screen reader
    pass of the headings and image descriptions. Check both flag states.
+
+   **Measured so far** (2026-10-27, local production build, Chromium at a
+   390 px phone width with 4× CPU throttling):
+   - **First paint:** the headline is the largest paint, at 0.4–0.5 s, the
+     same with motion on, with reduced motion and with WebGL off.
+   - **Lighthouse mobile** (simulated): performance 53, accessibility 100,
+     best practices 82 (one deprecation, since fixed), layout shift 0.
+     - Its LCP of 4.9 s is the simulation charging the whole page script to
+       the paint, inflated by software WebGL here.
+     - With real throttling (`--throttling-method=devtools`): LCP 3.4 s, total
+       blocking time 950 ms.
+     - The local preview serves the files uncompressed (300 KiB of the
+       savings); Cloudflare compresses them.
+   - **Scroll:** motion on and off drop the same number of frames. The slow
+     frames are in the played day and month (the WebGL moon and the
+     per-scroll re-render), not in the fades.
+
+   **Safari on a real iPhone** (no WebKit on the dev machine), in a dark room:
+   - The street comes up from the dark at first paint without a flash. The
+     headline is there at once, and the lede, the screen and the call follow.
+   - A fast flick past a still never shows it bright before it develops.
+   - The dusk glow at the top and the dawn glow at the foot stay a tint.
+     Neither jumps when the address bar hides or shows (`.horizon` is
+     `100lvh`).
+   - Each verse comes into focus cleanly, with no blurred edge left behind.
+   - The played day and month scroll without stutter, and their stages fade in
+     and out.
+   - Privacy → home → Terms crossfades (Safari 18 has view transitions).
+   - Settings → Accessibility → Motion → Reduce Motion: nothing fades or
+     moves, and everything is visible.
 8. **Deploy in pre-launch state.** `cd web && pnpm verify && pnpm deploy`. The
    site can be public before the app is: it says what is coming and links
    nowhere it can't keep.

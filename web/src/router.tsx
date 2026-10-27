@@ -6,6 +6,8 @@ export function getRouter() {
     routeTree,
     scrollRestoration: true,
     defaultPreload: 'intent',
+    // One soft crossfade between pages where the browser can draw it (site.css sets its pace).
+    defaultViewTransition: true,
   })
 }
 

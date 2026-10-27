@@ -1,11 +1,13 @@
 import { HeadContent, Link, Scripts, createRootRoute } from '@tanstack/react-router'
 
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
+import { Starfield } from '#/components/starfield'
 import { Site } from '#/site'
+import interFont from '#/fonts/inter-4.1.1.woff2?url'
 import siteCss from '#/site.css?url'
 
 const DESCRIPTION =
-  'Qamar360 ties small acts of the Sunnah to moments you already keep, and shows each Hijri month as one orbit of the moon.'
+  'Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month as an orbit around the moon.'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -31,10 +33,17 @@ export const Route = createRootRoute({
       { property: 'og:description', content: DESCRIPTION },
     ],
     links: [
-      // The one font file, fetched alongside the stylesheet rather than after it.
-      { rel: 'preload', href: '/fonts/inter-4.1.1.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+      // The one font file, fetched alongside the stylesheet rather than after it. Vite fingerprints
+      // it, so it can be cached for good (`public/_headers`) and a re-cut font gets a new name.
+      { rel: 'preload', href: interFont, as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: siteCss },
-      { rel: 'icon', href: '/qamar-mark.svg', type: 'image/svg+xml' },
+      // The app's icon (assets/logo/qamar-icon.svg): the SVG for tabs, the .ico for whatever asks for
+      // /favicon.ico (sized, so browsers that read SVG prefer it), a 180px tile for iOS home
+      // screens, and the manifest's 192/512 and maskable icons for Android.
+      { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+      { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
     scripts: [
       // Person JSON-LD — identical @id across every one of the maker's sites so search engines
@@ -69,6 +78,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <Starfield />
+        <div className="horizon" aria-hidden />
         {children}
         <Scripts />
       </body>

@@ -12,7 +12,7 @@ function Terms() {
   return (
     <DocPage
       title="Terms"
-      lede={`These terms are the agreement between you and ${Site.provider}, who makes Qamar360, for using the app. By creating an account you accept them. They are short on purpose.`}
+      lede={`These terms are the agreement between you and ${Site.provider}, who makes Qamar360, for using the app. By creating an account you accept them.`}
     >
       <h2>The app</h2>
       <p>

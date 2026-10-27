@@ -1,16 +1,14 @@
 {
+  "name": "Qamar360",
   "short_name": "Qamar360",
-  "name": "Qamar360 — Orbital Habit Console",
+  "description": "Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month as an orbit around the moon.",
+  "start_url": "/",
+  "display": "browser",
+  "theme_color": "#060910",
+  "background_color": "#060910",
   "icons": [
-    {
-      "src": "qamar-mark.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#05070b",
-  "background_color": "#05070b"
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
 }

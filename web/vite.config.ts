@@ -6,10 +6,6 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
 import viteReact from '@vitejs/plugin-react'
 
-// Modern browsers only: ship the syntax we author (ES2022+) instead of down-levelling to
-// Vite's default es2020 / Chrome-87-era baseline.
-const MODERN_TARGET = ['chrome111', 'edge111', 'firefox128', 'safari16.4']
-
 // The two import roots, stated here rather than read from tsconfig (`resolve.tsconfigPaths`). That
 // option looks up the tsconfig governing each file, and for one the web tsconfig doesn't include
 // (`src/styles.css`) it climbs out of `web/` to the app's own tsconfig, whose `extends:
@@ -24,10 +20,12 @@ const config = defineConfig({
       { find: /^#\//, replacement: SRC },
     ],
   },
-  build: { target: MODERN_TARGET },
   plugins: [
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    tanstackStart(),
+    // Every page is the same for every visitor (tonight's moon and the scroll plays run in the
+    // browser), so each is rendered once at build time and served as a static file from the edge.
+    // The Worker still answers what is not a file: the retired web app's 301s and the 404.
+    tanstackStart({ prerender: { enabled: true, crawlLinks: true, autoSubfolderIndex: false } }),
     viteReact(),
   ],
 })

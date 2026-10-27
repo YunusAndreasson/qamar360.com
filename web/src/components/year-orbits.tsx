@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type CSSProperties, useState } from 'react'
 
 import { HIJRI_MONTHS } from '#/lib/moon'
 
@@ -49,6 +49,8 @@ export function YearOrbits() {
                     fill="none"
                     strokeLinecap="round"
                     strokeDasharray={`${(degrees / 360) * CIRC} ${CIRC}`}
+                    // Drawn once as the year comes into view (site.css), Ramaḍān closing last.
+                    style={{ '--len': `${(degrees / 360) * CIRC}px`, '--i': i === RAMADAN ? 12 : i } as CSSProperties}
                     transform="rotate(-90 28 28)"
                   />
                   <text x="28" y="28" textAnchor="middle" dominantBaseline="central">

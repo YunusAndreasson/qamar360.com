@@ -1,5 +1,8 @@
-<svg width="64" height="64" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1024" height="1024" rx="220" fill="#05070B"/>
-  <circle cx="512" cy="512" r="312" fill="none" stroke="#9EC7DB" stroke-width="46"/>
-  <line x1="703" y1="703" x2="789" y2="789" stroke="#9EC7DB" stroke-width="46" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- The tab icon: the app's icon (assets/logo/qamar-icon.svg), a white Q on the night #060910,
+       on a rounded tile, with the stroke drawn heavier (64 for the app's 40) so the ring stays
+       crisp at 16px. -->
+  <rect width="1024" height="1024" rx="224" fill="#060910"/>
+  <circle cx="512" cy="512" r="312" fill="none" stroke="#FFFFFF" stroke-width="64"/>
+  <line x1="703" y1="703" x2="789" y2="789" stroke="#FFFFFF" stroke-width="64" stroke-linecap="round"/>
 </svg>

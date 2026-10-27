@@ -20,24 +20,81 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
 - `src/routes/privacy.tsx`, `terms.tsx`, `support.tsx`: written from what the
   app does. The privacy page lists the repo source of each claim at its top;
   when the app changes what it stores, change the page and `DOCS_UPDATED`.
-- `src/routes/index.tsx`: the download page. Its centre is `MonthOrbit`: the
-  app's Progress orbit (`orbit.tsx`) round the real moon (`moon-canvas.tsx`,
-  the app's Skia moon shader ported to WebGL2 over `public/moon/near-side.png`,
-  the app's NASA texture), played by the scroll through one Ramaḍān. Keep its
-  proportions, colours and notification wording in step with the app
-  (`orbit-drawing.tsx`, `moon-body.tsx`, `lib/lunar-update.ts`).
+- `src/routes/index.tsx`: the download page, told as one story in two halves,
+  each played by the scroll through one pinned stage (`lib/play.ts` holds the
+  shared hold-and-ease maths):
+  - each half opens on one real body with one live line: today's sun
+    (`today-sun.tsx`: a visible-light photograph from NASA's Solar Dynamics
+    Observatory, made into `public/sun/` by `scripts/sun-image.py`, and the next
+    prayer where the visitor is, the place taken from the time zone as the app's
+    sky does, via `lib/tz-coords.ts`, a copy of the app's generated table loaded
+    on demand; the solar maths in `lib/sun.ts`, tested against astronomy-engine)
+    and tonight's moon in its phase. Neither shows a clock time: the app gives
+    the prayers none;
+  - the sun: `DayPlay` (`day-play.tsx`), the sun travelling its arc
+    (`sun-path.tsx`) and resting on each prayer while that prayer's curated
+    stack ticks on a port of Today (`stack-card.tsx`: stack card and the
+    day-complete card);
+  - the moon: `MonthOrbit`, the app's Progress orbit (`orbit.tsx`) round the
+    real moon (`moon-canvas.tsx`, the app's Skia moon shader ported to WebGL2
+    over `public/moon/near-side.png`, the app's NASA texture), played through
+    one Shaʿbān.
+
+  `components/story.tsx` holds the chapter cards, passages and verses; the
+  order and pace rules are in `docs/website-plan.md`. Keep what the page draws
+  in step with the app: the orbit's proportions, colours and notification
+  wording (`orbit-drawing.tsx`, `moon-body.tsx`, `lib/lunar-update.ts`); the
+  stack card's look (`stack-card.tsx`, `act-row.tsx`, `completion-ring.tsx`,
+  `day-complete.tsx`); and the act names, word for word from
+  `constants/sunnah-habits.ts`. Each act's source on the page is checked on
+  sunnah.com.
 - `src/lib/moon.ts`: phase and Umm al-Qura maths ported from the app, tested.
-- `public/fonts/inter-4.1.1.woff2`: the only font, Inter 4.1 variable (optical size + weight) cut by
+- `src/components/starfield.tsx` + `src/lib/stars.ts`: the stars behind every page, one WebGL2
+  canvas fixed under `<body>` (mounted in `__root.tsx`). It sets the scene, so keep it dim and
+  slow: a seeded blue-noise tile in three depths, moving with the scroll, a slow drift and a
+  twinkle on the faint stars. It renders every frame only while easing, about 15 a second at rest,
+  and one still frame under reduced motion. No second moon in it (the app's rule). Because it lies
+  under the content, no page or section may paint an opaque night background. Fade photographs
+  into the night with `mask-image`, not with a shade to `--night`.
+- Motion: the rules and the list of what moves are in `docs/website-plan.md` §Motion. The
+  tokens (`--ease`, `--rise`, the `--t-*` paces, `--follow`, `--stagger`) sit in `:root` and the
+  two patterns, *arrive* and *develop*, under "Motion" in `site.css`. Give an element a class
+  (`.reveal`, `.develop`) and at most a `--pace`/`--wait`; never a literal duration or curve.
+  Every hidden-until-seen state sits under `.reveals`, the class `useReveal` puts on the root
+  (`routes/index.tsx`), so without JS, or under reduced motion, everything simply shows. The
+  home page's dusk and dawn come from the starfield (`--dusk`/`--dawn` on `.horizon`, from
+  `nightLight` in `lib/play.ts`).
+- `src/fonts/inter-4.1.1.woff2`: the only font (fingerprinted by Vite, so cached for good), Inter 4.1 variable (optical size + weight) cut by
   `scripts/subset-font.sh` to Latin, the transliteration letters (ā ī ū ḍ ḥ ṣ ṭ ẓ ʾ ʿ) and the
   OpenType features the CSS uses; preloaded from `__root.tsx`. A copy character outside that set
   falls back to Arial: add it to the script's `--unicodes` and re-run (needs fonttools + brotli).
   Firefox has no `text-wrap: pretty`, so body lines tie their last two words with `&nbsp;`.
+- Icons, all from the app's `assets/logo/qamar-icon.svg` (a white Q on the night
+  `#060910`): `favicon.svg` (tabs; the stroke drawn heavier, 64 for 40, so the ring
+  holds at 16px), `favicon.ico` (16/32/48, for whatever asks for `/favicon.ico`),
+  `apple-touch-icon.png` (180, opaque square: iOS rounds it), and the manifest's
+  `icon-192/512.png` and `icon-maskable-512.png` (the app's adaptive mark,
+  inside Android's 80% safe circle). `manifest.webmanifest` is `display:
+  browser`: this is a site for a native app, not an app to install. When the app
+  changes its icon, regenerate these with `rsvg-convert`.
 - `public/images`: photographs as `<name>-<width>.avif|webp`. The hero and
   the close are full-bleed; every still between is a `Frame` exported as
   `<name>-wide-*` (2.39:1) and `<name>-tall-*` (4:5, phones). All are one
   night generated with Codex in one style. A still keeps an empty side only
   when its words are set there (`side`); a caption or wordless still is
   composed full. No churches anywhere: no spires, steeples, domes or crosses.
+- Every photograph is graded into the app's palette by `scripts/grade-photo.py`
+  (CIE Lab): shadows to the night `#060910` and its indigo, sodium orange
+  calmed toward moonglow `#F4EACB`, skies off royal navy, the generated
+  "HDR clarity" relaxed, a soft shoulder. Grade a new still the same way before
+  it goes on the page. No brand marks in any picture (the supper phone is a
+  plain black slab).
+- The moon in a photograph must be the real moon of its scene: an evening
+  crescent (the hero) is lit on the side of the set sun, the last crescent
+  before dawn (the close) is lit toward the glow under it, and the portrait hero
+  shows a thin crescent, because its caption says the crescent on the app screen
+  (3 Jumādā al-Thānī) is the one in the sky. On desktop the hero's crescent sits
+  in the open sky between the headline and the app screen, never behind it.
 - The phones in `sill`, `bedside`, `rooftop` and `rug` show real screens:
   Codex draws each phone with its screen blank and black, and a screenshot
   from the emulator is warped onto the glass, so an image model never draws
@@ -50,6 +107,28 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   crescent in the hero's sky. The phone's clock cannot go back before the
   Supabase certificate's start date (TLS fails), so an earlier day means a
   later month and seeded history up to it.
+
+## Delivery
+
+- Every page is **prerendered** at build (`tanstackStart({ prerender })` in
+  `vite.config.ts`) to `dist/client/*.html` (flat files, so `/privacy` is served
+  without a trailing-slash redirect) and served by Cloudflare as a static file.
+  The Worker (`src/server.ts`) only answers what is not a file: the retired web
+  app's 301s and the 404. Nothing on a page may depend on the request; anything
+  live (tonight's moon, the scroll plays) runs in the browser.
+- `public/_headers` caches `/assets/*` (content-hashed: JS, CSS, the font) for a
+  year, `immutable`. It applies to static responses only, never the Worker's.
+  Photographs and pages keep Cloudflare's default revalidation, because a
+  photograph is re-exported under the same name.
+- Browser target: Vite 8's default `baseline-widely-available` (Chrome/Edge
+  111, Firefox 114, Safari 16.4). Lightning CSS adds and strips vendor prefixes
+  for that target, so write CSS unprefixed (only the non-standard
+  `-webkit-font-smoothing` / `-webkit-tap-highlight-color` stay by hand).
+- The moon texture is decoded once per page with `createImageBitmap`
+  (`colorSpaceConversion: 'none'`), shared by every moon canvas; verified
+  texel-exact against the PNG in Gecko and Chromium.
+- Headless Chromium logs "GPU stall due to ReadPixels" for any WebGL canvas: it
+  is SwiftShader compositing, not the site's code.
 
 ## Copy
 
