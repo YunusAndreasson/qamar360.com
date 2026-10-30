@@ -16,7 +16,7 @@ function Terms() {
     >
       <h2>The app</h2>
       <p>
-        Qamar360 helps you keep acts of the Sunnah by tying them to moments you already keep, and
+        Qamar360 helps you follow the Sunnah by tying small acts to moments already in your day, and
         shows your progress around the moon. It is free to use.
       </p>
 

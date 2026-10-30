@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { eveningPhase, hijriDate, moonIllumination, sunDirection } from '../moon'
+import { eveningPhase, type HijriDate, hijriDate, moonIllumination, nextMonth, sunDirection } from '../moon'
 
 describe('moonIllumination', () => {
   it('is new on the 1st, full mid-month and waning after', () => {
@@ -43,5 +43,25 @@ describe('eveningPhase', () => {
     expect(first.illumination).toBeGreaterThan(0.03)
     expect(first.illumination).toBeLessThan(0.05)
     expect(eveningPhase(31, 30).illumination).toBeCloseTo(first.illumination)
+  })
+})
+
+describe('nextMonth', () => {
+  const on = (day: number, month: number, monthLength: number): HijriDate => ({
+    day,
+    month,
+    year: 1448,
+    monthName: '',
+    monthLength,
+  })
+
+  it('counts the days to the next 1st in a 29- and a 30-day month', () => {
+    expect(nextMonth(on(16, 5, 29))).toEqual({ name: 'Jumādā al-Thānī', days: 14 })
+    expect(nextMonth(on(16, 5, 30))).toEqual({ name: 'Jumādā al-Thānī', days: 15 })
+    expect(nextMonth(on(30, 8, 30))).toEqual({ name: 'Ramaḍān', days: 1 })
+  })
+
+  it('turns the year after Dhū al-Ḥijjah', () => {
+    expect(nextMonth(on(1, 12, 29)).name).toBe('Muḥarram')
   })
 })

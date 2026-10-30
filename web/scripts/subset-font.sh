@@ -14,5 +14,10 @@ pyftsubset "$work/package/variable/InterVariable.woff2" \
   --layout-features='calt,case,ccmp,locl,kern,mark,mkmk,tnum,pnum' \
   --name-IDs='*' --flavor=woff2 --output-file=src/fonts/inter-4.1.1.woff2
 cp "$work/package/LICENSE.txt" public/fonts/OFL.txt
+# ﷺ, the one Arabic sign the site sets (after the Prophet's name): its single glyph from Noto Sans
+# Arabic Regular, whose strokes sit nearest Inter's. OFL; the licence travels in the file's name table.
+noto="${NOTO_SANS_ARABIC:-/usr/share/fonts/noto/NotoSansArabic-Regular.ttf}"
+pyftsubset "$noto" --unicodes=U+FDFA --layout-features='' --name-IDs='*' --flavor=woff2 \
+  --output-file=src/fonts/honorific.woff2
 rm -r "$work"
-ls -l public/fonts
+ls -l public/fonts src/fonts

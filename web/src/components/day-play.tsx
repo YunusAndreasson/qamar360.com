@@ -19,6 +19,8 @@ import { arrival, departure, playAt } from '#/lib/play'
  */
 
 type Words = {
+  /** The prayer the words stand at. Words shared by several prayers name them all, and while the
+   *  scroll plays, the one the sun rests on. */
   marker: string
   heading: string
   body: string
@@ -27,23 +29,23 @@ type Words = {
 
 const WORDS: Words[] = [
   {
-    marker: 'Stacks',
-    heading: 'The day starts at Fajr.',
-    body: 'The acts you tie to it make a stack. Tick each one off as you do\u00a0it.',
+    marker: 'Fajr',
+    heading: 'Your day starts with Fajr.',
+    body: 'The acts you tie to a prayer make a stack. Tick each one off as you do\u00a0it.',
     cite: {
-      text: 'The Prophet asked Bilāl why he heard his footsteps in Paradise. Bilāl said he prayed after every\u00a0wuḍūʾ.',
+      text: 'The Prophet\u00a0ﷺ asked Bilāl why he heard his footsteps in Paradise. Bilāl said he prayed after every\u00a0wuḍūʾ.',
       source: 'Bukhari 1149',
     },
   },
   {
-    marker: 'Stacks',
+    marker: 'Dhuhr · ʿAṣr · Maghrib',
     heading: 'Each prayer has its own stack.',
     body: 'Dhuhr just after noon, ʿAṣr as the shadows lengthen, Maghrib at\u00a0sunset.',
   },
   {
     marker: 'ʿIshāʾ',
     heading: 'The last act closes the day.',
-    body: 'The app then shows the Hijri date and how far round the month you\u00a0are.',
+    body: 'The month moves one day further round the\u00a0moon.',
   },
 ]
 
@@ -138,10 +140,16 @@ function ticked(stop: Stop, index: number, at: number, held: number) {
   return Math.min(items, Math.floor((held / span) * items + 1e-6))
 }
 
+/** Whether the stop on the stage has folded to its bar: a beat after its last tick, or as the day
+ *  closes. Past `CLOSES` the last stop's fold is also what raises the closing card. */
+const isFolded = (at: number, held: number) => (at === LAST ? held >= CLOSES : held >= 0.92)
+
 export function DayPlay() {
   const sectionRef = useRef<HTMLElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [{ t: hour, stop, held }, setDay] = useState({ t: HOURS[0], stop: 0, held: 0 })
+  // What the last scroll showed, so a frame that changes nothing on the stage doesn't render it.
+  const shown = useRef('')
 
   useEffect(() => {
     const section = sectionRef.current
@@ -151,7 +159,13 @@ export function DayPlay() {
       frame = 0
       const rect = section.getBoundingClientRect()
       const run = rect.height - window.innerHeight
-      setDay(playAt(run > 0 ? -rect.top / run : 0, HOURS, HOLD, WEIGHTS))
+      const play = playAt(run > 0 ? -rect.top / run : 0, HOURS, HOLD, WEIGHTS)
+      // While the sun rests, `held` creeps on every frame, but the stage only shows its ticks.
+      const showing = `${play.t} ${play.stop} ${ticked(STOPS[play.stop], play.stop, play.stop, play.held)} ${isFolded(play.stop, play.held)}`
+      if (showing !== shown.current) {
+        shown.current = showing
+        setDay(play)
+      }
       // The stage fades in as the section arrives and back out into the night as it leaves.
       const here = arrival(rect.top, window.innerHeight) * departure(rect.bottom, window.innerHeight)
       stageRef.current?.style.setProperty('--arrive', String(here))
@@ -180,7 +194,16 @@ export function DayPlay() {
           <ol className="play-stops">
             {WORDS.map((w, i) => (
               <li key={w.heading} className="play-stop" data-active={i === words || undefined}>
-                <p className="marker">{w.marker}</p>
+                {/* Keyed by the prayer, so a new name arrives as the sun moves on rather than snapping in. */}
+                <p className="marker">
+                  {i === words ? (
+                    <span key={stop} className="marker-now">
+                      {NAMES[STOPS[stop].prayer]}
+                    </span>
+                  ) : (
+                    w.marker
+                  )}
+                </p>
                 <h2>{w.heading}</h2>
                 <p>{w.body}</p>
                 {w.cite ? (
@@ -192,34 +215,39 @@ export function DayPlay() {
             ))}
           </ol>
         </div>
-        <div className="day-visual">
-          <SunPath hour={hour} />
-          <ol className="day-cards" aria-label="Today, as each prayer comes due">
-            {STOPS.map((s, i) => {
-              const done = ticked(s, i, stop, held)
-              const folded = i < stop || (i === stop && (i === LAST ? held >= CLOSES : held >= 0.92))
-              return (
-                <li key={s.prayer} className="day-card" data-active={i === stop || undefined}>
-                  <TodaySection label="Stacks">
-                    <StackCard
-                      name={PRAYERS[s.prayer].name}
-                      acts={s.stack}
-                      done={done}
-                      folded={folded}
-                    />
-                  </TodaySection>
-                </li>
-              )
-            })}
-          </ol>
-          <div className="day-close" data-shown={closed || undefined}>
-            <DayComplete
-              date={CLOSE_DATE}
-              degrees={Math.round(360 / MONTH_LENGTH)}
-              daysLeft={MONTH_LENGTH - 1}
-              illumination={CLOSE_PHASE.illumination}
-              waxing={CLOSE_PHASE.waxing}
-            />
+        <div className="day-visual" data-closed={closed || undefined}>
+          <div className="day-picture">
+            <SunPath hour={hour} />
+          </div>
+          <div className="day-today">
+            <ol className="day-cards" aria-label="Today, as each prayer comes due">
+              {STOPS.map((s, i) => {
+                const done = ticked(s, i, stop, held)
+                const folded = i < stop || (i === stop && isFolded(i, held))
+                return (
+                  // The closing card takes Today's place, so the last stack leaves as it comes up.
+                  <li key={s.prayer} className="day-card" data-active={(i === stop && !closed) || undefined}>
+                    <TodaySection label="Stacks">
+                      <StackCard
+                        name={PRAYERS[s.prayer].name}
+                        acts={s.stack}
+                        done={done}
+                        folded={folded}
+                      />
+                    </TodaySection>
+                  </li>
+                )
+              })}
+            </ol>
+            <div className="day-close" data-shown={closed || undefined}>
+              <DayComplete
+                date={CLOSE_DATE}
+                degrees={Math.round(360 / MONTH_LENGTH)}
+                daysLeft={MONTH_LENGTH - 1}
+                illumination={CLOSE_PHASE.illumination}
+                waxing={CLOSE_PHASE.waxing}
+              />
+            </div>
           </div>
         </div>
       </div>

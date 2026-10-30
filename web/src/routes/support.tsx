@@ -42,7 +42,7 @@ function Support() {
       <h2>What is a stack?</h2>
       <p>
         A few acts tied to a moment already in your day, such as Fajr, waking up or getting into bed.
-        You keep the moment, and the acts come with it.{' '}
+        The moment is the cue, and the acts follow it.{' '}
         <strong>Settings &rsaquo; Habit stacking</strong> explains it in full, with its sources.
       </p>
 
@@ -62,7 +62,8 @@ function Support() {
       <h2>The Hijri date is a day off</h2>
       <p>
         Moon sighting differs from place to place. Adjust it in{' '}
-        <strong>Settings &rsaquo; Hijri date</strong> to match where you live.
+        <strong>Settings &rsaquo; Hijri date</strong> to match the calendar your masjid or community
+        follows.
       </p>
 
       <h2>I want to start my progress again</h2>

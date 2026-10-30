@@ -94,3 +94,9 @@ export function hijriDate(date: Date): HijriDate | null {
   }
   return { ...today, monthName: HIJRI_MONTHS[today.month - 1], monthLength }
 }
+
+/** The month after a Hijri date's, and how many days until its 1st: 1 on the month's last day.
+ *  The count is the calendar's, as the app's is, never a sighting. */
+export function nextMonth(date: HijriDate): { name: string; days: number } {
+  return { name: HIJRI_MONTHS[date.month % 12], days: date.monthLength - date.day + 1 }
+}

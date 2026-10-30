@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 /**
  * The sun's path through one day, with the five prayers on it, and the sun on it at `hour`: the arc
  * the played day (`day-play.tsx`) moves along, as the month's orbit fills. A diagram of the idea,
@@ -6,6 +8,10 @@
  * sun puts it, by the same definitions the app's prayer acts give (`src/constants/sunnah-habits.ts`):
  * Fajr and ʿIshāʾ with the sun 18° below the horizon, Dhuhr just past its height, ʿAṣr when a
  * shadow equals its object, Maghrib at sunset.
+ *
+ * The sun on it is the real one that opens this half of the page (`today-sun.tsx`), and it lights the
+ * sky of the diagram as it goes (`skyAt`), so the day reads as a day and not as a dot on a line. The
+ * horizon stops the light and hides the sun as the ground does, so at Maghrib it stands half set.
  */
 
 const W = 1000
@@ -62,31 +68,86 @@ const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(2)}%`
  *  the sun rests on it. */
 const REACHED = 0.01
 
+const smooth = (from: number, to: number, v: number) => {
+  const k = Math.min(1, Math.max(0, (v - from) / (to - from)))
+  return k * k * (3 - 2 * k)
+}
+
+/**
+ * The light in the sky at an hour, each share 0–1. `day` is the blue of a sky lit from above. `low` is
+ * the warm light of a sun near the horizon, strongest as it sets and gone by ʿIshāʾ, as the prayer's
+ * definition has it: the twilight gone. `first` is the cold line of true dawn on the horizon at Fajr,
+ * which the rising sun takes over.
+ */
+export function skyAt(t: number): { day: number; low: number; first: number } {
+  const alt = altitude(t)
+  const morning = t < 12
+  return {
+    day: smooth(0, PEAK, alt),
+    low: smooth(-16, 0, alt) * (1 - smooth(4, 34, alt)) * (morning ? 0.6 : 1),
+    first: morning ? 1 - smooth(-5, 7, alt) : 0,
+  }
+}
+
+/** Everything drawn that never moves, worked out once. */
+const NIGHT_PATHS = [curve(T0, 6), curve(18, T1)]
+const DAY_PATH = curve(6, 18)
+const START = PRAYERS[0].t
+
+/** The real sun, sharing `today-sun.tsx`'s picture. It is drawn twice, split at the horizon. */
+function SunDisc() {
+  return (
+    <span className="sun-disc">
+      <picture>
+        <source type="image/avif" srcSet="/sun/sun-288.avif" />
+        <img src="/sun/sun-288.webp" alt="" width={288} height={288} loading="lazy" decoding="async" />
+      </picture>
+    </span>
+  )
+}
+
 export function SunPath({ hour }: { hour: number }) {
-  const start = PRAYERS[0].t
-  const below = altitude(hour) < -1
+  const sky = skyAt(hour)
+  const style = {
+    '--sun-x': x(hour) / W,
+    '--sun-y': y(hour) / H,
+    '--horizon-y': HORIZON / H,
+    '--day': sky.day.toFixed(3),
+    '--low': sky.low.toFixed(3),
+    '--first': sky.first.toFixed(3),
+  } as CSSProperties
   return (
     <figure className="sun-path">
-      <div className="sun-path-plot">
+      <div className="sun-path-plot" style={style}>
+        <div className="sun-sky" aria-hidden="true">
+          <i className="sun-sky-day" />
+          <i className="sun-sky-low" />
+          <i className="sun-sky-first" />
+        </div>
         <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
           <line className="sun-horizon" x1={0} x2={W} y1={HORIZON} y2={HORIZON} />
-          <path className="sun-night" d={curve(T0, 6)} />
-          <path className="sun-night" d={curve(18, T1)} />
-          <path className="sun-day" d={curve(6, 18)} />
-          {hour > start + REACHED ? <path className="sun-trail" d={curve(start, hour)} /> : null}
+          <path className="sun-night" d={NIGHT_PATHS[0]} />
+          <path className="sun-night" d={NIGHT_PATHS[1]} />
+          <path className="sun-day" d={DAY_PATH} />
+          {hour > START + REACHED ? <path className="sun-trail" d={curve(START, hour)} /> : null}
           {PRAYERS.map((p) => (
             <circle
               key={p.name}
               className="sun-prayer"
               data-below={altitude(p.t) < -1 || undefined}
               data-reached={hour >= p.t - REACHED || undefined}
+              data-here={Math.abs(hour - p.t) < REACHED || undefined}
               cx={x(p.t)}
               cy={y(p.t)}
             />
           ))}
-          <circle className="sun-now-glow" data-below={below || undefined} cx={x(hour)} cy={y(hour)} r={34} />
-          <circle className="sun-now" data-below={below || undefined} cx={x(hour)} cy={y(hour)} r={11} />
         </svg>
+        <div className="sun-now sun-now-down" aria-hidden="true">
+          <SunDisc />
+        </div>
+        <div className="sun-now sun-now-up" aria-hidden="true">
+          <SunDisc />
+        </div>
         {PRAYERS.map((p) => (
           <p
             key={p.name}

@@ -3,15 +3,18 @@ import type { ReactNode } from 'react'
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
 import { DOCS_UPDATED, Site } from '#/site'
 
-/** A document page's `<head>`: its title and description. */
+/** A document page's `<head>`: its title, its description and its own address. */
 export function docHead(title: string, description: string) {
+  const url = `${Site.url}/${title.toLowerCase()}`
   return {
     meta: [
       { title: `${title} · ${Site.name}` },
       { name: 'description', content: description },
       { property: 'og:title', content: `${title} · ${Site.name}` },
       { property: 'og:description', content: description },
+      { property: 'og:url', content: url },
     ],
+    links: [{ rel: 'canonical', href: url }],
   }
 }
 

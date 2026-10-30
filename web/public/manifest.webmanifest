@@ -1,7 +1,7 @@
 {
   "name": "Qamar360",
   "short_name": "Qamar360",
-  "description": "Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month as an orbit around the moon.",
+  "description": "Qamar360 helps you follow the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month’s progress as an orbit around the moon.",
   "start_url": "/",
   "display": "browser",
   "theme_color": "#060910",

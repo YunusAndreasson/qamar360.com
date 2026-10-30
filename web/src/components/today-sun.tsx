@@ -62,10 +62,8 @@ export function TodaySun() {
         </picture>
       </div>
       <figcaption>
-        <span className="sky-now-line">
-          {next ? `${next.night ? 'Tonight' : 'Today'} in ${next.city} · ${next.prayer} comes next` : '\u00a0'}
-        </span>
-        <span className="sky-now-note">Photographed by NASA’s Solar Dynamics&nbsp;Observatory.</span>
+        <span className="sky-now-line">{next ? `${next.night ? 'Tonight' : 'Today'} in ${next.city}` : '\u00a0'}</span>
+        <span className="sky-now-fact">{next ? `${next.prayer} comes\u00a0next` : '\u00a0'}</span>
       </figcaption>
     </figure>
   )

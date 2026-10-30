@@ -14,7 +14,10 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
 ## Layout
 
 - `src/site.css`: the only stylesheet. Plain CSS, no Tailwind; colours are the
-  app's dark roles. Dark only.
+  app's dark roles. Dark only. On the home page, write a size that should grow on
+  a large screen as `calc(N * var(--u))` (`--u` is a pixel up to 1440 and grows to
+  1.4 at 2016), never a new fixed cap; the rules are under "Fit and scale" in
+  `docs/website-plan.md`.
 - `src/site.ts`: who runs the app, the contact address, the social links, and
   the date the documents last changed (`DOCS_UPDATED`).
 - `src/routes/privacy.tsx`, `terms.tsx`, `support.tsx`: written from what the
@@ -31,14 +34,19 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
     on demand; the solar maths in `lib/sun.ts`, tested against astronomy-engine)
     and tonight's moon in its phase. Neither shows a clock time: the app gives
     the prayers none;
-  - the sun: `DayPlay` (`day-play.tsx`), the sun travelling its arc
-    (`sun-path.tsx`) and resting on each prayer while that prayer's curated
-    stack ticks on a port of Today (`stack-card.tsx`: stack card and the
-    day-complete card);
+  - the sun: `DayPlay` (`day-play.tsx`), the real sun travelling its arc
+    (`sun-path.tsx`) and lighting its sky (`skyAt`) as it rests on each prayer,
+    while that prayer's curated stack ticks on a port of Today (`stack-card.tsx`:
+    stack card and the day-complete card);
   - the moon: `MonthOrbit`, the app's Progress orbit (`orbit.tsx`) round the
     real moon (`moon-canvas.tsx`, the app's Skia moon shader ported to WebGL2
     over `public/moon/near-side.png`, the app's NASA texture), played through
     one Shaʿbān.
+
+  A played stage must fit the screen a browser really leaves (390×664, 375×553):
+  its words and cards keep their size and its picture takes what is left, read as
+  `100cqh`. Never size the picture from the viewport alone, or the stage cuts off
+  at both ends on a real phone.
 
   `components/story.tsx` holds the chapter cards, passages and verses; the
   order and pace rules are in `docs/website-plan.md`. Keep what the page draws
@@ -64,11 +72,15 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   (`routes/index.tsx`), so without JS, or under reduced motion, everything simply shows. The
   home page's dusk and dawn come from the starfield (`--dusk`/`--dawn` on `.horizon`, from
   `nightLight` in `lib/play.ts`).
-- `src/fonts/inter-4.1.1.woff2`: the only font (fingerprinted by Vite, so cached for good), Inter 4.1 variable (optical size + weight) cut by
+- `src/fonts/inter-4.1.1.woff2`: the text font (fingerprinted by Vite, so cached for good), Inter 4.1 variable (optical size + weight) cut by
   `scripts/subset-font.sh` to Latin, the transliteration letters (ā ī ū ḍ ḥ ṣ ṭ ẓ ʾ ʿ) and the
   OpenType features the CSS uses; preloaded from `__root.tsx`. A copy character outside that set
   falls back to Arial: add it to the script's `--unicodes` and re-run (needs fonttools + brotli).
   Firefox has no `text-wrap: pretty`, so body lines tie their last two words with `&nbsp;`.
+- `src/fonts/honorific.woff2`: the one Arabic sign the site sets, ﷺ after the Prophet's name, cut
+  from Noto Sans Arabic by the same script. Its `@font-face` (`'Honorific'`, first in `--font`) has
+  `unicode-range: U+FDFA`, so it is fetched only where the sign appears, sized a fifth over the text
+  with Inter's line metrics divided to match. Write `Prophet\u00a0ﷺ` so it never wraps alone.
 - Icons, all from the app's `assets/logo/qamar-icon.svg` (a white Q on the night
   `#060910`): `favicon.svg` (tabs; drawn for a tab's pixel grid: stroke 112 for the app's 40,
   the ring's outer edge on whole pixels at 16/32/48 and a longer tail, so 16px reads as a Q and
@@ -104,6 +116,15 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   (`QAMAR_SHOWCASE_*` in `.argent/secrets.env`), with a demo-mode status bar
   and the emulator's real clock set to the scene's hour. The day-complete card
   turns its Hijri date at Maghrib, so its time has to match.
+- Every app screen on the site is captured on the `pixel` AVD (Pixel 6, 1080×2400) with the
+  **centred punch-hole cutout** switched on (`cmd overlay enable
+  com.android.internal.display.cutout.emulation.emu01`). Without it Android draws the old short
+  status bar, and the clock hugs the frame's corner as on no current phone. Then
+  `scripts/finish-screen.py` paints out the gesture handle (a stray white stroke in a still; it
+  sits on the tab bar's flat night, so the fill is exact) and draws the camera hole where the
+  device reports it (a screencap leaves the cutout area as the app drew it). Status bar: demo mode,
+  clock set to the scene's hour, Wi-Fi + battery only (`network -e mobile hide` AFTER `wifi show`,
+  or the Wi-Fi icon drops). Restore the overlay, clock, theme and demo mode afterwards.
 - `hero-screen-*` is a bare screenshot (no photo) shown beside the headline:
   Progress on 3 Jumādā al-Thānī 1448, so the crescent on the phone is the
   crescent in the hero's sky. The phone's clock cannot go back before the

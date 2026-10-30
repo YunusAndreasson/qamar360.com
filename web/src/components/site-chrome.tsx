@@ -32,9 +32,11 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
   )
 }
 
+/** The footer. It arrives as the page's last words do, where the page plays its motion (`useReveal`
+ *  in routes/index.tsx); elsewhere it simply stands. */
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
+    <footer className="site-footer reveal">
       {/* Two groups, the site's own pages and its accounts elsewhere, so a narrow screen breaks
           between them and never strands one link on a line. */}
       <nav aria-label="Site">

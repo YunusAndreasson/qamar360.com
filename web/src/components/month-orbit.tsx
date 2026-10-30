@@ -44,7 +44,7 @@ const STOPS: Stop[] = [
   {
     day: 8,
     heading: 'Each act you keep fills the orbit.',
-    body: 'Miss a day and it fills a little less. It never turns red or goes back to\u00a0zero.',
+    body: 'Miss one and it fills a little less. It never turns red or goes back to\u00a0zero.',
     update: {
       title: `First quarter · 8 ${MONTH}`,
       body: `A quarter of ${MONTH} is behind you. You’re at ${degreesAt(8)}°. The moon is up now.`,
@@ -53,7 +53,7 @@ const STOPS: Stop[] = [
   {
     day: 15,
     heading: 'Halfway is the full moon.',
-    body: 'The 13th to the 15th are the White Days, the Sunnah fasts of the full moon. Add them and the app shows them on those days\u00a0only.',
+    body: 'The 13th to the 15th are the White Days, Ayyām\u00a0al‑Bīḍ, the Sunnah fasts of the full\u00a0moon.',
     cite: {
       text: 'When you fast three days of a month, fast the thirteenth, fourteenth and\u00a0fifteenth.',
       source: 'Tirmidhi 761, ḥasan',
@@ -67,7 +67,7 @@ const STOPS: Stop[] = [
     day: 22,
     heading: `Nine nights of ${MONTH} left.`,
     cite: {
-      text: `He fasted in no month more than in ${MONTH}, Ramaḍān\u00a0aside.`,
+      text: `The Prophet\u00a0ﷺ fasted in no month more than in ${MONTH}, apart from\u00a0Ramaḍān.`,
       source: 'Bukhari 1969',
     },
     update: {
@@ -77,7 +77,7 @@ const STOPS: Stop[] = [
   },
   {
     day: LENGTH + 1,
-    heading: 'A month kept whole is 360°.',
+    heading: 'The orbit closes.',
     verse: {
       text: 'Start fasting when you see the crescent, and stop when you see it. If the sky is overcast, complete thirty days of\u00a0Shaʿbān.',
       source: 'Bukhari 1909',
@@ -143,14 +143,13 @@ export function MonthOrbit() {
   const day = Math.min(LENGTH, Math.floor(dayFloat))
   const { illumination, waxing } = eveningPhase(moonDay(play), LENGTH)
   const degrees = Math.round(t * 360)
-  const closed = t >= 1
   const current = STOPS[stop]
 
   return (
     <section ref={sectionRef} className="month" aria-label="One month in Qamar360">
       <div ref={stageRef} className="month-stage">
         <div className="month-words">
-          <p className="marker">A {MONTH} kept in full</p>
+          <p className="marker">A {MONTH}, every act kept</p>
           {/* Every stop is in the document, so the page reads in full without the scroll. */}
           <ol className="play-stops">
             {STOPS.map((s, i) => (
@@ -159,7 +158,7 @@ export function MonthOrbit() {
                 {s.body ? <p>{s.body}</p> : null}
                 {s.cite ? (
                   <p className="cite">
-                    {s.cite.text} <span>{s.cite.source}</span>
+                    <span className="cite-text">{s.cite.text}</span> <span>{s.cite.source}</span>
                   </p>
                 ) : null}
                 {s.verse ? (
@@ -187,10 +186,15 @@ export function MonthOrbit() {
               <NotificationCard key={current.day} title={current.update.title} body={current.update.body} />
             ) : null}
           </div>
-          <Orbit className="month-orbit" progress={t} illumination={illumination} waxing={waxing} />
+          {/* The moon takes the height the update, the reading and the words leave (site.css). */}
+          <div className="month-picture">
+            <Orbit className="month-orbit" progress={t} illumination={illumination} waxing={waxing} />
+          </div>
           <p className="month-reading" aria-live="off">
             <span className="month-degrees">{degrees}°</span>
-            <span className="month-day">{closed ? `${MONTH}, kept whole` : `${day} ${MONTH}`}</span>
+            <span className="month-day">
+              {day} {MONTH}
+            </span>
           </p>
         </div>
       </div>

@@ -13,37 +13,62 @@ the app sends are the lunar updates, at the moon's quarters. Every section says
 one half of that message or leaves the page. As built (concision pass,
 2026-10-27, ~20 phone screens, was ~24):
 
-0. **Hero**: the crescent just after sunset, "Small acts, / kept by the sun /
-   and the moon.", the lede "Qamar360 helps you keep the Sunnah without
-   reminders. You tie small acts to the prayers, and see each month’s progress as an
-   orbit around the moon." (never "no notifications" or "no alerts": the lunar
-   updates are notifications).
-1. **The turn** (one section): habit apps run on reminders that get swiped
-   away; Muslims kept time by the sky. Qurʾān 10:5 as a verse, then "Qamar360
-   does the same. The prayers tell you when to act, and the moon shows how much
-   of the month you kept."
+0. **Hero**: the crescent just after sunset, "Keep the Sunnah / by the sun /
+   and the moon." (user pick 2026-10-27, replacing "Small acts, / kept by the
+   sun / and the moon.", which gave the keeping to the sky), and the lede "Tie a
+   few small acts to the prayers you already keep, and see each Hijri month
+   fill an orbit around the moon. Qamar360 sets no reminders." (never "no
+   notifications" or "no alerts": the lunar updates are notifications). The
+   meta description is the title plus the lede. "Keep" twice on purpose: you
+   already keep the prayers, so keep the Sunnah the same way.
+1. **The turn** (one section; story pass 2026-10-27): it starts from the
+   visitor's own year, not from other apps. "Every Ramaḍān the good acts come
+   easily… By Shawwāl most of them have slipped away.", told again in the
+   app's own measure by two small rings (`AfterRamadan`): Ramaḍān's closes at
+   360°, then Shawwāl's starts and stops at 70°; and one line that
+   reminders don't bring them back. Then **Bukhari 6464** as the verse (the most
+   beloved deed is the most regular, even if little, which the lede's "a few
+   small acts" echoes), and the turn: "The Sunnah sets its small acts at times that come
+   anyway: the adhkār at the end of each prayer, three days of fasting at each
+   full moon. Qamar360 is built on that." (user pick: answers "reminders don't
+   bring them back" with a time that arrives whether you remember or not) (10:5 left the page for it,
+   user call.)
 2. **THE SUN**: **today's sun**, mirroring tonight's moon: one real sun (NASA
    SDO's visible-light photograph, recoloured in the site's warm, the moon's
-   size) and one live line, "Today in Stockholm · ʿAṣr comes next" (the
-   visitor's time-zone city, never a clock time); then Qurʾān 17:78 as a verse; "You already pray five times a day.
+   size) and a two-line caption, a small label and a plain fact: "TODAY IN STOCKHOLM" / "ʿAṣr comes next" (the moon mirrors it: "TONIGHT" / "16 Jumādā al‑Awwal 1448") (the
+   visitor's time-zone city, never a clock time; no credit line under the sun
+   or the moon, user call 2026-10-27); then Qurʾān 17:78 as a verse; "You already pray five times a day.
    Tie a few small acts to a prayer, and the prayer becomes the reminder.", with Stawarz 2015 (routine cues beat reminders) as
-   its cite. Then **`DayPlay`** (`components/day-play.tsx`): the sun travels
+   its cite. Then **`DayPlay`** (`components/day-play.tsx`), its marker naming
+   the prayer the sun rests on (FAJR, DHUHR, ʿAṢR, MAGHRIB, ʿISHĀʾ): the sun travels
    `SunPath`'s arc and rests on each prayer while that prayer's curated stack
    ticks on a DOM port of Today (`components/stack-card.tsx`), each act with
    its sunnah.com-checked source. Fajr (Bilāl, Bukhari 1149), then Dhuhr, ʿAṣr
    and Maghrib passing, then ʿIshāʾ closing the day. The
    day-complete card ("2 Shaʿbān 1448 · 12° · 29 days left") is the bridge to
-   the moon: "The last act closes the day." Then the **supper** still,
+   the moon: "The last act closes the day. The month moves one day further
+   round the moon." While it is up the arc steps back to `--unlit`, so the card
+   is the one lit thing. Then the **supper** still,
    marked `MAGHRIB`: "No alarm went off. The sun set, and that was the cue."
 3. **THE MOON**: tonight's moon live, Qurʾān 2:189 as a verse, then
    `MonthOrbit` plays **a Shaʿbān kept in full** (not Ramaḍān: no White Days in
    Ramaḍān). Its 1st says the app writes only when the moon turns a quarter;
    the four lunar updates appear as cards on the 1st, 8th, 15th and 22nd. 15 is
    the White Days (Tirmidhi 761, ḥasan), 22 nine nights left (Bukhari 1969),
-   360° ends on Bukhari 1909 and Ramaḍān's crescent rising in the warm ring.
+   360° closes on "The orbit closes." over Bukhari 1909, with the next
+   crescent rising in the warm ring. Marker: "A Shaʿbān, every act kept".
+   **User call (2026-10-27): don't lean on Ramaḍān, or it reads as a Ramaḍān
+   app.** Ramaḍān stays where it sets up the rest of the year (the opening's
+   slip, the year's Shawwāl that holds) and in the sources; no countdowns to
+   it, no headings about it.
    Then the rooftop still with no words, and twelve orbits make a year (Qurʾān
-   9:36 as its cite).
-4. **Close**: the last crescent before dawn, "Begin with the next crescent."
+   9:36 as its cite). The year is the opening's payoff: its example Shawwāl
+   holds at 290°, so Shawwāl draws after Ramaḍān closes and the caption names
+   it once ("Shawwāl · 290°") before it says "An example year" again.
+4. **Close**: the last crescent before dawn, "Begin with the next crescent.",
+   and one live line from the visitor's calendar, "Jumādā al‑Thānī begins in
+   15 days." (`nextMonth` in `web/src/lib/moon.ts`; "begins", never "is
+   sighted").
 
 Cut in the concision pass (assets kept): the streak and "tied to the phone"
 paragraphs, the sill still (the Fajr stack already plays live), the Umm
@@ -54,10 +79,11 @@ an act cued by a meal blurs "the prayer is the cue"; they stay in the app and
 the App Store listing). Earlier passes had already cut the wuḍūʾ, Jumuʿah rug and bedside
 stills.
 
-Four texts are set as verses, one per beat: 10:5 (the turn), 17:78 (the sun),
+Four texts are set as verses, one per beat: Bukhari 6464 (the turn), 17:78 (the sun),
 2:189 (the moon) and Bukhari 1909 (the month's end, inside `MonthOrbit`). The
 studies and the other hadith stay small citations. Qurʾān translations are
-Khattab's (*The Clear Quran*), credited on the page. All sources were checked
+Khattab's (*The Clear Quran*); the page cites the āyah alone, without the
+translator (user call, 2026-10-27). All sources were checked
 against sunnah.com and quran.com on 2026-10-27. With the Umm al‑Qura line gone,
 the page must still never claim the crescent is sighted: the app calculates it.
 
@@ -92,6 +118,25 @@ the page must still never claim the crescent is sighted: the app calculates it.
 - A figure follows the words that explain it. A source that is not about the
   figure comes after it, never between the two.
 
+**Fit and scale** (principal pass, 2026-10-30; keep them when the page changes):
+
+- **A played stage never cuts anything off.** Test at what a browser really
+  leaves, not at the device's size: iPhone 14 in Safari is 390×664 with its bars
+  up, iPhone SE 375×553, a 13-inch laptop 1280×640. The stage's words and cards
+  keep their size and the picture (the moon, the arc) takes the height left over,
+  up to its own full size (`.month-picture`, `.day-picture`, read as `100cqh`).
+  Short screens tighten in two tiers (`max-height` 719 and 599): the app's rows
+  to their densest; then, on a phone, a stop that has its own words keeps its
+  source and lets the quotation go, and the marker steps aside. A stop that is
+  only a quotation keeps it.
+- **A large screen sees the laptop's composition, larger.** `--u` on `.landing`
+  is a pixel up to 1440 and grows with the screen to 1.4 at 2016; sizes that
+  should grow are written `calc(N * var(--u))`, and the app's own screens drawn on
+  the page grow as one piece through `zoom` in three steps. Don't add a new fixed
+  cap in px or rem to the landing page.
+- **The headline is three lines on every phone**: its size follows the width, so
+  its longest line nearly fills the measure and never wraps to a fourth.
+
 The earlier, superseded builds: a page round the orbit alone (2026-10-26), and
 before that one night from Maghrib to Fajr (section 4's table below).
 
@@ -103,7 +148,9 @@ store badge. Everything on the page is measured against that.
 - **One action**: download. No sign-up, no newsletter, no login (the web app is
   retired, section 8), no pricing table, no blog.
 - **English only** at launch. **No Arabic script** on the page; transliteration
-  only, as in the app.
+  only, as in the app. One exception (user call, 2026-10-27): **ﷺ after the
+  Prophet's name**, drawn from a one-glyph Noto Sans Arabic subset
+  (`web/src/fonts/honorific.woff2`) so it never falls back to a system font.
 - **One metric**: store-badge taps per visit, split by platform (section 9).
 - **Dark only.** No light theme, no toggle. The site is night.
 
@@ -213,6 +260,9 @@ apply to every string on the site.
 - **No aphorisms.** No balanced "the X tells you when, and the Y how far"
   lines, no "Nothing X, and nothing Y" closers, no appositive that re-explains
   the sentence before it. Say the plain thing.
+- **Show, don't explain.** A line that explains a mechanic the played day or
+  month already shows (degrees per day, how a missed act counts, which days a
+  fast appears) goes to /support, not the page. The page speaks to why.
 - **No app-internal nouns** a visitor can't know (exchange, stripe, Today,
   Progress) unless the sentence explains them. "Stack" is explained where it
   first appears.
@@ -299,6 +349,11 @@ If any are missing, subset them from a matching face or reword.
 
 Scale, approximate: headline 44 / 28 px (desktop / phone), body 19 / 17 px,
 marker 12 px at 0.2em tracking. Body line length ≤ 60 characters.
+
+Small capitals are for title cards only: the chapter cards, the prayers' names
+and the sky's labels. A source under a verse and the month's marker are sentences
+and names, so they stand in their own spelling, where the diacritics can be read
+(Qurʾān 17:78, not QURʾĀN 17:78).
 
 ### Imagery
 
@@ -389,6 +444,13 @@ As built (2026-10-27):
   Fajr. This is `nightLight` in `web/src/lib/play.ts`, set by the starfield as
   `--dusk`/`--dawn` on a fixed `.horizon`. It is never more than a tint, and the
   other pages stay in plain night.
+- **The sun lights the played day** (`skyAt` in `web/src/components/sun-path.tsx`,
+  tested). The sun on the arc is the same NASA picture that opens the half, and it
+  lights the diagram's sky as it goes: a cold line of true dawn at Fajr, the blue
+  of a sky lit from above at Dhuhr, warm air as it nears the horizon, and at
+  ʿIshāʾ nothing, because the twilight has gone. The horizon stops the light and
+  hides the sun as the ground does, so at Maghrib it stands half set. It is a
+  tint, moved by transforms; only the sun's light may be warm here.
 - **The stars** (`web/src/components/starfield.tsx`) set the scene and are not
   the subject:
   - about one star per 2,500 px², mostly faint;
@@ -396,9 +458,13 @@ As built (2026-10-27):
   - a drift of at most a pixel a second;
   - mid and faint stars twinkle over 5–11 s;
   - under reduced motion, one still frame that still takes the night's light.
-- **The first screen.** The photograph comes up out of the dark over 2.8 s. The
-  headline is there at once: it is the message and the largest paint. The lede,
-  the call and the app screen follow within a second.
+- **The first screen.** The photograph comes up out of the dark over 2.4 s. The
+  headline arrives over it a line at a time, 0.12 s apart; the lede, the app
+  screen, the call and the wordmark follow its last line, all within a second.
+  The headline is the largest paint, so it starts at 1% opacity, not 0: Chrome
+  counts no paint at opacity 0, and at 0 the page reported no LCP at all
+  (measured: LCP stays at first paint, ~0.5 s at 4× CPU). All CSS, so it runs
+  before hydration. The footer arrives as the page's last reveal.
 - **Reveals.** Text fades in once and rises 8 px. Verses don't rise: they come
   into focus over 1.6 s. A still's words, the year's heading and the close
   arrive line by line, 0.12 s apart.
@@ -409,7 +475,12 @@ As built (2026-10-27):
 - **The sun and the moon** at the head of each half fade in once their picture
   is there.
 - **The year** draws its twelve stripes once as it comes into view, Ramaḍān
-  closing last.
+  closing last; then Shawwāl draws, its number lights and the caption names
+  it for about three seconds (`--shawwal-at`, `--beat-at` on `.year`). The
+  opening's two rings draw the same way, one after the other. Both are the
+  page's setup and payoff: the slip after Ramaḍān, and a Shawwāl that holds.
+  A ring hides at once when the reveals are set up and only its drawing is
+  timed, or a long wait would leave it drawn on screen until it ran out.
 - **The played stages** fade in as their section arrives and back into the
   night as it leaves (`arrival` × `departure`).
 - **Between pages**, one soft crossfade (the router's view transition).
@@ -572,7 +643,8 @@ These ship first (section 10), because store review needs them.
 
    **Safari on a real iPhone** (no WebKit on the dev machine), in a dark room:
    - The street comes up from the dark at first paint without a flash. The
-     headline is there at once, and the lede, the screen and the call follow.
+     headline arrives a line at a time, and the lede, the screen and the call
+     follow.
    - A fast flick past a still never shows it bright before it develops.
    - The dusk glow at the top and the dawn glow at the foot stay a tint.
      Neither jumps when the address bar hides or shows (`.horizon` is

@@ -6,15 +6,17 @@ import { Site } from '#/site'
 import interFont from '#/fonts/inter-4.1.1.woff2?url'
 import siteCss from '#/site.css?url'
 
+/** What a search result or a shared link reads: the page's headline and its lede. */
+const TITLE = `${Site.name}: keep the Sunnah by the sun and the moon`
 const DESCRIPTION =
-  'Qamar360 helps you keep the Sunnah without reminders. You tie small acts to the prayers, and see each Hijri month’s progress as an orbit around the moon.'
+  'Keep the Sunnah by the sun and the moon. Tie a few small acts to the prayers you already keep, and see each Hijri month fill an orbit around the moon. Qamar360 sets no reminders.'
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-      { title: Site.name },
+      { title: TITLE },
       { name: 'description', content: DESCRIPTION },
       // The site is night only; match the browser chrome to it.
       { name: 'theme-color', content: '#060910' },
@@ -23,13 +25,12 @@ export const Route = createRootRoute({
       { name: 'twitter:creator', content: '@YunusAndreasson' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { property: 'og:type', content: 'website' },
-      { property: 'og:url', content: Site.url },
       { property: 'og:image', content: `${Site.url}/og.jpg` },
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
       { property: 'og:image:alt', content: 'A man walks alone down a wet cobbled street at dusk, under a thin crescent moon.' },
       { property: 'og:site_name', content: Site.name },
-      { property: 'og:title', content: Site.name },
+      { property: 'og:title', content: TITLE },
       { property: 'og:description', content: DESCRIPTION },
     ],
     links: [
@@ -48,6 +49,20 @@ export const Route = createRootRoute({
       { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
     scripts: [
+      // What the site is about, for search engines: the app, with no rating or price it hasn't got.
+      {
+        type: 'application/ld+json',
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'MobileApplication',
+          name: Site.name,
+          url: Site.url,
+          description: DESCRIPTION,
+          applicationCategory: 'LifestyleApplication',
+          operatingSystem: 'iOS, Android',
+          author: { '@id': 'https://andreassonphoto.com/#person' },
+        }),
+      },
       // Person JSON-LD — identical @id across every one of the maker's sites so search engines
       // resolve them to one entity.
       {
