@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-
 import { MoonCanvas } from '#/components/moon-canvas'
+
+import type { ReactNode } from 'react'
 
 /**
  * The app's Today, drawn on the page: a section label, a stack card and the card that closes the

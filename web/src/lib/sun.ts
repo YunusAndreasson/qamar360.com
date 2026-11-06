@@ -32,14 +32,16 @@ function solar(ms: number) {
   return { decl, eot: eot * 4 }
 }
 
-/** Solar noon nearest an instant. */
+/** Solar noon nearest an instant: the middle of the solar day the instant falls in. */
 function solarNoon(ms: number, { lon }: Place) {
-  let noon = ms
+  // The mean noon on the instant's UTC date, moved by whole days to the one nearest the instant: far
+  // east or west of Greenwich the UTC date's own noon can lie most of a day away (from Los Angeles
+  // westward, the UTC date turns in the afternoon, and the evening would read tomorrow's prayers).
+  let mean = Math.floor(ms / DAY_MS) * DAY_MS + (720 - 4 * lon) * 60_000
+  mean += Math.round((ms - mean) / DAY_MS) * DAY_MS
   // Two passes: the equation of time is read at the noon it helps to find.
-  for (let i = 0; i < 2; i++) {
-    const day = Math.floor(noon / DAY_MS) * DAY_MS
-    noon = day + (720 - 4 * lon - solar(noon).eot) * 60_000
-  }
+  let noon = mean
+  for (let i = 0; i < 2; i++) noon = mean - solar(noon).eot * 60_000
   return noon
 }
 
@@ -61,6 +63,8 @@ export type PrayerName = 'Fajr' | 'Dhuhr' | 'ʿAṣr' | 'Maghrib' | 'ʿIshāʾ'
 
 export type SunDay = {
   noon: number
+  /** Null where the sun stays up, or stays down, all day. */
+  sunrise: number | null
   /** The five prayers in order; Fajr and ʿIshāʾ are null where the sky never darkens to −18°. */
   prayers: { name: PrayerName; at: number | null }[]
 }
@@ -73,6 +77,7 @@ export function sunDay(ms: number, place: Place): SunDay {
   const asr = Math.atan(1 / (1 + Math.tan(Math.abs(place.lat - decl) * RAD))) / RAD
   return {
     noon,
+    sunrise: crossing(noon, HORIZON, -1, place),
     prayers: [
       { name: 'Fajr', at: crossing(noon, TWILIGHT, -1, place) },
       // Dhuhr comes once the sun has passed its height, not at the instant itself.
@@ -94,4 +99,15 @@ export function dayToShow(ms: number, place: Place): SunDay {
 /** The next prayer the sun brings, from an instant. */
 export function nextPrayer(ms: number, day: SunDay): PrayerName {
   return day.prayers.find((p) => p.at !== null && p.at > ms)?.name ?? 'Fajr'
+}
+
+/**
+ * Whether an instant falls in the night of the day shown (`dayToShow`): after its Maghrib, or before
+ * its Fajr, which opens the day. Where the sky never darkens to Fajr's depth, the night ends at
+ * sunrise; where the sun never sets, there is none.
+ */
+export function isNight(ms: number, day: SunDay): boolean {
+  const maghrib = day.prayers[3].at
+  const dawn = day.prayers[0].at ?? day.sunrise
+  return (maghrib !== null && ms > maghrib) || (dawn !== null && ms < dawn)
 }

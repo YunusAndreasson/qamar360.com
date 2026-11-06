@@ -201,8 +201,8 @@ export function MoonCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rendererRef = useRef<Renderer | null>(null)
+  // The phase last drawn, for a redraw the props didn't ask for: a resize, or the renderer arriving.
   const latest = useRef({ illumination, waxing, brightness })
-  latest.current = { illumination, waxing, brightness }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -220,12 +220,25 @@ export function MoonCanvas({
       }
     }
     resize()
-    const renderer = createRenderer(canvas, () => canvas.setAttribute('data-ready', ''))
-    rendererRef.current = renderer
-    redraw()
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
+    // The GPU and the texture are taken only once the moon comes within a screen of view. The first
+    // moon is far down the page, and a visitor who reads only its opening never fetches the texture,
+    // about half of everything the page would otherwise load.
+    let renderer: Renderer | null = null
+    const near = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        near.disconnect()
+        renderer = createRenderer(canvas, () => canvas.setAttribute('data-ready', ''))
+        rendererRef.current = renderer
+        redraw()
+      },
+      { rootMargin: '100% 0px' },
+    )
+    near.observe(canvas)
     return () => {
+      near.disconnect()
       observer.disconnect()
       renderer?.dispose()
       rendererRef.current = null
@@ -233,6 +246,7 @@ export function MoonCanvas({
   }, [])
 
   useEffect(() => {
+    latest.current = { illumination, waxing, brightness }
     rendererRef.current?.draw(illumination, waxing, brightness)
   }, [illumination, waxing, brightness])
 

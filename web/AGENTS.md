@@ -33,7 +33,12 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
     sky does, via `lib/tz-coords.ts`, a copy of the app's generated table loaded
     on demand; the solar maths in `lib/sun.ts`, tested against astronomy-engine)
     and tonight's moon in its phase. Neither shows a clock time: the app gives
-    the prayers none;
+    the prayers none. The line says "Tonight" from Maghrib until Fajr (`isNight`),
+    and names the place with `lib/zone.ts`: Chrome reports a renamed city by its
+    old zone name (`Asia/Calcutta`, `Europe/Kiev`, `Asia/Saigon`), and a few
+    zones are named for a country (`Indian/Maldives`). The solar day is the one
+    whose noon is nearest the instant, never the UTC date's: from Los Angeles
+    westward the UTC date turns in the afternoon;
   - the sun: `DayPlay` (`day-play.tsx`), the real sun travelling its arc
     (`sun-path.tsx`) and lighting its sky (`skyAt`) as it rests on each prayer,
     while that prayer's curated stack ticks on a port of Today (`stack-card.tsx`:
@@ -173,7 +178,11 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   `-webkit-font-smoothing` / `-webkit-tap-highlight-color` stay by hand).
 - The moon texture is decoded once per page with `createImageBitmap`
   (`colorSpaceConversion: 'none'`), shared by every moon canvas; verified
-  texel-exact against the PNG in Gecko and Chromium.
+  texel-exact against the PNG in Gecko and Chromium. It is 530 KB, more than the
+  rest of the first load together, so a moon takes its WebGL context and the
+  texture only when it first comes within a screen of view (`moon-canvas.tsx`);
+  the first is at the close of the played day. A lossless WebP was 9% smaller,
+  not worth a new decode path.
 - Headless Chromium logs "GPU stall due to ReadPixels" for any WebGL canvas: it
   is SwiftShader compositing, not the site's code.
 

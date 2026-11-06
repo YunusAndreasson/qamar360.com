@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import { dayToShow, nextPrayer, type Place } from '#/lib/sun'
+import { dayToShow, isNight, nextPrayer, type Place } from '#/lib/sun'
+import { placeOf } from '#/lib/zone'
 
 /**
  * Today's sun, opening the sun's half as tonight's moon opens the moon's: one real sun, a
@@ -26,7 +27,7 @@ async function locate(): Promise<Here> {
   const { TZ_COORDS } = await import('#/lib/tz-coords')
   const coords = zone ? TZ_COORDS[zone] : undefined
   if (!zone || !coords) return MECCA
-  return { place: { lat: coords[0], lon: coords[1] }, city: zone.split('/').pop()!.replaceAll('_', ' ') }
+  return { place: { lat: coords[0], lon: coords[1] }, city: placeOf(zone) }
 }
 
 /** The next prayer where the visitor is, read in the browser after hydration and once a minute. */
@@ -44,10 +45,7 @@ function useNextPrayer() {
   }, [])
   if (!here) return null
   const day = dayToShow(now, here.place)
-  const maghrib = day.prayers[3].at
-  // After Maghrib, or once the day shown is tomorrow's, it is night.
-  const night = (maghrib !== null && now > maghrib) || now < day.noon - 12 * 3_600_000
-  return { city: here.city, prayer: nextPrayer(now, day), night }
+  return { city: here.city, prayer: nextPrayer(now, day), night: isNight(now, day) }
 }
 
 export function TodaySun() {

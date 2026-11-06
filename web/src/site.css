@@ -334,6 +334,11 @@ a:hover {
   font-weight: 600;
 }
 
+/* A place in the app's menus is one name to look for, so it stays on one line. */
+.doc-menu {
+  white-space: nowrap;
+}
+
 /* ── Holding page, until the download site replaces it ─────────────────── */
 
 .holding-page {

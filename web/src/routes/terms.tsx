@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { DocPage, docHead } from '#/components/doc-page'
+import { DocPage, docHead, Menu } from '#/components/doc-page'
 import { Site } from '#/site'
 
 export const Route = createFileRoute('/terms')({
@@ -24,7 +24,7 @@ function Terms() {
       <p>
         Use an email address you can receive mail at, and keep your password to yourself. You are
         responsible for what happens under your account. You can delete it at any time from{' '}
-        <strong>Settings &rsaquo; Delete account</strong>.
+        <Menu>Settings &rsaquo; Delete account</Menu>.
       </p>
 
       <h2>What you record is yours</h2>

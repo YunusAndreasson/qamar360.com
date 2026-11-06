@@ -58,7 +58,9 @@ one half of that message or leaves the page. As built (concision pass,
 3. **THE MOON**: tonight's moon live, Qurʾān 2:189 as a verse, then
    `MonthOrbit` plays **a Shaʿbān kept in full** (not Ramaḍān: no White Days in
    Ramaḍān). Its 1st says the app writes only when the moon turns a quarter;
-   the four lunar updates appear as cards on the 1st, 8th, 15th and 22nd. 15 is
+   the four lunar updates appear as cards on the 1st, 8th, 15th and 22nd, each
+   as the orbit reaches its day (the stop's words come halfway through the run,
+   the update with the day, so a card never reads "You're at 84°" over 75°). 15 is
    the White Days (Tirmidhi 761, ḥasan), 22 nine nights left (Bukhari 1969),
    360° closes on "The orbit closes." over Bukhari 1909, with the next
    crescent rising in the warm ring. Marker: "A Shaʿbān, every act kept".

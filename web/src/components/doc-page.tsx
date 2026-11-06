@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
-
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
 import { DOCS_UPDATED, Site } from '#/site'
+
+import type { ReactNode } from 'react'
 
 /** A document page's `<head>`: its title, its description and its own address. */
 export function docHead(title: string, description: string) {
@@ -16,6 +16,12 @@ export function docHead(title: string, description: string) {
     ],
     links: [{ rel: 'canonical', href: url }],
   }
+}
+
+/** A place in the app's menus, such as Settings › Delete account: read as one name, so a line never
+ *  breaks inside it. */
+export function Menu({ children }: { children: ReactNode }) {
+  return <strong className="doc-menu">{children}</strong>
 }
 
 /** The frame shared by the privacy policy, terms and support page: one readable column. */

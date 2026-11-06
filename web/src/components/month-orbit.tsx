@@ -144,6 +144,9 @@ export function MonthOrbit() {
   const { illumination, waxing } = eveningPhase(moonDay(play), LENGTH)
   const degrees = Math.round(t * 360)
   const current = STOPS[stop]
+  // An update lands on its own day, as the app sends it, so it never tells of a quarter the orbit
+  // has not reached: the stop's words come halfway through the run to it, its update with the day.
+  const update = current.update && day >= current.day ? current.update : null
 
   return (
     <section ref={sectionRef} className="month" aria-label="One month in Qamar360">
@@ -182,9 +185,7 @@ export function MonthOrbit() {
                 </div>
               ) : null,
             )}
-            {current.update ? (
-              <NotificationCard key={current.day} title={current.update.title} body={current.update.body} />
-            ) : null}
+            {update ? <NotificationCard key={current.day} title={update.title} body={update.body} /> : null}
           </div>
           {/* The moon takes the height the update, the reading and the words leave (site.css). */}
           <div className="month-picture">

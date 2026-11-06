@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { DocPage, docHead } from '#/components/doc-page'
+import { DocPage, docHead, Menu } from '#/components/doc-page'
 import { Site } from '#/site'
 
 /*
@@ -33,7 +33,7 @@ function Support() {
 
       <h2>How do I delete my account?</h2>
       <p>
-        In the app, <strong>Settings &rsaquo; Delete account</strong>. Your account, everything you
+        In the app, <Menu>Settings &rsaquo; Delete account</Menu>. Your account, everything you
         recorded and your profile photo are deleted at once, and this cannot be undone. If you no
         longer have the app, write to me from the address on your account and I will delete it for
         you.
@@ -43,7 +43,7 @@ function Support() {
       <p>
         A few acts tied to a moment already in your day, such as Fajr, waking up or getting into bed.
         The moment is the cue, and the acts follow it.{' '}
-        <strong>Settings &rsaquo; Habit stacking</strong> explains it in full, with its sources.
+        <Menu>Settings &rsaquo; Habit stacking</Menu> explains it in full, with its sources.
       </p>
 
       <h2>What do the degrees mean?</h2>
@@ -56,19 +56,19 @@ function Support() {
       <h2>Why are there so few notifications?</h2>
       <p>
         Qamar360 sends four a month, one at each quarter of the moon, and nothing for each habit.
-        Allow them, or turn them off, in <strong>Settings &rsaquo; Lunar updates</strong>.
+        Allow them, or turn them off, in <Menu>Settings &rsaquo; Lunar updates</Menu>.
       </p>
 
       <h2>The Hijri date is a day off</h2>
       <p>
         Moon sighting differs from place to place. Adjust it in{' '}
-        <strong>Settings &rsaquo; Hijri date</strong> to match the calendar your masjid or community
+        <Menu>Settings &rsaquo; Hijri date</Menu> to match the calendar your masjid or community
         follows.
       </p>
 
       <h2>I want to start my progress again</h2>
       <p>
-        <strong>Settings &rsaquo; Reset progress</strong> clears the days you have kept. Your habits
+        <Menu>Settings &rsaquo; Reset progress</Menu> clears the days you have kept. Your habits
         and stacks stay as they are.
       </p>
     </DocPage>

@@ -2,8 +2,8 @@ import { HeadContent, Link, Scripts, createRootRoute } from '@tanstack/react-rou
 
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
 import { Starfield } from '#/components/starfield'
-import { Site } from '#/site'
 import interFont from '#/fonts/inter-4.1.1.woff2?url'
+import { Site } from '#/site'
 import siteCss from '#/site.css?url'
 
 /** What a search result or a shared link reads: the page's headline and its lede. */

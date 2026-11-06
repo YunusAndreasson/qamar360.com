@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { DocPage, docHead } from '#/components/doc-page'
+import { DocPage, docHead, Menu } from '#/components/doc-page'
 import { Site } from '#/site'
 
 /*
@@ -110,13 +110,13 @@ function Privacy() {
 
       <h2>How long it is kept</h2>
       <p>
-        For as long as you have an account. In the app, <strong>Settings &rsaquo; Delete account</strong>{' '}
+        For as long as you have an account. In the app, <Menu>Settings &rsaquo; Delete account</Menu>{' '}
         deletes your account, everything you recorded and your profile photo at once. It cannot be
         undone. Copies in the hosting provider&rsquo;s routine backups disappear as those backups are
         replaced. Security logs are kept for a short period and then deleted.
       </p>
       <p>
-        <strong>Settings &rsaquo; Reset progress</strong> clears the days you have kept but leaves
+        <Menu>Settings &rsaquo; Reset progress</Menu> clears the days you have kept but leaves
         your account and your habits.
       </p>
 
