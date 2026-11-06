@@ -21,6 +21,9 @@ import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { configureNotifications, subscribeToUpdateTaps } from '@/lib/notifications';
 import { initPreferences } from '@/lib/preferences';
 
+// expo-router renders this in place of the whole layout, providers included, when the tree throws.
+export { AppErrorBoundary as ErrorBoundary } from '@/components/app-error-boundary';
+
 void SplashScreen.preventAutoHideAsync();
 
 // Push the preferences that plain modules hold as their own state (the Hijri adjustment) before
