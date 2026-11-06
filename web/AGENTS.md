@@ -101,8 +101,32 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   (CIE Lab): shadows to the night `#060910` and its indigo, sodium orange
   calmed toward moonglow `#F4EACB`, skies off royal navy, the generated
   "HDR clarity" relaxed, a soft shoulder. Grade a new still the same way before
-  it goes on the page. No brand marks in any picture (the supper phone is a
-  plain black slab).
+  it goes on the page. No brand marks in any picture (a phone in a still is a
+  plain black slab or lies face down).
+- A new still is made the way the set was, or it reads as "pure AI" (a raw render
+  shown on 2026-11-06 was judged far worse than the set):
+  - `scripts/codex-image.sh` renders it with the set's own photographs attached as
+    references (the app's `assets/images/guide-*.webp`, a still from the page), from a
+    plain description of the scene in `art/prompts/` plus the shared `art/prompts/style.txt`.
+    Never "cinematic", a cinematographer's or painter's name, or a saturated sunset: those
+    pull the model's stock look (orange-and-teal skies, glossy cobbles, every window lit,
+    empty staged rooms). Rooms are lived in.
+  - Grade every render, then judge it only beside the stills already on the page, in the
+    page's frame with its words, at 100%.
+  - Codex renders about 1.6 MP (1672×941 for 16:9, whatever size is asked for). Don't
+    sharpen or AI-upscale a still for large screens: sharp generated detail reads as more
+    generated, and the set's softness is part of why it does not.
+  - Masters (the raw render and the graded one) go in `art/masters/`.
+- `maghrib` (under "No alarm went off.") is a man kneeling in the sitting of the
+  prayer just after sunset, by the window of the flat in the guide photos; on the
+  table a glass and a phone lying face down. It replaced the supper table, which
+  read as dinner rather than the prayer. Its dark left edge is widened from its
+  own pixels by `scripts/widen-left.py`, so the 2.39:1 crop holds both the sky in
+  the window and the rug; the 4:5 crop is `753x941+900+0` of the graded render.
+- `scripts/export-photo.sh <png> <name> <widths…>` writes the AVIF and WebP pair.
+  AVIF is 10-bit 4:2:0: at 8 bits the smooth near-black of an out-of-focus wall
+  breaks into blocks (measured), and 4:2:0 keeps it in AV1's Main profile, which
+  every AVIF decoder reads.
 - The moon in a photograph must be the real moon of its scene: an evening
   crescent (the hero) is lit on the side of the set sun, the last crescent
   before dawn (the close) is lit toward the glow under it, and the portrait hero

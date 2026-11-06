@@ -3,9 +3,11 @@ picture of the whole disc, recoloured in the site's own warm, as the moon is dra
 moonlight.
 
 Usage: uv run --no-project --with opencv-python-headless --with numpy python scripts/sun-image.py <hmi.jpg> <out.png>
+Then export 288 and 576 px squares (Lanczos) as AVIF and WebP into public/sun/.
 
-Source: https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_HMIIC.jpg (NASA imagery, free to
-use with credit; the credit is on the page). The picture's orange is NASA's colouring; only its
+Source: https://sdo.gsfc.nasa.gov/assets/img/browse/2024/05/08/20240508_120000_4096_HMIIC.jpg, the
+whole disc at 4096 px on a day the great group AR 3664 stood near the centre, so the sunspots show
+it is a photograph and not a drawn ball (NASA imagery, free to use). The picture's orange is NASA's colouring; only its
 light is kept: the brightness across the disc, which is the sun's real limb darkening. The disc is
 cut out with an anti-aliased edge (which also drops NASA's caption in the corner), and the light
 is mapped from a deep amber at the limb to the app's moonlight (#FFF6E1) at the centre.

@@ -24,8 +24,10 @@ one half of that message or leaves the page. As built (concision pass,
 1. **The turn** (one section; story pass 2026-10-27): it starts from the
    visitor's own year, not from other apps. "Every Ramaḍān the good acts come
    easily… By Shawwāl most of them have slipped away.", told again in the
-   app's own measure by two small rings (`AfterRamadan`): Ramaḍān's closes at
-   360°, then Shawwāl's starts and stops at 70°; and one line that
+   app's own measure by two rings (`AfterRamadan`): Ramaḍān's closes at
+   360°, then Shawwāl's starts and stops at 70°, each labelled with its degrees
+   over its name (2026-11-06: twice the size, so the passage has one picture and
+   the year's "Shawwāl · 290°" answers a number already seen); and one line that
    reminders don't bring them back. Then **Bukhari 6464** as the verse (the most
    beloved deed is the most regular, even if little, which the lede's "a few
    small acts" echoes), and the turn: "The Sunnah sets its small acts at times that come
@@ -48,8 +50,11 @@ one half of that message or leaves the page. As built (concision pass,
    day-complete card ("2 Shaʿbān 1448 · 12° · 29 days left") is the bridge to
    the moon: "The last act closes the day. The month moves one day further
    round the moon." While it is up the arc steps back to `--unlit`, so the card
-   is the one lit thing. Then the **supper** still,
-   marked `MAGHRIB`: "No alarm went off. The sun set, and that was the cue."
+   is the one lit thing. Then the **Maghrib** still (2026-11-06, user pick; it
+   replaced a supper table, which read as dinner rather than the prayer): a man
+   kneeling in the sitting of the prayer just after sunset, by the window of the
+   flat in the app's guide photos, a phone lying face down on the table. Marked
+   `MAGHRIB`: "No alarm went off. The sun set, and that was the cue."
 3. **THE MOON**: tonight's moon live, Qurʾān 2:189 as a verse, then
    `MonthOrbit` plays **a Shaʿbān kept in full** (not Ramaḍān: no White Days in
    Ramaḍān). Its 1st says the app writes only when the moon turns a quarter;
@@ -68,7 +73,9 @@ one half of that message or leaves the page. As built (concision pass,
 4. **Close**: the last crescent before dawn, "Begin with the next crescent.",
    and one live line from the visitor's calendar, "Jumādā al‑Thānī begins in
    15 days." (`nextMonth` in `web/src/lib/moon.ts`; "begins", never "is
-   sighted").
+   sighted"). Under the call, one quiet line (2026-11-06, user call): "Free,
+   with no ads and no tracking.", as the terms and the privacy policy say; if
+   either changes, this line changes with it.
 
 Cut in the concision pass (assets kept): the streak and "tied to the phone"
 paragraphs, the sill still (the Fajr stack already plays live), the Umm
@@ -370,7 +377,12 @@ portrait. A full-bleed desktop image needs ~2560 px wide. So:
   composition, or upscale and check grain.
 - Three new images (section 4 table: night sky, dawn, optionally bedroom).
 
-**Brief for Codex image generation** (one shared prefix so the set matches):
+**Brief for Codex image generation** (one shared prefix so the set matches).
+*Superseded 2026-11-06:* the shared prefix is now `web/art/prompts/style.txt`,
+written as a photographer's notes on light and camera. Words like "cinematic"
+and a cinematographer's name pulled the model's stock look and a raw render was
+judged "pure AI"; the method that works is in `web/AGENTS.md` (references, plain
+prompts, the grade, judged beside the set). The original brief, for the record:
 
 > Cinematic still, 35 mm anamorphic, blue hour or night in an old northern
 > European city (Copenhagen, Stockholm). One man, late twenties, beard, dark

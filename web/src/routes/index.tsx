@@ -7,8 +7,8 @@ import { MonthRing } from '#/components/month-ring'
 import { MoonCanvas } from '#/components/moon-canvas'
 import { Photo } from '#/components/photo'
 import { SiteFooter, SiteHeader } from '#/components/site-chrome'
-import { TodaySun } from '#/components/today-sun'
 import { Chapter, Passage, Verse } from '#/components/story'
+import { TodaySun } from '#/components/today-sun'
 import { YearOrbits } from '#/components/year-orbits'
 import { eveningPhase, hijriDate, type HijriDate, nextMonth } from '#/lib/moon'
 import { Site } from '#/site'
@@ -57,19 +57,24 @@ function TonightMoon() {
 }
 
 /** The opening's two months in the app's own measure: Ramaḍān's orbit closes, then Shawwāl's
- *  starts and stops short. The year near the close answers it, with a Shawwāl that holds. */
+ *  starts and stops short. Each is read as the month's orbit is, its degrees over its name, so the
+ *  year near the close answers a number the visitor has seen: there Shawwāl holds. */
+const SLIP = [
+  { month: 'Ramaḍān', degrees: 360 },
+  { month: 'Shawwāl', degrees: 70 },
+]
+
 function AfterRamadan() {
   return (
     <figure className="slip reveal" role="img" aria-label="Ramaḍān’s orbit closed at 360°. Shawwāl’s stopped at 70°.">
       <ol aria-hidden>
-        <li>
-          <MonthRing degrees={360} />
-          Ramaḍān
-        </li>
-        <li>
-          <MonthRing degrees={70} order={1} />
-          Shawwāl
-        </li>
+        {SLIP.map((m, i) => (
+          <li key={m.month} data-closed={m.degrees >= 360 || undefined}>
+            <MonthRing degrees={m.degrees} order={i} />
+            <span className="slip-degrees">{m.degrees}°</span>
+            {m.month}
+          </li>
+        ))}
       </ol>
     </figure>
   )
@@ -140,14 +145,16 @@ function Frame({
   name,
   alt,
   side,
-  sharp = false,
+  widths,
+  tallWidths,
   children,
 }: {
   name: string
   alt: string
   side?: 'left'
-  /** Exported at twice the size too, for a still whose detail must stay crisp (the phone's screen). */
-  sharp?: boolean
+  /** The widths the still is exported at (`scripts/export-photo.sh`), wide and portrait. */
+  widths: number[]
+  tallWidths: number[]
   children?: ReactNode
 }) {
   // A still with words is a section of the page; one without is a pause between them.
@@ -157,8 +164,8 @@ function Frame({
       <Photo
         className="frame-photo develop"
         name={`${name}-wide`}
-        widths={sharp ? [960, 1536, 2560] : [960, 1536]}
-        tall={{ name: `${name}-tall`, widths: sharp ? [600, 820, 1640] : [600, 820] }}
+        widths={widths}
+        tall={{ name: `${name}-tall`, widths: tallWidths }}
         alt={alt}
       />
       {children ? <div className="frame-words reveal">{children}</div> : null}
@@ -278,9 +285,11 @@ function Home() {
         <DayPlay />
 
         <Frame
-          name="supper"
+          name="maghrib"
           side="left"
-          alt="A table by a window just after Maghrib, the last red of the sunset low over the rooftops, one place set under a warm lamp, a dark phone lying face down beside the napkin."
+          widths={[960, 1536, 2240]}
+          tallWidths={[600, 750]}
+          alt="Just after sunset, a man kneels in prayer on a small rug in a dim room. Through the window the last light lies low over the rooftops; on the table, a glass of water and a phone lying face down."
         >
           <p className="marker">Maghrib</p>
           <h2>No alarm went&nbsp;off.</h2>
@@ -299,9 +308,11 @@ function Home() {
 
         <MonthOrbit />
 
+        {/* Exported at twice the size too, so the phone's screen in it stays crisp. */}
         <Frame
           name="rooftop"
-          sharp
+          widths={[960, 1536, 2560]}
+          tallWidths={[600, 820, 1640]}
           alt="On a rooftop at night, a hand holds up a phone showing Qamar360’s Progress: the month’s orbit at 138° round the full moon, while the real full moon hangs over the city behind it."
         />
 
@@ -331,6 +342,8 @@ function Home() {
             <h2>Begin with the next crescent.</h2>
             <NextCrescent />
             <p className="coming">Coming to iPhone and Android</p>
+            {/* As the terms and the privacy policy say. */}
+            <p className="close-note">Free, with no ads and no&nbsp;tracking.</p>
           </div>
         </section>
       </main>

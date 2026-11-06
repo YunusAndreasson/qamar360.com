@@ -56,9 +56,19 @@ export function TodaySun() {
     <figure className="sky-now reveal" data-ready={next ? '' : undefined}>
       {/* It develops out of the night as the stills do (the page's `useReveal`). */}
       <div className="today-sun develop">
+        {/* Twice the size for a sharp screen, where the sunspots are what tell a photograph of the sun
+            from a drawn one. */}
         <picture>
-          <source type="image/avif" srcSet="/sun/sun-288.avif" />
-          <img src="/sun/sun-288.webp" alt="" width={288} height={288} loading="lazy" decoding="async" />
+          <source type="image/avif" srcSet="/sun/sun-288.avif 1x, /sun/sun-576.avif 2x" />
+          <img
+            src="/sun/sun-288.webp"
+            srcSet="/sun/sun-288.webp 1x, /sun/sun-576.webp 2x"
+            alt=""
+            width={288}
+            height={288}
+            loading="lazy"
+            decoding="async"
+          />
         </picture>
       </div>
       <figcaption>

@@ -541,6 +541,10 @@ a:hover {
   --i: 2;
 }
 
+:is(.frame-words, .year-words, .close-words) > :nth-child(4) {
+  --i: 3;
+}
+
 /* Words laid over a still follow the picture. */
 .close-words {
   --after: var(--follow);
@@ -844,6 +848,12 @@ a:hover {
 /* The moon's opening sits close to the month it opens. */
 .story-moon {
   padding-bottom: calc(var(--beat) / 2);
+}
+
+/* The sun's opening ends on "the prayer becomes the reminder", and the played day is that line
+   shown: a figure a step from the words it follows, not a beat away as a new argument would be. */
+.story-sun {
+  padding-bottom: var(--step);
 }
 
 /* A line of prose and the verse that grounds it: one claim, so closer than the story's step. */
@@ -2282,6 +2292,14 @@ a:hover {
   opacity: 0.6;
 }
 
+/* What it costs, under the call: a plain fact at the size of a caption, quieter than the call. */
+.landing .close-note {
+  margin-top: var(--tight);
+  color: var(--text-faint);
+  font-size: calc(14 * var(--u));
+  line-height: 1.5;
+}
+
 
 
 /* ── The year: twelve orbits ───────────────────────────────────────────── */
@@ -2473,15 +2491,16 @@ a:hover {
   }
 }
 
-/* The opening's two rings: Ramaḍān closes, then Shawwāl starts and stops short. Small, beside the
-   words that say it, and drawn one after the other so the second visibly runs out. */
+/* The opening's two rings: Ramaḍān closes, then Shawwāl starts and stops short. Large enough to be
+   the passage's one picture, each read as the month's orbit is (its degrees over its name), and
+   drawn one after the other so the second visibly runs out. */
 .slip {
   margin: var(--apart) 0;
 }
 
 .slip ol {
   display: flex;
-  gap: 28px;
+  gap: calc(48 * var(--u));
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2490,15 +2509,34 @@ a:hover {
 .slip li {
   display: grid;
   justify-items: center;
-  gap: 10px;
+  gap: 2px;
   color: var(--text-faint);
-  font-size: calc(13 * var(--u));
+  font-size: calc(14 * var(--u));
   letter-spacing: 0;
 }
 
 .slip .month-ring {
-  width: clamp(56px, 6vw, calc(76 * var(--u)));
+  width: clamp(104px, 28vw, calc(148 * var(--u)));
+  margin-bottom: var(--tight);
   overflow: visible;
+}
+
+/* The year's line weight at this size: the drawing's own 4 would be a band here. */
+.slip .month-ring circle {
+  stroke-width: 2.6px;
+}
+
+.slip-degrees {
+  color: var(--text);
+  font-size: clamp(22px, 1.9vw, calc(28 * var(--u)));
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+/* A closed month reads in the warm of things done, as the month's 360° does. */
+.slip li[data-closed] .slip-degrees {
+  color: var(--moonglow);
 }
 
 .slip .month-ring-stripe {
