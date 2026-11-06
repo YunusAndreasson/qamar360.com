@@ -95,6 +95,7 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "globalSetup": "<rootDir>/jest.global-setup.js",
     "testEnvironment": "node",
     "testMatch": [
       "<rootDir>/src/**/*.test.ts"
