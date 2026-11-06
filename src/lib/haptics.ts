@@ -35,6 +35,32 @@ import { getPreference } from '@/lib/preferences';
 
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
+const A = Haptics.AndroidHaptics;
+
+/**
+ * An Android constant, the API level that introduced it, and the constant used below that level.
+ *
+ * expo-haptics resolves the constant by reflection and rejects when the OS predates it, and {@link run}
+ * swallows the rejection. So without a floor an intent on `Confirm`, `Reject` or `Gesture_End` (API 30),
+ * or on `Segment_Tick`, `Toggle_On`, `Toggle_Off` or `Drag_Start` (API 34), is silent on every older
+ * phone the app installs on (minSdk 24, Android 7). A fallback must come from the set every level has
+ * (`Clock_Tick`, `Context_Click`, `Keyboard_Tap`, `Long_Press`, `Virtual_Key`), or it fails the same way.
+ */
+type AndroidHaptic = { type: Haptics.AndroidHaptics; since: number; fallback: Haptics.AndroidHaptics };
+
+const floor = (type: Haptics.AndroidHaptics, since: number, fallback: Haptics.AndroidHaptics): AndroidHaptic => ({
+  type,
+  since,
+  fallback,
+});
+
+/** A constant every API level has. */
+const always = (type: Haptics.AndroidHaptics): AndroidHaptic => floor(type, 0, type);
+
+/** The Android call for an intent. `Platform.Version` is the SDK_INT integer there; read per call. */
+function android({ type, since, fallback }: AndroidHaptic) {
+  return () => Haptics.performAndroidHapticsAsync(Number(Platform.Version) >= since ? type : fallback);
+}
 
 /** Run a haptic without awaiting it, swallowing any failure. The engine being silenced
  *  (Low Power Mode, the camera active, the system setting off, an unsupported actuator)
@@ -49,49 +75,76 @@ function run(fn: () => Promise<void>) {
 }
 
 /** One semantic intent → the right native call on each platform (see file header). */
-function intent(ios: () => Promise<void>, android: Haptics.AndroidHaptics) {
-  return () => run(isAndroid ? () => Haptics.performAndroidHapticsAsync(android) : ios);
+function intent(ios: () => Promise<void>, androidHaptic: AndroidHaptic) {
+  return () => run(isAndroid ? android(androidHaptic) : ios);
 }
 
 export const haptics = {
   /** A discrete value changed within a series — a weekday, the appearance segment, a stack's members. */
-  selection: intent(() => Haptics.selectionAsync(), Haptics.AndroidHaptics.Segment_Tick),
+  selection: intent(() => Haptics.selectionAsync(), floor(A.Segment_Tick, 34, A.Clock_Tick)),
   /** A row was picked up to be dragged into a new order — the weight of the lift. */
-  pickup: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), Haptics.AndroidHaptics.Drag_Start),
+  pickup: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
+    floor(A.Drag_Start, 34, A.Long_Press),
+  ),
   /** A dragged row landed in its new place — fired as the settle spring completes, so the
    *  touch-down is felt at the exact frame the ghost visually lands. Lighter than the pickup:
    *  setting something down is gentler than lifting it. A cancelled drag stays silent —
    *  nothing changed, so nothing confirms. */
-  drop: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Gesture_End),
+  drop: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+    floor(A.Gesture_End, 30, A.Virtual_Key),
+  ),
   /**
    * The month's stripe moved on since it was last seen, and has just landed where it now is
    * (Progress, on arrival). A gentle landing, the same Light texture as a dropped row and the same
    * meaning: something set down where it belongs. It confirms the acts that moved it, not the
    * navigation, so it never fires on a stripe that is where it was, or that moved back.
    */
-  orbitLanded: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), Haptics.AndroidHaptics.Gesture_End),
+  orbitLanded: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+    floor(A.Gesture_End, 30, A.Virtual_Key),
+  ),
   /** The month's whole orbit closed, felt the first time it is seen closed, as the glint sets off
    *  round the ring. */
   orbitClosed: intent(
     () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
-    Haptics.AndroidHaptics.Confirm,
+    floor(A.Confirm, 30, A.Virtual_Key),
   ),
   /** Scrubbing the year across a month that closed its whole orbit — the commit texture, so a month
    *  kept is felt as one, where every other month gives the plain {@link selection} tick. */
-  keptMonth: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Toggle_On),
+  keptMonth: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid),
+    floor(A.Toggle_On, 34, A.Virtual_Key),
+  ),
   /** A habit was ticked off — a crisp, precise click as the check sets. */
-  completed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Toggle_On),
+  completed: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid),
+    floor(A.Toggle_On, 34, A.Virtual_Key),
+  ),
   /** A habit was un-ticked — the rounded, muted "release" counterpart. */
-  uncompleted: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Toggle_Off),
+  uncompleted: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft),
+    floor(A.Toggle_Off, 34, A.Clock_Tick),
+  ),
   /** A curated habit or stack was added to the user's own list — the same crisp "commit"
    *  texture as {@link completed}: on Discover as on Today, saying yes feels identical. */
-  added: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid), Haptics.AndroidHaptics.Confirm),
+  added: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid),
+    floor(A.Confirm, 30, A.Virtual_Key),
+  ),
   /** A just-added curated habit was removed again — the soft "release" counterpart to {@link added}. */
-  removed: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Reject),
+  removed: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft),
+    floor(A.Reject, 30, A.Long_Press),
+  ),
   /** A toast's Undo reversed the commit that just buzzed — the same Soft "release" texture as
    *  {@link removed}/{@link uncompleted}, its own name so call sites read by intent: every
    *  committed change that confirms with a haptic un-commits with its counter-texture. */
-  undo: intent(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft), Haptics.AndroidHaptics.Toggle_Off),
+  undo: intent(
+    () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft),
+    floor(A.Toggle_Off, 34, A.Clock_Tick),
+  ),
   /**
    * The day's last open habit was completed — the ring closes. The single celebratory moment, and
    * it carries the weight of tonight's moon (`illumination` 0–1): the quietest tap on a new-moon
@@ -105,14 +158,14 @@ export const haptics = {
       // share a pattern with an undo.
       run(
         isAndroid
-          ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Toggle_On)
+          ? android(floor(A.Toggle_On, 34, A.Virtual_Key))
           : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
       );
       return;
     }
     run(
       isAndroid
-        ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Confirm)
+        ? android(floor(A.Confirm, 30, A.Virtual_Key))
         : () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
     );
     if (illumination > 0.66) {
@@ -122,7 +175,7 @@ export const haptics = {
         () =>
           run(
             isAndroid
-              ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
+              ? android(always(A.Long_Press))
               : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy),
           ),
         Tick.sweep,
@@ -143,7 +196,7 @@ export const haptics = {
       () =>
         run(
           isAndroid
-            ? () => Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
+            ? android(always(A.Long_Press))
             : () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
         ),
       Tick.sweep,
