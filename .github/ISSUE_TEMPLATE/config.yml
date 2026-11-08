@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/YunusAndreasson/qamar360/security/advisories/new
+    url: https://github.com/YunusAndreasson/qamar360.com/security/advisories/new
     about: Privately, please, never in a public issue (SECURITY.md).
   - name: Ask about your account
     url: https://qamar360.com/support

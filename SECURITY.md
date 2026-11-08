@@ -8,7 +8,7 @@ let someone change or delete it. Please report one privately.
 ## Reporting a vulnerability
 
 Use GitHub's private reporting:
-[report a vulnerability](https://github.com/YunusAndreasson/qamar360/security/advisories/new).
+[report a vulnerability](https://github.com/YunusAndreasson/qamar360.com/security/advisories/new).
 Please don't open a public issue.
 
 Include what you did, what happened, and what an attacker would gain. For the

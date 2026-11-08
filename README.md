@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YunusAndreasson/qamar360/actions/workflows/verify.yml"><img src="https://github.com/YunusAndreasson/qamar360/actions/workflows/verify.yml/badge.svg" alt="verify"></a>
-  <a href="https://github.com/YunusAndreasson/qamar360/actions/workflows/web.yml"><img src="https://github.com/YunusAndreasson/qamar360/actions/workflows/web.yml/badge.svg" alt="web"></a>
+  <a href="https://github.com/YunusAndreasson/qamar360.com/actions/workflows/verify.yml"><img src="https://github.com/YunusAndreasson/qamar360.com/actions/workflows/verify.yml/badge.svg" alt="verify"></a>
+  <a href="https://github.com/YunusAndreasson/qamar360.com/actions/workflows/web.yml"><img src="https://github.com/YunusAndreasson/qamar360.com/actions/workflows/web.yml/badge.svg" alt="web"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
