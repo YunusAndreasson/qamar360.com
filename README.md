@@ -130,5 +130,5 @@ pnpm verify   # Vitest, tsc and the prerendered build
 
 [MIT](LICENSE) for the code. The name, logo, photographs and written content
 are all rights reserved, and the fonts and NASA imagery keep their own
-licenses; [LICENSE](LICENSE) lists the paths. Qamar is Arabic for moon, and
+licenses; [NOTICE.md](NOTICE.md) lists the paths. Qamar is Arabic for moon, and
 360 is a month kept in full.
