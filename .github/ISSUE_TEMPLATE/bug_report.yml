@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in the app or on qamar360.com doesn't work the way it should.
+labels: [bug]
+body:
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - The app
+        - qamar360.com
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      placeholder: |
+        1. On Today, open the Fajr stack
+        2. Tick …
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: The line at the foot of Settings.
+      placeholder: Qamar360 · 1448.5.6
+  - type: input
+    id: device
+    attributes:
+      label: Phone and OS
+      placeholder: Pixel 8 on Android 16, or iPhone 15 on iOS 26
+  - type: input
+    id: hijri
+    attributes:
+      label: Time zone and Hijri adjustment
+      description: For anything about dates, prayers, the moon or the orbit. The adjustment is under Settings › Hijri date.
+      placeholder: Europe/Stockholm, +0
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and URL
+      description: For the site.
+      placeholder: Safari 26 on iPhone, https://qamar360.com/support
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Crop out your email address and anything else you'd rather keep private before you paste.

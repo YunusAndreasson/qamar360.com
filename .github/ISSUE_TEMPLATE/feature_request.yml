@@ -1,0 +1,21 @@
+name: Feature request
+description: Something Qamar360 should do, or do differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you were trying to keep, and where the app got in the way. A real day helps more than a feature name.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: How you picture it working.
+  - type: textarea
+    id: source
+    attributes:
+      label: Source
+      description: For a new act or a change to one, its source by collection and number (Muslim 725, Tirmidhi 761) and its grading.
