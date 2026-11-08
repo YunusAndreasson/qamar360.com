@@ -1,0 +1,51 @@
+# The site's gate: `pnpm verify` in web/ (Vitest, tsc, and the prerendered
+# Vite build), on any push or pull request that touches the site. It deploys
+# nothing and needs no secrets; the deploy is `pnpm deploy`, run by hand.
+name: web
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'web/**'
+      - '!web/**/*.md'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - '!web/**/*.md'
+      - '.github/workflows/web.yml'
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.13.0'
+
+      # web/package.json has no `packageManager` yet; this is the pnpm that
+      # wrote pnpm-lock.yaml and that `pnpm verify` is run with locally.
+      - name: Install pinned package manager
+        run: npm install --global pnpm@11.28.4
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm verify
+        env:
+          WRANGLER_SEND_METRICS: 'false'

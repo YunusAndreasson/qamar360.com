@@ -1,0 +1,47 @@
+# Weekly, grouped so a week's updates arrive as a few pull requests. Each one
+# runs the verify (or web) workflow; merge it when it's green.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # The Expo SDK pins these. scripts/update-deps.sh moves them together
+      # with `expo install --fix`; a lone bump here would leave the SDK.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@shopify/react-native-skia"
+      - dependency-name: "@types/react"
+      - dependency-name: "@types/jest"
+      - dependency-name: "jest"
+      - dependency-name: "typescript"
+      # Held back on purpose; scripts/update-deps.sh says why.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-import-resolver-typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      app:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

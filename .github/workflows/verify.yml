@@ -1,0 +1,55 @@
+# The app's gate on every push and pull request: the same `npm run verify` a
+# developer runs (typecheck, lint with zero warnings, knip, api:check, Jest). It
+# needs no secrets: no step reads .env, and the tests mock the Supabase client.
+#
+# web/ is a separate site with its own package manager and its own gate
+# (web.yml), and the app's tsconfig, ESLint and knip all ignore it, so a
+# web-only push has nothing here to check.
+name: verify
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'web/**'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'web/**'
+      - '**/*.md'
+
+# A new push to the same branch makes the previous run's answer irrelevant.
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No manifest declares `engines`. 26 is the active LTS and the version the
+      # app is developed and checked on.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.13.0'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Typed routes live in .expo/types, which the dev server writes and git
+      # ignores. Without them expo-router's Href falls back to a plain string, so
+      # a mistyped route passes the typecheck. Changes no tracked file.
+      - name: Generate typed routes
+        run: npx expo customize tsconfig.json
+
+      - name: Verify
+        run: npm run verify
