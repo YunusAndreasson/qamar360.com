@@ -24,6 +24,12 @@ expo-env.d.ts
 # Argent (device screen recordings, etc.)
 .argent/
 
+# Supabase CLI state (linked project, service versions)
+supabase/.temp/
+
+# An agent's notes on this machine's devices and ports
+/MEMORY.md
+
 # debug
 npm-debug.*
 yarn-debug.*
