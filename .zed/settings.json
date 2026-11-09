@@ -7,10 +7,5 @@
         "mcp"
       ]
     }
-  },
-  "agent": {
-    "tool_permissions": {
-      "default": "allow"
-    }
   }
 }

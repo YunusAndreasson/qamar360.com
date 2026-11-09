@@ -21,8 +21,7 @@ deploy). Details in `web/AGENTS.md`.
 No E2E framework is configured; QA is interactive on a device. A dedicated QA
 account exists: its id and email are in `.argent/qa-account.json`, its
 credentials (`QAMAR_QA_EMAIL`, `QAMAR_QA_PASSWORD`) in `.argent/secrets.env`.
-Both are git-ignored; never commit or print the password. Past review evidence
-and open coverage: `docs/main-flows-review.md`.
+Both are git-ignored; never commit or print the password.
 
 # Design
 

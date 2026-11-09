@@ -166,7 +166,7 @@ the way.
 
 ### 8. Discover still renders through `FlatList` — MEDIUM
 
-`discover.tsx:437`. The repo's own `docs/main-flows-review.md` measured this screen's
+`discover.tsx:437`. The main-flow review of 2026-09-05 (since removed) measured this screen's
 opening commit at 5896ms before batching work and 1252ms after. 1.25 seconds is still a
 second and a quarter of nothing happening on the screen a new user is sent to by
 *every* empty state in the app (`BrowseHabitsButton` appears on Progress, Insights, and
