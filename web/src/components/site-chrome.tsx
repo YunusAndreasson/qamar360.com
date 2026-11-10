@@ -54,6 +54,9 @@ export function SiteFooter() {
         <span>
           <a href={Site.instagram}>Instagram</a>
           <a href={Site.x}>X</a>
+          <a href={Site.github} rel="me noopener noreferrer">
+            GitHub
+          </a>
         </span>
       </nav>
       <p>

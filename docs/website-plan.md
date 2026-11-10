@@ -698,7 +698,7 @@ Taken 2026-10-26:
 5. **English only** at launch.
 
 6. **Provider**: Yunus Andreasson personally, in Sweden; contact
-   yunus@edenmind.com (`web/src/site.ts`).
+   contact@qamar360.com (`web/src/site.ts`).
 
 Owed before the legal pages are true in every line:
 
