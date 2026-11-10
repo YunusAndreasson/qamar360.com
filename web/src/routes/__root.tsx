@@ -93,6 +93,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {/* Cloudflare Web Analytics, installed by hand (Cloudflare's auto-injection doesn't reach the
+            site). Cookieless and keeps no personal data, as the privacy policy's "This website" says. */}
+        <script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "099dd356461446cd8efe8c09bcc63b43"}'
+        />
       </head>
       <body>
         <Starfield />

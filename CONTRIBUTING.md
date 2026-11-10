@@ -26,7 +26,9 @@ Some behaviour is deliberate and changes to it need a strong case:
 - No reminder for any single habit. The prayer is the cue, and the only
   notifications are the four lunar updates a month.
 - It never asks for your location. The sky comes from the phone's time zone.
-- No ads, analytics or tracking SDKs.
+- No ads, analytics or tracking SDKs in the app. The website counts visits with
+  Cloudflare Web Analytics, which is cookieless and keeps no personal data, and
+  nothing more.
 - An act in the catalog cites its source, and copy never claims more than the
   source says.
 - Dieter Rams decides what is on a screen and Don Norman how it's found and

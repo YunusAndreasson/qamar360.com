@@ -704,4 +704,6 @@ Owed before the legal pages are true in every line:
 
 - Sign the data processing agreements with Supabase and Expo (the privacy
   policy says they process data under one).
-- Turn on Cloudflare Web Analytics, or drop that sentence from the policy.
+- ~~Turn on Cloudflare Web Analytics, or drop that sentence from the policy.~~
+  Done 2026-11-10: the beacon is in `web/src/routes/__root.tsx` (manual snippet;
+  Cloudflare's auto-injection didn't reach the site).

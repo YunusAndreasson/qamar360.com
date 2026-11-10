@@ -17,6 +17,7 @@ import { Site } from '#/site'
  *   deletion: the `delete-account` edge function empties the photo folder, then deletes the Auth
  *     user, which cascades to every row.
  *   no analytics, ads or tracking SDKs in package.json. Database in Supabase eu-central-1.
+ *   website: the Cloudflare Web Analytics beacon in web/src/routes/__root.tsx, nothing else.
  */
 export const Route = createFileRoute('/privacy')({
   head: () =>

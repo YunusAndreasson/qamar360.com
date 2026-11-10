@@ -20,6 +20,12 @@ entry, `main` in `wrangler.jsonc`) answers its old paths with a 301 to `/`.
   `docs/website-plan.md`.
 - `src/site.ts`: who runs the app, the contact address, the social links, and
   the date the documents last changed (`DOCS_UPDATED`).
+- `src/routes/__root.tsx`: the document shell. Its `<head>` carries the
+  Cloudflare Web Analytics beacon (manual snippet; auto-injection doesn't work
+  here). The owner chose it: cookieless, no personal data, so keep it, and add
+  nothing else that counts visitors. The privacy page's "This website" section
+  describes it. If a CSP is ever added, allow `https://static.cloudflareinsights.com`
+  in script-src and `https://cloudflareinsights.com` in connect-src.
 - `src/routes/privacy.tsx`, `terms.tsx`, `support.tsx`: written from what the
   app does. The privacy page lists the repo source of each claim at its top;
   when the app changes what it stores, change the page and `DOCS_UPDATED`.
