@@ -21,16 +21,19 @@ Alternatives, both from the homepage (164 and 145 characters):
 Promotional text can change any time without a review, so a seasonal line
 (Ramaḍān, the White Days) can replace it later.
 
-## Screenshot captions
+## Screenshots
 
-Real screens from the showcase account, one homepage line above each:
+Real screens of the showcase account (3 Jumādā al-Thānī 1448, 07:45), one homepage line
+above each, rendered by `scripts/store-screens.py` (iOS 1320×2868, Play 1080×1920). The files
+live outside the repo in `../qamar360-store-assets/`, with the raw captures and the spec.
 
-1. Today: "Each prayer has its own stack." / Tick each act off as you do it.
-2. Progress, month: "Each act you keep fills the orbit." / A month kept in full is 360°.
-3. Progress, a missed day: "Miss one and it fills a little less." / It never turns red or goes back to zero.
-4. Progress, year: "Twelve orbits make a year."
-5. Discover: "Every act names its source." / Collection and number, with the grading.
-6. Exchange: "A good act in place of an old habit."
+1. Today, Fajr open at 3 of 5: "Each prayer has its own stack." / Tick each act off as you do it.
+2. Progress, Rabīʿ al-Awwal tapped at 360°: "Each act you keep fills the orbit." / A month kept in full is 360°. Twelve orbits make a year.
+3. Add a stack: "Start from the Sunnah’s own moments." / Ready-made stacks, yours to reorder and prune.
+4. Add a habit, two rakʿah before Fajr open on Muslim 725: "Every act names its source." / Collection and number, with the grading.
+5. Add an exchange: "A good act in place of an old habit." / At the moment you’d usually reach for it.
+
+Play also takes `play/feature-graphic-1024x500.png` (the moon in its orbit) and `play/icon-512.png`.
 
 ## Description (both stores)
 
