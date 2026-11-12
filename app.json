@@ -13,16 +13,10 @@
     ],
     "ios": {
       "bundleIdentifier": "com.qamar360.app",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "UISupportedInterfaceOrientations~ipad": [
-          "UIInterfaceOrientationPortrait",
-          "UIInterfaceOrientationPortraitUpsideDown",
-          "UIInterfaceOrientationLandscapeLeft",
-          "UIInterfaceOrientationLandscapeRight"
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       },
       "icon": {
         "light": "./assets/images/icon.png",
@@ -32,15 +26,17 @@
     },
     "android": {
       "package": "com.qamar360.app",
-      "permissions": [
-        "android.permission.SCHEDULE_EXACT_ALARM"
-      ],
       "adaptiveIcon": {
         "backgroundColor": "#060910",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "blockedPermissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "plugins": [
       "./plugins/strip-aps-environment.js",
