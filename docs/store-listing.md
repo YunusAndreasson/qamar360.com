@@ -11,8 +11,26 @@ when those change, this file changes with them.
 | Name | both | 30 | Qamar360 |
 | Subtitle | App Store | 30 | Sunnah habits by the moon |
 | Short description | Play | 80 | Sunnah acts tied to the prayers you keep, each Hijri month an orbit of the moon |
-| Promotional text | App Store | 170 | Tie a few acts of the Sunnah to a prayer you already keep. Each Hijri month fills an orbit around the moon, and a month kept in full is 360°. |
+| Promotional text | App Store | 170 | Tie a few acts of the Sunnah to the prayers you keep. Each one fills the month’s orbit round the moon. Miss one and it fills a little less. It never goes back to zero. |
 | Keywords | App Store | 100 | sunnah,habit,tracker,hijri,muslim,islam,salah,prayer,adhkar,dhikr,quran,ramadan,lunar,routine,deen |
+
+Alternatives, both from the homepage (164 and 145 characters):
+- The sun set, and that was the cue. Tie a few acts of the Sunnah to the prayers you keep, and watch each Hijri month fill an orbit round the moon. Free, with no ads.
+- Begin with the next crescent. Tie a few acts of the Sunnah to the prayers you keep, and each act you keep fills the month’s orbit round the moon.
+
+Promotional text can change any time without a review, so a seasonal line
+(Ramaḍān, the White Days) can replace it later.
+
+## Screenshot captions
+
+Real screens from the showcase account, one homepage line above each:
+
+1. Today: "Each prayer has its own stack." / Tick each act off as you do it.
+2. Progress, month: "Each act you keep fills the orbit." / A month kept in full is 360°.
+3. Progress, a missed day: "Miss one and it fills a little less." / It never turns red or goes back to zero.
+4. Progress, year: "Twelve orbits make a year."
+5. Discover: "Every act names its source." / Collection and number, with the grading.
+6. Exchange: "A good act in place of an old habit."
 
 ## Description (both stores)
 
