@@ -66,9 +66,12 @@ There are no ads, no analytics and no tracking in the app.
 - Support: https://qamar360.com/support
 - Marketing / website: https://qamar360.com
 - Privacy policy: https://qamar360.com/privacy
-- Copyright: Qamar360
+- Copyright: 2026 Qamar360
 - Category: Lifestyle (App Store primary), Health & Fitness secondary; Play: Lifestyle
-- Price: free, no in-app purchases
+- Price: free, no in-app purchases. Available in every region except China mainland,
+  which requires a permit for apps with religious content.
+- Content rights: yes, third-party content (hadith and Qurʾān text, NASA's moon imagery, the
+  Inter font), with the rights to use it.
 - Release: manually, after approval
 
 ## App Review
@@ -92,6 +95,7 @@ user can delete it in the app (Settings > Delete account).
 | Apple / Google account id | Identifiers › User ID | Personal info › User IDs | App functionality | yes | yes (only with social sign-in) |
 | Habits, stacks, completions, to-dos | User Content › Other User Content | App activity › Other user-generated content | App functionality | yes | no |
 | Profile photo | User Content › Photos or Videos | Photos and videos › Photos | App functionality | yes | yes |
+| The acts kept (prayers, fasts) reveal religious practice | Sensitive Info | Personal info › Religious or political beliefs | App functionality | yes | no |
 
 Not collected: location, contacts, health, financial info, browsing, search,
 diagnostics, usage data, device ids for tracking.
