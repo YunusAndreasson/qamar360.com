@@ -72,7 +72,9 @@ describe('the moment set', () => {
     expect(list).toBeDefined();
     const allowed = [...list!.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 
-    expect(allowed.sort()).toEqual(Object.keys(MOMENTS).sort());
+    expect(allowed.sort((a, b) => (a ?? '').localeCompare(b ?? ''))).toEqual(
+      Object.keys(MOMENTS).sort((a, b) => a.localeCompare(b)),
+    );
   });
 
   it('the weakest-cue group is listed last, so the grid never leads with a bare time', () => {

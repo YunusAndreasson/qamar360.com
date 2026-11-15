@@ -6,12 +6,14 @@ export function createRefreshGuard() {
   let generation = 0;
   let open = 0;
   const waiters = new Set<() => void>();
+  // Arrow properties, not methods: callers pass `guard.begin` / `guard.end` around
+  // unbound, and an arrow has no `this` to lose (unbound-method).
   return {
-    begin() {
+    begin: () => {
       open += 1;
       generation += 1;
     },
-    end() {
+    end: () => {
       open -= 1;
       generation += 1;
       if (open === 0) {

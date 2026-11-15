@@ -30,7 +30,7 @@ jest.mock('@/lib/supabase', () => ({
         gte: (c: string, v: string) => (call.filters.push(`${c}>=${v}`), keep.push((r) => col(r, c) >= v), builder),
         lte: (c: string, v: string) => (call.filters.push(`${c}<=${v}`), keep.push((r) => col(r, c) <= v), builder),
         lt: (c: string, v: string) => (call.filters.push(`${c}<${v}`), keep.push((r) => col(r, c) < v), builder),
-        in: (c: string, vs: string[]) => (call.filters.push(`${c} in ${vs}`), keep.push((r) => vs.includes(col(r, c))), builder),
+        in: (c: string, vs: string[]) => (call.filters.push(`${c} in ${vs.join(',')}`), keep.push((r) => vs.includes(col(r, c))), builder),
         or: (expr: string) => {
           call.filters.push(`or ${expr}`);
           const [, date, , habit] = /^completed_at\.gt\.([^,]+),and\(completed_at\.eq\.([^,]+),habit_id\.gt\.([^)]+)\)$/.exec(expr)!;
