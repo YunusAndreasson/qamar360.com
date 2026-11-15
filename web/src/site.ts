@@ -4,7 +4,7 @@ export const Site = {
   url: 'https://qamar360.com',
   provider: 'Yunus Andreasson',
   country: 'Sweden',
-  email: 'yunus@edenmind.com',
+  email: 'contact@qamar360.com',
   instagram: 'https://www.instagram.com/qamar360com/',
   x: 'https://x.com/Qamar360Com',
   // The maker credit: the person who makes Qamar360, and his own site.
@@ -12,4 +12,4 @@ export const Site = {
 } as const
 
 /** The date the privacy policy, terms and support page last changed. */
-export const DOCS_UPDATED = '30 October 2026'
+export const DOCS_UPDATED = '15 November 2026'
