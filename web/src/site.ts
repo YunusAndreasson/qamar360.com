@@ -14,4 +14,4 @@ export const Site = {
 } as const
 
 /** The date the privacy policy, terms and support page last changed. */
-export const DOCS_UPDATED = '30 October 2026'
+export const DOCS_UPDATED = '15 November 2026'
