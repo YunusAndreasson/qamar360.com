@@ -1,5 +1,18 @@
+// Error reporting first, so it is listening before any other module runs.
+// eslint-disable-next-line import/order
+import { navigationIntegration } from '@/lib/sentry';
+
+import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  useNavigationContainerRef,
+  usePathname,
+  useRouter,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -13,11 +26,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MaterialSymbolsFont } from '@/components/app-icon';
 import { DayCompleteProvider } from '@/components/day-complete';
 import { ToastProvider, useToast } from '@/components/toast';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { FontAssets } from '@/constants/fonts';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { CatalogProvider } from '@/hooks/use-catalog';
 import { SkyProvider } from '@/hooks/use-sky';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
+import { analytics } from '@/lib/analytics';
 import { configureNotifications, subscribeToUpdateTaps } from '@/lib/notifications';
 import { initPreferences } from '@/lib/preferences';
 
@@ -30,7 +45,12 @@ void SplashScreen.preventAutoHideAsync();
 // anything renders — the very first date the app formats must already carry the user's choice.
 initPreferences();
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
+  const navigationRef = useNavigationContainerRef();
+  useEffect(() => {
+    navigationIntegration.registerNavigationContainer(navigationRef);
+  }, [navigationRef]);
+
   useEffect(() => {
     void configureNotifications();
   }, []);
@@ -47,6 +67,7 @@ export default function RootLayout() {
                       see the note in `use-sky.tsx` on what each screen owning its own used to cost. */}
                   <SkyProvider>
                     <RootNavigator />
+                    <ScreenViews />
                     <ThemedChrome />
                     <UpdateReady />
                   </SkyProvider>
@@ -58,6 +79,15 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+});
+
+/** One anonymous `Screen Viewed` per route change. The path is static (no dynamic segments). */
+function ScreenViews() {
+  const pathname = usePathname();
+  useEffect(() => {
+    void analytics.track(ANALYTICS_EVENTS.SCREEN_VIEWED, { screen: pathname });
+  }, [pathname]);
+  return null;
 }
 
 /**

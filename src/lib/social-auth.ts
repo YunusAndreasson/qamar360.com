@@ -74,9 +74,9 @@ export async function appleAuthAvailable(): Promise<boolean> {
 
 /**
  * Sign in with Apple via the native sheet, exchanging the identity token with Supabase.
- * Resolves as a no-op if the user cancels; throws on any real failure.
+ * Resolves `false` as a no-op if the user cancels, `true` once signed in; throws on any real failure.
  */
-export async function signInWithApple(): Promise<void> {
+export async function signInWithApple(): Promise<boolean> {
   if (!AppleAuth) throw new Error('Apple sign-in needs a development build.');
   let credential;
   try {
@@ -87,7 +87,7 @@ export async function signInWithApple(): Promise<void> {
       ],
     });
   } catch (e) {
-    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') return; // user backed out
+    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') return false; // user backed out
     throw e;
   }
   if (!credential.identityToken) throw new Error('Apple did not return an identity token.');
@@ -104,15 +104,16 @@ export async function signInWithApple(): Promise<void> {
   if (fullName) {
     void supabase.auth.updateUser({ data: { full_name: fullName } }).then(undefined, () => {});
   }
+  return true;
 }
 
 let googleConfigured = false;
 
 /**
  * Sign in with Google via the native account picker, exchanging the ID token with Supabase.
- * Resolves as a no-op if the user cancels; throws on any real failure.
+ * Resolves `false` as a no-op if the user cancels, `true` once signed in; throws on any real failure.
  */
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(): Promise<boolean> {
   if (!Google) throw new Error('Google sign-in needs a development build.');
   if (!GOOGLE_WEB_CLIENT_ID) throw new Error('Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.');
   const { GoogleSignin, statusCodes, isSuccessResponse, isErrorWithCode } = Google;
@@ -127,14 +128,15 @@ export async function signInWithGoogle(): Promise<void> {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
-    if (!isSuccessResponse(response)) return; // cancelled
+    if (!isSuccessResponse(response)) return false; // cancelled
     const idToken = response.data.idToken;
     if (!idToken) throw new Error('Google did not return an ID token.');
     const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (error) throw error;
+    return true;
   } catch (e) {
     if (isErrorWithCode(e) && (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS)) {
-      return; // user dismissed the picker, or a sign-in is already in flight
+      return false; // user dismissed the picker, or a sign-in is already in flight
     }
     throw e;
   }

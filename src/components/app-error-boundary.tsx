@@ -10,6 +10,7 @@
  * is the same failure, so the screen then offers a restart instead (`recoveryFor`), which also
  * boots an update that has downloaded since launch.
  */
+import * as Sentry from '@sentry/react-native';
 import { reloadAppAsync } from 'expo';
 import * as SplashScreen from 'expo-splash-screen';
 import { reloadAsync } from 'expo-updates';
@@ -36,8 +37,9 @@ export function AppErrorBoundary(props: ErrorBoundaryProps) {
   const { error } = props;
   useEffect(() => {
     SplashScreen.hide();
-    // The router catches render errors itself, so no global handler sees them.
+    // The router catches render errors itself, so no global handler sees them: report it here.
     console.error('[app] render error', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

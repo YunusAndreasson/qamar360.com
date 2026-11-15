@@ -50,7 +50,8 @@ in the App Store or Google Play yet.
   number (Muslim 725, Tirmidhi 761), with the grading for a hadith outside
   Bukhari and Muslim.
 
-There are no ads, analytics or tracking SDKs in the app.
+There are no ads or tracking SDKs in the app. It sends anonymous usage events
+to Mixpanel (EU) and crash reports to Sentry.
 
 The site plays one day and one Shaʿbān through its own ports of the app's
 stack card and orbit:
