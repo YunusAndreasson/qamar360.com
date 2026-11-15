@@ -441,10 +441,6 @@ export type Database = {
     }
     Functions: {
       apply_habit_order: { Args: { items: Json }; Returns: undefined }
-      get_global_completion_percentage: {
-        Args: { end_date: string; start_date: string }
-        Returns: number
-      }
     }
     Enums: {
       [_ in never]: never
