@@ -7,8 +7,9 @@ or online at https://docs.expo.dev/versions/v58.0.0/.
 # Verification
 
 `npm run verify` (alias for `npm run validate`: typecheck + lint + deadcode +
-deprecated-API check (`api:check`) + test) — run before finishing a task. The
-web app has its own: `cd web && pnpm verify`.
+deprecated-API check (`api:check`) + test) — run before finishing a task. CI
+(`.github/workflows/verify.yml`) runs the same on push and PR. The web app has
+its own: `cd web && pnpm verify`.
 
 # Web app
 
