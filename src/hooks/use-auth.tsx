@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
+import { analytics } from '@/lib/analytics';
 import * as socialAuth from '@/lib/social-auth';
 import { supabase } from '@/lib/supabase';
 
@@ -71,19 +73,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signIn(email, password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        void analytics.trackSignIn('email');
       },
       async signUp(email, password) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        void analytics.trackSignUp('email');
       },
       // Native social sign-in lands a session that flows through the onAuthStateChange listener
       // above, so these just delegate — no manual navigation. `public.users` is provisioned by the
       // `handle_new_user` DB trigger (and `ensureUserRow` on first write), same as any signup.
-      signInWithApple: socialAuth.signInWithApple,
-      signInWithGoogle: socialAuth.signInWithGoogle,
+      // Analytics: a plain event with the method only, never who; nothing on a cancel.
+      async signInWithApple() {
+        if (await socialAuth.signInWithApple()) void analytics.trackSignIn('apple');
+      },
+      async signInWithGoogle() {
+        if (await socialAuth.signInWithGoogle()) void analytics.trackSignIn('google');
+      },
       async signOut() {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        // A fresh anonymous id, so the next account on this device does not inherit this one's.
+        void analytics.trackSignOut().then(() => analytics.reset());
       },
       async resetPassword(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email);
@@ -101,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.functions.invoke('delete-account');
         if (error) throw error;
         await supabase.auth.signOut();
+        // After the deletion has gone through, and never able to fail it: analytics never throws.
+        void analytics.track(ANALYTICS_EVENTS.ACCOUNT_DELETED).then(() => analytics.reset());
       },
     }),
     [session, initialized],

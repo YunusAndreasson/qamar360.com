@@ -25,7 +25,7 @@ Promotional text can change any time without a review, so a seasonal line
 
 Real screens of the showcase account (3 Jumādā al-Thānī 1448, 07:45), one homepage line
 above each, rendered by `scripts/store-screens.py` (iOS 1320×2868, Play 1080×1920). The files
-live outside the repo in `../qamar360-store-assets/`, with the raw captures and the spec.
+live in `store-assets/` (gitignored, local only), with the raw captures and the spec.
 
 1. Today, Fajr open at 3 of 5: "Each prayer has its own stack." / Tick each act off as you do it.
 2. Progress, Rabīʿ al-Awwal tapped at 360°: "Each act you keep fills the orbit." / A month kept in full is 360°. Twelve orbits make a year.
@@ -58,7 +58,7 @@ It turns at your local Maghrib, on the Umm al-Qura calendar, with up to two days
 DISCOVER
 The catalog of acts, each citing its source by collection and number (Muslim 725, Tirmidhi 761), with the grading for a hadith outside Bukhari and Muslim.
 
-There are no ads, no analytics and no tracking in the app.
+There are no ads and no tracking across apps.
 ```
 
 ## URLs and the rest
@@ -86,8 +86,11 @@ Sign in with the email and password above (Sign in with Apple and Google also wo
 
 ## Privacy answers (Apple App Privacy, Play Data safety)
 
-No tracking, no ads, no analytics SDKs. Data is encrypted in transit, and the
-user can delete it in the app (Settings > Delete account).
+No tracking, no ads. Mixpanel (anonymous usage events, EU) and Sentry (crash
+reports, US) are in the app; neither gets a user id or email, and there is no
+opt-out in the app. Data is encrypted in transit, and the user can delete
+account data in the app (Settings > Delete account). Mixpanel and Sentry act as
+processors, so on Play their data is collected, not shared.
 
 | Data | Apple type | Play type | Purpose | Linked | Optional |
 | --- | --- | --- | --- | --- | --- |
@@ -96,9 +99,15 @@ user can delete it in the app (Settings > Delete account).
 | Habits, stacks, completions, to-dos | User Content › Other User Content | App activity › Other user-generated content | App functionality | yes | no |
 | Profile photo | User Content › Photos or Videos | Photos and videos › Photos | App functionality | yes | yes |
 | The acts kept (prayers, fasts) reveal religious practice | Sensitive Info | Personal info › Religious or political beliefs | App functionality | yes | no |
+| Screens opened and actions such as adding or completing a habit (Mixpanel) | Usage Data › Product Interaction | App activity › App interactions | Analytics | no | no |
+| Approximate location from IP (Mixpanel) | Location › Coarse Location | Location › Approximate location | Analytics | no | no |
+| Crash logs, stack traces (Sentry) | Diagnostics › Crash Data | App info and performance › Crash logs | App functionality | no | no |
+| Load timings from sampled sessions (Sentry) | Diagnostics › Performance Data | App info and performance › Diagnostics | App functionality | no | no |
+| Phone model, OS, app version (Mixpanel, Sentry) | Diagnostics › Other Diagnostic Data | App info and performance › Other app performance data | Analytics, App functionality | no | no |
+| Random anonymous id (Mixpanel) | Identifiers › Device ID | Device or other IDs | Analytics | no | no |
 
-Not collected: location, contacts, health, financial info, browsing, search,
-diagnostics, usage data, device ids for tracking.
+Not collected: precise location, contacts, health, financial info, browsing,
+search, device ids for tracking.
 
 ## Ratings
 

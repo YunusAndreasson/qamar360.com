@@ -88,6 +88,14 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "qamar360",
+          "organization": "openarabic"
+        }
       ]
     ],
     "experiments": {

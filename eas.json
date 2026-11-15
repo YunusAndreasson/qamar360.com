@@ -16,6 +16,13 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_MIXPANEL_TOKEN": "0a6de58b95ef642ed101dd4f72505093",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://69e4518ccadba71cf30f9307d10be9f0@o1414696.ingest.us.sentry.io/4512436207026176",
+        "SENTRY_ORG": "openarabic",
+        "SENTRY_PROJECT": "qamar360",
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "ios": {
         "simulator": false
       }
@@ -23,6 +30,13 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_MIXPANEL_TOKEN": "0a6de58b95ef642ed101dd4f72505093",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://69e4518ccadba71cf30f9307d10be9f0@o1414696.ingest.us.sentry.io/4512436207026176",
+        "SENTRY_ORG": "openarabic",
+        "SENTRY_PROJECT": "qamar360",
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "android": {
         "resourceClass": "large"
       }

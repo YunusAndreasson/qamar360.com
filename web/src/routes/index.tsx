@@ -343,7 +343,7 @@ function Home() {
             <NextCrescent />
             <p className="coming">Coming to iPhone and Android</p>
             {/* As the terms and the privacy policy say. */}
-            <p className="close-note">Free, with no ads and no&nbsp;tracking.</p>
+            <p className="close-note">Free, with no&nbsp;ads.</p>
           </div>
         </section>
       </main>

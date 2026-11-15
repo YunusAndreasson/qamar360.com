@@ -12,10 +12,12 @@ import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
 import { useToast } from '@/components/toast';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { useAuth } from '@/hooks/use-auth';
 import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
+import { analytics } from '@/lib/analytics';
 import { countTakeBack, countTap, type CountStep } from '@/lib/count-goal';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
@@ -827,7 +829,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const res = sealsStack
         ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day)
         : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day);
-      if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+      // Analytics: which kind of act, never its name.
+      void analytics.track(ANALYTICS_EVENTS.HABIT_COMPLETED, {
+        preset: !!habit.preset_id,
+        count_goal: (habit.target_count ?? 0) > 0,
+        in_stack: !!habit.stack_id,
+        today: day === todayRef.current,
+      });
+      if (res.dayComplete && day === todayRef.current) {
+        showDayComplete(day, res.doneIds);
+        void analytics.track(ANALYTICS_EVENTS.DAY_COMPLETED, { acts: res.doneIds.length });
+      }
     },
     [showDayComplete, completedRef, habitsRef, skippedRef, todayRef],
   );
@@ -1223,6 +1235,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         habitsRef.current = [...habitsRef.current.filter((h) => !tempIds.has(h.id)), ...persisted].sort(
           (a, b) => a.position - b.position,
         );
+        if (persisted.length > 0) {
+          // Counts only: a habit's name is the user's own words and never leaves the device this way.
+          void analytics.track(ANALYTICS_EVENTS.HABITS_ADDED, {
+            count: persisted.length,
+            presets: persisted.filter((h) => !!h.preset_id).length,
+          });
+        }
         return persisted;
       } catch {
         for (const o of optimistic) cancelledTempIds.current.delete(o.id);
