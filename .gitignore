@@ -71,3 +71,6 @@ example
 # @generated expo skills start
 .claude/skills/expo-sqlite
 # @generated expo skills end
+
+# Store listing assets (screenshots, raw captures, feature graphic); kept local, not published
+store-assets/
