@@ -54,10 +54,12 @@ if [ "$LATEST" -eq 1 ]; then
   #   react          RN's renderer and react-test-renderer are compiled against
   #                  the exact React version the SDK pins.
   #   …-resolver-ts  v4 re-targets eslint-plugin-import-x; v3 is what works here.
+  #   fontkit        v3 is ESM-only; font-contract.test.ts require()s it under
+  #                  jest-expo, which leaves node_modules untransformed.
   # jest and @types/jest are not held here: the SDK pins them (30 on SDK 58),
   # so step 4 puts them back on the SDK's line whatever this step picks.
   npx --yes npm-check-updates --upgrade \
-    --reject expo,typescript,eslint,react,eslint-import-resolver-typescript
+    --reject expo,typescript,eslint,react,eslint-import-resolver-typescript,fontkit
   npm install
 else
   echo "▸ [3/5] Updating dependencies within package.json semver ranges…"
