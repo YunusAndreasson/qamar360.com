@@ -22,6 +22,8 @@ export const Route = createRootRoute({
       { name: 'theme-color', content: '#060910' },
       { name: 'color-scheme', content: 'dark' },
       { name: 'author', content: Site.provider },
+      // The app's own X account names the card; the maker is credited beside it.
+      { name: 'twitter:site', content: `@${Site.x.split('/').pop()}` },
       { name: 'twitter:creator', content: '@YunusAndreasson' },
       { name: 'twitter:card', content: 'summary_large_image' },
       { property: 'og:type', content: 'website' },
@@ -49,6 +51,21 @@ export const Route = createRootRoute({
       { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
     scripts: [
+      // Qamar360 itself and its own accounts, so search engines read the site, the Instagram and
+      // the X account as one thing rather than three that share a name.
+      {
+        type: 'application/ld+json',
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          '@id': `${Site.url}/#organization`,
+          name: Site.name,
+          url: Site.url,
+          logo: { '@type': 'ImageObject', url: `${Site.url}/icon-512.png` },
+          sameAs: [Site.instagram, Site.x],
+          founder: { '@id': 'https://andreassonphoto.com/#person' },
+        }),
+      },
       // What the site is about, for search engines: the app, with no rating or price it hasn't got.
       {
         type: 'application/ld+json',
@@ -61,6 +78,7 @@ export const Route = createRootRoute({
           applicationCategory: 'LifestyleApplication',
           operatingSystem: 'iOS, Android',
           author: { '@id': 'https://andreassonphoto.com/#person' },
+          publisher: { '@id': `${Site.url}/#organization` },
         }),
       },
       // Person JSON-LD — identical @id across every one of the maker's sites so search engines
