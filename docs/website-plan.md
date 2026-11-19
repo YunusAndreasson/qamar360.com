@@ -618,7 +618,7 @@ These ship first (section 10), because store review needs them.
   per section and per source (`site-hero`, `site-close`, `bio`), Play links a
   `utm` referrer. App Store Connect and Play Console then show which part of the
   page actually sends installs.
-- No third-party scripts, no pixels.
+- No other third-party scripts and no pixels: Cloudflare's beacon is the only one.
 
 ## 10. Order of work
 
