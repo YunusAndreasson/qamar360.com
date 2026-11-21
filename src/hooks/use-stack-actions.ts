@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive, confirmDestructiveChoice } from '@/lib/alerts';
+import { analytics } from '@/lib/analytics';
 import { haptics } from '@/lib/haptics';
 
 /**
@@ -26,6 +28,7 @@ export function useConfirmDeleteStack() {
         // The soft "release" — destruction always confirms with the same texture.
         haptics.removed();
         void deleteStack(stackId, { withActs });
+        void analytics.track(ANALYTICS_EVENTS.STACK_DELETED, { acts: count, with_acts: withActs });
       };
 
       if (count === 0) {

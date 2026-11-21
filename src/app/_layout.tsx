@@ -17,8 +17,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { reloadAsync, useUpdates } from 'expo-updates';
-import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useEffectEvent, useRef } from 'react';
+import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -33,7 +33,7 @@ import { CatalogProvider } from '@/hooks/use-catalog';
 import { SkyProvider } from '@/hooks/use-sky';
 import { useEffectiveScheme, useTheme } from '@/hooks/use-theme';
 import { analytics } from '@/lib/analytics';
-import { configureNotifications, subscribeToUpdateTaps } from '@/lib/notifications';
+import { configureNotifications, subscribeToUpdateTaps, syncNotificationsEnabled } from '@/lib/notifications';
 import { initPreferences } from '@/lib/preferences';
 
 // expo-router renders this in place of the whole layout, providers included, when the tree throws.
@@ -68,6 +68,7 @@ export default Sentry.wrap(function RootLayout() {
                   <SkyProvider>
                     <RootNavigator />
                     <ScreenViews />
+                    <AppOpens />
                     <ThemedChrome />
                     <UpdateReady />
                   </SkyProvider>
@@ -87,6 +88,55 @@ function ScreenViews() {
   useEffect(() => {
     void analytics.track(ANALYTICS_EVENTS.SCREEN_VIEWED, { screen: pathname });
   }, [pathname]);
+  return null;
+}
+
+/** Away at least this long, and coming back is an open of its own rather than a glance away (a
+ *  permission dialog, the share sheet, a sign-in sheet all send the app to the background). */
+const WARM_OPEN_AFTER_MS = 30_000;
+
+/** The cold open is once per JS start, however often this effect re-runs. */
+let coldOpenTracked = false;
+
+/** `notifications_enabled` re-read first, so the open carries today's answer. */
+const trackOpen = (launch: 'cold' | 'warm') =>
+  void syncNotificationsEnabled().then(() => analytics.track(ANALYTICS_EVENTS.APP_OPENED, { launch }));
+
+/**
+ * The opens: `First Open` once per install, and `App Opened` — the boards' "active" — once per JS
+ * start and again for every return from the background after {@link WARM_OPEN_AFTER_MS}.
+ *
+ * Both wait for the session to be known (whether one was stored is what `existing_install` says)
+ * and for the app to be in the foreground: a JS start the OS made in the background is not an open,
+ * and the real one is counted when the app comes forward. Screen Viewed could never say this: it
+ * fires on a route change, and a return to the screen you left changes no route.
+ */
+function AppOpens() {
+  const { session, initialized } = useAuth();
+  const firstOpen = useEffectEvent(() => void analytics.firstOpen(session !== null));
+
+  useEffect(() => {
+    if (!initialized) return;
+    firstOpen();
+    let leftAt: number | null = null;
+    const cameForward = () => {
+      const away = leftAt;
+      leftAt = null;
+      if (!coldOpenTracked) {
+        coldOpenTracked = true;
+        trackOpen('cold');
+      } else if (away !== null && Date.now() - away >= WARM_OPEN_AFTER_MS) trackOpen('warm');
+      // A short trip away can still have been to the system's notification switch.
+      else if (away !== null) void syncNotificationsEnabled();
+    };
+    if (AppState.currentState === 'active') cameForward();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') leftAt = Date.now();
+      else if (state === 'active') cameForward();
+    });
+    return () => sub.remove();
+  }, [initialized]);
+
   return null;
 }
 

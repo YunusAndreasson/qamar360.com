@@ -11,10 +11,12 @@ import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { type CuratedExchange, EXCHANGE_GROUPS } from '@/constants/exchanges';
 import { EXCHANGE_GUIDE } from '@/constants/guides';
 import { Spacing } from '@/constants/theme';
 import { useHabits } from '@/hooks/use-habits';
+import { analytics } from '@/lib/analytics';
 import { DAILY_SCHEDULE } from '@/lib/dates';
 import { exchangePlanLine } from '@/lib/exchange';
 import { haptics } from '@/lib/haptics';
@@ -73,13 +75,15 @@ export default function ExchangeLibraryScreen() {
         // the editor can narrow it afterwards.
         schedule_days: DAILY_SCHEDULE,
       },
-    ]);
+    ], { source: 'exchange_library' });
     if (created.length === 0) return; // createHabits already surfaced the error
     haptics.added();
     show(`Added ${entry.name} to Today`, 'success', {
       label: 'Undo',
       onPress: () => {
         for (const habit of created) void deleteHabit(habit.id);
+        // The add counted as `Habits Added` didn't stand.
+        void analytics.track(ANALYTICS_EVENTS.HABITS_ADDED_UNDONE, { source: 'exchange_library', count: created.length });
       },
     });
   };

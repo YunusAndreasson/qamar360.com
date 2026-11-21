@@ -31,8 +31,8 @@ export default function HabitEditorScreen() {
   // habit is (the same call the exchange form makes).
   const targetStack = isNew && stackId ? (stacks.find((s) => s.id === stackId) ?? null) : null;
   const onCreate = (input: HabitCreate) => {
-    if (targetStack) void createHabitInStack(input, targetStack.id);
-    else void createHabits([input]);
+    if (targetStack) void createHabitInStack(input, targetStack.id, { source: 'editor' });
+    else void createHabits([input], { source: 'editor' });
   };
 
   // The stack this act belongs to, if any, + a handler to edit it. Both stay null for a loose

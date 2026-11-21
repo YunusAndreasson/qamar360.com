@@ -12,12 +12,12 @@ import { AppState } from 'react-native';
 
 import { useDayComplete } from '@/components/day-complete';
 import { useToast } from '@/components/toast';
-import { ANALYTICS_EVENTS } from '@/constants/analytics';
+import { ANALYTICS_EVENTS, type HabitsAddedSource, type StackCreatedSource } from '@/constants/analytics';
 import { useAuth } from '@/hooks/use-auth';
 import { useGuardedMutation } from '@/hooks/use-guarded-mutation';
 import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useLunarUpdates } from '@/hooks/use-lunar-updates';
-import { analytics } from '@/lib/analytics';
+import { analytics, habitCountBucket } from '@/lib/analytics';
 import { countTakeBack, countTap, type CountStep } from '@/lib/count-goal';
 import type { Tables, TablesInsert } from '@/lib/database.types';
 import { addDaysISO, todayLocalISO, type HijriSchedule } from '@/lib/dates';
@@ -183,8 +183,9 @@ type HabitsContextValue = {
   /** Jump to a specific day (clamped to the allowed range). */
   setViewDate: (iso: string) => void;
   /** Create several habits at once (a ready-made stack's acts); returns the new rows. Callers
-   *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`). */
-  createHabits: (inputs: HabitCreate[]) => Promise<Habit[]>;
+   *  must land them in a stack — a habit never lives outside one (see `createHabitInStack`).
+   *  `source` is the screen the add came from, for `Habits Added`; without one nothing is sent. */
+  createHabits: (inputs: HabitCreate[], opts?: { source?: HabitsAddedSource }) => Promise<Habit[]>;
   /** Tick one act **inside a stack** for `viewDate`, or take it back; a count goal counts one
    *  instead, and once met takes one back (`lib/count-goal`). The only way a stack completes: the last open act seals it, and the header ring
    *  fills to the share done meanwhile. A no-op on an excused act. */
@@ -218,7 +219,7 @@ type HabitsContextValue = {
   createStack: (
     name: string,
     orderedMemberIds: string[],
-    opts?: { stackId?: string; moment?: MomentKey | null },
+    opts?: { stackId?: string; moment?: MomentKey | null; source?: StackCreatedSource },
   ) => Promise<string | null>;
   /** Rename a stack, re-anchor its moment, and/or set its full ordered membership. Empty
    *  membership deletes it. `moment` present-and-null is an explicit clear (absent = untouched). */
@@ -242,7 +243,7 @@ type HabitsContextValue = {
   ) => Promise<void>;
   /** Create a habit and land it in `stackId` (appended last) — the stack-scoped Add screen's
    *  create path. Falls back to a standalone habit if the stack vanished mid-flight. */
-  createHabitInStack: (input: HabitCreate, stackId: string) => Promise<void>;
+  createHabitInStack: (input: HabitCreate, stackId: string, opts?: { source?: HabitsAddedSource }) => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue | null>(null);
@@ -829,19 +830,33 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       const res = sealsStack
         ? celebrateSeal(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day)
         : celebrateHold(habitsRef.current, skippedRef.current, completedRef.current, new Set([habit.id]), day);
-      // Analytics: which kind of act, never its name.
+      // `Day Completed` is counted by the overlay itself, the one place every closing path meets.
+      if (res.dayComplete && day === todayRef.current) showDayComplete(day, res.doneIds);
+    },
+    [showDayComplete, completedRef, habitsRef, skippedRef, todayRef],
+  );
+
+  /** Habit-days already counted as `Habit Completed` this session, so take-back-and-tick-again
+   *  counts once. */
+  const completionsTracked = useRef<Set<string>>(new Set());
+
+  /**
+   * `Habit Completed`, once the completion is saved — a tick that rolled back never happened —
+   * and once per habit-day per session. Which kind of act, never its name.
+   */
+  const trackCompleted = useCallback(
+    (habit: Habit, day: string) => {
+      const key = countKey(habit.id, day);
+      if (completionsTracked.current.has(key)) return;
+      completionsTracked.current.add(key);
       void analytics.track(ANALYTICS_EVENTS.HABIT_COMPLETED, {
         preset: !!habit.preset_id,
         count_goal: (habit.target_count ?? 0) > 0,
         in_stack: !!habit.stack_id,
         today: day === todayRef.current,
       });
-      if (res.dayComplete && day === todayRef.current) {
-        showDayComplete(day, res.doneIds);
-        void analytics.track(ANALYTICS_EVENTS.DAY_COMPLETED, { acts: res.doneIds.length });
-      }
     },
-    [showDayComplete, completedRef, habitsRef, skippedRef, todayRef],
+    [todayRef],
   );
 
   // A count goal's row as the user last asked for it, per habit-day, while writes for it are still
@@ -971,6 +986,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             return;
           }
           confirmed = stateAfter(wanted);
+          if (confirmed.done) trackCompleted(habit, day);
         }
         countWanted.current.delete(key);
       };
@@ -982,7 +998,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         countFlights.current.delete(key);
       }
     },
-    [userId, celebrateDone, showCount, standingCount, habitsRef, skippedRef, viewDateRef],
+    [userId, celebrateDone, trackCompleted, showCount, standingCount, habitsRef, skippedRef, viewDateRef],
   );
   const runTakeOneBack = useCallback((habitId: string) => runCountStep(habitId, 'back'), [runCountStep]);
   const takeOneBack = useGuardedMutation(completionGuard.begin, completionGuard.end, runTakeOneBack);
@@ -1029,7 +1045,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
       try {
         if (wasDone) await deleteCompletion(habitId, day);
-        else
+        else {
           await upsertCompletion({
             habit_id: habitId,
             user_id: userId,
@@ -1037,6 +1053,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
             status: 'done',
             count: null,
           });
+          trackCompleted(act, day);
+        }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
         if (viewDateRef.current === day) {
@@ -1052,7 +1070,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, celebrateDone, completedRef, habitsRef, skippedRef, viewDateRef, runCountStep],
+    [userId, celebrateDone, trackCompleted, completedRef, habitsRef, skippedRef, viewDateRef, runCountStep],
   );
   const toggleHabit = useGuardedMutation(completionGuard.begin, completionGuard.end, runToggleHabit);
 
@@ -1116,6 +1134,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           // Upsert so a prior 'done'/'partial' row for the day is converted to 'skipped'
           // (and any count goal's running count cleared).
           await upsertCompletion({ habit_id: habitId, user_id: userId, completed_at: day, status: 'skipped', count: null });
+          // Once saved, like a completion. Where the act sits and which day, never which act.
+          void analytics.track(ANALYTICS_EVENTS.HABIT_SKIPPED, {
+            in_stack: !!habitsRef.current.find((h) => h.id === habitId)?.stack_id,
+            today: day === todayRef.current,
+          });
         }
       } catch {
         // The day may have changed mid-flight; only roll back if we're still on it.
@@ -1146,7 +1169,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         pending.current.delete(habitId);
       }
     },
-    [userId, standingCount, skippedRef, viewDateRef],
+    [userId, standingCount, habitsRef, skippedRef, todayRef, viewDateRef],
   );
   const skipHabit = useGuardedMutation(completionGuard.begin, completionGuard.end, runSkipHabit);
 
@@ -1158,7 +1181,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // Each mutation below is written as `run<Name>` and exported through {@link useGuardedMutation},
   // which brackets its server writes so an overlapping refresh can't apply rows from before them.
   const runCreateHabits = useCallback(
-    async (inputs: HabitCreate[]): Promise<Habit[]> => {
+    async (inputs: HabitCreate[], opts?: { source?: HabitsAddedSource }): Promise<Habit[]> => {
       if (!userId) return [];
       const clean = inputs
         .map((input) => ({ ...input, name: input.name.trim() }))
@@ -1235,11 +1258,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         habitsRef.current = [...habitsRef.current.filter((h) => !tempIds.has(h.id)), ...persisted].sort(
           (a, b) => a.position - b.position,
         );
-        if (persisted.length > 0) {
-          // Counts only: a habit's name is the user's own words and never leaves the device this way.
+        if (persisted.length > 0 && opts?.source) {
+          // Counts and the screen only: a habit's name is the user's own words, and which presets
+          // they were would say which practice; neither leaves the device this way.
           void analytics.track(ANALYTICS_EVENTS.HABITS_ADDED, {
             count: persisted.length,
             presets: persisted.filter((h) => !!h.preset_id).length,
+            source: opts.source,
           });
         }
         return persisted;
@@ -1555,7 +1580,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     async (
       name: string,
       orderedMemberIds: string[],
-      opts?: { stackId?: string; moment?: MomentKey | null },
+      opts?: { stackId?: string; moment?: MomentKey | null; source?: StackCreatedSource },
     ): Promise<string | null> => {
       if (!userId) return null;
       const cleanName = name.trim();
@@ -1634,6 +1659,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         setError('Could not create that stack. Check your connection.');
         return null;
       }
+      // Only a stack the user set out to make: an Undo re-creating one, or a regrouping, says none.
+      // Never its name or moment, which name the practice.
+      if (opts?.source) void analytics.track(ANALYTICS_EVENTS.STACK_CREATED, { source: opts.source });
       return stackId;
     },
     [userId, ensureUserRow, persistGrouping, habitsRef, purgeRow],
@@ -1928,8 +1956,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   // `moveHabit` keeps the position space contiguous. The one-frame standalone hop sits behind
   // the Add modal, so it is never visible on Today.
   const createHabitInStack = useCallback(
-    async (input: HabitCreate, stackId: string) => {
-      const [habit] = await createHabits([input]);
+    async (input: HabitCreate, stackId: string, opts?: { source?: HabitsAddedSource }) => {
+      const [habit] = await createHabits([input], opts);
       if (!habit) return; // createHabits already surfaced the error
       if (!stacksRef.current.some((s) => s.id === stackId)) return; // stack gone — habit stays standalone
       await moveHabit(habit.id, { toStackId: stackId, placement: { type: 'member-append' } });
@@ -1938,6 +1966,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   );
 
   const dismissError = useCallback(() => setError(null), []);
+
+  // `habit_count` rides every event once the habits are in — not from the first commit, which can
+  // be an empty list waiting on its fetch and would file everyone under the empty state.
+  useEffect(() => {
+    if (!loading) void analytics.register({ habit_count: habitCountBucket(habits.length) });
+  }, [loading, habits.length]);
 
   // Tasks need the viewed day reactively, but habit completion state only at the instant a task
   // is ticked. A stable getter keeps ordinary habit mutations out of TasksProvider's render path

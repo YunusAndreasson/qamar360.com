@@ -63,7 +63,7 @@ export default function StackNewScreen() {
     // Create after closing so the card's arrival on Today is what the eye lands on. The toast
     // waits for the insert to settle so its Undo always has a real id to delete.
     void (async () => {
-      const id = await createStack(trimmed, [], { moment });
+      const id = await createStack(trimmed, [], { moment, source: 'own' });
       if (!id) return;
       // An act was waiting on this stack (the picker's "New stack") — land it now, and let the
       // toast say where it went instead of asking for a first act the stack already has.

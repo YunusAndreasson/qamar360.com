@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { FormSheet, SheetActions } from '@/components/form-sheet';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
+import { analytics } from '@/lib/analytics';
 import { countGoalLabel } from '@/lib/count-goal';
 import { dayInSentence } from '@/lib/dates';
 import { isExchange } from '@/lib/exchange';
@@ -83,6 +85,8 @@ export default function ActActionsScreen() {
       onConfirm: () => {
         haptics.removed();
         void deleteHabit(habit.id);
+        // Which kind of thing, in the app's own word for it — never which one.
+        void analytics.track(ANALYTICS_EVENTS.HABIT_DELETED, { kind: noun });
       },
     });
   };

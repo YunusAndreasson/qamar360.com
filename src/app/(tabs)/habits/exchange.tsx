@@ -9,10 +9,12 @@ import { formHeaderActions } from '@/components/form-header-actions';
 import { FormScreen } from '@/components/form-screen';
 import { GuideLink } from '@/components/guide-link';
 import { WeekdayPicker } from '@/components/weekday-picker';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
 import { useHabits } from '@/hooks/use-habits';
 import { confirmDestructive } from '@/lib/alerts';
+import { analytics } from '@/lib/analytics';
 import { DAILY_SCHEDULE } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { isDuplicateName, siblingNames } from '@/lib/names';
@@ -69,7 +71,7 @@ export default function ExchangeFormScreen() {
     // `createHabits` lands rows with no `stack_id`, which is exactly right here — an exchange is
     // anchored to an urge, not to a moment, so it belongs to no stack.
     if (isNew) {
-      void createHabits([fields]);
+      void createHabits([fields], { source: 'exchange' });
       // The same crisp "commit" as creating an act or a stack — every way something enters the
       // day confirms with one texture. Editing in place stays silent, as it does for an act.
       haptics.added();
@@ -89,6 +91,7 @@ export default function ExchangeFormScreen() {
       onConfirm: () => {
         haptics.removed();
         void deleteHabit(habit.id);
+        void analytics.track(ANALYTICS_EVENTS.HABIT_DELETED, { kind: 'exchange' });
       },
     });
   };

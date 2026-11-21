@@ -14,10 +14,10 @@ type AuthContextValue = {
   initialized: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
-  /** Native Sign in with Apple (ID-token flow). No-op if the user cancels. */
-  signInWithApple: () => Promise<void>;
-  /** Native Sign in with Google (ID-token flow). No-op if the user cancels. */
-  signInWithGoogle: () => Promise<void>;
+  /** Native Sign in with Apple (ID-token flow). Resolves `false`, and does nothing, if the user cancels. */
+  signInWithApple: () => Promise<boolean>;
+  /** Native Sign in with Google (ID-token flow). Resolves `false`, and does nothing, if the user cancels. */
+  signInWithGoogle: () => Promise<boolean>;
   signOut: () => Promise<void>;
   /** Email a one-time recovery code (tokenless reset — no deep link needed). */
   resetPassword: (email: string) => Promise<void>;
@@ -37,9 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let settled = false;
+    // Registered here, where the session is set, rather than in an effect: the root's effects
+    // (First Open, the cold App Opened) run before a parent's, and should already carry it.
+    const signedIn = (next: Session | null) => void analytics.register({ signed_in: next !== null });
     const finish = (next: Session | null) => {
       if (settled) return;
       settled = true;
+      signedIn(next);
       setSession(next);
       setInitialized(true);
     };
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       settled = true;
+      signedIn(nextSession);
       setSession(nextSession);
       setInitialized(true);
     });
@@ -76,19 +81,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void analytics.trackSignIn('email');
       },
       async signUp(email, password) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        void analytics.trackSignUp('email');
+        // An address that already has an account gets no error either (so sign-up can't be used to
+        // find out who is registered): Supabase answers with a stand-in user that has no
+        // identities. Only a user with one is a new account.
+        if (data.user?.identities?.length) void analytics.trackSignUp('email');
       },
       // Native social sign-in lands a session that flows through the onAuthStateChange listener
       // above, so these just delegate — no manual navigation. `public.users` is provisioned by the
       // `handle_new_user` DB trigger (and `ensureUserRow` on first write), same as any signup.
-      // Analytics: a plain event with the method only, never who; nothing on a cancel.
+      // Analytics: a plain event with the method only, never who — Sign Up when the sign-in is the
+      // one that created the account, Sign In otherwise; the sign-in screen reports a cancel.
       async signInWithApple() {
-        if (await socialAuth.signInWithApple()) void analytics.trackSignIn('apple');
+        const result = await socialAuth.signInWithApple();
+        if (!result) return false;
+        void (result.isNew ? analytics.trackSignUp('apple') : analytics.trackSignIn('apple'));
+        return true;
       },
       async signInWithGoogle() {
-        if (await socialAuth.signInWithGoogle()) void analytics.trackSignIn('google');
+        const result = await socialAuth.signInWithGoogle();
+        if (!result) return false;
+        void (result.isNew ? analytics.trackSignUp('google') : analytics.trackSignIn('google'));
+        return true;
       },
       async signOut() {
         const { error } = await supabase.auth.signOut();

@@ -81,6 +81,9 @@ export default function HabitsStackLayout() {
       <Stack.Screen name="exchange" options={modalHeaderOptions(theme)} />
       {/* The exchange guide — the sibling of `stacking-info`, opened from the "New exchange" form. */}
       <Stack.Screen name="exchange-info" />
+      {/* The lunar updates, offered once after the first closed day — the same sheet Settings
+          opens from its switch, registered here so the offer lands on Today. */}
+      <Stack.Screen name="lunar-updates" options={formSheetOptions(theme)} />
     </TabStack>
   );
 }

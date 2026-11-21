@@ -8,11 +8,12 @@
  * didn't, so the buttons light up only in a build that bundled the native modules.
  *
  * The landed session flows through `supabase.auth.onAuthStateChange` (see use-auth), so callers
- * don't navigate — the root gate flips on its own. User-cancellation resolves as a no-op.
+ * don't navigate — the root gate flips on its own. User-cancellation resolves as `null`.
  */
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { isNewAccount } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
 
 // The modules' *types* without a runtime import — a static `import` would evaluate the native
@@ -72,11 +73,15 @@ export async function appleAuthAvailable(): Promise<boolean> {
   }
 }
 
+/** A social sign-in that went through. `isNew`: it created the account (a sign-up, not a sign-in). */
+type SocialSignIn = { isNew: boolean };
+
 /**
  * Sign in with Apple via the native sheet, exchanging the identity token with Supabase.
- * Resolves `false` as a no-op if the user cancels, `true` once signed in; throws on any real failure.
+ * Resolves `null` as a no-op if the user cancels, the sign-in once signed in; throws on any real
+ * failure.
  */
-export async function signInWithApple(): Promise<boolean> {
+export async function signInWithApple(): Promise<SocialSignIn | null> {
   if (!AppleAuth) throw new Error('Apple sign-in needs a development build.');
   let credential;
   try {
@@ -87,12 +92,12 @@ export async function signInWithApple(): Promise<boolean> {
       ],
     });
   } catch (e) {
-    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') return false; // user backed out
+    if ((e as { code?: string }).code === 'ERR_REQUEST_CANCELED') return null; // user backed out
     throw e;
   }
   if (!credential.identityToken) throw new Error('Apple did not return an identity token.');
   // `handle_new_user` provisions public.users on first sign-in; the session lands via onAuthStateChange.
-  const { error } = await supabase.auth.signInWithIdToken({
+  const { data, error } = await supabase.auth.signInWithIdToken({
     provider: 'apple',
     token: credential.identityToken,
   });
@@ -104,16 +109,17 @@ export async function signInWithApple(): Promise<boolean> {
   if (fullName) {
     void supabase.auth.updateUser({ data: { full_name: fullName } }).then(undefined, () => {});
   }
-  return true;
+  return { isNew: isNewAccount(data.user) };
 }
 
 let googleConfigured = false;
 
 /**
  * Sign in with Google via the native account picker, exchanging the ID token with Supabase.
- * Resolves `false` as a no-op if the user cancels, `true` once signed in; throws on any real failure.
+ * Resolves `null` as a no-op if the user cancels, the sign-in once signed in; throws on any real
+ * failure.
  */
-export async function signInWithGoogle(): Promise<boolean> {
+export async function signInWithGoogle(): Promise<SocialSignIn | null> {
   if (!Google) throw new Error('Google sign-in needs a development build.');
   if (!GOOGLE_WEB_CLIENT_ID) throw new Error('Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.');
   const { GoogleSignin, statusCodes, isSuccessResponse, isErrorWithCode } = Google;
@@ -128,15 +134,15 @@ export async function signInWithGoogle(): Promise<boolean> {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
-    if (!isSuccessResponse(response)) return false; // cancelled
+    if (!isSuccessResponse(response)) return null; // cancelled
     const idToken = response.data.idToken;
     if (!idToken) throw new Error('Google did not return an ID token.');
-    const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+    const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
     if (error) throw error;
-    return true;
+    return { isNew: isNewAccount(data.user) };
   } catch (e) {
     if (isErrorWithCode(e) && (e.code === statusCodes.SIGN_IN_CANCELLED || e.code === statusCodes.IN_PROGRESS)) {
-      return false; // user dismissed the picker, or a sign-in is already in flight
+      return null; // user dismissed the picker, or a sign-in is already in flight
     }
     throw e;
   }

@@ -26,6 +26,7 @@ import { TaskSection } from '@/components/task-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
 import { WeekBar } from '@/components/week-bar';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { Icons } from '@/constants/icons';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
@@ -36,6 +37,7 @@ import { useStackActions } from '@/hooks/use-stack-actions';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTheme } from '@/hooks/use-theme';
 import { tomorrowLine } from '@/lib/almanac';
+import { analytics } from '@/lib/analytics';
 import { addDaysISO, dayTitle, scheduledOn } from '@/lib/dates';
 import {
   buildUnits,
@@ -896,6 +898,7 @@ function UpcomingHint({ label, moon }: { label: string; moon: { illumination: nu
  */
 function AnchorOffer() {
   const router = useRouter();
+  useAnchorPromptViewed(true);
   return (
     <View style={styles.offer}>
       <Surface>
@@ -911,6 +914,17 @@ function AnchorOffer() {
   );
 }
 
+/**
+ * The first step of onboarding, counted once per install, whichever of its two forms (the full
+ * empty day, or the offer under a to-do list) showed it first.
+ */
+function useAnchorPromptViewed(shown: boolean) {
+  useEffect(() => {
+    if (!shown) return;
+    void analytics.trackOnce(ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED, { step: 'anchor_prompt', index: 1 }, 'anchor_prompt');
+  }, [shown]);
+}
+
 function HabitsEmptyState({
   hasHabits,
   isToday,
@@ -920,6 +934,7 @@ function HabitsEmptyState({
   isToday: boolean;
   onBuild: () => void;
 }) {
+  useAnchorPromptViewed(!hasHabits);
   // A rest day (you have stacks, none fall today) is a calm, action-free "bedtime" note. The
   // brand-new user instead gets the warm moon emblem and the question the whole app turns on.
   if (hasHabits) {

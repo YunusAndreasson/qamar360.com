@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'expo-router';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -14,16 +15,20 @@ import { FadeInView } from '@/components/fade-in-view';
 import { LargeMoon, MoonBloomCanvas } from '@/components/moon-body';
 import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { ThemedText } from '@/components/themed-text';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { Duration, Ease, Scale, Tick } from '@/constants/motion';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { useLatestRef } from '@/hooks/use-latest-ref';
 import { useTallyUp } from '@/hooks/use-tally-up';
 import { useTheme } from '@/hooks/use-theme';
+import { analytics } from '@/lib/analytics';
 import { celebrationCopy } from '@/lib/celebration';
 import { hijriMonthRange, hijriParts, todayLocalISO } from '@/lib/dates';
 import { deviceLocation } from '@/lib/geo';
 import { loadProgress } from '@/lib/load-progress';
 import { moonIllumination } from '@/lib/moon';
+import { shouldOfferLunarUpdates } from '@/lib/notifications';
 import { getPreference } from '@/lib/preferences';
 import type { MonthProgress } from '@/lib/progress';
 import { orbitDegrees } from '@/lib/progress-format';
@@ -63,27 +68,57 @@ const GLOW_SIZE = 184;
 // foreground layer (still short of an opaque blackout — the night sky behind stays sensed, not
 // erased). Applied inline from the theme, where the value is shared with any future overlay.
 
+/** Where the lunar-updates offer may follow the card: Today itself, where every day is closed. */
+const OFFER_FROM = '/habits';
+
 export function DayCompleteProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const currentPath = usePathname();
+  const pathname = useLatestRef(currentPath);
   const [celebration, setCelebration] = useState<{ id: number; day: string; doneToday: string[] } | null>(null);
   const idRef = useRef(0);
   // Celebrate a given day at most once per session — un-tick then re-tick must not nag.
   const lastDay = useRef<string | null>(null);
+  // Whether the lunar-updates sheet follows the card now up. Decided while it shows, so the sheet
+  // can follow it the moment it fades.
+  const offerNext = useRef(false);
 
+  // Every path that closes the live day comes through here (a tick, a count's last unit, a to-do),
+  // which makes it the one place a closed day can be counted, and counted once.
   const celebrate = useCallback((day: string, doneToday: string[]) => {
     if (lastDay.current === day) return;
     lastDay.current = day;
+    void analytics.track(ANALYTICS_EVENTS.DAY_COMPLETED, { acts: doneToday.length });
     // Turned off, the day still closes — the ring still sweeps shut and the celebratory haptic
     // still lands (that one answers to the Haptics preference). Only the card stays away, for
     // someone who'd rather finish the day quietly. Latched above regardless, so switching it
     // back on mid-day doesn't raise a card for a day already completed.
     if (!getPreference('celebrateDay')) return;
     setCelebration({ id: (idRef.current += 1), day, doneToday });
+    const id = idRef.current;
+    offerNext.current = false;
+    void shouldOfferLunarUpdates().then((offer) => {
+      if (idRef.current === id) offerNext.current = offer;
+    });
   }, []);
 
-  const dismiss = useCallback(() => setCelebration(null), []);
+  // A first closed day is the moment the lunar updates have earned their ask: they are on by
+  // default, but nothing ever asked the OS, so on iOS and Android 13+ none of them could arrive.
+  // The sheet explains them first and asks only on Continue; it is offered once, ever, and only
+  // over Today — anywhere else, the next closed day offers it instead.
+  const dismiss = useCallback(() => {
+    setCelebration(null);
+    if (!offerNext.current) return;
+    offerNext.current = false;
+    if (pathname.current === OFFER_FROM) router.push('/habits/lunar-updates');
+  }, [router, pathname]);
+
+  // Stable across the re-render every route change now brings (the pathname above), so the
+  // providers that consume it never redraw for a navigation.
+  const value = useMemo(() => ({ celebrate }), [celebrate]);
 
   return (
-    <DayCompleteContext value={{ celebrate }}>
+    <DayCompleteContext value={value}>
       {children}
       {celebration ? (
         <DayCompleteOverlay key={celebration.id} day={celebration.day} doneToday={celebration.doneToday} onDismiss={dismiss} />

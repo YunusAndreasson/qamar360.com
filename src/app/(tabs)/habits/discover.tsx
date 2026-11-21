@@ -10,6 +10,7 @@ import { GeometricBackdrop } from '@/components/ornament/geometric-backdrop';
 import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { SunnahPresetRow } from '@/components/sunnah-preset-row';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import type { SunnahCategory, SunnahPreset } from '@/constants/sunnah-habits';
 import { MaxContentWidth, ScrollBottomInset, Spacing } from '@/constants/theme';
 import { useBackIfStale } from '@/hooks/use-back-if-stale';
@@ -17,6 +18,7 @@ import { useCatalog } from '@/hooks/use-catalog';
 import { type Habit, useHabits } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
+import { analytics } from '@/lib/analytics';
 import { habitInputFor as toCreate } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
 import { habitMetaLine } from '@/lib/loose-row';
@@ -147,7 +149,7 @@ export default function DiscoverScreen() {
     if (!stack) {
       // Unscoped: land it as a stackless habit, straight into Today's HABITS section. `toCreate`
       // names no stack at all, which is what made this the three-line change it looks like.
-      void createHabits([toCreate(preset)]).then(([created]) => {
+      void createHabits([toCreate(preset)], { source: 'discover' }).then(([created]) => {
         if (created) createdHere.current.add(created.id);
       });
       return;
@@ -162,7 +164,7 @@ export default function DiscoverScreen() {
     // Not here yet — create it straight into this stack, under the preset's own name, even when
     // another stack already holds it. Each is its own row with its own ticks, so filling this stack
     // never silently empties another.
-    void createHabitInStack(toCreate(preset), stack.id);
+    void createHabitInStack(toCreate(preset), stack.id, { source: 'discover' });
   };
 
   const removePreset = (preset: SunnahPreset) => {
@@ -182,12 +184,17 @@ export default function DiscoverScreen() {
     if (createdHere.current.has(habit.id)) {
       createdHere.current.delete(habit.id);
       void deleteHabit(habit.id);
+      // The checklist's undo of the add it just made: that `Habits Added` didn't stand.
+      void analytics.track(ANALYTICS_EVENTS.HABITS_ADDED_UNDONE, { source: 'discover', count: 1 });
       return;
     }
     confirmDestructive({
       title: 'Delete habit',
       message: `Delete “${habit.name}”? Its history goes with it.`,
-      onConfirm: () => void deleteHabit(habit.id),
+      onConfirm: () => {
+        void deleteHabit(habit.id);
+        void analytics.track(ANALYTICS_EVENTS.HABIT_DELETED, { kind: 'habit' });
+      },
     });
   };
 

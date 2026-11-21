@@ -10,11 +10,13 @@ import { SettingsRow } from '@/components/settings-row';
 import { SettingsSection } from '@/components/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { CURATED_GROUPS, type CuratedStack } from '@/constants/curated-stacks';
 import { STACKING_GUIDE } from '@/constants/guides';
 import { Spacing } from '@/constants/theme';
 import { useCatalog } from '@/hooks/use-catalog';
 import { useHabits } from '@/hooks/use-habits';
+import { analytics } from '@/lib/analytics';
 import { countGoalLabel } from '@/lib/count-goal';
 import { buildCuratedPlan } from '@/lib/curated';
 import { haptics } from '@/lib/haptics';
@@ -66,6 +68,12 @@ export default function StackLibraryScreen() {
     }
   };
 
+  // The add counted as `Habits Added` didn't stand — rolled back or undone — so the boards can
+  // take it off again. Nothing was counted for a stack made only of acts already kept.
+  const trackUndone = (count: number) => {
+    if (count > 0) void analytics.track(ANALYTICS_EVENTS.HABITS_ADDED_UNDONE, { source: 'stack_library', count });
+  };
+
   const addStack = async (curated: CuratedStack) => {
     const plan = buildCuratedPlan(curated, presets, habits, stacks);
     if (!plan) return; // the stack exists and already holds every act — the card reads as added
@@ -75,7 +83,7 @@ export default function StackLibraryScreen() {
       plan.gatherIds.map((id) => [id, habits.find((h) => h.id === id)?.stack_id ?? null] as const),
     );
 
-    const created = await createHabits(plan.inputs);
+    const created = await createHabits(plan.inputs, { source: 'stack_library' });
     // Empty is the answer to an empty ask (a stack built only out of acts already kept), so only
     // an ask that came back with nothing is a failure — and createHabits has already said so.
     if (plan.inputs.length > 0 && created.length === 0) return;
@@ -100,7 +108,7 @@ export default function StackLibraryScreen() {
         .map((h) => h.id);
       await updateStack(plan.existingStackId, { orderedMemberIds: [...current, ...ids] });
     } else {
-      createdStackId = await createStack(plan.name, ids, { moment: plan.moment });
+      createdStackId = await createStack(plan.name, ids, { moment: plan.moment, source: 'curated' });
       // The stack is the whole point of this screen, so an anchoring that couldn't anchor undoes
       // itself rather than leaving its acts behind. Half-applied was the worst of the three
       // outcomes: the acts landed loose at the end of Today, and the card — which reads "already
@@ -109,6 +117,7 @@ export default function StackLibraryScreen() {
       // surfaced the failure; the success toast below would otherwise report the opposite.
       if (!createdStackId) {
         for (const habit of created) void deleteHabit(habit.id);
+        trackUndone(created.length);
         return;
       }
     }
@@ -126,6 +135,7 @@ export default function StackLibraryScreen() {
           for (const [habitId, from] of gatheredFrom) await moveHabit(habitId, { toStackId: from });
           for (const habit of created) await deleteHabit(habit.id);
         })();
+        trackUndone(created.length);
       },
     });
   };

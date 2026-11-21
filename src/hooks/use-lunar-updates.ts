@@ -56,7 +56,7 @@ async function arm(userId: string, today: string, doneToday: string[], signal: A
   await scheduleLunarUpdates(
     fires.map((fire) => {
       const { title, body, assetKey } = lunarUpdateCopy(fire, month);
-      return { at: fire.at, title, body, assetKey };
+      return { at: fire.at, title, body, assetKey, milestone: fire.hijriDay };
     }),
   );
 }

@@ -13,6 +13,7 @@ import { SocialLinks } from '@/components/social-links';
 import { ThemeSegmented } from '@/components/theme-segmented';
 import { ThemedText } from '@/components/themed-text';
 import { useToast } from '@/components/toast';
+import { ANALYTICS_EVENTS } from '@/constants/analytics';
 import { APP_NAME } from '@/constants/app';
 import { Links } from '@/constants/links';
 import { Pressed, Spacing } from '@/constants/theme';
@@ -21,12 +22,13 @@ import { useAvatar } from '@/hooks/use-avatar';
 import { clearCompletionHistory } from '@/hooks/use-habits';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive } from '@/lib/alerts';
+import { analytics } from '@/lib/analytics';
 import { openBrowser } from '@/lib/browser';
 import { describeHijriOffset, todayLocalISO } from '@/lib/dates';
 import { deviceLocation } from '@/lib/geo';
 import { planLunarFires } from '@/lib/lunar-schedule';
 import { lunarUpdateCopy } from '@/lib/lunar-update';
-import { ensurePermission, notificationsAvailable, permissionGranted } from '@/lib/notifications';
+import { ensurePermission, notificationsAvailable, permissionGranted, setLunarUpdates } from '@/lib/notifications';
 import { setPreference, usePreference } from '@/lib/preferences';
 
 export default function SettingsScreen() {
@@ -113,6 +115,7 @@ export default function SettingsScreen() {
     setClearing(true);
     try {
       await clearCompletionHistory(user.id);
+      void analytics.track(ANALYTICS_EVENTS.PROGRESS_RESET);
       setClearing(false);
       // Habits and stacks are untouched; the Habits/Progress tabs refetch on focus,
       // so they show a clean slate on return. A quiet toast confirms — no blocking dialog needed.
@@ -146,7 +149,8 @@ export default function SettingsScreen() {
         await Linking.openSettings();
         return;
       }
-      const granted = await ensurePermission();
+      // Straight to the OS dialog: the lunar updates are already on, so this row is the ask itself.
+      const granted = await ensurePermission({ primed: false, source: 'settings' });
       setNotifGranted(granted);
       if (!granted) {
         Alert.alert(
@@ -173,7 +177,7 @@ export default function SettingsScreen() {
   // permission exists the switch is just a switch.
   const onToggleLunarUpdates = (value: boolean) => {
     if (!value || notifGranted === true) {
-      setPreference('lunarUpdates', value);
+      setLunarUpdates(value);
       return;
     }
     router.push('/settings/lunar-updates');

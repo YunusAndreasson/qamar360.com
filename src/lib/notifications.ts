@@ -14,11 +14,20 @@
  *
  * No local state is kept: {@link scheduleLunarUpdates} cancels everything and rebuilds from
  * the list it is handed, so the OS schedule always mirrors what the app last computed.
+ *
+ * It is also where the permission and the taps are measured, since every ask and every tap passes
+ * through here: the permission events, `Notification Opened`, and the `notifications_enabled`
+ * super property.
  */
 import { Platform } from 'react-native';
 
+import { ANALYTICS_EVENTS, type PermissionSource } from '@/constants/analytics';
 import { MOON_ASSETS } from '@/constants/moon-assets';
 import { Colors } from '@/constants/theme';
+import { analytics } from '@/lib/analytics';
+import { MILESTONE_DAYS, type MilestoneDay } from '@/lib/lunar-phase';
+import { getPreference, setPreference } from '@/lib/preferences';
+import { readStoredJSON, writeStoredJSON } from '@/lib/web-storage';
 
 /** The Android channel these arrive on. */
 const CHANNEL_ID = 'lunar';
@@ -64,6 +73,8 @@ export type PlannedUpdate = {
   body: string;
   /** Which bundled moon to attach — a key of {@link MOON_ASSETS}. iOS only. */
   assetKey: string;
+  /** The Hijri day it marks, carried in the notification so a tap can say which one it was. */
+  milestone: MilestoneDay;
 };
 
 let configured = false;
@@ -116,13 +127,81 @@ export async function permissionGranted(): Promise<boolean | null> {
   return status === 'granted';
 }
 
-/** Request notification permission if needed. Returns true when granted (false when unavailable). */
-export async function ensurePermission(): Promise<boolean> {
-  if (!N) return false;
-  const current = await N.getPermissionsAsync();
-  if (current.status === 'granted' && (Platform.OS !== 'ios' || current.ios?.allowsBadge !== false)) return true;
-  const { status: next } = await N.requestPermissionsAsync(IOS_PERMISSION);
-  return next === 'granted';
+/** Where an ask came from: `primed` when the lunar-updates sheet explained it first. */
+type PermissionAsk = { primed: boolean; source: PermissionSource };
+
+/**
+ * Request notification permission if needed. Returns true when granted (false when unavailable).
+ *
+ * Measured either way: `Permission Prompt Shown` when the OS is going to show its dialog (never
+ * asked, or still allowed to ask again), and a `Permission Result` for every call, `prompted`
+ * saying whether that dialog was the one that answered.
+ */
+export async function ensurePermission(ask: PermissionAsk): Promise<boolean> {
+  const context = { permission: 'notifications', primed: ask.primed, source: ask.source };
+  let granted = false;
+  let prompted = false;
+  try {
+    if (!N) return false;
+    const current = await N.getPermissionsAsync();
+    if (current.status === 'granted' && (Platform.OS !== 'ios' || current.ios?.allowsBadge !== false)) {
+      granted = true;
+      return true;
+    }
+    prompted = current.status === 'undetermined' || (current.status !== 'granted' && current.canAskAgain);
+    if (prompted) void analytics.track(ANALYTICS_EVENTS.PERMISSION_PROMPT_SHOWN, { ...context, dialog: 'system' });
+    const { status: next } = await N.requestPermissionsAsync(IOS_PERMISSION);
+    granted = next === 'granted';
+    return granted;
+  } finally {
+    void analytics.track(ANALYTICS_EVENTS.PERMISSION_RESULT, { ...context, granted, prompted });
+    void syncNotificationsEnabled();
+  }
+}
+
+/**
+ * The `notifications_enabled` super property: the lunar updates switched on AND the OS allowing
+ * them, which is whether the app can reach this person at all. Re-read at launch, on every return
+ * to the foreground (the OS switch lives in system settings), and after an ask or a toggle.
+ * Never rejects.
+ */
+export async function syncNotificationsEnabled(): Promise<void> {
+  let granted = false;
+  try {
+    granted = (await permissionGranted()) === true;
+  } catch {
+    // Unknown counts as not reachable.
+  }
+  await analytics.register({ notifications_enabled: getPreference('lunarUpdates') && granted });
+}
+
+/** The user's own switch for the lunar updates, with its event and the super property it moves. */
+export function setLunarUpdates(enabled: boolean): void {
+  if (getPreference('lunarUpdates') === enabled) return;
+  setPreference('lunarUpdates', enabled);
+  void analytics.track(ANALYTICS_EVENTS.LUNAR_UPDATES_TOGGLED, { enabled });
+  void syncNotificationsEnabled();
+}
+
+/** Set once the lunar-updates sheet has been shown, from anywhere: the app never offers it twice. */
+const OFFERED_KEY = 'notifications.lunarUpdatesOffered.v1';
+
+export function markLunarUpdatesOffered(): void {
+  writeStoredJSON(OFFERED_KEY, true);
+}
+
+/**
+ * Whether to offer the lunar updates unasked, after a day's celebration: they are on (the default)
+ * but cannot arrive, because the OS has never been asked, and the sheet that asks has never been
+ * shown. A user who closed it once is not asked again; Settings stays the way back.
+ */
+export async function shouldOfferLunarUpdates(): Promise<boolean> {
+  if (!N || !getPreference('lunarUpdates') || readStoredJSON<boolean>(OFFERED_KEY) === true) return false;
+  try {
+    return (await N.getPermissionsAsync()).status === 'undetermined';
+  } catch {
+    return false;
+  }
 }
 
 /** Set the home-screen app icon badge. Best-effort: unsupported launchers simply ignore it. */
@@ -174,23 +253,33 @@ async function stageMoon(assetKey: string): Promise<string | null> {
  *  the same response, and two navigations would stack the same screen twice. */
 let handledTapId: string | null = null;
 
-function lunarTap(response: { notification: { request: { identifier: string; content: { data?: unknown } } } } | null) {
-  const data = response?.notification.request.content.data as { kind?: string } | undefined;
+type LunarTap = { id: string; milestone: MilestoneDay | undefined };
+
+function lunarTap(response: { notification: { request: { identifier: string; content: { data?: unknown } } } } | null): LunarTap | null {
+  const data = response?.notification.request.content.data as { kind?: string; milestone?: unknown } | undefined;
   if (data?.kind !== LUNAR_KIND) return null;
-  return { id: response!.notification.request.identifier };
+  // Absent on an update armed by a build from before it was carried.
+  const milestone = MILESTONE_DAYS.find((day) => day === data.milestone);
+  return { id: response!.notification.request.identifier, milestone };
 }
 
 /**
  * Run `open` when the user taps a lunar update — including the tap that cold-started the app,
  * which arrives through a different API than a tap while it is running. Returns an unsubscribe.
+ * Each tap is counted once, as `Notification Opened`, `cold_start` when it launched the app.
  */
 export function subscribeToUpdateTaps(open: () => void): () => void {
   if (!N) return () => {};
   let active = true;
 
-  const handle = (tap: { id: string } | null) => {
+  const handle = (tap: LunarTap | null, coldStart: boolean) => {
     if (!active || !tap || tap.id === handledTapId) return;
     handledTapId = tap.id;
+    void analytics.track(ANALYTICS_EVENTS.NOTIFICATION_OPENED, {
+      type: LUNAR_KIND,
+      cold_start: coldStart,
+      ...(tap.milestone ? { milestone: tap.milestone } : null),
+    });
     open();
   };
 
@@ -207,13 +296,13 @@ export function subscribeToUpdateTaps(open: () => void): () => void {
           // Best-effort: `handledTapId` still stops this session from replaying it.
         }
       }
-      handle(tap);
+      handle(tap, true);
     })
     .catch(() => {
       // No launch response to read — nothing to open.
     });
 
-  const sub = N.addNotificationResponseReceivedListener((response) => handle(lunarTap(response)));
+  const sub = N.addNotificationResponseReceivedListener((response) => handle(lunarTap(response), false));
   return () => {
     active = false;
     sub.remove();
@@ -270,7 +359,7 @@ async function rebuild(updates: PlannedUpdate[], epoch: number): Promise<void> {
           // Audible on the lock screen — four a month that nobody hears is four wasted. The
           // *foreground* handler is the one that stays silent.
           color: Colors.dark.accent,
-          data: { kind: LUNAR_KIND },
+          data: { kind: LUNAR_KIND, milestone: update.milestone },
           ...(moonUri ? { attachments: [{ identifier: update.assetKey, url: moonUri, type: 'public.png' }] } : null),
         },
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: update.at, channelId: CHANNEL_ID },

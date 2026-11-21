@@ -9,10 +9,12 @@ import { AuthBackdrop } from '@/components/auth/auth-backdrop';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { FormField } from '@/components/form-field';
 import { ThemedText } from '@/components/themed-text';
+import { ANALYTICS_EVENTS, type AuthMethod } from '@/constants/analytics';
 import { APP_NAME } from '@/constants/app';
 import { MaxContentWidth, Pressed, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { analytics, errorCode } from '@/lib/analytics';
 import { googleAuthAvailable, socialAuthAvailable } from '@/lib/social-auth';
 
 import type { ReactNode } from 'react';
@@ -33,6 +35,10 @@ const SUBMIT_LABELS: Record<Mode, string> = {
   forgot: 'Send reset code',
   reset: 'Update password',
 };
+
+/** Where the way in lost someone: the method, the form's mode, and a code — never the message. */
+const trackAuthFailed = (method: AuthMethod, mode: Mode, code: string) =>
+  void analytics.track(ANALYTICS_EVENTS.AUTH_FAILED, { method, mode, code });
 
 /**
  * The way in — and the app's first screen, so it is mostly photograph.
@@ -99,11 +105,12 @@ export default function SignInScreen() {
     setNotice(null);
     setSocialBusy(provider);
     try {
-      if (provider === 'apple') await signInWithApple();
-      else await signInWithGoogle();
+      const signedIn = provider === 'apple' ? await signInWithApple() : await signInWithGoogle();
       // On success, onAuthStateChange flips the root gate to (tabs). A cancel resolves as a
       // no-op (no error), so nothing is shown when the user backs out of the native sheet.
+      if (!signedIn) trackAuthFailed(provider, mode, 'cancelled');
     } catch (e) {
+      trackAuthFailed(provider, mode, errorCode(e));
       setError(e instanceof Error ? e.message : 'Sign-in failed');
     } finally {
       setSocialBusy(null);
@@ -170,6 +177,7 @@ export default function SignInScreen() {
         setMode('sign-in');
       }
     } catch (e) {
+      trackAuthFailed('email', mode, errorCode(e));
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setBusy(false);
