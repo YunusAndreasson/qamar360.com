@@ -1,11 +1,11 @@
 /**
  * Mixpanel configuration and the product events it may receive.
  *
- * No user identity is ever sent: events ride Mixpanel's anonymous device id, and no user id,
- * email, name, habit name or to-do title goes in as a property. Nor does anything that says which
- * practice someone keeps: no stack, template or preset id, no prayer-time anchor. A property says
- * how something was done (`source`, a count, a yes/no), never what. Mixpanel's own server-side IP
- * geolocation (city, region, country) is left on.
+ * No user identity is ever sent: events ride Mixpanel's anonymous device id and a random
+ * `install_id` made on the device, and no user id, email, name, habit name or to-do title goes in
+ * as a property. Nor does anything that says which practice someone keeps: no stack, template or
+ * preset id, no prayer-time anchor. A property says how something was done (`source`, a count, a
+ * yes/no), never what. Mixpanel's own server-side IP geolocation (city, region, country) is left on.
  */
 
 /** Unset in development and tests, where analytics is a silent no-op. */
@@ -19,6 +19,13 @@ export const ANALYTICS_EVENTS = {
   // `launch` cold (once per JS start, in the foreground) or warm (back after 30 s or more away).
   FIRST_OPEN: 'First Open',
   APP_OPENED: 'App Opened',
+
+  // Install attribution, read by marketer: the names (and `install_id`, `install_kind`,
+  // `referrer_0`, `referrer_1`, ...) are a contract, and renaming one breaks it without an error on
+  // either side. Each once per install, and only for an install that began with this code: Install
+  // Attribution (Android) carries the raw Play install referrer, Activated nothing at all.
+  INSTALL_ATTRIBUTION: 'Install Attribution',
+  ACTIVATED: 'Activated',
 
   // Authentication — `method` is the only property, plus `mode` and a `code` (never the message)
   // on a failure.
@@ -66,11 +73,25 @@ export const FIRST_TIME_EVENTS: readonly AnalyticsEventName[] = [
   ANALYTICS_EVENTS.STACK_CREATED,
 ];
 
+/**
+ * The event whose first occurrence on a new install is its activation, sent as `Activated` right
+ * after it. A proposal awaiting the owner's yes (plans/install-attribution-2026-11.md): the first
+ * habits added, i.e. setup done. Changing the activation moment is changing this line. `Activated`
+ * copies none of the trigger's properties, so whatever the trigger says stays on that event.
+ */
+export const ACTIVATION_TRIGGER: AnalyticsEventName = ANALYTICS_EVENTS.HABITS_ADDED;
+
 /** Habits on Today, in the buckets the boards segment by. '0' on Today is the empty state. */
 export type HabitCountBucket = '0' | '1-3' | '4-9' | '10+';
 
 /** Properties sent with every event, kept by `analytics.register` across `reset`. */
 export type SuperProperties = {
+  /**
+   * A random UUID made once per install and kept on the device: the one join between an install's
+   * events (and its Play referrer) for marketer. Mixpanel only; never Sentry, Supabase or anyone
+   * else. Set by `analytics` itself, never through `register`.
+   */
+  install_id?: string;
   /** The local day of the install's First Open, YYYY-MM-DD. Unset on an install that predates it. */
   install_date?: string;
   /** Lunar updates switched on AND allowed by the OS: whether the app can reach this person. */

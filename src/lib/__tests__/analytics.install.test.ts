@@ -74,24 +74,25 @@ describe('First Open', () => {
     const first = launch();
     await first.firstOpen(false);
     await first.firstOpen(false);
-    expect(sent(ANALYTICS_EVENTS.FIRST_OPEN)).toEqual([{ existing_install: false }]);
+    expect(sent(ANALYTICS_EVENTS.FIRST_OPEN)).toEqual([{ existing_install: false, install_kind: 'new' }]);
     expect(mockRegistered).toContainEqual({ install_date: '2026-11-21' });
 
     const next = launch();
     await next.firstOpen(false);
     await next.track(ANALYTICS_EVENTS.SCREEN_VIEWED, { screen: '/habits' });
     expect(sent(ANALYTICS_EVENTS.FIRST_OPEN)).toHaveLength(1);
-    expect(mockInits.at(-1)).toEqual({ install_date: '2026-11-21' });
+    expect(mockInits.at(-1)).toEqual({ install_date: '2026-11-21', install_id: expect.any(String) });
   });
 
   test('an install that already held a session is an update: no install_date, and nothing it does is first', async () => {
     const analytics = launch();
     await analytics.firstOpen(true);
     await analytics.track(ANALYTICS_EVENTS.HABIT_COMPLETED, { today: true });
-    expect(sent(ANALYTICS_EVENTS.FIRST_OPEN)).toEqual([{ existing_install: true }]);
+    expect(sent(ANALYTICS_EVENTS.FIRST_OPEN)).toEqual([{ existing_install: true, install_kind: 'existing' }]);
     expect(sent(ANALYTICS_EVENTS.HABIT_COMPLETED)).toEqual([{ today: true, first_time: false }]);
     await launch().track(ANALYTICS_EVENTS.SCREEN_VIEWED, { screen: '/habits' });
-    expect(mockInits).toEqual([{}, {}]);
+    const noCohort = { install_id: expect.any(String) };
+    expect(mockInits).toEqual([noCohort, noCohort]);
     expect(mockRegistered).not.toContainEqual(expect.objectContaining({ install_date: expect.anything() }));
   });
 });

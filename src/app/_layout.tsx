@@ -103,8 +103,9 @@ const trackOpen = (launch: 'cold' | 'warm') =>
   void syncNotificationsEnabled().then(() => analytics.track(ANALYTICS_EVENTS.APP_OPENED, { launch }));
 
 /**
- * The opens: `First Open` once per install, and `App Opened` — the boards' "active" — once per JS
- * start and again for every return from the background after {@link WARM_OPEN_AFTER_MS}.
+ * The opens: `First Open` (and on Android `Install Attribution`) once per install, and `App Opened`
+ * — the boards' "active" — once per JS start and again for every return from the background after
+ * {@link WARM_OPEN_AFTER_MS}.
  *
  * Both wait for the session to be known (whether one was stored is what `existing_install` says)
  * and for the app to be in the foreground: a JS start the OS made in the background is not an open,
@@ -113,7 +114,10 @@ const trackOpen = (launch: 'cold' | 'warm') =>
  */
 function AppOpens() {
   const { session, initialized } = useAuth();
-  const firstOpen = useEffectEvent(() => void analytics.firstOpen(session !== null));
+  // Install Attribution after First Open: it is owed only by an install whose First Open said new.
+  const firstOpen = useEffectEvent(
+    () => void analytics.firstOpen(session !== null).then(() => analytics.attributeInstall()),
+  );
 
   useEffect(() => {
     if (!initialized) return;

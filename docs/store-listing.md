@@ -90,7 +90,9 @@ No tracking, no ads. Mixpanel (anonymous usage events, EU) and Sentry (crash
 reports, US) are in the app; neither gets a user id or email, and there is no
 opt-out in the app. Data is encrypted in transit, and the user can delete
 account data in the app (Settings > Delete account). Mixpanel and Sentry act as
-processors, so on Play their data is collected, not shared.
+processors, so on Play their data is collected, not shared. Mixpanel events also
+carry a random installation ID, and on Android the app sends once which link or
+ad the Play Store says brought the install.
 
 | Data | Apple type | Play type | Purpose | Linked | Optional |
 | --- | --- | --- | --- | --- | --- |
@@ -104,7 +106,7 @@ processors, so on Play their data is collected, not shared.
 | Crash logs, stack traces (Sentry) | Diagnostics › Crash Data | App info and performance › Crash logs | App functionality | no | no |
 | Load timings from sampled sessions (Sentry) | Diagnostics › Performance Data | App info and performance › Diagnostics | App functionality | no | no |
 | Phone model, OS, app version (Mixpanel, Sentry) | Diagnostics › Other Diagnostic Data | App info and performance › Other app performance data | Analytics, App functionality | no | no |
-| Random anonymous id (Mixpanel) | Identifiers › Device ID | Device or other IDs | Analytics | no | no |
+| Random anonymous ids: Mixpanel's, and the installation ID (Mixpanel) | Identifiers › Device ID | Device or other IDs | Analytics | no | no |
 
 Not collected: precise location, contacts, health, financial info, browsing,
 search, device ids for tracking.

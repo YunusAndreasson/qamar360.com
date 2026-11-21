@@ -20,8 +20,10 @@ import { Site } from '#/site'
  *     identify, no people profile, automatic events off, `reset` on sign-out and account deletion;
  *     the events and their properties are `ANALYTICS_EVENTS` (typed per event) and the
  *     `analytics.track` / `analytics.register` calls (grep src/ for `analytics.`); super properties
- *     are install_date, signed_in, notifications_enabled and a habit_count range. No preset,
- *     template or stack id is ever sent. No opt-out switch.
+ *     are install_id (a random UUID kept on the device, never sent to Sentry or the backend),
+ *     install_date, signed_in, notifications_enabled and a habit_count range. On Android, `Install
+ *     Attribution` sends the Play install referrer once per new install. No preset, template or
+ *     stack id is ever sent. No opt-out switch.
  *   crash reports: Sentry, ingest.us.sentry.io (src/lib/sentry.ts): no screenshots, view
  *     hierarchy, network or console breadcrumbs; `beforeSend` drops user, request and extra.
  *   no ads or tracking SDKs in package.json. Database in Supabase eu-central-1.
@@ -76,12 +78,16 @@ function Privacy() {
         notification, and actions such as adding, completing, skipping or deleting a habit or stack.
         Each event also carries the day the app was first opened, whether notifications are on, and
         roughly how many habits you keep (a range, such as 1–3). It sends counts, never the names of
-        habits or to-dos and never which ready-made habits or stacks you chose. Events are linked to a random identifier created on your phone, not to your account,
-        email address or name. The Mixpanel library adds the phone model, operating system and app
-        version. Mixpanel derives an approximate city, region and country from the IP address of
-        each request. The app does not send your location. The data is stored in the EU and is used
-        to understand how the app is used and to improve it. Signing out or deleting your account
-        resets the identifier. There is no setting in the app to turn this off.
+        habits or to-dos and never which ready-made habits or stacks you chose. Events are linked to
+        a random identifier created on your phone, not to your account, email address or name. They
+        also carry a random installation ID, and on Android the app sends once which link or ad the
+        Play Store says brought the install, so I can tell which links and ads bring people to the
+        app. The Mixpanel library adds the phone model, operating system and app version. Mixpanel
+        derives an approximate city, region and country from the IP address of each request. The
+        app does not send your location. The data is stored in the EU and is used to understand how
+        the app is used and to improve it. Signing out or deleting your account resets the first
+        identifier; the installation ID stays until you remove the app. There is no setting in the
+        app to turn this off.
       </p>
 
       <h2>Crash reports</h2>

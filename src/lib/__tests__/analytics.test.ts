@@ -53,7 +53,7 @@ describe('analytics', () => {
 
   test('the API surface is the one the app uses, and nothing that could identify anyone', () => {
     expect(Object.keys(analytics).sort()).toEqual(
-      ['firstOpen', 'register', 'reset', 'track', 'trackOnce', 'trackSignIn', 'trackSignOut', 'trackSignUp'].sort(),
+      ['attributeInstall', 'firstOpen', 'register', 'reset', 'track', 'trackOnce', 'trackSignIn', 'trackSignOut', 'trackSignUp'].sort(),
     );
   });
 
