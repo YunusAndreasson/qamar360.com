@@ -94,7 +94,10 @@
         {
           "url": "https://sentry.io/",
           "project": "qamar360",
-          "organization": "openarabic"
+          "organization": "openarabic",
+          "experimental_android": {
+            "enableAndroidGradlePlugin": true
+          }
         }
       ]
     ],
