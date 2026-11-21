@@ -18,8 +18,10 @@ import { Site } from '#/site'
  *     user, which cascades to every row.
  *   usage events: Mixpanel, EU residency (src/constants/analytics.ts, src/lib/analytics.ts), no
  *     identify, no people profile, automatic events off, `reset` on sign-out and account deletion;
- *     the events and their properties are `ANALYTICS_EVENTS` and the `analytics.track` calls in
- *     src/app/_layout.tsx, src/hooks/use-auth.tsx and src/hooks/use-habits.tsx. No opt-out switch.
+ *     the events and their properties are `ANALYTICS_EVENTS` (typed per event) and the
+ *     `analytics.track` / `analytics.register` calls (grep src/ for `analytics.`); super properties
+ *     are install_date, signed_in, notifications_enabled and a habit_count range. No preset,
+ *     template or stack id is ever sent. No opt-out switch.
  *   crash reports: Sentry, ingest.us.sentry.io (src/lib/sentry.ts): no screenshots, view
  *     hierarchy, network or console breadcrumbs; `beforeSend` drops user, request and extra.
  *   no ads or tracking SDKs in package.json. Database in Supabase eu-central-1.
@@ -69,9 +71,12 @@ function Privacy() {
 
       <h2>Usage data</h2>
       <p>
-        The app sends usage events to Mixpanel: which screens are opened, signing in and out, and a
-        few actions such as adding or completing a habit, with counts but not the names of habits or
-        to-dos. Events are linked to a random identifier created on your phone, not to your account,
+        The app sends usage events to Mixpanel: opening the app and which screens are opened,
+        signing up, in and out, your answer when the app asks to send notifications, opening a
+        notification, and actions such as adding, completing, skipping or deleting a habit or stack.
+        Each event also carries the day the app was first opened, whether notifications are on, and
+        roughly how many habits you keep (a range, such as 1–3). It sends counts, never the names of
+        habits or to-dos and never which ready-made habits or stacks you chose. Events are linked to a random identifier created on your phone, not to your account,
         email address or name. The Mixpanel library adds the phone model, operating system and app
         version. Mixpanel derives an approximate city, region and country from the IP address of
         each request. The app does not send your location. The data is stored in the EU and is used
